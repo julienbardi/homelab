@@ -1,0 +1,76 @@
+# === Logs & runtime output ===
+# Ignore log files and runtime artifacts that should never be versioned
+# Source: https://git-scm.com/docs/gitignore
+*.log
+*.tmp
+*.bak
+*.swp
+*.pid
+
+# === FreeFileSync databases & temp files ===
+# FreeFileSync creates sync databases (.ffs_db), temp files (.ffs_tmp), and lock files (.ffs_lock)
+# Source: https://freefilesync.org/manual.php?topic=hidden-settings#ignore
+*.ffs_db
+*.ffs_tmp
+*.ffs_lock
+
+# === Systemd units (deployed copies, not source templates) ===
+# We generate/manage .service files dynamically on the host, so don’t track them here
+# Source: https://www.freedesktop.org/software/systemd/man/systemd.unit.html
+*.service
+
+# === OS-specific junk ===
+# macOS Finder metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows Explorer metadata
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux temp files
+*~
+.nfs*
+
+# === Android build artifacts ===
+# Ignore Android package and build outputs
+# Source: https://developer.android.com/studio/build
+*.apk
+*.ap_
+*.dex
+*.obb
+
+# === IDE / Editor artifacts ===
+# Ignore project settings from common IDEs
+# Source: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
+.vscode/
+.idea/
+*.iml
+
+# === NAS quirks (QNAP, Synology, Ugreen) ===
+# Synology and QNAP create hidden directories for indexing and sync
+# Source: https://kb.synology.com/en-global/DSM/tutorial/What_is_the_EA_Dir_folder
+@eaDir/
+.SynologyWorkingDirectory/
+*.qpkg
+*.qsync
+*.tmp.*
+
+# === Archive files (optional) ===
+# Ignore compressed archives if you don’t want to track them
+*.tar
+*.gz
+*.zip
+*.7z
+*.rar
+
+# === Node/Python (future-proofing) ===
+# Ignore common dependency caches
+# Source: https://github.com/github/gitignore
+node_modules/
+__pycache__/
+*.pyc
+
