@@ -212,14 +212,15 @@ else
   echo "[INFO] NAT rule already present for $WG_SUBNET → $LAN_SUBNET"
 fi
 
-# Internet access (VPN → WAN via default interface)
+# Internet access (VPN → WAN via default interface, excluding LAN)
 WAN_IFACE=$(ip route | awk '/^default/ {print $5; exit}')
-if ! iptables -t nat -C POSTROUTING -s "$WG_SUBNET" -o "$WAN_IFACE" -j MASQUERADE 2>/dev/null; then
-  iptables -t nat -A POSTROUTING -s "$WG_SUBNET" -o "$WAN_IFACE" -j MASQUERADE
+if ! iptables -t nat -C POSTROUTING -s "$WG_SUBNET" ! -d "$LAN_SUBNET" -o "$WAN_IFACE" -j MASQUERADE 2>/dev/null; then
+  iptables -t nat -A POSTROUTING -s "$WG_SUBNET" ! -d "$LAN_SUBNET" -o "$WAN_IFACE" -j MASQUERADE
   echo "[INFO] Added NAT rule for $WG_SUBNET → Internet via $WAN_IFACE"
 else
   echo "[INFO] NAT rule already present for $WG_SUBNET → Internet via $WAN_IFACE"
 fi
+
 
 # --- Ensure systemd unit exists ----------------------------------------------
 SERVICE_CONTENT=$(cat <<EOF
