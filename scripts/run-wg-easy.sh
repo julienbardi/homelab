@@ -221,6 +221,23 @@ else
   echo "[INFO] NAT rule already present for $WG_SUBNET → Internet via $WAN_IFACE"
 fi
 
+# --- Forwarding rules for VPN clients ----------------------------------------
+
+# Allow VPN → LAN
+if ! iptables -C FORWARD -i wg0 -o "$LAN_IFACE" -s "$WG_SUBNET" -d "$LAN_SUBNET" -j ACCEPT 2>/dev/null; then
+  iptables -A FORWARD -i wg0 -o "$LAN_IFACE" -s "$WG_SUBNET" -d "$LAN_SUBNET" -j ACCEPT
+  echo "[INFO] Added FORWARD rule: $WG_SUBNET → $LAN_SUBNET via $LAN_IFACE"
+else
+  echo "[INFO] FORWARD rule already present for VPN → LAN"
+fi
+
+# Allow LAN → VPN (for replies)
+if ! iptables -C FORWARD -i "$LAN_IFACE" -o wg0 -s "$LAN_SUBNET" -d "$WG_SUBNET" -j ACCEPT 2>/dev/null; then
+  iptables -A FORWARD -i "$LAN_IFACE" -o wg0 -s "$LAN_SUBNET" -d "$WG_SUBNET" -j ACCEPT
+  echo "[INFO] Added FORWARD rule: $LAN_SUBNET → $WG_SUBNET via wg0"
+else
+  echo "[INFO] FORWARD rule already present for LAN → VPN"
+fi
 
 # --- Ensure systemd unit exists ----------------------------------------------
 SERVICE_CONTENT=$(cat <<EOF
