@@ -26,14 +26,15 @@ sudo setup-subnet-router.sh
 
 # Remove service
 sudo setup-subnet-router.sh --remove
+````
 
-
-##Repo Structure
+## Repo Structure
+ ```bash
 homelab/
 ├── scripts/        # Automation scripts (currently only setup-subnet-router.sh)
 ├── .gitignore      # Ignore rules for logs, temp files, NAS sync dbs, etc.
 └── README.md       # Project overview and usage
-
+````
 
 ---
 
@@ -43,3 +44,4 @@ homelab/
    ```bash
    cd ~/homelab
    nano README.md
+   ````
