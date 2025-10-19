@@ -72,8 +72,8 @@ if [[ "$MODE" == "remove" ]]; then
     echo "[INFO] Removed NAT rule for $WG_SUBNET → $LAN_SUBNET"
   fi
 
-  rm -f "$ENV_FILE"
-  rm -rf "$WG_VOLUME"
+  rm -f "$ENV_FILE"    # password wg-easy
+  #rm -rf "$WG_VOLUME"  #client configurations
 
   if [[ -f "$SERVICE_FILE" ]]; then
     systemctl stop wg-easy.service || true
