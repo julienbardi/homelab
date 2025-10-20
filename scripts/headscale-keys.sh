@@ -22,6 +22,11 @@ usage() {
 }
 
 check_tls_cert() {
+  if [[ "$PORT" == "80" ]]; then
+    echo "Skipping TLS certificate check (HTTP mode on port 80)"
+    return
+  fi
+
   echo "Checking TLS certificate for https://$HOST:$PORT ..."
   if ! timeout 5 openssl s_client -connect ${HOST}:${PORT} -servername ${HOST} </dev/null 2>/dev/null \
      | openssl x509 -noout -dates -subject >/tmp/headscale-cert.$$; then
@@ -40,6 +45,7 @@ check_tls_cert() {
   echo "TLS certificate valid until: $notAfter"
   rm -f /tmp/headscale-cert.$$
 }
+
 
 cmd="${1:-}"
 arg="${2:-}"
