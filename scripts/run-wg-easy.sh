@@ -60,6 +60,27 @@ LAN_IFACE="bridge0"
 SERVICE_FILE="/etc/systemd/system/wg-easy.service"
 TS_UP_SERVICE="/etc/systemd/system/tailscale-up.service"
 
+# Expected content of tailscale-up.service (used for deploy + check)
+TS_UP_CONTENT=$(cat <<'EOF'
+[Unit]
+Description=Configure Tailscale with exit node + subnet routes
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/tailscale up \
+  --advertise-exit-node \
+  --advertise-routes=192.168.50.0/24 \
+  --accept-dns=false \
+  --accept-routes
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+)
+
 DEPLOYED_SCRIPT="/usr/local/bin/run-wg-easy.sh"
 SCRIPT_VERSION="v2.4"
 
@@ -395,26 +416,6 @@ if [[ ! -f "$SERVICE_FILE" ]] || ! cmp -s <(echo "$SERVICE_CONTENT") "$SERVICE_F
 fi
 
 # --- Ensure tailscale-up.service exists and is correct -----------------------
-TS_UP_CONTENT=$(cat <<'EOF'
-[Unit]
-Description=Configure Tailscale with exit node + subnet routes
-After=network-online.target tailscaled.service
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/tailscale up \
-  --advertise-exit-node \
-  --advertise-routes=192.168.50.0/24 \
-  --accept-dns=false \
-  --accept-routes
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-)
-
 if [[ ! -f "$TS_UP_SERVICE" ]] || ! cmp -s <(echo "$TS_UP_CONTENT") "$TS_UP_SERVICE"; then
   echo "$TS_UP_CONTENT" > "$TS_UP_SERVICE"
   systemctl daemon-reload
