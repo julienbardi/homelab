@@ -1,7 +1,15 @@
 #!/bin/bash
 # run-wg-easy.sh — Deploy and manage wg-easy VPN container with systemd integration
 # Author: Julien & Copilot
-# Version: v2.2
+# Version: v2.4
+#
+# Changelog v2.3:
+#   - Added NAT + FORWARD rules for Tailscale subnet (100.64.0.0/10) via tailscale0
+#   - Keeps WireGuard + Tailscale treated identically for LAN + Internet breakout
+# Changelog v2.4:
+#   - Added generation and conditional enabling of /etc/systemd/system/tailscale-up.service
+#   - Service auto‑recreated if missing or tampered
+#   - Extended --check mode to verify tailscale-up.service integrity and status
 #
 # Usage:
 #   run-wg-easy.sh
@@ -43,12 +51,17 @@ done
 ENV_DIR="/etc/wg-easy"
 ENV_FILE="$ENV_DIR/wg-easy.env"
 WG_VOLUME="/var/lib/wg-easy"
-LAN_IFACE="bridge0"
+
 WG_SUBNET="10.7.0.0/24"
+TS_SUBNET="100.64.0.0/10"
+TS_IFACE="tailscale0"
 LAN_SUBNET="192.168.50.0/24"
+LAN_IFACE="bridge0"
 SERVICE_FILE="/etc/systemd/system/wg-easy.service"
+TS_UP_SERVICE="/etc/systemd/system/tailscale-up.service"
+
 DEPLOYED_SCRIPT="/usr/local/bin/run-wg-easy.sh"
-SCRIPT_VERSION="v2.2"
+SCRIPT_VERSION="v2.4"
 
 # --- Argument parsing --------------------------------------------------------
 MODE="deploy"
@@ -128,40 +141,111 @@ fi
 
 # --- CHECK MODE --------------------------------------------------------------
 if [[ "$MODE" == "check" ]]; then
-  echo "[CHECK] wg-easy health report"
+  echo "[CHECK] wg-easy + Tailscale health report"
 
   OK_COUNT=0; WARN_COUNT=0; ERR_COUNT=0
 
+  # Env file check
   if [[ -f "$ENV_FILE" ]] && grep -q "^PASSWORD_HASH=" "$ENV_FILE"; then
     echo " [✔] Env file present at $ENV_FILE with PASSWORD_HASH"; ((OK_COUNT++))
   else
     echo " [✘] Env file missing or incomplete ($ENV_FILE)"; ((ERR_COUNT++))
   fi
 
+  # WireGuard NAT check
   if iptables -t nat -C POSTROUTING -s "$WG_SUBNET" -d "$LAN_SUBNET" -o "$LAN_IFACE" -j MASQUERADE 2>/dev/null; then
     echo " [✔] NAT rule present for $WG_SUBNET → $LAN_SUBNET via $LAN_IFACE"; ((OK_COUNT++))
   else
     echo " [!] NAT rule missing for $WG_SUBNET → $LAN_SUBNET"; ((WARN_COUNT++))
   fi
+  if iptables -t nat -C POSTROUTING -s "$WG_SUBNET" ! -d "$LAN_SUBNET" -o "$WAN_IFACE" -j MASQUERADE 2>/dev/null; then
+    echo " [✔] NAT rule present for $WG_SUBNET → Internet via $WAN_IFACE"; ((OK_COUNT++))
+  else
+    echo " [!] NAT rule missing for $WG_SUBNET → Internet via $WAN_IFACE"; ((WARN_COUNT++))
+  fi
 
+  # Tailscale NAT check
+  if iptables -t nat -C POSTROUTING -s "$TS_SUBNET" -d "$LAN_SUBNET" -o "$LAN_IFACE" -j MASQUERADE 2>/dev/null; then
+    echo " [✔] NAT rule present for $TS_SUBNET → $LAN_SUBNET via $LAN_IFACE"; ((OK_COUNT++))
+  else
+    echo " [!] NAT rule missing for $TS_SUBNET → $LAN_SUBNET"; ((WARN_COUNT++))
+  fi
+  if iptables -t nat -C POSTROUTING -s "$TS_SUBNET" ! -d "$LAN_SUBNET" -o "$WAN_IFACE" -j MASQUERADE 2>/dev/null; then
+    echo " [✔] NAT rule present for $TS_SUBNET → Internet via $WAN_IFACE"; ((OK_COUNT++))
+  else
+    echo " [!] NAT rule missing for $TS_SUBNET → Internet via $WAN_IFACE"; ((WARN_COUNT++))
+  fi
+
+  # WireGuard FORWARD check
+  if iptables -C FORWARD -i wg0 -o "$LAN_IFACE" -s "$WG_SUBNET" -d "$LAN_SUBNET" -j ACCEPT 2>/dev/null; then
+    echo " [✔] FORWARD rule present for $WG_SUBNET → $LAN_SUBNET via $LAN_IFACE"; ((OK_COUNT++))
+  else
+    echo " [!] FORWARD rule missing for $WG_SUBNET → $LAN_SUBNET"; ((WARN_COUNT++))
+  fi
+  if iptables -C FORWARD -i "$LAN_IFACE" -o wg0 -s "$LAN_SUBNET" -d "$WG_SUBNET" -j ACCEPT 2>/dev/null; then
+    echo " [✔] FORWARD rule present for $LAN_SUBNET → $WG_SUBNET via wg0"; ((OK_COUNT++))
+  else
+    echo " [!] FORWARD rule missing for $LAN_SUBNET → $WG_SUBNET"; ((WARN_COUNT++))
+  fi
+
+  # Tailscale FORWARD check
+  if iptables -C FORWARD -i "$TS_IFACE" -o "$LAN_IFACE" -s "$TS_SUBNET" -d "$LAN_SUBNET" -j ACCEPT 2>/dev/null; then
+    echo " [✔] FORWARD rule present for $TS_SUBNET → $LAN_SUBNET via $LAN_IFACE"; ((OK_COUNT++))
+  else
+    echo " [!] FORWARD rule missing for $TS_SUBNET → $LAN_SUBNET"; ((WARN_COUNT++))
+  fi
+  if iptables -C FORWARD -i "$LAN_IFACE" -o "$TS_IFACE" -s "$LAN_SUBNET" -d "$TS_SUBNET" -j ACCEPT 2>/dev/null; then
+    echo " [✔] FORWARD rule present for $LAN_SUBNET → $TS_SUBNET via $TS_IFACE"; ((OK_COUNT++))
+  else
+    echo " [!] FORWARD rule missing for $LAN_SUBNET → $TS_SUBNET"; ((WARN_COUNT++))
+  fi
+
+  # Container + service checks
   if docker ps --format '{{.Names}}' | grep -q "^wg-easy$"; then
     echo " [✔] wg-easy container is running"; ((OK_COUNT++))
   else
     echo " [!] wg-easy container not running"; ((WARN_COUNT++))
   fi
-
   if systemctl is-active --quiet wg-easy.service; then
     echo " [✔] wg-easy.service is active"; ((OK_COUNT++))
   else
     echo " [!] wg-easy.service is inactive"; ((WARN_COUNT++))
   fi
 
+  # tailscale-up.service integrity check
+  if [[ -f "$TS_UP_SERVICE" ]]; then
+    if cmp -s <(echo "$TS_UP_CONTENT") "$TS_UP_SERVICE"; then
+      echo " [✔] tailscale-up.service matches expected content"; ((OK_COUNT++))
+    else
+      echo " [✘] tailscale-up.service has been modified"; ((ERR_COUNT++))
+    fi
+  else
+    echo " [✘] tailscale-up.service missing"; ((ERR_COUNT++))
+  fi
+
+  if systemctl is-enabled --quiet tailscale-up.service; then
+    echo " [✔] tailscale-up.service is enabled"; ((OK_COUNT++))
+  else
+    echo " [!] tailscale-up.service not enabled"; ((WARN_COUNT++))
+  fi
+
+  if systemctl is-active --quiet tailscale-up.service; then
+    echo " [✔] tailscale-up.service is active"; ((OK_COUNT++))
+  else
+    echo " [!] tailscale-up.service is inactive"; ((WARN_COUNT++))
+  fi
+
   echo " [ℹ] Last log entry:"
   journalctl -u wg-easy.service -n 1 --no-pager || echo " [!] No logs found"
 
-  echo; echo "[SUMMARY] OK: $OK_COUNT, WARN: $WARN_COUNT, ERR: $ERR_COUNT"
+  echo
+  echo "[SUMMARY] OK: $OK_COUNT, WARN: $WARN_COUNT, ERR: $ERR_COUNT"
+  if [[ $WARN_COUNT -eq 0 && $ERR_COUNT -eq 0 ]]; then
+    echo "[✔] WireGuard + Tailscale routing verified"
+  fi
   exit 0
 fi
+
 
 # --- Ensure deployed script is up-to-date ------------------------------------
 if ! cmp -s "$0" "$DEPLOYED_SCRIPT"; then
@@ -221,6 +305,24 @@ else
   echo "[INFO] NAT rule already present for $WG_SUBNET → Internet via $WAN_IFACE"
 fi
 
+# --- NAT rules for Tailscale clients -----------------------------------------
+
+# LAN access (Tailscale → LAN subnet)
+if ! iptables -t nat -C POSTROUTING -s "$TS_SUBNET" -d "$LAN_SUBNET" -o "$LAN_IFACE" -j MASQUERADE 2>/dev/null; then
+  iptables -t nat -A POSTROUTING -s "$TS_SUBNET" -d "$LAN_SUBNET" -o "$LAN_IFACE" -j MASQUERADE
+  echo "[INFO] Added NAT rule for $TS_SUBNET → $LAN_SUBNET via $LAN_IFACE"
+else
+  echo "[INFO] NAT rule already present for $TS_SUBNET → $LAN_SUBNET"
+fi
+
+# Internet access (Tailscale → WAN, excluding LAN)
+if ! iptables -t nat -C POSTROUTING -s "$TS_SUBNET" ! -d "$LAN_SUBNET" -o "$WAN_IFACE" -j MASQUERADE 2>/dev/null; then
+  iptables -t nat -A POSTROUTING -s "$TS_SUBNET" ! -d "$LAN_SUBNET" -o "$WAN_IFACE" -j MASQUERADE
+  echo "[INFO] Added NAT rule for $TS_SUBNET → Internet via $WAN_IFACE"
+else
+  echo "[INFO] NAT rule already present for $TS_SUBNET → Internet via $WAN_IFACE"
+fi
+
 # --- Forwarding rules for VPN clients ----------------------------------------
 
 # Allow VPN → LAN
@@ -238,6 +340,25 @@ if ! iptables -C FORWARD -i "$LAN_IFACE" -o wg0 -s "$LAN_SUBNET" -d "$WG_SUBNET"
 else
   echo "[INFO] FORWARD rule already present for LAN → VPN"
 fi
+
+# --- Forwarding rules for Tailscale clients ----------------------------------
+
+# Allow Tailscale → LAN
+if ! iptables -C FORWARD -i "$TS_IFACE" -o "$LAN_IFACE" -s "$TS_SUBNET" -d "$LAN_SUBNET" -j ACCEPT 2>/dev/null; then
+  iptables -A FORWARD -i "$TS_IFACE" -o "$LAN_IFACE" -s "$TS_SUBNET" -d "$LAN_SUBNET" -j ACCEPT
+  echo "[INFO] Added FORWARD rule: $TS_SUBNET → $LAN_SUBNET via $LAN_IFACE"
+else
+  echo "[INFO] FORWARD rule already present for Tailscale → LAN"
+fi
+
+# Allow LAN → Tailscale (for replies)
+if ! iptables -C FORWARD -i "$LAN_IFACE" -o "$TS_IFACE" -s "$LAN_SUBNET" -d "$TS_SUBNET" -j ACCEPT 2>/dev/null; then
+  iptables -A FORWARD -i "$LAN_IFACE" -o "$TS_IFACE" -s "$LAN_SUBNET" -d "$TS_SUBNET" -j ACCEPT
+  echo "[INFO] Added FORWARD rule: $LAN_SUBNET → $TS_SUBNET via $TS_IFACE"
+else
+  echo "[INFO] FORWARD rule already present for LAN → Tailscale"
+fi
+
 
 # --- Ensure systemd unit exists ----------------------------------------------
 SERVICE_CONTENT=$(cat <<EOF
@@ -271,6 +392,37 @@ if [[ ! -f "$SERVICE_FILE" ]] || ! cmp -s <(echo "$SERVICE_CONTENT") "$SERVICE_F
   systemctl daemon-reload
   systemctl enable wg-easy.service
   echo "[INFO] Installed/updated systemd unit at $SERVICE_FILE"
+fi
+
+# --- Ensure tailscale-up.service exists and is correct -----------------------
+TS_UP_CONTENT=$(cat <<'EOF'
+[Unit]
+Description=Configure Tailscale with exit node + subnet routes
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/tailscale up \
+  --advertise-exit-node \
+  --advertise-routes=192.168.50.0/24 \
+  --accept-dns=false \
+  --accept-routes
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+)
+
+if [[ ! -f "$TS_UP_SERVICE" ]] || ! cmp -s <(echo "$TS_UP_CONTENT") "$TS_UP_SERVICE"; then
+  echo "$TS_UP_CONTENT" > "$TS_UP_SERVICE"
+  systemctl daemon-reload
+  systemctl enable tailscale-up.service
+  systemctl restart tailscale-up.service
+  echo "[INFO] Installed/updated $TS_UP_SERVICE and (re)started service"
+else
+  echo "[INFO] tailscale-up.service already present and correct"
 fi
 
 # --- Ensure service is running -----------------------------------------------
