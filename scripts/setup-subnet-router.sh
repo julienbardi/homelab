@@ -1,157 +1,173 @@
-#!/bin/bash
-# setup-subnet-router.sh — Subnet router setup with systemd integration
-# Author: Julien & Copilot
-# Version: v2.0
-#
-# Usage:
-#   setup-subnet-router.sh [--dry-run]
-#   setup-subnet-router.sh --remove
-#
-# Description:
-#   - Detects LAN subnets (excluding Docker conflicts)
-#   - Configures NAT, dnsmasq, Tailscale route advertisement, GRO tuning
-#   - Logs to /var/log/setup-subnet-router.log with Git commit hash if available
-#   - Auto‑creates and enables setup-subnet-router.service if missing
-
+#!/usr/bin/env bash
 set -euo pipefail
 
-NAME="setup-subnet-router"
-SERVICE_PATH="/etc/systemd/system/${NAME}.service"
-LOG_FILE="/var/log/${NAME}.log"
-DRY_RUN=false
-REMOVE=false
+# =============================================================================
+# setup-subnet-router.sh
+#
+# Purpose:
+#   Configure this NAS as a Tailscale subnet router and authoritative DNS
+#   forwarder for the homelab. Ensures idempotent setup of dnsmasq configs,
+#   NAT rules, GRO tuning, and DNS mappings for both IPv4 and IPv6.
+#
+# IPv6 handling:
+#   - Detects the current global IPv6 prefix delegated by ISP on LAN_IF (eth0).
+#   - Always assigns ::4 inside that prefix to the NAS (e.g. …::4/64).
+#   - If no global prefix is detected, falls back to default root:
+#       2a01:8b81:4800:9c00 (hardcoded from your ISP’s current prefix).
+#   - This ensures nas.bardi.ch resolves to both IPv4 (192.168.50.4)
+#     and IPv6 (2a01:8b81:4800:9c00::4).
+#
+# Notes:
+#   - ISP prefixes can change dynamically, like WAN IPv4 addresses.
+#   - This script is idempotent: re-running adapts to new prefixes automatically.
+#   - LAN_IF is assumed to be eth0; adjust if different.
+# =============================================================================
 
-# Detect Git commit if inside repo
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  GIT_COMMIT=$(git rev-parse --short HEAD)
-else
-  GIT_COMMIT="no-git"
+SCRIPT_NAME="setup-subnet-router"
+SCRIPT_VERSION="v4.2"
+
+# === Logging ===
+log() {
+  local ts; ts="$(date '+%Y-%m-%d %H:%M:%S')"
+  echo "${ts} | [${SCRIPT_NAME}][${SCRIPT_VERSION}] $*"
+  echo "${ts} | [${SCRIPT_NAME}][${SCRIPT_VERSION}] $*" | systemd-cat -t "${SCRIPT_NAME}"
+}
+
+RUN_TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S')"
+TAILSCALE_IF="tailscale0"
+LAN_IF="eth0"
+NAS_LAN_IPv4="192.168.50.4"
+LAN_SUBNETS="192.168.50.0/24"
+
+# Default ISP prefix root (used if detection fails)
+IPV6_PREFIX_DEFAULT="2a01:8b81:4800:9c00"
+IPV6_HOST_ID="4"
+
+# Root check
+if [[ "${EUID}" -ne 0 ]]; then
+  log "ℹ️ Elevation requested — re-exec with sudo."
+  exec sudo -E bash "$0" "$@"
 fi
 
-log() { echo "$(date '+%F %T') | [$NAME][$GIT_COMMIT] $1" | tee -a "$LOG_FILE"; }
+log "SUBNET-ROUTER-BOOT: version=${SCRIPT_VERSION} timestamp=${RUN_TIMESTAMP} subnets=${LAN_SUBNETS}"
 
-# === Service management ===
-create_service() {
-  UNIT="[Unit]
-Description=$NAME service
-After=network.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/${NAME}.sh
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target"
-
-  if [ ! -f "$SERVICE_PATH" ]; then
-    log "Creating $NAME.service"
-    $DRY_RUN || echo "$UNIT" | sudo tee "$SERVICE_PATH" > /dev/null
-    $DRY_RUN || sudo systemctl enable "$NAME.service"
+# === Detect IPv6 prefix ===
+detect_prefix() {
+  local addr
+  addr="$(ip -6 addr show dev "${LAN_IF}" | awk '/inet6/ && $2 ~ /64/ && $2 !~ /^fe80/ {print $2}' | head -n1 | cut -d/ -f1 || true)"
+  if [[ -n "${addr}" ]]; then
+    echo "${addr}" | awk -F: '{print $1":"$2":"$3":"$4}'
   else
-    log "$NAME.service already exists"
+    echo "${IPV6_PREFIX_DEFAULT}"
   fi
 }
 
-remove_service() {
-  log "Removing $NAME.service"
-  $DRY_RUN || sudo systemctl stop "$NAME.service"
-  $DRY_RUN || sudo systemctl disable "$NAME.service"
-  $DRY_RUN || sudo rm -f "$SERVICE_PATH"
-}
+IPV6_PREFIX_ROOT="$(detect_prefix)"
+NAS_IPV6_GLOBAL="${IPV6_PREFIX_ROOT}::${IPV6_HOST_ID}"
+NAS_IPV6_CIDR="${NAS_IPV6_GLOBAL}/64"
 
-# === Parse args ===
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --dry-run) DRY_RUN=true ;;
-    --remove) REMOVE=true ;;
-  esac
-  shift
-done
+log "🌐 IPv6 prefix root=${IPV6_PREFIX_ROOT} target NAS IPv6=${NAS_IPV6_GLOBAL}"
 
-if $REMOVE; then
-  remove_service
-  exit 0
-fi
-
-# === Config toggles ===
-ADVERTISE_DOCKER=true
-SAFE_LAN_REGEX='^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1]))'
-
-log "🔧 Starting subnet router setup..."
-log "🔎 Available IPv4 addresses:"
-ip -o -f inet addr show | awk '{print $2, $4}'
-
-# === Detect LAN subnet(s) ===
-LAN_SUBNETS=$(
-  ip -o -f inet addr show \
-  | awk '$2 !~ /tailscale|lo/ {print $2, $4}' \
-  | while read -r iface cidr; do
-      net=$(echo "$cidr" | awk -F'[./]' '{printf "%s.%s.%s.0/%s\n",$1,$2,$3,$5}')
-      case "$iface" in
-        docker*|br-*|virbr*)
-          if [ "$ADVERTISE_DOCKER" = true ]; then
-            if [[ "$net" =~ ^172\.1[6789]\. || "$net" =~ ^172\.2[0-9]\. || "$net" =~ ^172\.3[01]\. || "$net" =~ ^172\.17\. || "$net" =~ ^172\.18\. || "$net" =~ ^172\.19\. ]]; then
-              log "⚠️ Conflict risk: $net is a common Docker subnet, auto‑excluded."
-              continue
-            fi
-            echo "$net"
-          else
-            log "⚠️ Skipping $net ($iface, auto‑excluded)"
-          fi
-          ;;
-        *) echo "$net" ;;
-      esac
-    done \
-  | grep -E "$SAFE_LAN_REGEX" \
-  | sort -u
-)
-
-if [[ -z "${LAN_SUBNETS}" ]]; then
-  log "❌ No private LAN subnets detected. Exiting."
-  exit 1
-fi
-
-log "✅ Detected LAN subnets: ${LAN_SUBNETS}"
-
-TAILSCALE_IF="tailscale0"
-RUN_TIMESTAMP="$(date '+%Y-%m-%d %H:%M:%S')"
-
-# === Enable IPv4 forwarding ===
-sysctl -w net.ipv4.ip_forward=1 || log "⚠️ Could not enable IP forwarding."
-
-# === NAT rules ===
-iptables -t nat -D POSTROUTING -o "${TAILSCALE_IF}" -j MASQUERADE 2>/dev/null || true
-for SUBNET in ${LAN_SUBNETS}; do
-  iptables -t nat -A POSTROUTING -s "${SUBNET}" -o "${TAILSCALE_IF}" -j MASQUERADE || true
-  log "✅ NAT MASQUERADE added for ${SUBNET} -> ${TAILSCALE_IF}"
-done
-
-# === Restart dnsmasq ===
-if systemctl restart dnsmasq 2>/dev/null; then
-  log "✅ dnsmasq restarted."
+# === Ensure NAS has the global IPv6 (idempotent) ===
+if ip -6 addr show dev "${LAN_IF}" | grep -qw "${NAS_IPV6_GLOBAL}"; then
+  log "✅ ${LAN_IF} already has ${NAS_IPV6_CIDR} — no changes made"
 else
-  log "⚠️ dnsmasq restart failed or not available."
+  log "🛠️ Assigning ${NAS_IPV6_CIDR} to ${LAN_IF}"
+  ip -6 addr add "${NAS_IPV6_CIDR}" dev "${LAN_IF}" || {
+    log "❌ Failed to add ${NAS_IPV6_CIDR} to ${LAN_IF}"
+    exit 1
+  }
 fi
 
-# === Tailscale route advertisement ===
-ADV_LIST="$(echo "${LAN_SUBNETS}" | tr ' ' ',')"
-if tailscale set --advertise-routes="${ADV_LIST}" 2>/dev/null; then
-  log "✅ Tailscale advertising routes: ${ADV_LIST}"
+# === dnsmasq configs ===
+DNSMASQ_DIR="/etc/dnsmasq.d"
+DNSMASQ_CONF_TS="${DNSMASQ_DIR}/tailscale.conf"
+DNSMASQ_HOSTS="${DNSMASQ_DIR}/zz-homelab-hosts.conf"
+DNSMASQ_HOSTS_STALE="${DNSMASQ_DIR}/homelab-hosts.conf"
+mkdir -p "${DNSMASQ_DIR}"
+
+if [[ -f "${DNSMASQ_HOSTS_STALE}" ]]; then
+  log "🧹 Removing stale ${DNSMASQ_HOSTS_STALE}"
+  rm -f "${DNSMASQ_HOSTS_STALE}"
+fi
+
+EXPECTED_TAILSCALE_CONF="$(cat <<EOT
+# Auto-generated by ${SCRIPT_NAME} ${SCRIPT_VERSION}
+listen-address=127.0.0.1
+listen-address=${NAS_LAN_IPv4}
+listen-address=${NAS_IPV6_GLOBAL}
+interface=${TAILSCALE_IF}
+bind-interfaces
+server=1.1.1.1
+server=9.9.9.9
+server=2606:4700:4700::1111
+server=2620:fe::fe
+EOT
+)"
+
+EXPECTED_HOSTS_CONF="$(cat <<EOT
+# Auto-generated by ${SCRIPT_NAME} ${SCRIPT_VERSION}
+address=/nas.bardi.ch/${NAS_LAN_IPv4}
+address=/nas.bardi.ch/${NAS_IPV6_GLOBAL}
+address=/diskstation.bardi.ch/192.168.50.2
+address=/qnap.bardi.ch/192.168.50.3
+address=/router.bardi.ch/192.168.50.1
+EOT
+)"
+
+# === Write tailscale.conf ===
+if [[ ! -f "${DNSMASQ_CONF_TS}" ]]; then
+  log "📄 ${DNSMASQ_CONF_TS} missing — creating new file"
+  echo "${EXPECTED_TAILSCALE_CONF}" > "${DNSMASQ_CONF_TS}"
+elif ! cmp -s <(echo "${EXPECTED_TAILSCALE_CONF}") "${DNSMASQ_CONF_TS}"; then
+  log "🛠️ ${DNSMASQ_CONF_TS} differs — overwriting"
+  echo "${EXPECTED_TAILSCALE_CONF}" > "${DNSMASQ_CONF_TS}"
 else
-  log "⚠️ Tailscale route advertisement failed."
+  log "✅ ${DNSMASQ_CONF_TS} already up to date — no changes made"
 fi
 
-# === GRO tuning ===
-ethtool -K "${TAILSCALE_IF}" gro off 2>/dev/null || log "ℹ️ GRO disable not supported."
-ethtool -K "${TAILSCALE_IF}" rx-udp-gro-forwarding on 2>/dev/null || log "ℹ️ rx-udp-gro-forwarding not supported."
-ethtool -K wg0 gro on 2>/dev/null || log "ℹ️ GRO enable not supported on wg0."
+# === Write zz-homelab-hosts.conf ===
+if [[ ! -f "${DNSMASQ_HOSTS}" ]]; then
+  log "📄 ${DNSMASQ_HOSTS} missing — creating new file"
+  echo "${EXPECTED_HOSTS_CONF}" > "${DNSMASQ_HOSTS}"
+elif ! cmp -s <(echo "${EXPECTED_HOSTS_CONF}") "${DNSMASQ_HOSTS}"; then
+  log "🛠️ ${DNSMASQ_HOSTS} differs — overwriting"
+  echo "${EXPECTED_HOSTS_CONF}" > "${DNSMASQ_HOSTS}"
+else
+  log "✅ ${DNSMASQ_HOSTS} already up to date — no changes made"
+fi
 
-# === Footer / logging ===
+log "🔄 Restarting dnsmasq"
+systemctl restart dnsmasq || { log "❌ Failed to restart dnsmasq"; exit 1; }
+
+log "🔎 Verifying port 53 bindings"
+if ss -ulpn | grep -q ':53'; then
+  log "✅ UDP :53 listener(s) detected"
+else
+  log "⚠️ No UDP :53 listeners found — check dnsmasq status"
+fi
+
+log "🛑 Disabling MagicDNS (accept-dns=false)"
+tailscale set --accept-dns=false || log "ℹ️ tailscale set --accept-dns=false returned non-zero (continuing)"
+
+log "🌐 Enabling IPv4 forwarding"
+sysctl -w net.ipv4.ip_forward=1 >/dev/null
+
+log "🧱 Ensuring NAT and FORWARD rules for ${TAILSCALE_IF}"
+iptables -t nat -C POSTROUTING -o ${TAILSCALE_IF} -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o ${TAILSCALE_IF} -j MASQUERADE
+iptables -C FORWARD -i ${TAILSCALE_IF} -d ${LAN_SUBNETS} -j ACCEPT 2>/dev/null || iptables -A FORWARD -i ${TAILSCALE_IF} -d ${LAN_SUBNETS} -j ACCEPT
+iptables -C FORWARD -o ${TAILSCALE_IF} -s ${LAN_SUBNETS} -j ACCEPT 2>/dev/null || iptables -A FORWARD -o ${TAILSCALE_IF} -s ${LAN_SUBNETS} -j ACCEPT
+log "🔧 Tuning GRO for ${TAILSCALE_IF}"
+ethtool -K ${TAILSCALE_IF} gro off 2>/dev/null || true
+ethtool -K ${TAILSCALE_IF} rx-udp-gro-forwarding on 2>/dev/null || true
+
+if ip link show wg0 >/dev/null 2>&1; then
+  log "🔧 Tuning GRO for wg0"
+  ethtool -K wg0 gro on 2>/dev/null || true
+fi
+
+# --- Final footer ---
 log "✅ Subnet router setup complete."
-log "👉 Approve these subnets in the Tailscale admin panel if needed: ${ADV_LIST}"
-log "🕒 Run timestamp: ${RUN_TIMESTAMP}"
-log "SUBNET-ROUTER: timestamp=${RUN_TIMESTAMP} subnets=${ADV_LIST}"
+log "SUBNET-ROUTER: version=${SCRIPT_VERSION} timestamp=${RUN_TIMESTAMP} subnets=${LAN_SUBNETS} ipv6_nas=${NAS_IPV6_GLOBAL}"
 
-create_service
-
+exit 0
