@@ -12,9 +12,40 @@
 
 set -euo pipefail
 
-USER_ID=1
+NAMESPACE="homelab"   # change if you want another namespace
 HOST="nas.bardi.ch"
-PORT=8080
+PORT=8443
+
+# Decide scheme based on port
+scheme="https"
+if [[ "$PORT" == "80" || "$PORT" == "8080" ]]; then
+  scheme="http"
+fi
+
+# --- Auto-detect namespace support and existence ---
+if headscale preauthkeys list --user "$NAMESPACE" --output json >/dev/null 2>&1; then
+  USER_FLAG=(--user "$NAMESPACE")
+  echo "ℹ️ Using namespace name: $NAMESPACE"
+else
+  # Force null → [] so jq never crashes
+  NS_JSON=$(headscale namespaces list --output json 2>/dev/null | jq 'if . == null then [] else . end')
+  NS_ID=$(echo "$NS_JSON" | jq -r --arg ns "$NAMESPACE" '.[] | select(.name==$ns) | .id')
+
+  if [[ -z "$NS_ID" || "$NS_ID" == "null" ]]; then
+    echo "⚠️ Namespace '$NAMESPACE' not found."
+    read -rp "Do you want to create it now? [y/N] " ans
+    if [[ "$ans" =~ ^[Yy]$ ]]; then
+      sudo headscale namespaces create "$NAMESPACE"
+      NS_ID=$(headscale namespaces list --output json | jq -r --arg ns "$NAMESPACE" '.[] | select(.name==$ns) | .id')
+      echo "✅ Created namespace '$NAMESPACE' (ID: $NS_ID)"
+    else
+      echo "ERROR: Namespace '$NAMESPACE' is required. Exiting."
+      exit 1
+    fi
+  fi
+
+  USER_FLAG=(--user "$NS_ID")
+fi
 
 usage() {
   echo "Usage: $0 {new <machine>|list|revoke <machine|id>|qr <machine>|show <machine>}"
@@ -22,18 +53,16 @@ usage() {
 }
 
 check_tls_cert() {
-  if [[ "$PORT" == "80" ]]; then
-    echo "Skipping TLS certificate check (HTTP mode on port 80)"
+  if [[ "$scheme" == "http" ]]; then
+    echo "Skipping TLS certificate check ($scheme mode on port $PORT)"
     return
   fi
-
-  echo "Checking TLS certificate for https://$HOST:$PORT ..."
+  echo "Checking TLS certificate for $scheme://$HOST:$PORT ..."
   if ! timeout 5 openssl s_client -connect ${HOST}:${PORT} -servername ${HOST} </dev/null 2>/dev/null \
      | openssl x509 -noout -dates -subject >/tmp/headscale-cert.$$; then
     echo "ERROR: Could not retrieve TLS certificate from $HOST:$PORT"
     exit 1
   fi
-
   notAfter=$(grep notAfter /tmp/headscale-cert.$$ | cut -d= -f2-)
   expiry_epoch=$(date -d "$notAfter" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$notAfter" +%s)
   now_epoch=$(date +%s)
@@ -46,70 +75,58 @@ check_tls_cert() {
   rm -f /tmp/headscale-cert.$$
 }
 
-
 cmd="${1:-}"
 arg="${2:-}"
-
 case "$cmd" in
   new)
     [ -z "$arg" ] && usage
     check_tls_cert
-    key=$(docker exec headscale headscale preauthkeys create \
-      --user "$USER_ID" --reusable --expiration 24h \
+    key=$(sudo headscale preauthkeys create \
+      "${USER_FLAG[@]}" --reusable --expiration 24h \
       --tags "tag:machine:${arg}" \
-      --output json | jq -r '.key // .Key')
-
+      --output json | jq -r '.key')
     if [ "$key" = "null" ] || [ -z "$key" ]; then
       echo "ERROR: Failed to obtain a preauth key."
       exit 1
     fi
-
-    echo "Key for $arg: $key"
-    echo "Client command:"
-    echo "  tailscale up --login-server=https://$HOST:$PORT --authkey=$key"
-    echo "QR code: $0 qr $arg"
+    echo "👉 On Windows 11 (PowerShell as Administrator) client (on linux add sudo as prefix) , run:"
+    echo "    tailscale up --login-server=$scheme://$HOST:$PORT --authkey=$key"
+    echo "👉 On mobile, scan this QR code obtained using $0 qr $arg"
+    echo "$key" | qrencode -t ansiutf8
     ;;
-
   list)
-    docker exec headscale headscale preauthkeys list --user "$USER_ID"
+    sudo headscale preauthkeys list "${USER_FLAG[@]}"
     ;;
-
   revoke)
     [ -z "$arg" ] && usage
-
     if [[ "$arg" =~ ^[0-9]+$ ]]; then
-      # Numeric ID: look up the actual key string
-      key=$(docker exec headscale headscale preauthkeys list --user "$USER_ID" --output json \
+      key=$(sudo headscale preauthkeys list "${USER_FLAG[@]}" --output json \
         | jq -r --arg id "$arg" '.[] | select((.id|tostring) == $id) | .key')
       [ -z "$key" ] && { echo "No key found with ID: $arg"; exit 1; }
     else
-      # Lookup by tag
-      key=$(docker exec headscale headscale preauthkeys list --user "$USER_ID" --output json \
+      key=$(sudo headscale preauthkeys list "${USER_FLAG[@]}" --output json \
         | jq -r --arg m "tag:machine:${arg}" '.[] | select((.acl_tags // [])[] == $m) | .key')
       [ -z "$key" ] && { echo "No key found with tag tag:machine:$arg"; exit 1; }
     fi
-
-    docker exec headscale headscale preauthkeys expire "$key" --user "$USER_ID"
+    sudo headscale preauthkeys expire "$key" "${USER_FLAG[@]}"
     echo "Revoked key (argument: $arg)"
     ;;
-
   show)
     [ -z "$arg" ] && usage
-    docker exec headscale headscale preauthkeys list --user "$USER_ID" --output json \
+    sudo headscale preauthkeys list "${USER_FLAG[@]}" --output json \
       | jq -r --arg m "tag:machine:${arg}" '
         .[]
         | select((.acl_tags // [])[] == $m)
         | .key
       '
     ;;
-
   qr)
     [ -z "$arg" ] && usage
     if ! command -v qrencode >/dev/null 2>&1; then
-      echo "ERROR: qrencode not installed. Install with: sudo apt update && sudo apt install -y qrencode"
+      echo "ERROR: qrencode not installed. Install with: sudo apt install -y qrencode"
       exit 1
     fi
-    key=$(docker exec headscale headscale preauthkeys list --user "$USER_ID" --output json \
+    key=$(sudo headscale preauthkeys list "${USER_FLAG[@]}" --output json \
       | jq -r --arg m "tag:machine:${arg}" '
         .[]
         | select((.acl_tags // [])[] == $m)
@@ -119,7 +136,6 @@ case "$cmd" in
     echo "QR code for $arg:"
     echo "$key" | qrencode -t ansiutf8
     ;;
-
   *)
     usage
     ;;
