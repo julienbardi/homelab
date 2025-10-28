@@ -97,11 +97,21 @@ deploy() {
   ECC_KEY="$ECC_DIR/bardi.ch.key"
   ECC_CHAIN="$ECC_DIR/fullchain.cer"
 
+  ECC_CERT="/etc/letsencrypt/live/bardi.ch/fullchain.pem"
+  ECC_KEY="/etc/letsencrypt/live/bardi.ch/privkey.pem"
+  ECC_CHAIN="/etc/letsencrypt/live/bardi.ch/fullchain.pem"
+
+
   if [[ "$TARGET" == "all" || "$TARGET" == "headscale" ]]; then
     log "📦 Headscale → /etc/headscale/certs"
     sudo mkdir -p /etc/headscale/certs
-    sudo cp "$ECC_CHAIN" /etc/headscale/certs/fullchain.pem
-    sudo cp "$ECC_KEY"   /etc/headscale/certs/privkey.pem
+    sudo rm -f /etc/headscale/certs/fullchain.pem
+    sudo rm -f /etc/headscale/certs/privkey.pem
+
+    sudo chmod 644 "$ECC_CHAIN"
+    sudo chmod 600 "$ECC_KEY"
+    sudo cp -a "$ECC_CHAIN" /etc/headscale/certs/fullchain.pem
+    sudo cp -a "$ECC_KEY"   /etc/headscale/certs/privkey.pem
     sudo chmod 644 /etc/headscale/certs/fullchain.pem
     sudo chmod 600 /etc/headscale/certs/privkey.pem
     log "✅ Headscale certs deployed"
@@ -123,8 +133,12 @@ restart() {
 # === [5] VALIDATE ===
 validate() {
   log "🔍 [5] Validating Headscale cert"
-  echo | openssl s_client -connect nas.bardi.ch:8443 -servername nas.bardi.ch 2>/dev/null | \
-    openssl x509 -noout -subject -dates || log "⚠️ Headscale handshake failed"
+  if openssl s_client -connect nas.bardi.ch:8912 -servername nas.bardi.ch -alpn h2 </dev/null 2>/dev/null | grep -q "DNS:*.bardi.ch"; then
+    log "✅ Headscale cert includes wildcard SAN"
+  else
+    log "❌ Headscale cert missing wildcard SAN — handshake will fail"
+    exit 1
+  fi
 }
 
 # === [6] DISPATCH ===

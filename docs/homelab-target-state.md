@@ -108,13 +108,9 @@ homelab/
 | Hostname             | IP Address       | Role / Notes                          |
 |----------------------|------------------|---------------------------------------|
 | router.bardi.ch      | 192.168.50.1     | Asus RT‑AX86U                         |
-| ds218.bardi.ch       | 192.168.50.4     | Synology DS218play (Headscale host)   |
-| qnap210.bardi.ch     | 192.168.50.5     | QNAP TS210 (legacy storage)           |
-| ugreen4800.bardi.ch  | 192.168.50.6     | Ugreen DXP4800+ (primary storage)     |
-| win11‑pc1.bardi.ch   | 192.168.50.20    | Windows 11 workstation                |
-| win11‑pc2.bardi.ch   | 192.168.50.21    | Windows 11 workstation                |
-| android‑s22.bardi.ch | DHCP static lease| Galaxy S22 Ultra                      |
-| android‑wife.bardi.ch| DHCP static lease| Wife’s phone                          |
+| nas.bardi.ch         | 192.168.50.4     | Ugreen DXP4800+ (primary storage, Headscale host)                         |
+| diskstation.bardi.ch | 192.168.50.2     | Synology DS218play (Headscale client)   |
+| qnap.bardi.ch        | 192.168.50.3     | QNAP TS210 (legacy storage)           |
 
 > **Note:** All static DHCP leases are configured on the Asus RT‑AX86U.  
 > IPv6 addresses are delegated and predictable, but not listed here for brevity.
@@ -124,19 +120,13 @@ homelab/
 ## 🌐 Public DNS (Informaniak)
 
 ### A Records
-- `headscale.bardi.ch` → public IP of router (forwarded to DS218play:443)  
-- `vault.bardi.ch` → public IP of router (forwarded to Synology DSM if exposed)  
-- `nas.bardi.ch` → public IP of router (forwarded to Ugreen DXP4800+ if exposed)  
+- `bardi.ch` → updated dynamically by teh router 192.168.50.1
 
 ### CNAME Records
-- `tailscale.bardi.ch` → `headscale.bardi.ch`  
-- `certs.bardi.ch` → `headscale.bardi.ch` (for ACME DNS validation logs)  
-- `files.bardi.ch` → `nas.bardi.ch`  
-- `media.bardi.ch` → `nas.bardi.ch` (Plex/Emby if enabled)  
-- `backup.bardi.ch` → `ugreen4800.bardi.ch`  
+- `headscale.bardi.ch` → `bardi.ch`  
 
 > **Note:** Only expose services that are hardened and SSL‑protected.  
-> Internal‑only hostnames (like `ds218.bardi.ch`) remain LAN‑only and are not published to Informaniak.
+> Internal‑only hostnames (like `diskstation.bardi.ch`) remain LAN‑only and are not published to Informaniak.
 
 ---
 
