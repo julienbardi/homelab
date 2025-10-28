@@ -14,7 +14,7 @@ set -euo pipefail
 
 NAMESPACE="homelab"   # change if you want another namespace
 HOST="nas.bardi.ch"
-PORT=8443
+PORT=8912 #was 8443
 
 # Decide scheme based on port
 scheme="https"
