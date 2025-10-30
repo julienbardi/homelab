@@ -9,10 +9,21 @@ WG_CONF="/etc/wireguard/wg0.conf"
 WG_INTERFACE="wg0"
 WG_PORT="51420"
 WG_SUBNET="10.4.0.1/24"
-LAN_SUBNET="192.168.50.0/24"
+LAN_SUBNET="10.89.12.0/24"
 LAN_INTERFACE="bridge0"
-DNS_PRIMARY="192.168.50.4"
-DNS_FALLBACK="192.168.50.1"
+DNS_PRIMARY="10.89.12.4"
+DNS_FALLBACK="10.89.12.1"
+
+echo "🌐 Enabling and persisting IP forwarding..."
+cat > /etc/sysctl.d/99-wireguard-forwarding.conf <<EOF
+net.ipv4.ip_forward=1
+net.ipv6.conf.all.forwarding=1
+EOF
+sudo sysctl --system
+echo "✅ IP forwarding enabled. Verify using "
+echo "    cat /proc/sys/net/ipv4/ip_forward"
+echo "    cat /proc/sys/net/ipv6/conf/all/forwarding"
+echo "    Both should return 1"
 
 echo "🔐 Regenerating compromised server keys..."
 SERVER_PRIV=$(wg genkey)
@@ -34,8 +45,8 @@ PrivateKey = $SERVER_PRIV
 MTU = 1420
 
 # NAT for VPN clients to reach internet via LAN
-PostUp   = iptables -t nat -A POSTROUTING -s 10.4.0.0/24 -o $LAN_INTERFACE -j MASQUERADE; iptables -A FORWARD -i $WG_INTERFACE -j ACCEPT; iptables -A FORWARD -o $WG_INTERFACE -j ACCEPT
-PostDown = iptables -t nat -D POSTROUTING -s 10.4.0.0/24 -o $LAN_INTERFACE -j MASQUERADE; iptables -D FORWARD -i $WG_INTERFACE -j ACCEPT; iptables -D FORWARD -o $WG_INTERFACE -j ACCEPT
+PostUp   = iptables -t nat -A POSTROUTING -s 10.4.0.0/24 -o $LAN_INTERFACE -j MASQUERADE; iptables -A FORWARD -i $WG_INTERFACE -o $LAN_INTERFACE -j ACCEPT; iptables -A FORWARD -i $LAN_INTERFACE -o $WG_INTERFACE -j ACCEPT
+PostDown = iptables -t nat -D POSTROUTING -s 10.4.0.0/24 -o $LAN_INTERFACE -j MASQUERADE; iptables -D FORWARD -i $WG_INTERFACE -o $LAN_INTERFACE -j ACCEPT; iptables -D FORWARD -i $LAN_INTERFACE -o $WG_INTERFACE -j ACCEPT
 
 # Pre-provisioned peer: this same node as client 10.4.0.4
 [Peer]
