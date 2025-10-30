@@ -11,9 +11,9 @@ set -euo pipefail
 # === CONFIG ===
 WG_DIR="/home/julie/homelab/wireguard-clients"
 WG_SUBNET="10.4.0.0/24"
-LAN_SUBNET="192.168.50.0/24"
-DNS_PRIMARY="192.168.50.4"
-DNS_FALLBACK="192.168.50.1"
+LAN_SUBNET="10.89.12.0/24"
+DNS_PRIMARY="10.89.12.4"
+DNS_FALLBACK="10.89.12.1"
 ENDPOINT="bardi.ch:51420"
 MTU="1420"
 LOG="$WG_DIR/onboarding.log"
@@ -32,7 +32,7 @@ CLIENT_IP="$2"
 mkdir -p "$WG_DIR/$CLIENT_NAME"
 cd "$WG_DIR/$CLIENT_NAME"
 
-echo "🔐 Generating keys for $CLIENT_NAME..."
+echo "🔐 Generating keys info sudo cat $WG_DIR/$CLIENT_NAME/$CLIENT_NAME.conf"
 wg genkey | tee "$CLIENT_NAME.key" | wg pubkey > "$CLIENT_NAME.pub"
 
 SERVER_PRIV=$(grep '^PrivateKey' "$WG_CONF" | awk '{print $3}' || true)
@@ -48,7 +48,7 @@ cat > "$CLIENT_NAME.conf" <<EOF
 # Created: $(date -Iseconds)
 
 [Interface]
-Address = $CLIENT_IP/24
+Address = $CLIENT_IP/32
 PrivateKey = $(<"$CLIENT_NAME.key")
 DNS = $DNS_PRIMARY, $DNS_FALLBACK
 MTU = $MTU
@@ -63,10 +63,12 @@ EOF
 echo -e "\n📱 Scan this QR code with WireGuard mobile app:\n"
 qrencode -t ansiutf8 < "$CLIENT_NAME.conf"
 
-echo -e "\n🔑 Add this to your server's wg0.conf:\n"
+echo -e "\n🔑 Add this to your server's sudo vi /etc/wireguard/wg0.conf:\n"
 echo "[Peer]"
 echo "PublicKey = $(<"$CLIENT_NAME.pub")"
 echo "AllowedIPs = $CLIENT_IP/32"
 
 echo "$(date -Iseconds) | $CLIENT_NAME | $CLIENT_IP" >> "$LOG"
-echo -e "\n📝 Onboarding logged to $LOG"
+echo -e "\n📝 Onboarding logged to $LOG. Run now"
+echo "  sudo wg-quick down wg0"
+echo "  sudo wg-quick up wg0"
