@@ -17,7 +17,7 @@ WG_DIR="/home/julie/homelab/wireguard-clients"
 SCRIPT_DIR="/home/julie/homelab/scripts"
 LOG="$WG_DIR/bulk-onboarding.log"
 INTERFACE="bridge0"
-SUBNET_PREFIX="192.168.50"
+SUBNET_PREFIX="10.89.12"
 WG_PREFIX="10.4.0"
 
 echo "🔍 Scanning LAN via arp-scan on $INTERFACE..."
