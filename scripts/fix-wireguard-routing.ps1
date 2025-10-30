@@ -1,5 +1,5 @@
 # fix-wireguard-routing.ps1
-$targetPrefix = "192.168.50.0/24"
+$targetPrefix = "10.89.12.0/24"
 $nextHop = "10.4.0.1"
 $logTag = "[WireGuardRouteFix]"
 
