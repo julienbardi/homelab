@@ -1,0 +1,143 @@
+#!/bin/sh
+# services-start
+#
+
+/bin/sh /jffs/addons/amtm/shell_history.mod -run # Added by amtm
+
+/bin/sh /jffs/addons/amtm/sc_update.mod -set # Added by amtm
+[ -x /jffs/scripts/MerlinAU.sh ] && /jffs/scripts/MerlinAU.sh startup "$@" & #MerlinAU#
+cru a RunTAILMONcheck "0 1 * * * sh /jffs/scripts/tailmon.sh -autoupdate"
+
+# 2025-09-21 Start Dropbear on LAN and WireGuard IP
+# Asuswrt-Merlin already starts Dropbear by default on port 22/2222.
+# If you want to override bindings, uncomment and adjust the line below:
+# dropbear -p 10.89.12.1:2222 -p 10.6.0.1:2222 -a
+
+# --- LAN safety net ---
+# Always allow SSH from the trusted LAN subnet (10.89.12.0/24) on port 2222.
+# This rule guarantees that local clients on the home network can reach the router
+# even if the ipset below is empty, misconfigured, or accidentally flushed.
+# It acts as a permanent backdoor for administration from inside the LAN.
+iptables -I INPUT -p tcp -s 10.89.12.0/24 --dport 2222 -j ACCEPT
+
+# --- Controlled SSH access via VPNs (WireGuard + Tailscale) ---
+# For remote access, we use an ipset to group together allowed sources:
+#   - Entire WireGuard subnets (e.g. 10.6.0.0/24, 10.4.0.0/24)
+#   - Specific Tailscale device IPs (100.x.y.z), see https://login.tailscale.com/admin/machines
+# This keeps the firewall rules simple: one iptables rule can cover many sources,
+# and you can add/remove entries dynamically without editing the ruleset.
+ipset create ssh_allowed hash:net -exist
+
+ipset add ssh_allowed 10.6.0.0/24   # subnet router
+ipset add ssh_allowed 10.4.0.0/24   # subnet nas
+ipset add ssh_allowed 100.102.21.37 # omen30l
+ipset add ssh_allowed 100.121.63.80 # elitebook
+
+# Allow SSH on port 2222 from any source in ssh_allowed
+iptables -I INPUT -p tcp -m set --match-set ssh_allowed src --dport 2222 -j ACCEPT
+
+
+# Ensure LAN traffic (10.89.12.0/24) is always routed via the main routing table,
+# not accidentally sent into the WireGuard tunnel. Without this rule, replies to
+# LAN clients could be "hijacked" by WireGuard’s policy routing, breaking loc
+# connectivity. This ip rule forces packets sourced from the LAN subnet to use
+# the normal routing table.
+# More background: https://tailscale.com/kb/1019/subnets#policy-routing
+ip rule add from 10.89.12.0/24 lookup main
+
+# --- Tailscale ---
+# Start the Tailscale daemon (tailscaled) in the background, storing its state
+# under /opt/var/lib/tailscale and exposing its control socket at /opt/var/run/tailscale.
+# The 'sleep 5' ensures the daemon has time to initialize before we run 'tailscale up'.
+#
+# 'tailscale up' then connects this router to the tailnet with the following options:
+#   --accept-dns           : accept DNS settings pushed from the Tailscale admin console
+#   --advertise-exit-node  : offer this router as an exit node so clients can route all
+#                            their internet traffic through it
+#   --advertise-routes     : announce the local LAN subnet (10.89.12.0/24) so remote
+#                            Tailscale clients can reach devices on this network
+#   --accept-routes        : allow this router to accept routes advertised by other
+#                            Tailscale nodes (useful if you want it to reach other
+#                            shared subnets in the tailnet)
+#
+# More background on these flags: https://tailscale.com/kb/1080/cli#up
+# --- Tailscale startup (minimal + safe, 30s timeout) ---
+PERSIST_STATE="/jffs/tailscaled.state"
+RUNTIME_STATE="/opt/var/tailscaled.state"
+
+# Restore runtime state only if it does not exist
+if [ ! -f "$RUNTIME_STATE" ]; then
+    if cp "$PERSIST_STATE" "$RUNTIME_STATE" 2>/dev/null; then
+        chmod 600 "$RUNTIME_STATE"
+        chown root:root "$RUNTIME_STATE"
+        logger -t services-start "Restored Tailscale state from $PERSIST_STATE"
+    else
+        logger -t services-start "No valid persistent Tailscale state to restore"
+    fi
+fi
+
+# Start tailscaled
+logger -t services-start "Starting tailscaled..."
+/opt/bin/tailscaled \
+  --state="$RUNTIME_STATE" \
+  --socket=/opt/var/run/tailscale/tailscaled.sock &
+
+# Wait up to 30s for the socket
+for i in $(seq 1 30); do
+    [ -S /opt/var/run/tailscale/tailscaled.sock ] && break
+    sleep 1
+done
+
+# Run tailscale up with 30s timeout
+if [ -S /opt/var/run/tailscale/tailscaled.sock ]; then
+    logger -t services-start "tailscaled socket ready, running tailscale up..."
+    if timeout 30 /opt/bin/tailscale up \
+        --accept-dns \
+        --advertise-exit-node \
+        --advertise-routes=10.89.12.0/24 \
+        --accept-routes; then
+        logger -t services-start "tailscale up completed successfully"
+    else
+        logger -t services-start "tailscale up failed or timed out; continuing without it"
+    fi
+else
+    logger -t services-start "tailscaled socket not found after 30s, skipping tailscale up"
+fi
+
+# --- Reference: Managing ssh_allowed ipset and SSH firewall rule ---
+
+# List current entries in the ipset:
+#   ipset list ssh_allowed
+#
+# Add a new subnet or single IP:
+#   ipset add ssh_allowed 10.X.Y.0/24
+#   ipset add ssh_allowed 100.64.55.12
+#
+# Remove a subnet or single IP:
+#   ipset del ssh_allowed 10.X.Y.0/24
+#   ipset del ssh_allowed 100.102.21.37
+#
+# To immediately revoke SSH access for all subnets/IPs in ssh_allowed (empties the set but keeps it defined):
+#   ipset flush ssh_allowed
+#
+# To restore access without rebooting, simply re-add the entries:
+#   ipset add ssh_allowed 10.6.0.0/24
+#   ipset add ssh_allowed 10.4.0.0/24
+#   ipset add ssh_allowed 100.102.21.37
+#   ...add any other trusted subnets or Tailscale IPs as needed...
+#
+# Destroy the ipset entirely (removes the set; any iptables rules referencing it will break):
+#   ipset destroy ssh_allowed
+#
+# List INPUT chain rules with line numbers (to see where the SSH rule is):
+#   iptables -L INPUT -n --line-numbers
+#
+# Delete the SSH accept rule by line number (example: line 3):
+#   iptables -D INPUT 3
+#
+# Delete the SSH accept rule by matching it exactly:
+#   iptables -D INPUT -p tcp -m set --match-set ssh_allowed src --dport 2222 -j ACCEPT
+#
+# Reminder: Any live changes (ipset add/del, iptables -D) are immediate but not persistent.
+# Always update /jffs/scripts/services-start to reflect the desired permanent state.
+
