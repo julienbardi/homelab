@@ -76,6 +76,12 @@ if [ ! -f "$RUNTIME_STATE" ]; then
     fi
 fi
 
+# Clean up stale TUN device if left behind by a crashed tailscaled
+if ip link show tailscale0 2>/dev/null | grep -q tailscale0; then
+    ip link delete tailscale0 2>/dev/null
+    logger -t services-start "Removed stale tailscale0 interface"
+fi
+
 # Start tailscaled
 logger -t services-start "Starting tailscaled..."
 /opt/bin/tailscaled \
