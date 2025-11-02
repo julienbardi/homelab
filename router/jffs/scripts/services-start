@@ -28,10 +28,10 @@ iptables -I INPUT -p tcp -s 10.89.12.0/24 --dport 2222 -j ACCEPT
 # and you can add/remove entries dynamically without editing the ruleset.
 ipset create ssh_allowed hash:net -exist
 
-ipset add ssh_allowed 10.6.0.0/24   # subnet router
-ipset add ssh_allowed 10.4.0.0/24   # subnet nas
-ipset add ssh_allowed 100.102.21.37 # omen30l
-ipset add ssh_allowed 100.121.63.80 # elitebook
+ipset add ssh_allowed 10.6.0.0/24   -exist # subnet router
+ipset add ssh_allowed 10.4.0.0/24   -exist # subnet nas
+ipset add ssh_allowed 100.102.21.37 -exist # omen30l
+ipset add ssh_allowed 100.121.63.80 -exist # elitebook
 
 # Allow SSH on port 2222 from any source in ssh_allowed
 iptables -I INPUT -p tcp -m set --match-set ssh_allowed src --dport 2222 -j ACCEPT
