@@ -99,7 +99,7 @@ done
 # Run tailscale up with 30s timeout
 if [ -S /opt/var/run/tailscale/tailscaled.sock ]; then
     logger -t services-start "tailscaled socket ready, running tailscale up..."
-    if timeout 30 /opt/bin/tailscale up \
+    if timeout 30 /opt/bin/tailscale --socket=/opt/var/run/tailscale/tailscaled.sock up \
         --accept-dns \
         --advertise-exit-node \
         --advertise-routes=10.89.12.0/24 \
