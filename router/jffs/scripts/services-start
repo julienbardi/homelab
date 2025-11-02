@@ -18,7 +18,8 @@ cru a RunTAILMONcheck "0 1 * * * sh /jffs/scripts/tailmon.sh -autoupdate"
 # This rule guarantees that local clients on the home network can reach the router
 # even if the ipset below is empty, misconfigured, or accidentally flushed.
 # It acts as a permanent backdoor for administration from inside the LAN.
-iptables -I INPUT -p tcp -s 10.89.12.0/24 --dport 2222 -j ACCEPT
+LAN_RULE="-p tcp -s 10.89.12.0/24 --dport 2222 -j ACCEPT"
+iptables -C INPUT $LAN_RULE 2>/dev/null || iptables -I INPUT $LAN_RULE
 
 # --- Controlled SSH access via VPNs (WireGuard + Tailscale) ---
 # For remote access, we use an ipset to group together allowed sources:
@@ -34,8 +35,8 @@ ipset add ssh_allowed 100.102.21.37 -exist # omen30l
 ipset add ssh_allowed 100.121.63.80 -exist # elitebook
 
 # Allow SSH on port 2222 from any source in ssh_allowed
-iptables -I INPUT -p tcp -m set --match-set ssh_allowed src --dport 2222 -j ACCEPT
-
+SSH_RULE="-p tcp -m set --match-set ssh_allowed src --dport 2222 -j ACCEPT"
+iptables -C INPUT $SSH_RULE 2>/dev/null || iptables -I INPUT $SSH_RULE
 
 # Ensure LAN traffic (10.89.12.0/24) is always routed via the main routing table,
 # not accidentally sent into the WireGuard tunnel. Without this rule, replies to
