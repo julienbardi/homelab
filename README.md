@@ -41,13 +41,13 @@ This section documents the lab topology and the measured throughput between node
 Tests were run with 4 parallel streams (`-P 4`) and in both directions (`-R` for reverse mode).
 
 ### Machine Inventory
-| Machine     | IPv4 Address | IPv6 Address        | Notes                  |
-|-------------|--------------|---------------------|------------------------|
-| omen30l     | 10.89.12.123 |    | Windows host, 10 GbE   |
-| nas         | 10.89.12.4   |    | 10 GbE capable storage |
-| disksation  | 10.89.12.2   |    | Synology, 1 GbE        |
-| router      | 10.89.12.1   |   | Asus router, 1 GbE     |
-| s22         |    |    |      |
+| Machine     | IPv4 Address | IPv6 Address        | Notes                  | iperf3 -P 8 -R -c ping.online.net |
+|-------------|--------------|---------------------|------------------------|----------|
+| omen30l     | 10.89.12.123 |                     | Windows host, 10 GbE   | 270 Mbps |
+| nas         | 10.89.12.4   |                     | 10 GbE capable storage ||
+| disksation  | 10.89.12.2   |                     | Synology, 1 GbE        ||
+| router      | 10.89.12.1   |                     | Asus router, 1 GbE     | 646 Mpbs |
+| s22         |              |                     |      |
 
 ### 🖧 Network Topology and Performance Tests
 Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
@@ -80,6 +80,10 @@ Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
 | s22 ↔ nas                  | 1.01                          | 517                 | WLAN path, powered device, some retransmits                            | ⚠️ Fair |
 | s22 ↔ nas                  | 0.013 →, 0.09 ←               | 0                   | WLAN + WireGuard via router, extremely poor (router CPU/MTU overhead)  | ❌ Poor |
 | s22 ↔ nas                  | 0.006 →, 0.03 ←               | 0                   | 4G + WireGuard via router, extremely poor (mobile uplink + WG overhead)| ❌ Poor |
+
+### iperf3 -P 8 -R -c ping.online.net
+
+
 
 
 ### Notes
