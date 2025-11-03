@@ -41,6 +41,9 @@ This section documents the lab topology and the measured throughput between node
 Tests were run with 4 parallel streams (`-P 4`) and in both directions (`-R` for reverse mode).
 
 ### Machine Inventory
+
+Linux: iperf3 -P 8 -R -c ping.online.net           Windows: iperf3.exe -P 8 -R -c ping.online.net
+
 | Machine     | IPv4 Address | IPv6 Address        | Notes                  | iperf3 -P 8 -R -c ping.online.net |
 |-------------|--------------|---------------------|------------------------|----------|
 | omen30l     | 10.89.12.123 |                     | Windows host, 10 GbE   | 270 Mbps |
