@@ -43,10 +43,11 @@ Tests were run with 4 parallel streams (`-P 4`) and in both directions (`-R` for
 ### Machine Inventory
 | Machine     | IPv4 Address | IPv6 Address        | Notes                  |
 |-------------|--------------|---------------------|------------------------|
-| omen30l     | 10.89.12.123 | (add if available)  | Windows host, 10 GbE   |
-| nas         | 10.89.12.4   | (add if available)  | 10 GbE capable storage |
-| disksation  | 10.89.12.2   | (add if available)  | Synology, 1 GbE        |
-| router      | 10.89.12.1   | (add if available)  | Asus router, 1 GbE     |
+| omen30l     | 10.89.12.123 |    | Windows host, 10 GbE   |
+| nas         | 10.89.12.4   |    | 10 GbE capable storage |
+| disksation  | 10.89.12.2   |    | Synology, 1 GbE        |
+| router      | 10.89.12.1   |   | Asus router, 1 GbE     |
+| s22         |    |    |      |
 
 ### 🖧 Network Topology and Performance Tests
 Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
@@ -73,6 +74,11 @@ Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
 | omen30l ↔ router eth0|  0.50                          | 5                   | WAN address, Healthy gigabit                |
 | omen30l ↔ router tailscale0|  0.48                    | 2                   | Healthy gigabit                |
 | disksation ↔ QNAP    |                                |                     | CPU bottleneck on NAS/QNAP      |
+| s22 ↔ router br0     | 0.83                           | 1940                | WLAN |
+| s22 ↔ router bardi.ch| 0.90                           | 287                 | WLAN |
+| s22 ↔ disksation     | 0.89                           | 0                   | WLAN |
+| s22 ↔ nas            | 0.73                           | 1519                | WLAN |
+| s22 ↔ nas            | 3.03 Mbytes →, 512 Kbytes ←    | 0                   | 4G, port 5201 open |
 
 ### Notes
 - **Arrows:** → forward, ← reverse, ↔ both directions.  
