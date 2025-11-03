@@ -45,17 +45,17 @@ Tests were run with 4 parallel streams (`-P 4`) and in both directions (`-R` for
 Linux: iperf3 -P 8 -R -c ping.online.net           Windows: iperf3.exe -P 8 -R -c ping.online.net
 
 | Machine     | IPv4 Address | IPv6 Address        | Notes                  | iperf3 -P 8 -R -c ping.online.net |
-|-------------|--------------|---------------------|------------------------|----------|
-| omen30l     | 10.89.12.123 |                     | Windows host, 10 GbE   | 270 Mbps |
-| nas         | 10.89.12.4   |                     | 10 GbE capable storage ||
-| disksation  | 10.89.12.2   |                     | Synology, 1 GbE        ||
-| router      | 10.89.12.1   |                     | Asus router, 1 GbE     | 646 Mpbs |
-| s22         |              |                     |      |
+|-------------|--------------|---------------------|------------------------|-----------------------------------|
+| omen30l     | 10.89.12.123 |                     | Windows host, 10 GbE   | 197-209 Mbps |
+| nas         | 10.89.12.4   |                     | 10 GbE capable storage | 601-645 Mbps |
+| disksation  | 10.89.12.2   |                     | Synology, 1 GbE        | 500-530 Mbps |
+| router      | 10.89.12.1   |                     | Asus router, 1 GbE     | 605-643 Mpbs |
+| s22         |              |                     |                        |
 
 ### 🖧 Network Topology and Performance Tests
 Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
 - Destination (server):
-  ```bash
+  ```bash601-
   iperf3 -s 
   ip -4 addr show scope global | awk '/inet / {print $2}' | head -n1 | cut -d/ -f1
   iperf3 -s -6 
