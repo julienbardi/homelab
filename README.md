@@ -66,20 +66,20 @@ Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
   iperf3 -P 4 -t 10 -R    -c <IPv4_address>
   iperf3 -P 4 -t 10 -R -6 -c <IPv6_address>
 ### IPv4 vs IPv6 iperf3 Results
-| Source ↔ Destination       | IPv4 Throughput (Gbps) (v4/v6) | Retransmits (v4/v6) | Notes                                               |
-|----------------------------|--------------------------------|---------------------|-----------------------------------------------------|
-| omen30l ↔ nas              | 9.40 / 10.5                   | 0 / 0               | Excellent 10 GbE path, saturating line‑rate          |
-| omen30l ↔ disksation       | 1.1                           | 0                   | Endpoint‑limited (CPU/disk), not network‑limited     |
-| omen30l ↔ router br0       | 1.10 / 1.10                   | 176 / 235           | Gigabit link saturated, but retransmits noticeable   |
-| omen30l ↔ router eth0      | 0.50                          | 5                   | WAN interface, ~500 Mb/s, stable                     |
-| omen30l ↔ router tailscale0| 0.48                          | 2                   | Tailscale overlay, ~500 Mb/s, very low loss          |
-| disksation ↔ QNAP          |                                |                     | CPU bottleneck on NAS/QNAP, limits throughput        |
-| s22 ↔ router br0           | 0.83                          | 1940                | WLAN path, decent throughput but high retransmits    |
-| s22 ↔ router bardi.ch      | 0.90                          | 287                 | WLAN path, good throughput, moderate retransmits     |
-| s22 ↔ disksation           | 0.89                          | 0                   | WLAN path, stable and clean                          |
-| s22 ↔ nas                  | 0.85                          | 600                 | WLAN path, powered device, some retransmits          |
-| s22 ↔ nas                  | 0.013 →, 0.09 ←               | 0                   | WLAN + WireGuard via router, extremely poor (likely MTU/CPU bottleneck) |
-| s22 ↔ nas                  | 0.006 →, 0.03 ←               | 0                   | 4G + WireGuard via router, extremely poor (tunnel overhead + mobile uplink limits) |
+| Source ↔ Destination       | IPv4 Throughput (Gbps) (v4/v6) | Retransmits (v4/v6) | Notes                                                                 | Health |
+|----------------------------|--------------------------------|---------------------|-----------------------------------------------------------------------|--------|
+| omen30l ↔ nas              | 9.40 / 10.5                   | 0 / 0               | Excellent 10 GbE path, fully saturating line‑rate                      | ✅ Good |
+| omen30l ↔ disksation       | 1.1                           | 0                   | Endpoint CPU/disk bottleneck, not the network                          | ⚠️ Fair |
+| omen30l ↔ router br0       | 1.10 / 1.10                   | 176 / 235           | Gigabit link saturated, retransmits indicate congestion/noise          | ⚠️ Fair |
+| omen30l ↔ router eth0      | 0.50                          | 5                   | WAN interface, ~500 Mb/s, stable with minimal loss                     | ✅ Good |
+| omen30l ↔ router tailscale0| 0.48                          | 2                   | Tailscale overlay, ~500 Mb/s, very low retransmits                     | ✅ Good |
+| disksation ↔ QNAP          |                               |                     | CPU bottleneck on NAS/QNAP, throughput limited by hardware             | ❌ Poor |
+| s22 ↔ router br0           | 0.83                          | 1940                | WLAN path, decent throughput but very high retransmits (Wi‑Fi noise)   | ⚠️ Fair |
+| s22 ↔ router bardi.ch      | 0.90                          | 287                 | WLAN path, good throughput, moderate retransmits                       | ✅ Good |
+| s22 ↔ disksation           | 0.89                          | 0                   | WLAN path, stable and clean                                            | ✅ Good |
+| s22 ↔ nas                  | 1.01                          | 517                 | WLAN path, powered device, some retransmits                            | ⚠️ Fair |
+| s22 ↔ nas                  | 0.013 →, 0.09 ←               | 0                   | WLAN + WireGuard via router, extremely poor (router CPU/MTU overhead)  | ❌ Poor |
+| s22 ↔ nas                  | 0.006 →, 0.03 ←               | 0                   | 4G + WireGuard via router, extremely poor (mobile uplink + WG overhead)| ❌ Poor |
 
 
 ### Notes
