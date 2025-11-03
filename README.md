@@ -77,9 +77,9 @@ Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
 | s22 ↔ router br0     | 0.83                           | 1940                | WLAN |
 | s22 ↔ router bardi.ch| 0.90                           | 287                 | WLAN |
 | s22 ↔ disksation     | 0.89                           | 0                   | WLAN |
-| s22 ↔ nas            | 0.73                           | 1519                | WLAN |
-| s22 ↔ nas            | 1.60 Mbytes →, 384 bytes  ←    | 4                   | WLAN+Wireguard router |
-| s22 ↔ nas            | 3.03 Mbytes →, 512 Kbytes ←    | 0                   | 4G, port 5201 open |
+| s22 ↔ nas            | 0.85                           | 600                 | WLAN + powered                |
+| s22 ↔ nas            | 0.013 →, 0.09  ←               | 0                   | WLAN+Wireguard router+powered |
+| s22 ↔ nas            | 0.006 →, 0.03 ←                | 0                   | 4G+Wireguard router+powered |
 
 ### Notes
 - **Arrows:** → forward, ← reverse, ↔ both directions.  
