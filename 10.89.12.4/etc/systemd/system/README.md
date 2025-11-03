@@ -1,6 +1,8 @@
-sudo systemctl daemon-reload
-sudo systemctl enable tailscale-relay
-sudo systemctl start tailscale-relay
+`sudo systemctl daemon-reload`
+
+`sudo systemctl enable tailscale-relay`
+
+`sudo systemctl start tailscale-relay`
 
 This ensures:
 - tailscaled starts at boot
