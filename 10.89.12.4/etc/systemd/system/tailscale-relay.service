@@ -1,0 +1,13 @@
+# /etc/systemd/system/tailscale-relay.service
+[Unit]
+Description=Tailscale Peer Relay
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/tailscaled
+ExecStartPost=/usr/bin/tailscale up --advertise-relay
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
