@@ -13,34 +13,34 @@ This ensures:
 
 If you prefer to build natively:
 
-Install build tools (via Entware or your NAS’s package manager):
+Step 1: Install build tools:
+sudo apt update
+sudo apt install -y golang git make
 
-bash
-opkg install golang git make
-(If Entware isn’t installed, you’ll need to enable it first.)
 
-Clone the Tailscale repo:
-
-bash
+Step 2: Clone the Tailscale repo:
 git clone https://github.com/tailscale/tailscale.git
 cd tailscale
-Switch to the latest beta branch:
+git checkout main
+git pull
 
-bash
-git checkout unstable
-Build:
+Step 3: Build the daemon (tailscaled):
+cd ~/tailscale
+go build -o tailscaled ./cmd/tailscaled
 
-bash
-make
-This produces tailscale and tailscaled binaries in ./cmd/tailscale and ./cmd/tailscaled.
+Step 4: Build the CLI (tailscale):
+go build -o tailscale ./cmd/tailscale
 
-Install: Copy them into /usr/local/bin or /opt/bin:
+Step 5: Copy them into your PATH:
+sudo cp tailscaled /usr/local/bin/
+sudo cp tailscale /usr/local/bin/
 
-bash
-cp ./cmd/tailscale/tailscale /opt/bin/
-cp ./cmd/tailscaled/tailscaled /opt/bin/
-Run:
+Step 6: verify by checking version
+tailscaled --version
+tailscale version
 
-bash
-sudo tailscaled --state=/opt/tailscale/tailscaled.state &
+Step 7: Run the daemon:
+sudo tailscaled --state=/var/lib/tailscale/tailscaled.state &
+
+Step 8: Bring it up as a relay (requires v1.92+):
 sudo tailscale up --advertise-relay
