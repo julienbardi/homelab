@@ -36,6 +36,48 @@ homelab/
 └── README.md       # Project overview and usage
 ````
 
+## 🖧 Network Topology and Performance Tests
+This section documents the lab topology and the measured throughput between nodes using `iperf3`.  
+Tests were run with 4 parallel streams (`-P 4`) and in both directions (`-R` for reverse mode).
+
+### Machine Inventory
+| Machine     | IPv4 Address | IPv6 Address        | Notes                  |
+|-------------|--------------|---------------------|------------------------|
+| omen30l     | 10.89.12.123 | (add if available)  | Windows host, 10 GbE   |
+| nas         | 10.89.12.4   | (add if available)  | 10 GbE capable storage |
+| disksation  | 10.89.12.2   | (add if available)  | Synology, 1 GbE        |
+| router      | 10.89.12.1   | (add if available)  | Asus router, 1 GbE     |
+
+### 🖧 Network Topology and Performance Tests
+Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
+- Destination (server):
+  ```bash
+  iperf3 -s 
+  ip -4 addr show scope global | awk '/inet / {print $2}' | head -n1 | cut -d/ -f1
+  iperf3 -s -6 
+  ip -6 addr show scope global | awk '/inet / {print $2}' | head -n1 | cut -d/ -f1
+  
+  # show IPv6 address 
+  ip -6 addr show scope global | awk '/inet6/ && $2 !~ /^fd/ {print $2}' | head -n1 | cut -d/ -f1 # to get <IPv6_address>
+  
+- Source (client):
+  ```bash
+  iperf3 -P 4 -t 10 -R    -c <IPv4_address>
+  iperf3 -P 4 -t 10 -R -6 -c <IPv6_address>
+### IPv4 vs IPv6 iperf3 Results
+| Source ↔ Destination | IPv4 Throughput (Gbps) (v4/v6) | Retransmits (v4/v6) | Notes                          |
+|----------------------|--------------------------------|---------------------|--------------------------------|
+| omen30l ↔ nas        |  9.40 / 10.5                   | 0 / 0               | 10 GbE path, expect near line‑rate |
+| omen30l ↔ disksation |  1.1                           | 0                   | Endpoint‑limited, high retransmits |
+| omen30l ↔ router br0 |  1.10  / 1.10                  | 176 / 235           | Healthy gigabit                |
+| omen30l ↔ router eth0|  0.50                          | 5                   | WAN address, Healthy gigabit                |
+| omen30l ↔ router tailscale0|  0.48                    | 2                   | Healthy gigabit                |
+| disksation ↔ QNAP    |                                |                     | CPU bottleneck on NAS/QNAP      |
+
+### Notes
+- **Arrows:** → forward, ← reverse, ↔ both directions.  
+- **Asymmetry:** When results differ, values are summarized in the Summary colum
+
 ---
 
 ## ✅ Next Step
