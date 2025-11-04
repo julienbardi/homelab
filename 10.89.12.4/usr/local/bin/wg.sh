@@ -7,6 +7,15 @@
 #   /usr/local/bin/wg.sh show
 #   /usr/local/bin/wg.sh export <client> [interface]
 #
+# Interfaces:
+#   wg-lan   → VPN interface for LAN access
+#   wg-inet  → VPN interface for internet access
+#
+# Profiles:
+#   lan-only   → access only the LAN
+#   lan-inet   → access LAN + internet
+#   inet-only  → internet only, no LAN
+#
 # Flags:
 #   --static   Assign IP from .2–.10 (reserved range)
 #   --force    Revoke any occupant and reassign specified IP
