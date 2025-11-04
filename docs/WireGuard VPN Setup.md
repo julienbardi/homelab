@@ -1,9 +1,74 @@
 # 🌐 WireGuard VPN Setup on NAS (10.89.12.4) with Family Onboarding
-## 1. Install and Verify WireGuard on NAS
-Install WireGuard tools:
+
+## 🔧 Interfaces
+- `wg-lan`: LAN access only
+- `wg-inet`: Full VPN tunnel
+
+## 🧩 Profiles
+| Profile     | Access         | DNS                 | IPv6 | Expiry |
+|-------------|----------------|---------------------|------|--------|
+| lan-only    | LAN only       | Internal only       | Optional | No     |
+| lan-inet    | LAN + Internet | Internal + public   | Yes  | No     |
+| inet-only   | Internet only  | Internal + public   | Yes  | 1 year |
+
+### 🚀 Onboarding
+```bash
+sudo add-wireguard-client.sh <interface> <name> <ip> <profile> <email>
+```
+### 🧹 Cleanup
+```bash
+sudo wg-clean-expired.sh
+```
+### 📊 Dashboard
+```bash
+sudo wg-dashboard.sh
+```
+### 📁 Metadata
+Each client has:
+- meta.txt: name, email, profile, expiry
+- client.conf: WireGuard config
+- client.pub, client.key: keys
+
+## 🧠 3. Script That Mimics `wg` to Manage Users
+
+Your onboarding script already uses:
+```bash
+wg set <interface> peer <pubkey> allowed-ips <ip>
+```
+Your cleanup script uses:
+```bash
+wg set <interface> peer <pubkey> remove
+```
+This is exactly how wg works — your scripts are native-compatible.
+
+📊 4. Supercharged wg show → Dashboard
+Your dashboard script:
+
+Uses wg show <interface> dump
+
+Matches public keys to metadata
+
+Displays:
+
+- 👤 Name
+- 📧 Email
+- 🔗 Interface
+- 🔑 Public Key
+- 🌐 IP
+- 📦 Profile
+- 📡 Last Handshake
+- ⬇️ RX / ⬆️ TX
+- 📅 Expiry
+
+It’s a supercharged version of wg show, with full visibility.
+
+## 1. One-Time Setup Steps
+
+### 🔧 Install and Verify WireGuard on NAS
+Install WireGuard and dependencies:
 ```
 sudo apt update
-sudo apt install wireguard
+sudo apt install wireguard qrencode
 ```
 
 Check kernel version (WireGuard is built‑in since Linux 5.6):
@@ -31,19 +96,14 @@ chmod 600 /etc/wireguard/server_private.key
 chmod 644 /etc/wireguard/server_public.key
 chown root:root /etc/wireguard/server_*.key
 ```
-
 - server_private.key → keep secret on NAS
 - server_public.key → share with clients
-
 
 On each client (two models)
 
 Model A: Client generates keys (most secure)
-
 Windows: WireGuard app → Add empty tunnel → keys auto‑generated.
-
 Android: WireGuard app → + → Create from scratch → keys auto‑generated.
-
 Linux:
 
 ```
@@ -56,16 +116,12 @@ They send you only the public key (via email, Signal, Incamail, etc.).
 Model B: Server generates keys (most convenient)
 
 On NAS:
-
 ```
 umask 077
 wg genkey | tee clientX_private.key | wg pubkey > clientX_public.key
 ```
-
 Create a full client config (clientX.conf) with both keys.
-
 Export as QR code for mobile:
-
 ```
 qrencode -t ansiutf8 -r clientX.conf
 ```
@@ -74,13 +130,18 @@ Family member scans QR code in WireGuard app or imports .conf file.
 Note: You temporarily know their private key, so deliver securely (encrypted email, password‑protected archive, or in person).
 
 ## 3. Configure the NAS (server)
-File: `/etc/wireguard/wg0.conf`:
+File: `/etc/wireguard/wg-lan.conf`:
+File: `/etc/wireguard/wg-inet.conf`:
+
 ```
 ini
 [Interface]
-Address = 10.4.0.1/24
+Address = 10.4.0.1/24,fd42:42:42::1/64
 ListenPort = 51420
 PrivateKey = <server_private_key>
+MTU = 1420
+```
+Note: client will append blocks like 
 
 # Example: Client1 (Windows)
 [Peer]
@@ -96,15 +157,25 @@ AllowedIPs = 10.4.0.0/32
 [Peer]
 PublicKey = <Client3_public_key>
 AllowedIPs = 10.4.0.0/32
-```
 
-Enable routing:
+
+### 🔐 Enable IP forwarding:
 ```
 echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
+echo "net.ipv6.conf.all.forwarding=1" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
+## 4. 📁 Create client folders
+```
+sudo mkdir -p /etc/wireguard/clients/wg-lan
+sudo mkdir -p /etc/wireguard/clients/wg-inet
+```
 
-## 4. Configure Clients
+## 5. 🧩 Install scripts
+- /usr/local/bin/add-wireguard-client.sh → onboarding with profile + expiry
+- /usr/local/bin/wg-clean-expired.sh → cleanup expired peers
+- /usr/local/bin/wg-dashboard.sh → pretty CSV-compatible dashboard
+
 Windows (Client2)
 ```
 ini
