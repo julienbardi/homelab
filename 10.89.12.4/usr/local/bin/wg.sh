@@ -191,3 +191,88 @@ EOF
 
   echo "📱 Scan this QR code with your WireGuard mobile app:"
   qrencode -t ansiutf8 < "$conf"
+  qrencode -o "$(dirname "$conf")/${client}-key.png" < "$conf"
+  secure_file_private "$(dirname "$conf")/${client}-key.png"
+  log "Saved QR code PNG at $(dirname "$conf")/${client}-key.png"
+}
+
+cmd_show() {
+  ensure_dirs
+  printf "%-15s %-10s %-15s %-25s %-20s %-20s\n" "Client" "Iface" "IP" "Profile" "Last Handshake" "RX/TX"
+  printf "%-15s %-10s %-15s %-25s %-20s %-20s\n" "------" "-----" "----" "-------" "--------------" "-----"
+  while IFS='|' read -r client ip iface profile email rest; do
+    [[ -z "$client" ]] && continue
+    local pub="$(client_pub "$iface" "$client")"
+    [[ -f "$pub" ]] || continue
+    local line
+    line=$(sudo wg show "$iface" dump | awk -v pub="$(<"$pub")" '$1==pub {print $0}')
+    if [[ -n "$line" ]]; then
+      IFS=$'\t' read -r _ _ _ _ _ _ last rx tx _ <<< "$line"
+      printf "%-15s %-10s %-15s %-25s %-20s %-20s\n" "$client" "$iface" "$ip" "$profile" "$last" "$rx/$tx"
+    else
+      printf "%-15s %-10s %-15s %-25s %-20s %-20s\n" "$client" "$iface" "$ip" "$profile" "—" "—"
+    fi
+  done < "$(exp_log)"
+}
+
+cmd_export() {
+  local client="$1" iface="${2:-}"
+  [[ -z "$client" ]] && die "Usage: wg.sh export <client> [interface]"
+  local cdir
+  if [[ -n "$iface" ]]; then
+    cdir="$(client_dir "$iface" "$client")"
+  else
+    cdir=$(find "$WG_CLIENTS_ROOT" -maxdepth 2 -type d -name "$client" 2>/dev/null | head -n1)
+  fi
+  [[ -d "$cdir" ]] || die "Client not found: $client"
+  local conf="$cdir/$client.conf"
+  [[ -f "$conf" ]] || die "Missing config for $client"
+  cat "$conf"
+  echo "📱 QR code:"
+  qrencode -t ansiutf8 < "$conf"
+  qrencode -o "$cdir/${client}-key.png" < "$conf"
+  secure_file_private "$cdir/${client}-key.png"
+  log "Re-saved QR code PNG at $cdir/${client}-key.png"
+}
+
+cmd_clean() {
+  ensure_dirs
+  local now=$(date +%s)
+  local tmp=$(mktemp)
+  while IFS='|' read -r client ip iface profile email rest; do
+    [[ -z "$client" ]] && continue
+    local expiry=$(awk -F'Expires: ' '{print $2}' <<< "$rest")
+    if [[ "$expiry" != "never" ]]; then
+      local exp_ts=$(date -d "$expiry" +%s)
+      if (( exp_ts < now )); then
+        log "Cleaning expired client $client ($iface)"
+        sudo rm -rf "$(client_dir "$iface" "$client")"
+        continue
+      fi
+    fi
+    echo "$client | $ip | $iface | $profile | $email | Expires: $expiry" >> "$tmp"
+  done < "$(exp_log)"
+  sudo mv "$tmp" "$(exp_log)"
+  secure_file_private "$(exp_log)"
+}
+
+# --- Main dispatcher ---
+STATIC="false"
+FORCE="false"
+while [[ "${1:-}" =~ ^-- ]]; do
+  case "$1" in
+    --static) STATIC="true";;
+    --force)  FORCE="true";;
+    *) die "Unknown flag: $1";;
+  esac
+  shift
+done
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  add)    cmd_add "$@";;
+  show)   cmd_show "$@";;
+  export) cmd_export "$@";;
+  clean)  cmd_clean "$@";;
+  *) die "Usage: /usr/local/bin/wg.sh [--static] [--force] {add|show|export|clean} …";;
+esac
