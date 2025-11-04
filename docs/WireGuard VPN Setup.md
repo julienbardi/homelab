@@ -21,15 +21,20 @@ wg --version
 ```
 Even if it shows v1.0.20210914, that’s fine — the kernel provides the VPN engine.
 
-##2. Generate Keys
+## 2. Generate Keys
 On the NAS (server)
 
 ```
 umask 077
-wg genkey | tee ~/server_private.key | wg pubkey > ~/server_public.key
+wg genkey | tee /etc/wireguard/server_private.key | wg pubkey > /etc/wireguard/server_public.key
+chmod 600 /etc/wireguard/server_private.key
+chmod 644 /etc/wireguard/server_public.key
+chown root:root /etc/wireguard/server_*.key
 ```
+
 - server_private.key → keep secret on NAS
 - server_public.key → share with clients
+
 
 On each client (two models)
 
@@ -69,79 +74,63 @@ Family member scans QR code in WireGuard app or imports .conf file.
 Note: You temporarily know their private key, so deliver securely (encrypted email, password‑protected archive, or in person).
 
 ## 3. Configure the NAS (server)
-/etc/wireguard/wg0.conf:
+File: `/etc/wireguard/wg0.conf`:
 ```
 ini
 [Interface]
 Address = 10.4.0.1/24
-ListenPort = 51820
+ListenPort = 51420
 PrivateKey = <server_private_key>
 
 # Example: Client1 (Windows)
 [Peer]
 PublicKey = <Client1_public_key>
-AllowedIPs = 10.4.0.2/32
+AllowedIPs = 10.4.0.0/32
 
 # Example: Client2 (Android)
 [Peer]
 PublicKey = <Client2_public_key>
-AllowedIPs = 10.4.0.3/32
+AllowedIPs = 10.4.0.0/32
 
 # Example: Client3 (Linux)
 [Peer]
 PublicKey = <Client3_public_key>
-AllowedIPs = 10.4.0.4/32
+AllowedIPs = 10.4.0.0/32
 ```
-Enable routing:
 
+Enable routing:
 ```
 echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
+
 ## 4. Configure Clients
-Windows (Client1)
+Windows (Client2)
 ```
 ini
 [Interface]
 Address = 10.4.0.2/24
-PrivateKey = <Client1_private_key>
-
-[Peer]
-PublicKey = <server_public_key>
-AllowedIPs = 10.89.12.0/24
-Endpoint = <your_public_IP>:51820
-PersistentKeepalive = 25
-Android (Client2)
-ini
-[Interface]
-Address = 10.4.0.3/24
 PrivateKey = <Client2_private_key>
+MTU = 1420
 
 [Peer]
 PublicKey = <server_public_key>
 AllowedIPs = 10.89.12.0/24
-Endpoint = <your_public_IP>:51820
-PersistentKeepalive = 25
-Linux (Client3)
-ini
-[Interface]
-Address = 10.4.0.4/24
-PrivateKey = <Client3_private_key>
-
-[Peer]
-PublicKey = <server_public_key>
-AllowedIPs = 10.89.12.0/24
-Endpoint = <your_public_IP>:51820
+Endpoint = <your_public_hostname>:51420
 PersistentKeepalive = 25
 ```
+
+
 
 ## 5. Add Static Route on Router (RT‑AX86U)
 In router UI (LAN → Route):
 
-Destination: 10.4.0.0
-Netmask: 255.255.255.0
-Gateway: 10.89.12.4 (NAS)
-Interface: LAN
+Network/Host IP (Destination): `10.4.0.0`
+Netmask: `255.255.255.0`
+Gateway: `10.89.12.4` (NAS)
+Metric: `1`
+Interface: `LAN`
+
 
 This ensures LAN devices reply directly to VPN clients.
 
