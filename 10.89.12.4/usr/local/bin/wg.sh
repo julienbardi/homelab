@@ -8,13 +8,23 @@
 #   /usr/local/bin/wg.sh export <client> [interface]
 #
 # Interfaces:
-#   wg-lan   → VPN interface for LAN access
-#   wg-inet  → VPN interface for internet access
+#   wg-lan   → VPN interface for LAN-only access
+#   wg-inet  → VPN interface with internet access
 #
 # Profiles:
 #   lan-only   → access only the LAN
 #   lan-inet   → access LAN + internet
 #   inet-only  → internet only, no LAN
+#
+# Examples:
+#   Add a laptop with LAN + internet access:
+#       sudo /usr/local/bin/wg.sh add wg-inet elitebook lan-inet
+#
+#   Add a phone with LAN-only access and email tag:
+#       sudo /usr/local/bin/wg.sh add wg-lan iphone lan-only user@example.com
+#
+#   Export an existing client config + QR:
+#       sudo /usr/local/bin/wg.sh export elitebook
 #
 # Flags:
 #   --static   Assign IP from .2–.10 (reserved range)
@@ -45,7 +55,7 @@ secure_dir()          { sudo chown -R root:root "$1" && sudo chmod 700 "$1"; }
 
 # --- Config ---
 WG_CLIENTS_ROOT="/etc/wireguard/clients"
-WG_ENDPOINT_DEFAULT="your.nas.ip:51420"
+WG_ENDPOINT_DEFAULT="bardi.ch:51420"
 LAN_ONLY_ALLOWED="10.89.12.0/24"
 INET_ALLOWED="0.0.0.0/0, ::/0"
 LAN_IPV4_PREFIX="10.4.0"
