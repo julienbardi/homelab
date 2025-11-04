@@ -1,5 +1,5 @@
-#🌐 WireGuard VPN Setup on NAS (10.89.12.4) with Family Onboarding
-##1. Install and Verify WireGuard on NAS
+# 🌐 WireGuard VPN Setup on NAS (10.89.12.4) with Family Onboarding
+## 1. Install and Verify WireGuard on NAS
 Install WireGuard tools:
 ```
 sudo apt update
@@ -68,7 +68,7 @@ Family member scans QR code in WireGuard app or imports .conf file.
 
 Note: You temporarily know their private key, so deliver securely (encrypted email, password‑protected archive, or in person).
 
-##3. Configure the NAS (server)
+## 3. Configure the NAS (server)
 /etc/wireguard/wg0.conf:
 ```
 ini
@@ -98,7 +98,7 @@ Enable routing:
 echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
-##4. Configure Clients
+## 4. Configure Clients
 Windows (Client1)
 ```
 ini
@@ -135,7 +135,7 @@ Endpoint = <your_public_IP>:51820
 PersistentKeepalive = 25
 ```
 
-##5. Add Static Route on Router (RT‑AX86U)
+## 5. Add Static Route on Router (RT‑AX86U)
 In router UI (LAN → Route):
 
 Destination: 10.4.0.0
@@ -145,7 +145,7 @@ Interface: LAN
 
 This ensures LAN devices reply directly to VPN clients.
 
-##6. Start Services
+## 6. Start Services
 On NAS:
 
 ```
@@ -162,7 +162,7 @@ sudo systemctl start wg-quick@wg0
 
 On Windows/Android: toggle tunnel ON in the app.
 
-##7. Family Onboarding Kit (repeatable process)
+## 7. Family Onboarding Kit (repeatable process)
 For each family member:
 
 Decide if they generate keys (Model A) or you generate configs (Model B).
@@ -183,7 +183,7 @@ Restart NAS WireGuard service:
 sudo systemctl restart wg-quick@wg0
 ```
 
-##8. Revoking a Client
+## 8. Revoking a Client
 
 8.1. Remove its [Peer] block from NAS config.
 
@@ -193,7 +193,7 @@ sudo systemctl restart wg-quick@wg0
 ```
 That client can no longer connect.
 
-##✅ Final Overview
+## ✅ Final Overview
 - VPN subnet: 10.4.0.0/24
 - NAS (server): 10.4.0.1
 - Clients: 10.4.0.x (family members)
