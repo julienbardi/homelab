@@ -12,7 +12,6 @@ LAN_ONLY_ALLOWED="10.89.12.0/24"
 INET_ALLOWED="0.0.0.0/0"
 WG_DIR="/etc/wireguard"
 CLIENT_DIR="$WG_DIR/clients"
-DASHBOARD="/var/www/html/wg-dashboard/index.html"
 SUBNET="10.89.12"
 STATIC_START=1
 STATIC_END=100
@@ -214,10 +213,6 @@ EOF
 PublicKey = $pub
 AllowedIPs = $ip
 EOF
-      # Update dashboard
-      if [[ -f "$DASHBOARD" ]]; then
-        sed -i "/<\/tbody>/i <tr><td>$client</td><td>$iface</td><td>$ip</td><td>never</td></tr>" "$DASHBOARD"
-      fi
     done
 
     # --- Replace config atomically ---
