@@ -150,22 +150,12 @@ cmd_show() {
 
 cmd_clean() {
   local iface="$1"
-
   (
     flock -x 200
     echo "🧹 Removing all clients from $iface..."
-
-    # Remove all client config files for this interface
-    for cfg in "$CLIENT_DIR"/*-"$iface".conf; do
-      [[ -f "$cfg" ]] || continue
-      echo "   - Deleting $(basename "$cfg")"
-      rm -f "$cfg"
-    done
-
-    # Rebuild the server config with no peers
-    cmd_rebuild "$iface"
+    rm -f "$CLIENT_DIR"/*-"$iface".conf 2>/dev/null || true
+    _rebuild_nolock "$iface"
   ) 200>"$WG_DIR/$iface.lock"
-
   echo "✅ $iface is now clean (no peers)"
 }
 
@@ -176,17 +166,14 @@ cmd_export() {
     || echo "No config found for $client $iface"
 }
 
-cmd_rebuild() {
+_rebuild_nolock() {
   local iface="$1"
   local keyfile="$WG_DIR/$iface.key"
   local conffile="$WG_DIR/$iface.conf"
   local port=$((BASE_WG_PORT + ${iface#wg}))
 
-  (
-    flock -x 200
-
-    # --- Rebuild [Interface] section ---
-    cat > "$conffile.new" <<EOF
+  # --- Rebuild [Interface] section ---
+  cat > "$conffile.new" <<EOF
 [Interface]
 PrivateKey = $(sudo cat "$keyfile")
 Address = $SERVER_IP/24
@@ -194,36 +181,42 @@ ListenPort = $port
 MTU = $SERVER_MTU
 EOF
 
-    # --- Loop over all client configs ---
-    for cfg in "$CLIENT_DIR"/*-"$iface".conf; do
-      [[ -f "$cfg" ]] || continue
-      client=$(basename "$cfg" | cut -d- -f1)
-      pub=$(awk '/^PublicKey/{print $3}' "$cfg")
-      ip=$(awk '/^Address/{print $3}' "$cfg")
+  # --- Loop over all client configs ---
+  for cfg in "$CLIENT_DIR"/*-"$iface".conf; do
+    [[ -f "$cfg" ]] || continue
+    client=$(basename "$cfg" | cut -d- -f1)
+    pub=$(awk '/^PublicKey/{print $3}' "$cfg")
+    ip=$(awk '/^Address/{print $3}' "$cfg")
 
-      if [[ -z "$pub" || -z "$ip" ]]; then
-        echo "⚠️  Skipping malformed client config: $cfg" >&2
-        continue
-      fi
+    if [[ -z "$pub" || -z "$ip" ]]; then
+      echo "⚠️  Skipping malformed client config: $cfg" >&2
+      continue
+    fi
 
-      cat >> "$conffile.new" <<EOF
+    cat >> "$conffile.new" <<EOF
 
 [Peer]
 # $client
 PublicKey = $pub
 AllowedIPs = $ip
 EOF
-    done
+  done
 
-    # --- Replace config atomically ---
-    mv "$conffile.new" "$conffile"
+  # --- Replace config atomically ---
+  mv "$conffile.new" "$conffile"
 
-    # --- Reload without downtime ---
-    wg syncconf "$iface" <(wg-quick strip "$iface")
-
-  ) 200>"$WG_DIR/$iface.lock"
+  # --- Reload without downtime ---
+  wg syncconf "$iface" <(wg-quick strip "$iface")
 
   echo "✅ Rebuilt $conffile from client configs"
+}
+
+cmd_rebuild() {
+  local iface="$1"
+  (
+    flock -x 200
+    _rebuild_nolock "$iface"
+  ) 200>"$WG_DIR/$iface.lock"
 }
 
 cmd_add() {
