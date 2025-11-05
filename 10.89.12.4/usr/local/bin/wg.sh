@@ -94,27 +94,20 @@ allocate_ip() {
 cmd_show() {
   echo "=== WireGuard Interfaces ==="
   {
-    # Header row with fixed widths
-    printf "%-10s\t%-25s\t%-15s\t%-20s\t%-25s\n" \
-      "🔌 IFACE" "🔑 PUBLIC-KEY" "📡 LISTEN-PORT" "🖧 ADDR(v4)" "🖧 ADDR(v6)"
-
+    echo -e "🔌 IFACE\t🔑 PUBLIC-KEY\t📡 LISTEN-PORT\t🖧 ADDR(v4)\t🖧 ADDR(v6)"
     for iface in $(wg show interfaces); do
       pub=$(wg show "$iface" public-key)
       port=$(wg show "$iface" listen-port)
       addr4=$(ip -o -4 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
       addr6=$(ip -o -6 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
-      printf "%-10s\t%-25s\t%-15s\t%-20s\t%-25s\n" \
-        "$iface" "${pub:0:20}…" "$port" "${addr4:-"-"}" "${addr6:-"-"}"
+      echo -e "$iface\t${pub:0:20}…\t$port\t${addr4:-"-"}\t${addr6:-"-"}"
     done
   } | column -t -s $'\t'
 
   echo
   echo "=== WireGuard Peers ==="
   {
-    # Header row with fixed widths
-    printf "%-10s\t%-12s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\t%-6s\n" \
-      "🔌 IFACE" "👤 NAME" "🔑 PEER-PUBKEY" "🌐 ALLOWED-IPS" "📡 ENDPOINT" "⏱️ HANDSHAKE" "⬆️ TX" "⬇️ RX" "STATUS"
-
+    echo -e "🔌 IFACE\t👤 NAME\t🔑 PEER-PUBKEY\t🌐 ALLOWED-IPS\t📡 ENDPOINT\t⏱️ HANDSHAKE\t⬆️ TX\t⬇️ RX\tSTATUS"
     now=$(date +%s)
     for iface in $(wg show interfaces); do
       for peer in $(wg show "$iface" peers); do
@@ -123,12 +116,13 @@ cmd_show() {
         handshake=$(wg show "$iface" latest-handshakes | awk -v p="$peer" '$1==p {print $2}')
         transfer=$(wg show "$iface" transfer | awk -v p="$peer" '$1==p {print $2" "$3" / "$4" "$5}')
 
-        # Map peer pubkey → client name from config filename
-        peer_name=$(grep -l "$peer" "$CLIENT_DIR"/*-"$iface".conf 2>/dev/null \
-                      | xargs -n1 basename \
-                      | cut -d- -f1 \
-                      | head -n1)
-        peer_name=${peer_name:-"?"}
+        # Map pubkey → client name
+        match=$(grep -l "$peer" "$CLIENT_DIR"/*-"$iface".conf 2>/dev/null | head -n1)
+        if [[ -n "$match" ]]; then
+          peer_name=$(basename "$match" | cut -d- -f1)
+        else
+          peer_name="?"
+        fi
 
         # Handshake formatting + status
         if [[ "$handshake" -eq 0 ]]; then
@@ -147,8 +141,7 @@ cmd_show() {
         tx=$(echo "$transfer" | cut -d/ -f1)
         rx=$(echo "$transfer" | cut -d/ -f2)
 
-        printf "%-10s\t%-12s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\t%-6s\n" \
-          "$iface" "$peer_name" "${peer:0:20}…" "$allowed" "$endpoint" "$hstr" "$tx" "$rx" "$status"
+        echo -e "$iface\t$peer_name\t${peer:0:20}…\t$allowed\t$endpoint\t$hstr\t$tx\t$rx\t$status"
       done
     done
   } | column -t -s $'\t'
