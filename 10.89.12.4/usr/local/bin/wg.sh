@@ -162,6 +162,34 @@ cmd_export() {
     || echo "No config found for $client $iface"
 }
 
+amend_peer_config() {
+  local iface="$1"
+  local client="$2"
+  local pubkey="$3"
+  local ip="$4"
+
+  (
+    flock -x 200
+
+    # Remove any existing block for this client
+    sed -i "/# ${client}\$/,/^$/d" "$WG_DIR/$iface.conf"
+
+    # Append new block
+    cat >> "$WG_DIR/$iface.conf" <<EOF
+
+[Peer]
+# $client
+PublicKey = $pubkey
+AllowedIPs = $ip/32
+EOF
+
+    # Reload without downtime
+    wg syncconf "$iface" <(wg-quick strip "$iface")
+
+  ) 200>"$WG_DIR/$iface.lock"
+}
+
+
 cmd_add() {
   local iface="$1"
   local client="$2"
@@ -229,15 +257,7 @@ Endpoint = bardi.ch:$port
 PersistentKeepalive = 25
 EOF
 
-  wg set "$iface" peer "$pubkey" allowed-ips "$ip/32"
-  # --- Persist peer in server config ---
-  cat >> "$WG_DIR/$iface.conf" <<EOF
-  
-[Peer]
-# $client
-PublicKey = $pubkey
-AllowedIPs = $ip/32
-EOF
+  amend_peer_config "$iface" "$client" "$pubkey" "$ip"
 
   qrencode -t ansiutf8 < "$cfg"
 
