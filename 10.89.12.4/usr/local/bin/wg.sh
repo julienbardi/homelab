@@ -233,11 +233,11 @@ EOF
   # --- Persist peer in server config ---
   cat >> "$WG_DIR/$iface.conf" <<EOF
   
-  [Peer]
-  # $client
-  PublicKey = $pubkey
-  AllowedIPs = $ip/32
-  EOF
+[Peer]
+# $client
+PublicKey = $pubkey
+AllowedIPs = $ip/32
+EOF
 
   qrencode -t ansiutf8 < "$cfg"
 
