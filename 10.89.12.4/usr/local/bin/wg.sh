@@ -92,15 +92,16 @@ allocate_ip() {
 }
 cmd_show() {
   echo "=== WireGuard Interfaces ==="
-  printf "🔌 IFACE   🔑 PUBLIC-KEY (short)   📡 LISTEN-PORT   🖧 ADDRESS\n"
-  printf "%s\n" "------------------------------------------------------------------"
+  printf "🔌 IFACE   🔑 PUBLIC-KEY (short)   📡 LISTEN-PORT   🖧 ADDR(v4)        🖧 ADDR(v6)\n"
+  printf "%s\n" "------------------------------------------------------------------------------------------------"
 
   for iface in $(wg show interfaces); do
     pub=$(wg show "$iface" public-key)
     port=$(wg show "$iface" listen-port)
-    addr=$(wg show "$iface" | awk '/interface:/ {next} /inet/ {print $2; exit}')
-    printf "%-8s %-22s %-14s %-15s\n" \
-      "$iface" "${pub:0:20}…" "$port" "$addr"
+    addr4=$(ip -o -4 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
+    addr6=$(ip -o -6 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
+    printf "%-8s %-22s %-14s %-15s %-20s\n" \
+      "$iface" "${pub:0:20}…" "$port" "${addr4:-"-"}" "${addr6:-"-"}"
   done
 
   echo
@@ -130,7 +131,6 @@ cmd_show() {
     done
   done
 }
-
 
 cmd_clean() {
   local iface="$1"
