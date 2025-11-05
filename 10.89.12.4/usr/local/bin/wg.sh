@@ -118,11 +118,8 @@ cmd_add() {
   # --- Check server key exists ---
   if [[ ! -f "$WG_DIR/$iface.pub" ]]; then
     echo "❌ Missing server public key: $WG_DIR/$iface.pub"
-    echo "To fix, run the following commands:"
-    echo "  /usr/bin/wg genkey | tee $WG_DIR/$iface.key | /usr/bin/wg pubkey > $WG_DIR/$iface.pub"
-    echo "  chown root:root $WG_DIR/$iface.key $WG_DIR/$iface.pub"
-    echo "  chmod 600 $WG_DIR/$iface.key"
-    echo "  chmod 644 $WG_DIR/$iface.pub"
+    echo "To fix, copy and paste the following single command:"
+    echo "  sudo /usr/bin/wg genkey | sudo tee $WG_DIR/$iface.key | sudo /usr/bin/wg pubkey > $WG_DIR/$iface.pub; sudo chown root:root $WG_DIR/$iface.key $WG_DIR/$iface.pub; sudo chmod 600 $WG_DIR/$iface.key; sudo chmod 644 $WG_DIR/$iface.pub"
     exit 1
   fi
   
