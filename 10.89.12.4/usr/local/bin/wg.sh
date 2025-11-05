@@ -93,6 +93,39 @@ policy_for_iface() {
     die "Interface $raw encodes no supported access policy"
   fi
 }
+# --- Command implementations ---
+
+cmd_show() {
+  echo "=== WireGuard status ==="
+  wg show
+  echo
+  echo "=== Active interfaces ==="
+  wg show interfaces
+  echo
+  echo "=== Peers per interface ==="
+  for iface in $(wg show interfaces); do
+    echo "[$iface]"
+    wg show "$iface" peers
+    echo
+  done
+}
+
+cmd_clean() {
+  echo "Cleaning up stale WireGuard peers..."
+  # Example: remove peers with expired configs
+  # (You can adapt this to your environment)
+  wg show | grep 'peer' || echo "No peers found."
+}
+
+cmd_export() {
+  local client="$1"
+  local iface="${2:-}"
+  echo "Exporting configuration for client '$client' ${iface:+on $iface}..."
+  # Example: print config path or contents
+  # (Adapt to your storage layout)
+  cat "/etc/wireguard/clients/${client}${iface:+-$iface}.conf" 2>/dev/null \
+    || echo "No config found for $client $iface"
+}
 # --- Main dispatcher ---
 case "${1:-}" in
   --helper) show_helper; exit 0 ;;
