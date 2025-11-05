@@ -112,8 +112,8 @@ cmd_show() {
   echo "=== WireGuard Peers ==="
   {
     # Header row with fixed widths
-    printf "%-10s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\t%-6s\n" \
-      "🔌 IFACE" "🔑 PEER-PUBKEY" "🌐 ALLOWED-IPS" "📡 ENDPOINT" "⏱️ HANDSHAKE" "⬆️ TX" "⬇️ RX" "STATUS"
+    printf "%-10s\t%-12s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\t%-6s\n" \
+      "🔌 IFACE" "👤 NAME" "🔑 PEER-PUBKEY" "🌐 ALLOWED-IPS" "📡 ENDPOINT" "⏱️ HANDSHAKE" "⬆️ TX" "⬇️ RX" "STATUS"
 
     now=$(date +%s)
     for iface in $(wg show interfaces); do
@@ -123,6 +123,14 @@ cmd_show() {
         handshake=$(wg show "$iface" latest-handshakes | awk -v p="$peer" '$1==p {print $2}')
         transfer=$(wg show "$iface" transfer | awk -v p="$peer" '$1==p {print $2" "$3" / "$4" "$5}')
 
+        # Map peer pubkey → client name from config filename
+        peer_name=$(grep -l "$peer" "$CLIENT_DIR"/*-"$iface".conf 2>/dev/null \
+                      | xargs -n1 basename \
+                      | cut -d- -f1 \
+                      | head -n1)
+        peer_name=${peer_name:-"?"}
+
+        # Handshake formatting + status
         if [[ "$handshake" -eq 0 ]]; then
           hstr="never"
           status="❌"
@@ -139,8 +147,8 @@ cmd_show() {
         tx=$(echo "$transfer" | cut -d/ -f1)
         rx=$(echo "$transfer" | cut -d/ -f2)
 
-        printf "%-10s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\t%-6s\n" \
-          "$iface" "${peer:0:20}…" "$allowed" "$endpoint" "$hstr" "$tx" "$rx" "$status"
+        printf "%-10s\t%-12s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\t%-6s\n" \
+          "$iface" "$peer_name" "${peer:0:20}…" "$allowed" "$endpoint" "$hstr" "$tx" "$rx" "$status"
       done
     done
   } | column -t -s $'\t'
