@@ -191,8 +191,16 @@ cmd_setup_keys() {
     chmod 600 "$keyfile"
     chmod 644 "$pubfile"
     chown root:root "$keyfile" "$pubfile"
+
+    # --- Add default client 'julie' if not already present ---
+    if [[ ! -f "$CLIENT_DIR/julie-$iface.conf" ]]; then
+      echo "👤 Creating default client 'julie' on $iface..."
+      cmd_add "$iface" julie
+    else
+      echo "ℹ️  Client 'julie' already exists on $iface, skipping."
+    fi
   done
-  echo "✅ Server keys set up for wg1–wg7"
+  echo "✅ Server keys and default client 'julie' set up for wg1–wg7"
 }
 
 cmd_export() {
