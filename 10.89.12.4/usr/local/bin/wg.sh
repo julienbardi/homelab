@@ -79,11 +79,11 @@ policy_for_iface() {
 }
 
 allocate_ip() {
-  # Collect all used IPs across all interfaces
-  used=$(wg show all allowed-ips | awk '{print $2}' | cut -d/ -f1)
+  # Collect all u IPs across all interfaces
+  u=$(wg show all allowed-ips | awk '{print $2}' | cut -d/ -f1)
   for i in $(seq $DYNAMIC_START $DYNAMIC_END); do
     candidate="$SUBNET.$i"
-    if ! grep -q "$candidate" <<< "$used"; then
+    if ! grep -q "$candidate" <<< "$u"; then
       echo "$candidate"
       return
     fi
@@ -172,7 +172,7 @@ amend_peer_config() {
     flock -x 200
 
     # Remove any existing block for this client
-    sed -i "/# ${client}\$/,/^$/d" "$WG_DIR/$iface.conf"
+    sed -i "/# ${client}\$/,/^\[Peer\]/d" "$WG_DIR/$iface.conf"
 
     # Append new block
     cat >> "$WG_DIR/$iface.conf" <<EOF
