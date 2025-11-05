@@ -164,12 +164,10 @@ EOF
   fi
 
   if [[ -n "$email" ]]; then
-    {
-      echo "Subject: WireGuard VPN configuration for $client"
-      echo
-      cat "$cfg"
-    } | sendmail "$email"
+    echo "ℹ️  Email address $email was provided, but email sending is disabled."
+    echo "    The configuration file is available at: $cfg"
   fi
+
 }
 case "${1:-}" in
   --helper) show_helper; exit 0 ;;
