@@ -90,6 +90,7 @@ allocate_ip() {
   done
   die "No free IPs available"
 }
+
 cmd_show() {
   echo "=== WireGuard Interfaces ==="
   {
@@ -111,9 +112,10 @@ cmd_show() {
   echo "=== WireGuard Peers ==="
   {
     # Header row with fixed widths
-    printf "%-10s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\n" \
-      "🔌 IFACE" "🔑 PEER-PUBKEY" "🌐 ALLOWED-IPS" "📡 ENDPOINT" "⏱️ HANDSHAKE" "⬆️ TX" "⬇️ RX"
+    printf "%-10s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\t%-6s\n" \
+      "🔌 IFACE" "🔑 PEER-PUBKEY" "🌐 ALLOWED-IPS" "📡 ENDPOINT" "⏱️ HANDSHAKE" "⬆️ TX" "⬇️ RX" "STATUS"
 
+    now=$(date +%s)
     for iface in $(wg show interfaces); do
       for peer in $(wg show "$iface" peers); do
         allowed=$(wg show "$iface" allowed-ips | awk -v p="$peer" '$1==p {print $2}')
@@ -123,15 +125,22 @@ cmd_show() {
 
         if [[ "$handshake" -eq 0 ]]; then
           hstr="never"
+          status="❌"
         else
           hstr="$(date -d @"$handshake" '+%Y-%m-%d %H:%M:%S')"
+          age=$(( now - handshake ))
+          if (( age < 120 )); then
+            status="✅"
+          else
+            status="❌"
+          fi
         fi
 
         tx=$(echo "$transfer" | cut -d/ -f1)
         rx=$(echo "$transfer" | cut -d/ -f2)
 
-        printf "%-10s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\n" \
-          "$iface" "${peer:0:20}…" "$allowed" "$endpoint" "$hstr" "$tx" "$rx"
+        printf "%-10s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\t%-6s\n" \
+          "$iface" "${peer:0:20}…" "$allowed" "$endpoint" "$hstr" "$tx" "$rx" "$status"
       done
     done
   } | column -t -s $'\t'
