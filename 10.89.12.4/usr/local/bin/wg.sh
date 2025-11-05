@@ -110,5 +110,17 @@ case "${1:-}" in
     fi
     # ... rest of add logic ...
     ;;
-  # ... other subcommands ...
+  clean) shift; cmd_clean "$@" ;;
+  show) shift; cmd_show "$@" ;;
+  export) shift; cmd_export "$@" ;;
+  "" )
+    # No arguments → show help
+    show_helper
+    exit 0
+    ;;
+  * )
+    echo "Unknown command: $1" >&2
+    show_helper
+    exit 1
+    ;;
 esac
