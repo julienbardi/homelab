@@ -159,6 +159,42 @@ cmd_clean() {
   echo "✅ $iface is now clean (no peers)"
 }
 
+cmd_clean_all() {
+  read -p "⚠️  This will remove ALL client configs for ALL interfaces. Are you sure? [y/N] " ans
+  case "$ans" in
+    [yY][eE][sS]|[yY])
+      for iface in $(wg show interfaces); do
+        echo "🧹 Cleaning $iface..."
+        cmd_clean "$iface"
+      done
+      ;;
+    *)
+      echo "❌ Aborted."
+      ;;
+  esac
+}
+
+cmd_setup_keys() {
+  for i in $(seq 1 7); do
+    iface="wg$i"
+    keyfile="$WG_DIR/$iface.key"
+    pubfile="$WG_DIR/$iface.pub"
+
+    if [[ -f "$keyfile" && -f "$pubfile" ]]; then
+      echo "ℹ️  Keys already exist for $iface, skipping."
+      continue
+    fi
+
+    echo "🔑 Generating keys for $iface..."
+    umask 077
+    wg genkey | tee "$keyfile" | wg pubkey > "$pubfile"
+    chmod 600 "$keyfile"
+    chmod 644 "$pubfile"
+    chown root:root "$keyfile" "$pubfile"
+  done
+  echo "✅ Server keys set up for wg1–wg7"
+}
+
 cmd_export() {
   local client="$1"
   local iface="${2:-}"
@@ -323,9 +359,11 @@ cmd_revoke() {
 
 case "${1:-}" in
   --helper) show_helper; exit 0 ;;
+  setup-keys) shift; cmd_setup_keys ;;
   add) shift; cmd_add "$@" ;;
   revoke) shift; cmd_revoke "$@" ;;
   clean) shift; cmd_clean "$@" ;;
+  clean-all) shift; cmd_clean_all ;;
   rebuild) shift; cmd_rebuild "$@" ;;
   show) shift; cmd_show "$@" ;;
   export) shift; cmd_export "$@" ;;
