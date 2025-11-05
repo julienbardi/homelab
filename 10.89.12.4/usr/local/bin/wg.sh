@@ -115,9 +115,23 @@ cmd_add() {
 
   IFS='|' read -r allowed dns expiry label <<< "$(policy_for_iface "$iface")"
 
+  # --- Check server key exists ---
+  if [[ ! -f "$WG_DIR/$iface.pub" ]]; then
+    echo "❌ Missing server public key: $WG_DIR/$iface.pub"
+    echo "To fix:"
+    echo "  cd $WG_DIR"
+    echo "  wg genkey | tee $iface.key | wg pubkey > $iface.pub"
+    echo "  chown root:root $iface.key $iface.pub"
+    echo "  chmod 600 $iface.key"
+    echo "  chmod 644 $iface.pub"
+    exit 1
+  fi
+  
+  # Generate client keys
   privkey=$(wg genkey)
   pubkey=$(echo "$privkey" | wg pubkey)
 
+  # Allocate IP
   if [[ -n "$forced_ip" ]]; then
     ip="$forced_ip"
   else
