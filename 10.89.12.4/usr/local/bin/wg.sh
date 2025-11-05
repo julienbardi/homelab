@@ -93,20 +93,27 @@ allocate_ip() {
 cmd_show() {
   echo "=== WireGuard Interfaces ==="
   {
-    echo -e "🔌 IFACE\t🔑 PUBLIC-KEY\t📡 LISTEN-PORT\t🖧 ADDR(v4)\t🖧 ADDR(v6)"
+    # Header row with fixed widths
+    printf "%-10s\t%-25s\t%-15s\t%-20s\t%-25s\n" \
+      "🔌 IFACE" "🔑 PUBLIC-KEY" "📡 LISTEN-PORT" "🖧 ADDR(v4)" "🖧 ADDR(v6)"
+
     for iface in $(wg show interfaces); do
       pub=$(wg show "$iface" public-key)
       port=$(wg show "$iface" listen-port)
       addr4=$(ip -o -4 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
       addr6=$(ip -o -6 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
-      echo -e "$iface\t${pub:0:20}…\t$port\t${addr4:-"-"}\t${addr6:-"-"}"
+      printf "%-10s\t%-25s\t%-15s\t%-20s\t%-25s\n" \
+        "$iface" "${pub:0:20}…" "$port" "${addr4:-"-"}" "${addr6:-"-"}"
     done
   } | column -t -s $'\t'
 
   echo
   echo "=== WireGuard Peers ==="
   {
-    echo -e "🔌 IFACE\t🔑 PEER-PUBKEY\t🌐 ALLOWED-IPS\t📡 ENDPOINT\t⏱️ HANDSHAKE\t⬆️ TX\t⬇️ RX"
+    # Header row with fixed widths
+    printf "%-10s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\n" \
+      "🔌 IFACE" "🔑 PEER-PUBKEY" "🌐 ALLOWED-IPS" "📡 ENDPOINT" "⏱️ HANDSHAKE" "⬆️ TX" "⬇️ RX"
+
     for iface in $(wg show interfaces); do
       for peer in $(wg show "$iface" peers); do
         allowed=$(wg show "$iface" allowed-ips | awk -v p="$peer" '$1==p {print $2}')
@@ -123,7 +130,8 @@ cmd_show() {
         tx=$(echo "$transfer" | cut -d/ -f1)
         rx=$(echo "$transfer" | cut -d/ -f2)
 
-        echo -e "$iface\t${peer:0:20}…\t$allowed\t$endpoint\t$hstr\t$tx\t$rx"
+        printf "%-10s\t%-25s\t%-25s\t%-22s\t%-20s\t%-12s\t%-12s\n" \
+          "$iface" "${peer:0:20}…" "$allowed" "$endpoint" "$hstr" "$tx" "$rx"
       done
     done
   } | column -t -s $'\t'
