@@ -149,10 +149,23 @@ cmd_show() {
 
 cmd_clean() {
   local iface="$1"
-  echo "Removing all peers from $iface..."
-  for peer in $(wg show "$iface" peers); do
-    wg set "$iface" peer "$peer" remove
-  done
+
+  (
+    flock -x 200
+    echo "🧹 Removing all clients from $iface..."
+
+    # Remove all client config files for this interface
+    for cfg in "$CLIENT_DIR"/*-"$iface".conf; do
+      [[ -f "$cfg" ]] || continue
+      echo "   - Deleting $(basename "$cfg")"
+      rm -f "$cfg"
+    done
+
+    # Rebuild the server config with no peers
+    cmd_rebuild "$iface"
+  ) 200>"$WG_DIR/$iface.lock"
+
+  echo "✅ $iface is now clean (no peers)"
 }
 
 cmd_export() {
@@ -162,6 +175,7 @@ cmd_export() {
     || echo "No config found for $client $iface"
 }
 
+#unused/old
 amend_peer_config() {
   local iface="$1"
   local client="$2"
@@ -189,6 +203,59 @@ EOF
   ) 200>"$WG_DIR/$iface.lock"
 }
 
+cmd_rebuild() {
+  local iface="$1"
+  local keyfile="$WG_DIR/$iface.key"
+  local conffile="$WG_DIR/$iface.conf"
+  local port=$((51420 + ${iface#wg}))
+
+  (
+    flock -x 200
+
+    # --- Rebuild [Interface] section ---
+    cat > "$conffile.new" <<EOF
+[Interface]
+PrivateKey = $(sudo cat "$keyfile")
+Address = $SERVER_IP/24
+ListenPort = $port
+MTU = $SERVER_MTU
+EOF
+
+    # --- Loop over all client configs ---
+    for cfg in "$CLIENT_DIR"/*-"$iface".conf; do
+      [[ -f "$cfg" ]] || continue
+      client=$(basename "$cfg" | cut -d- -f1)
+      pub=$(awk '/^PublicKey/{print $3}' "$cfg")
+      ip=$(awk '/^Address/{print $3}' "$cfg")
+
+      if [[ -z "$pub" || -z "$ip" ]]; then
+        echo "⚠️  Skipping malformed client config: $cfg" >&2
+        continue
+      fi
+
+      cat >> "$conffile.new" <<EOF
+
+[Peer]
+# $client
+PublicKey = $pub
+AllowedIPs = $ip
+EOF
+      # Update dashboard
+      if [[ -f "$DASHBOARD" ]]; then
+        sed -i "/<\/tbody>/i <tr><td>$client</td><td>$iface</td><td>$ip</td><td>never</td></tr>" "$DASHBOARD"
+      fi
+    done
+
+    # --- Replace config atomically ---
+    mv "$conffile.new" "$conffile"
+
+    # --- Reload without downtime ---
+    wg syncconf "$iface" <(wg-quick strip "$iface")
+
+  ) 200>"$WG_DIR/$iface.lock"
+
+  echo "✅ Rebuilt $conffile from client configs"
+}
 
 cmd_add() {
   local iface="$1"
@@ -257,28 +324,47 @@ Endpoint = bardi.ch:$port
 PersistentKeepalive = 25
 EOF
 
-  amend_peer_config "$iface" "$client" "$pubkey" "$ip"
-
+  #amend_peer_config "$iface" "$client" "$pubkey" "$ip"
   qrencode -t ansiutf8 < "$cfg"
 
-  if [[ -f "$DASHBOARD" ]]; then
-    sed -i "/<\/tbody>/i <tr><td>$client</td><td>$iface</td><td>$ip</td><td>$expiry</td></tr>" "$DASHBOARD"
-  fi
-
-  if [[ -n "$email" ]]; then
-    echo "ℹ️  Email address $email was provided, but email sending is disabled."
-    echo "    The configuration file is available at: $cfg"
-  fi
-
+  # --- Rebuild server config from all clients ---
+  cmd_rebuild "$iface"
+  
   # Always show where the config was saved
   echo "ℹ️  Client config saved at: $cfg"
   echo "   View it with: sudo /usr/local/bin/wg.sh export $client $iface"
 }
 
+cmd_revoke() {
+  local iface="$1"
+  local client="$2"
+
+  local cfg="$CLIENT_DIR/${client}-${iface}.conf"
+
+  if [[ ! -f "$cfg" ]]; then
+    echo "❌ No config found for client $client on $iface"
+    return 1
+  fi
+
+  (
+    flock -x 200
+
+    # Remove the client config file
+    rm -f "$cfg"
+    echo "🗑️  Removed client config: $cfg"
+
+    # Rebuild the server config from remaining clients
+    cmd_rebuild "$iface"
+
+  ) 200>"$WG_DIR/$iface.lock"
+}
+
 case "${1:-}" in
   --helper) show_helper; exit 0 ;;
   add) shift; cmd_add "$@" ;;
+  revoke) shift; cmd_revoke "$@" ;;
   clean) shift; cmd_clean "$@" ;;
+  rebuild) shift; cmd_rebuild "$@" ;;
   show) shift; cmd_show "$@" ;;
   export) shift; cmd_export "$@" ;;
   "" ) show_helper; exit 0 ;;
