@@ -148,8 +148,11 @@ cmd_add() {
   [[ -e "$cdir" ]] && die "Client already exists: $client on $iface"
   [[ -f "$srv_pub" ]] || die "Missing server public key: $srv_pub
 ➡️ Generate it with:
-   umask 077
-   wg genkey | tee /etc/wireguard/$iface.key | wg pubkey > /etc/wireguard/$iface.pub"
+   sudo umask 077
+   sudo wg genkey | tee /etc/wireguard/$iface.key | wg pubkey > /etc/wireguard/$iface.pub
+   sudo chown root:root /etc/wireguard/$iface.key /etc/wireguard/$iface.pub
+   sudo chmod 600 /etc/wireguard/$iface.key
+   sudo chmod 644 /etc/wireguard/$iface.pub"
 
   sudo mkdir -p "$cdir"; secure_dir "$cdir"
 
