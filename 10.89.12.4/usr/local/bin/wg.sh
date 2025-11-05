@@ -241,6 +241,10 @@ EOF
     echo "ℹ️  Email address $email was provided, but email sending is disabled."
     echo "    The configuration file is available at: $cfg"
   fi
+
+  # Always show where the config was saved
+  echo "ℹ️  Client config saved at: $cfg"
+  echo "   View it with: sudo /usr/local/bin/wg.sh export $client $iface"
 }
 
 case "${1:-}" in
