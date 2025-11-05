@@ -45,7 +45,12 @@ trap 'logger -t wg-cli "❌ Unexpected error on line $LINENO"; exit 1' ERR
 
 LOCKFILE="/var/lock/wg-cli.lock"
 
-die() { logger -t wg-cli "❌ $*"; exit 1; }
+die() {
+  echo "❌ $*" >&2
+  echo "   (see: journalctl -t wg-cli for details)" >&2
+  logger -t wg-cli "❌ $*"
+  exit 1
+}
 log() { logger -t wg-cli "ℹ️ $*"; }
 
 # --- Permissions ---
