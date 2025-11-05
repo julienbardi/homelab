@@ -230,6 +230,14 @@ PersistentKeepalive = 25
 EOF
 
   wg set "$iface" peer "$pubkey" allowed-ips "$ip/32"
+  # --- Persist peer in server config ---
+  cat >> "$WG_DIR/$iface.conf" <<EOF
+  
+  [Peer]
+  # $client
+  PublicKey = $pubkey
+  AllowedIPs = $ip/32
+  EOF
 
   qrencode -t ansiutf8 < "$cfg"
 
