@@ -4,6 +4,8 @@ set -euo pipefail
 die() { echo "Error: $*" >&2; exit 1; }
 
 # --- Constants ---
+SERVER_IP="10.89.12.4"
+SERVER_MTU=1420
 LAN_ONLY_ALLOWED="10.89.12.0/24"
 INET_ALLOWED="0.0.0.0/0"
 WG_DIR="/etc/wireguard"
@@ -11,8 +13,8 @@ CLIENT_DIR="$WG_DIR/clients"
 DASHBOARD="/var/www/html/wg-dashboard/index.html"
 SUBNET="10.89.12"
 STATIC_START=1
-STATIC_END=10
-DYNAMIC_START=11
+STATIC_END=100
+DYNAMIC_START=101
 DYNAMIC_END=254
 
 # --------------------------------------------------------------------
@@ -125,12 +127,31 @@ To fix, copy and paste the following commands:\n\
   sudo chmod 644 $WG_DIR/$iface.pub"
     exit 1
   fi
-  
-  # Generate client keys
+
+  # --- Ensure server config exists ---
+  if [[ ! -f "$WG_DIR/$iface.conf" ]]; then
+    echo "⚙️  Creating base config for $iface at $WG_DIR/$iface.conf"
+    port=$((51420 + ${iface#wg}))
+
+    cat > "$WG_DIR/$iface.conf" <<EOF
+[Interface]
+PrivateKey = $(cat "$WG_DIR/$iface.key")
+Address = $SERVER_IP/24
+ListenPort = $port
+MTU = $SERVER_MTU
+EOF
+
+    chmod 600 "$WG_DIR/$iface.conf"
+    chown root:root "$WG_DIR/$iface.conf"
+
+    wg-quick up "$iface"
+  fi
+
+  # --- Generate client keys ---
   privkey=$(wg genkey)
   pubkey=$(echo "$privkey" | wg pubkey)
 
-  # Allocate IP
+  # --- Allocate IP ---
   if [[ -n "$forced_ip" ]]; then
     ip="$forced_ip"
   else
@@ -139,7 +160,6 @@ To fix, copy and paste the following commands:\n\
 
   mkdir -p "$CLIENT_DIR"
   cfg="$CLIENT_DIR/${client}-${iface}.conf"
-
   port=$((51420 + ${iface#wg}))
 
   cat >"$cfg" <<EOF
@@ -147,6 +167,7 @@ To fix, copy and paste the following commands:\n\
 PrivateKey = $privkey
 Address = $ip/32
 DNS = $dns
+MTU = $SERVER_MTU
 
 [Peer]
 PublicKey = $(cat $WG_DIR/$iface.pub)
@@ -167,8 +188,8 @@ EOF
     echo "ℹ️  Email address $email was provided, but email sending is disabled."
     echo "    The configuration file is available at: $cfg"
   fi
-
 }
+
 case "${1:-}" in
   --helper) show_helper; exit 0 ;;
   add) shift; cmd_add "$@" ;;
