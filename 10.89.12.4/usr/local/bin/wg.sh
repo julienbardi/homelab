@@ -1,286 +1,114 @@
 #!/usr/bin/env bash
-# /usr/local/bin/wg.sh — Unified WireGuard CLI
-#
-# Usage:
-#   /usr/local/bin/wg.sh [--static] [--force] add <interface> <client> <profile> [email] [forced-ip]
-#   /usr/local/bin/wg.sh clean
-#   /usr/local/bin/wg.sh show
-#   /usr/local/bin/wg.sh export <client> [interface]
-#
-# Interfaces:
-#   wg-lan   → VPN interface for LAN-only access
-#   wg-inet  → VPN interface with internet access
-#
-# Profiles:
-#   lan-only   → access only the LAN
-#   lan-inet   → access LAN + internet
-#   inet-only  → internet only, no LAN
-#
-# Examples:
-#   Add a laptop with LAN + internet access:
-#       sudo /usr/local/bin/wg.sh add wg-inet elitebook lan-inet
-#
-#   Add a phone with LAN-only access and email tag:
-#       sudo /usr/local/bin/wg.sh add wg-lan iphone lan-only user@example.com
-#
-#   Export an existing client config + QR:
-#       sudo /usr/local/bin/wg.sh export elitebook
-#
-# Flags:
-#   --static   Assign IP from .2–.10 (reserved range)
-#   --force    Revoke any occupant and reassign specified IP
-#
-# Logging:
-#   All events are written to the systemd journal under tag "wg-cli".
-#   Inspect logs with:
-#       journalctl -t wg-cli
-#       journalctl -t wg-cli -f
-#
-# QR code PNGs (containing the full config + private key) are stored alongside client configs:
-#   /etc/wireguard/clients/<interface>/<client>/<client>-key.png
-# These files are root-only (chmod 600) because they expose the private key.
-
 set -euo pipefail
-trap 'logger -t wg-cli "❌ Unexpected error on line $LINENO"; exit 1' ERR
 
-LOCKFILE="/var/lock/wg-cli.lock"
+die() { echo "Error: $*" >&2; exit 1; }
 
-die() {
-  echo "❌ $*" >&2
-  echo "   (see: journalctl -t wg-cli for details)" >&2
-  logger -t wg-cli "❌ $*"
-  exit 1
-}
-log() { logger -t wg-cli "ℹ️ $*"; }
+# --------------------------------------------------------------------
+# Interface mapping (bitmask scheme)
+#
+# Bits:
+#   Bit 1 (value 1) → LAN access (IPv4)
+#   Bit 2 (value 2) → Internet access (IPv4)
+#   Bit 3 (value 4) → IPv6 access (::/0)
+#
+# Truth table:
+#   Interface | Bits (lan,inet,ipv6) | Meaning                                | Windows note
+#   ----------+----------------------+----------------------------------------+-------------------------------
+#   wg0       | 000                  | Null profile (no access, testing only) | -
+#   wg1       | 001                  | LAN only (IPv4)                        | -
+#   wg2       | 010                  | Internet only (IPv4)                   | -
+#   wg3       | 011                  | LAN + Internet (IPv4)                  | -
+#   wg4 *     | 100                  | IPv6 only (rarely useful)              | * May cause routing issues
+#   wg5 *     | 101                  | LAN (IPv4) + IPv6                      | * May cause routing issues
+#   wg6 *     | 110                  | Internet (IPv4) + IPv6                 | * May cause routing issues
+#   wg7 *     | 111                  | LAN + Internet + IPv6 (full tunnel)    | * May cause routing issues
+#
+# Notes:
+# - IPv4‑only profiles (wg1–wg3) are safe defaults, no special client action.
+# - wg0 is a null profile: useful for testing that no traffic passes.
+# - IPv6‑enabled profiles (wg4–wg7) work fine on Linux, Android, iOS.
+# - On Windows, IPv6‑enabled profiles (wg4–wg7) may leak traffic over LAN IPv6
+#   because Windows prefers IPv6 routes. To prevent this, always run
+#   fix-wireguard-routing.ps1 when using wg4–wg7.
+# --------------------------------------------------------------------
 
-# --- Permissions ---
-secure_file_private() { sudo chown root:root "$1" && sudo chmod 600 "$1"; }
-secure_file_public()  { sudo chown root:root "$1" && sudo chmod 644 "$1"; }
-secure_dir()          { sudo chown -R root:root "$1" && sudo chmod 700 "$1"; }
+show_helper() {
+  cat <<'EOF'
+Usage:
+  wg.sh [--static] [--force] add <iface> <client> [email] [forced-ip]
+  wg.sh clean
+  wg.sh show
+  wg.sh export <client> [iface]
+  wg.sh --helper
 
-# --- Config ---
-WG_CLIENTS_ROOT="/etc/wireguard/clients"
-WG_ENDPOINT_DEFAULT="bardi.ch:51420"
-LAN_ONLY_ALLOWED="10.89.12.0/24"
-INET_ALLOWED="0.0.0.0/0, ::/0"
-LAN_IPV4_PREFIX="10.4.0"
-INET_IPV4_PREFIX="10.5.0"
-LAN_IPV6_PREFIX="fd42:42:42::"
-INET_IPV6_PREFIX="fd42:43:43::"
+Profiles:
+  wg0 → Null profile (no access, testing only)
+  wg1 → LAN only (IPv4)
+  wg2 → Internet only (IPv4)
+  wg3 → LAN + Internet (IPv4)
+  wg4 → IPv6 only (* Windows: run fix-wireguard-routing.ps1)
+  wg5 → LAN (IPv4) + IPv6 (* Windows: run fix-wireguard-routing.ps1)
+  wg6 → Internet (IPv4) + IPv6 (* Windows: run fix-wireguard-routing.ps1)
+  wg7 → LAN + Internet + IPv6 (* Windows: run fix-wireguard-routing.ps1)
 
-# --- Validation helpers ---
-is_interface() { [[ "$1" == "wg-lan" || "$1" == "wg-inet" ]]; }
-is_profile()   { [[ "$1" == "lan-only" || "$1" == "lan-inet" || "$1" == "inet-only" ]]; }
-is_email()     { [[ "$1" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; }
-safe_name()    { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; }
+Flags:
+  --static   Assign IP from reserved static range
+  --force    Revoke any occupant and reassign specified IP
+  --helper   Show this help and profile mapping
 
-normalize_email() {
-  local email="${1:-}"
-  [[ -z "$email" ]] && echo "none" && return
-  is_email "$email" || die "Invalid email: $email"
-  echo "$email"
-}
-
-# --- Paths ---
-client_dir()  { echo "$WG_CLIENTS_ROOT/$1/$2"; }
-client_pub()  { echo "$(client_dir "$1" "$2")/$2.pub"; }
-client_key()  { echo "$(client_dir "$1" "$2")/$2.key"; }
-client_conf() { echo "$(client_dir "$1" "$2")/$2.conf"; }
-client_meta() { echo "$(client_dir "$1" "$2")/meta.txt"; }
-exp_log()     { echo "$WG_CLIENTS_ROOT/expirations.log"; }
-
-ensure_dirs() {
-  sudo mkdir -p "$WG_CLIENTS_ROOT/wg-lan" "$WG_CLIENTS_ROOT/wg-inet"
-  sudo touch "$(exp_log)"
-  secure_file_private "$(exp_log)"
-}
-
-# --- IP assignment ---
-next_free_octet() {
-  local iface="$1" static="$2" used start end
-  start=11; end=254
-  [[ "$static" == "true" ]] && start=2 && end=10
-  used=$(awk -F'|' -v iface="$iface" '$3==iface{split($2,a,"."); print a[4]}' "$(exp_log)" | sort -n | uniq)
-  for i in $(seq "$start" "$end"); do
-    grep -qw "$i" <<< "$used" || { echo "$i"; return 0; }
-  done
-  return 1
-}
-
-assign_ips() {
-  local iface="$1" forced_ipv4="${2:-}" v4prefix v6prefix octet ipv4 ipv6
-  v4prefix=$([[ "$iface" == "wg-lan" ]] && echo "$LAN_IPV4_PREFIX" || echo "$INET_IPV4_PREFIX")
-  v6prefix=$([[ "$iface" == "wg-lan" ]] && echo "$LAN_IPV6_PREFIX" || echo "$INET_IPV6_PREFIX")
-  if [[ -n "$forced_ipv4" ]]; then
-    octet=$(awk -F'.' '{print $4}' <<< "$forced_ipv4")
-  else
-    octet=$(next_free_octet "$iface" "$STATIC") || die "No free IPs in $iface"
-  fi
-  ipv4="$v4prefix.$octet"
-  ipv6="${v6prefix}${octet}"
-  echo "$ipv4|$ipv6"
-}
-
-profile_apply() {
-  case "$1" in
-    lan-only)  echo "$LAN_ONLY_ALLOWED|10.89.12.4|never" ;;
-    lan-inet)  echo "$INET_ALLOWED|10.89.12.4,1.1.1.1,8.8.8.8|never" ;;
-    inet-only) echo "$INET_ALLOWED|10.89.12.4,1.1.1.1,8.8.8.8|$(date -d '+1 year' +'%Y-%m-%d')" ;;
-  esac
-}
-
-# --- Commands ---
-cmd_add() {
-  ensure_dirs
-  local iface="$1" client="$2" profile="$3" email="${4:-}" forced_ip="${5:-}"
-  is_interface "$iface" || die "Invalid interface: $iface"
-  is_profile "$profile" || die "Invalid profile: $profile"
-  safe_name "$client"   || die "Unsafe client name"
-  email="$(normalize_email "$email")"
-
-  local cdir="$(client_dir "$iface" "$client")"
-  local pub="$(client_pub "$iface" "$client")"
-  local key="$(client_key "$iface" "$client")"
-  local conf="$(client_conf "$iface" "$client")"
-  local meta="$(client_meta "$iface" "$client")"
-  local srv_pub="/etc/wireguard/$iface.pub"
-
-  [[ -e "$cdir" ]] && die "Client already exists: $client on $iface"
-  [[ -f "$srv_pub" ]] || die "Missing server public key: $srv_pub
-➡️ Generate it with:
-   sudo umask 077
-   sudo wg genkey | tee /etc/wireguard/$iface.key | wg pubkey > /etc/wireguard/$iface.pub
-   sudo chown root:root /etc/wireguard/$iface.key /etc/wireguard/$iface.pub
-   sudo chmod 600 /etc/wireguard/$iface.key
-   sudo chmod 644 /etc/wireguard/$iface.pub"
-
-  sudo mkdir -p "$cdir"; secure_dir "$cdir"
-
-  { flock -x 200 || exit 1
-    IFS='|' read -r ip ipv6 <<< "$(assign_ips "$iface" "$forced_ip")"
-    log "Assigning $client on $iface → IPv4 $ip, IPv6 $ipv6"
-
-    sudo bash -c "wg genkey | tee '$key' | wg pubkey > '$pub'"
-    secure_file_private "$key"
-    secure_file_public "$pub"
-
-    IFS='|' read -r allowed dns expiry <<< "$(profile_apply "$profile")"
-    sudo tee "$conf" >/dev/null <<EOF
-[Interface]
-Address = $ip/32,$ipv6/128
-PrivateKey = $(<"$key")
-DNS = $dns
-MTU = 1420
-
-[Peer]
-PublicKey = $(<"$srv_pub")
-Endpoint = $WG_ENDPOINT_DEFAULT
-AllowedIPs = $allowed
-PersistentKeepalive = 25
+Windows users:
+  For wg4–wg7, always run fix-wireguard-routing.ps1 AFTER connecting.
+  You may re-run it while VPN is active if routes reset.
+  Do NOT run before connecting. No need after disconnecting.
 EOF
-    secure_file_private "$conf"
-
-    sudo tee "$meta" >/dev/null <<EOF
-Client: $client
-Interface: $iface
-IP: $ip
-IPv6: $ipv6
-Profile: $profile
-Email: $email
-Allowed: $allowed
-DNS: $dns
-Created: $(date -Iseconds)
-Expires: $expiry
-EOF
-    secure_file_public "$meta"
-
-    echo "$client | $ip | $iface | $profile | $email | Expires: $expiry" | sudo tee -a "$(exp_log)" >/dev/null
-  } 200>"$LOCKFILE"
-
-  echo "📱 Scan this QR code with your WireGuard mobile app:"
-  qrencode -t ansiutf8 < "$conf"
-  qrencode -o "$(dirname "$conf")/${client}-key.png" < "$conf"
-  secure_file_private "$(dirname "$conf")/${client}-key.png"
-  log "Saved QR code PNG at $(dirname "$conf")/${client}-key.png"
 }
+# --- Policy mapping: single source of truth ---
+# Returns a pipe‑separated string: allowed|dns|expiry|label.
+policy_for_iface() {
+  local raw="$1"
+  [[ "$raw" =~ ^wg([0-9]+)$ ]] || die "Invalid interface name: $raw"
+  local num="${BASH_REMATCH[1]}"
 
-cmd_show() {
-  ensure_dirs
-  printf "%-15s %-10s %-15s %-25s %-20s %-20s\n" "Client" "Iface" "IP" "Profile" "Last Handshake" "RX/TX"
-  printf "%-15s %-10s %-15s %-25s %-20s %-20s\n" "------" "-----" "----" "-------" "--------------" "-----"
-  while IFS='|' read -r client ip iface profile email rest; do
-    [[ -z "$client" ]] && continue
-    local pub="$(client_pub "$iface" "$client")"
-    [[ -f "$pub" ]] || continue
-    local line
-    line=$(sudo wg show "$iface" dump | awk -v pub="$(<"$pub")" '$1==pub {print $0}')
-    if [[ -n "$line" ]]; then
-      IFS=$'\t' read -r _ _ _ _ _ _ last rx tx _ <<< "$line"
-      printf "%-15s %-10s %-15s %-25s %-20s %-20s\n" "$client" "$iface" "$ip" "$profile" "$last" "$rx/$tx"
-    else
-      printf "%-15s %-10s %-15s %-25s %-20s %-20s\n" "$client" "$iface" "$ip" "$profile" "—" "—"
-    fi
-  done < "$(exp_log)"
-}
+  local lan=$(( num & 1 ))
+  local inet=$(( (num >> 1) & 1 ))
+  local ipv6=$(( (num >> 2) & 1 ))
 
-cmd_export() {
-  local client="$1" iface="${2:-}"
-  [[ -z "$client" ]] && die "Usage: wg.sh export <client> [interface]"
-  local cdir
-  if [[ -n "$iface" ]]; then
-    cdir="$(client_dir "$iface" "$client")"
+  if [[ $num -eq 0 ]]; then
+    echo "| |never|Null profile (no access)"
+  elif [[ $lan -eq 1 && $inet -eq 0 && $ipv6 -eq 0 ]]; then
+    echo "$LAN_ONLY_ALLOWED|10.89.12.4|never|LAN only (IPv4)"
+  elif [[ $lan -eq 0 && $inet -eq 1 && $ipv6 -eq 0 ]]; then
+    echo "$INET_ALLOWED|1.1.1.1,8.8.8.8|$(date -d '+1 year' +'%Y-%m-%d')|Internet only (IPv4)"
+  elif [[ $lan -eq 1 && $inet -eq 1 && $ipv6 -eq 0 ]]; then
+    echo "$INET_ALLOWED|10.89.12.4,1.1.1.1,8.8.8.8|never|LAN + Internet (IPv4)"
+  elif [[ $lan -eq 0 && $inet -eq 0 && $ipv6 -eq 1 ]]; then
+    echo "::/0|2606:4700:4700::1111|never|IPv6 only"
+  elif [[ $lan -eq 1 && $inet -eq 0 && $ipv6 -eq 1 ]]; then
+    echo "$LAN_ONLY_ALLOWED,::/0|10.89.12.4,2606:4700:4700::1111|never|LAN + IPv6"
+  elif [[ $lan -eq 0 && $inet -eq 1 && $ipv6 -eq 1 ]]; then
+    echo "$INET_ALLOWED,::/0|1.1.1.1,8.8.8.8,2606:4700:4700::1111|never|Internet + IPv6"
+  elif [[ $lan -eq 1 && $inet -eq 1 && $ipv6 -eq 1 ]]; then
+    echo "$INET_ALLOWED,::/0|10.89.12.4,1.1.1.1,8.8.8.8,2606:4700:4700::1111|never|LAN + Internet + IPv6"
   else
-    cdir=$(find "$WG_CLIENTS_ROOT" -maxdepth 2 -type d -name "$client" 2>/dev/null | head -n1)
+    die "Interface $raw encodes no supported access policy"
   fi
-  [[ -d "$cdir" ]] || die "Client not found: $client"
-  local conf="$cdir/$client.conf"
-  [[ -f "$conf" ]] || die "Missing config for $client"
-  cat "$conf"
-  echo "📱 QR code:"
-  qrencode -t ansiutf8 < "$conf"
-  qrencode -o "$cdir/${client}-key.png" < "$conf"
-  secure_file_private "$cdir/${client}-key.png"
-  log "Re-saved QR code PNG at $cdir/${client}-key.png"
 }
-
-cmd_clean() {
-  ensure_dirs
-  local now=$(date +%s)
-  local tmp=$(mktemp)
-  while IFS='|' read -r client ip iface profile email rest; do
-    [[ -z "$client" ]] && continue
-    local expiry=$(awk -F'Expires: ' '{print $2}' <<< "$rest")
-    if [[ "$expiry" != "never" ]]; then
-      local exp_ts=$(date -d "$expiry" +%s)
-      if (( exp_ts < now )); then
-        log "Cleaning expired client $client ($iface)"
-        sudo rm -rf "$(client_dir "$iface" "$client")"
-        continue
-      fi
-    fi
-    echo "$client | $ip | $iface | $profile | $email | Expires: $expiry" >> "$tmp"
-  done < "$(exp_log)"
-  sudo mv "$tmp" "$(exp_log)"
-  secure_file_private "$(exp_log)"
-}
-
 # --- Main dispatcher ---
-STATIC="false"
-FORCE="false"
-while [[ "${1:-}" =~ ^-- ]]; do
-  case "$1" in
-    --static) STATIC="true";;
-    --force)  FORCE="true";;
-    *) die "Unknown flag: $1";;
-  esac
-  shift
-done
+case "${1:-}" in
+  --helper) show_helper; exit 0 ;;
+  add)
+    iface="$2"; client="$3"
+    IFS='|' read -r allowed dns expiry label <<< "$(policy_for_iface "$iface")"
 
-cmd="${1:-}"; shift || true
-case "$cmd" in
-  add)    cmd_add "$@";;
-  show)   cmd_show "$@";;
-  export) cmd_export "$@";;
-  clean)  cmd_clean "$@";;
-  *) die "Usage: /usr/local/bin/wg.sh [--static] [--force] {add|show|export|clean} …";;
+    if [[ "$label" == *"IPv6"* ]]; then
+      echo "⚠️  IPv6 support enabled for $client on $iface"
+      echo "   • Windows 11: run fix-wireguard-routing.ps1 when using wg4–wg7."
+      echo "     Run AFTER connecting, may re-run while active, not before/after disconnect."
+      echo "   • Linux: no action needed."
+      echo "   • Android: WireGuard app handles IPv6 cleanly."
+      echo "   • iOS: WireGuard app handles IPv6 cleanly."
+    fi
+    # ... rest of add logic ...
+    ;;
+  # ... other subcommands ...
 esac
