@@ -6,6 +6,9 @@ die() { echo "Error: $*" >&2; exit 1; }
 # --- Constants ---
 LAN_ONLY_ALLOWED="10.89.12.0/24"
 INET_ALLOWED="0.0.0.0/0"
+WG_DIR="/etc/wireguard"
+CLIENT_DIR="$WG_DIR/clients"
+DASHBOARD="/var/www/html/wg-dashboard/index.html"
 
 # --------------------------------------------------------------------
 # Interface mapping (bitmask scheme)
@@ -68,9 +71,6 @@ Windows users:
   Do NOT run before connecting. No need after disconnecting.
 EOF
 }
-
-# --- Policy mapping: single source of truth ---
-# Returns a pipe‑separated string: allowed|dns|expiry|label.
 policy_for_iface() {
   local raw="$1"
   [[ "$raw" =~ ^wg([0-9]+)$ ]] || die "Invalid interface name: $raw"
@@ -100,9 +100,6 @@ policy_for_iface() {
     die "Interface $raw encodes no supported access policy"
   fi
 }
-
-# --- Command implementations ---
-
 cmd_show() {
   echo "=== WireGuard status ==="
   wg show
@@ -129,29 +126,90 @@ cmd_export() {
   local client="$1"
   local iface="${2:-}"
   echo "Exporting configuration for client '$client' ${iface:+on $iface}..."
-  # Example: print config path or contents
-  # (Adapt to your storage layout)
-  cat "/etc/wireguard/clients/${client}${iface:+-$iface}.conf" 2>/dev/null \
+  cat "$CLIENT_DIR/${client}${iface:+-$iface}.conf" 2>/dev/null \
     || echo "No config found for $client $iface"
 }
 
+cmd_add() {
+  local iface="$1"
+  local client="$2"
+  local email="${3:-}"
+  local forced_ip="${4:-}"
+
+  IFS='|' read -r allowed dns expiry label <<< "$(policy_for_iface "$iface")"
+
+  # Generate keys
+  privkey=$(wg genkey)
+  pubkey=$(echo "$privkey" | wg pubkey)
+
+  # Assign IP
+  if [[ -n "$forced_ip" ]]; then
+    ip="$forced_ip"
+  else
+    ip="10.89.12.$((RANDOM % 200 + 20))"
+  fi
+
+  # Write client config
+  mkdir -p "$CLIENT_DIR"
+  cfg="$CLIENT_DIR/${client}-${iface}.conf"
+  cat >"$cfg" <<EOF
+[Interface]
+PrivateKey = $privkey
+Address = $ip/32
+DNS = $dns
+
+[Peer]
+PublicKey = $(cat $WG_DIR/$iface.pub)
+AllowedIPs = $allowed
+Endpoint = vpn.example.com:
+  Endpoint = vpn.example.com:51820
+  PersistentKeepalive = 25
+EOF
+
+  echo "Client config written to $cfg"
+
+  # Add peer to server
+  wg set "$iface" peer "$pubkey" allowed-ips "$ip/32"
+
+  # Generate QR code for mobile clients
+  qrencode -t ansiutf8 < "$cfg"
+
+  # Update dashboard
+  if [[ -f "$DASHBOARD" ]]; then
+    echo "Updating dashboard..."
+    sed -i "/<\/tbody>/i <tr><td>$client</td><td>$iface</td><td>$ip</td><td>$expiry</td></tr>" "$DASHBOARD"
+  fi
+
+  # Send email if address provided
+  if [[ -n "$email" ]]; then
+    echo "Sending config to $email..."
+    {
+      echo "Subject: WireGuard VPN configuration for $client"
+      echo
+      echo "Hello $client,"
+      echo
+      echo "Attached is your WireGuard VPN configuration for interface $iface."
+      echo "Allowed IPs: $allowed"
+      echo "DNS: $dns"
+      echo "Expiry: $expiry"
+      echo
+      echo "Regards,"
+      echo "VPN Admin"
+    } | sendmail "$email"
+  fi
+
+  # Advisory for IPv6 profiles
+  if [[ "$label" == *"IPv6"* ]]; then
+    echo "⚠️  IPv6 support enabled for $client on $iface"
+    echo "   • Windows: run fix-wireguard-routing.ps1 when using wg4–wg7."
+    echo "     Run AFTER connecting, may re-run while active, not before/after disconnect."
+    echo "   • Linux/Android/iOS: no action needed."
+  fi
+}
 # --- Main dispatcher ---
 case "${1:-}" in
   --helper) show_helper; exit 0 ;;
-  add)
-    iface="$2"; client="$3"
-    IFS='|' read -r allowed dns expiry label <<< "$(policy_for_iface "$iface")"
-
-    if [[ "$label" == *"IPv6"* ]]; then
-      echo "⚠️  IPv6 support enabled for $client on $iface"
-      echo "   • Windows 11: run fix-wireguard-routing.ps1 when using wg4–wg7."
-      echo "     Run AFTER connecting, may re-run while active, not before/after disconnect."
-      echo "   • Linux: no action needed."
-      echo "   • Android: WireGuard app handles IPv6 cleanly."
-      echo "   • iOS: WireGuard app handles IPv6 cleanly."
-    fi
-    # ... rest of add logic ...
-    ;;
+  add) shift; cmd_add "$@" ;;
   clean) shift; cmd_clean "$@" ;;
   show) shift; cmd_show "$@" ;;
   export) shift; cmd_export "$@" ;;
@@ -161,4 +219,8 @@ case "${1:-}" in
     exit 0
     ;;
   * )
-    echo "Unknown command: $1" >&
+    echo "Unknown command: $1" >&2
+    show_helper
+    exit 1
+    ;;
+esac
