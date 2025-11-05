@@ -35,11 +35,11 @@ die() { echo "Error: $*" >&2; exit 1; }
 show_helper() {
   cat <<'EOF'
 Usage:
-  wg.sh [--static] [--force] add <iface> <client> [email] [forced-ip]
-  wg.sh clean
-  wg.sh show
-  wg.sh export <client> [iface]
-  wg.sh --helper
+  /usr/local/bin/wg.sh [--static] [--force] add <iface> <client> [email] [forced-ip]
+  /usr/local/bin/wg.sh clean
+  /usr/local/bin/wg.sh show
+  /usr/local/bin/wg.sh export <client> [iface]
+  /usr/local/bin/wg.sh --helper
 
 Profiles:
   wg0 → Null profile (no access, testing only)
