@@ -4,6 +4,8 @@ set -euo pipefail
 die() { echo "Error: $*" >&2; exit 1; }
 
 # --- Constants ---
+WG_ENDPOINT_HOST="bardi.ch"
+BASE_WG_PORT=51420
 SERVER_IP="10.89.12.4"
 SERVER_MTU=1420
 LAN_ONLY_ALLOWED="10.89.12.0/24"
@@ -175,39 +177,11 @@ cmd_export() {
     || echo "No config found for $client $iface"
 }
 
-#unused/old
-amend_peer_config() {
-  local iface="$1"
-  local client="$2"
-  local pubkey="$3"
-  local ip="$4"
-
-  (
-    flock -x 200
-
-    # Remove any existing block for this client
-    sed -i "/# ${client}\$/,/^\[Peer\]/d" "$WG_DIR/$iface.conf"
-
-    # Append new block
-    cat >> "$WG_DIR/$iface.conf" <<EOF
-
-[Peer]
-# $client
-PublicKey = $pubkey
-AllowedIPs = $ip/32
-EOF
-
-    # Reload without downtime
-    wg syncconf "$iface" <(wg-quick strip "$iface")
-
-  ) 200>"$WG_DIR/$iface.lock"
-}
-
 cmd_rebuild() {
   local iface="$1"
   local keyfile="$WG_DIR/$iface.key"
   local conffile="$WG_DIR/$iface.conf"
-  local port=$((51420 + ${iface#wg}))
+  local port=$((BASE_WG_PORT + ${iface#wg}))
 
   (
     flock -x 200
@@ -279,7 +253,7 @@ To fix, copy and paste the following commands:\n\
   # --- Ensure server config exists ---
   if [[ ! -f "$WG_DIR/$iface.conf" ]]; then
     echo "⚙️  Creating base config for $iface at $WG_DIR/$iface.conf"
-    port=$((51420 + ${iface#wg}))
+    port=$((BASE_WG_PORT + ${iface#wg}))
 
     cat > "$WG_DIR/$iface.conf" <<EOF
 [Interface]
@@ -308,7 +282,7 @@ EOF
 
   mkdir -p "$CLIENT_DIR"
   cfg="$CLIENT_DIR/${client}-${iface}.conf"
-  port=$((51420 + ${iface#wg}))
+  port=$((BASE_WG_PORT + ${iface#wg}))
 
   cat >"$cfg" <<EOF
 [Interface]
@@ -320,11 +294,10 @@ MTU = $SERVER_MTU
 [Peer]
 PublicKey = $(cat $WG_DIR/$iface.pub)
 AllowedIPs = $allowed
-Endpoint = bardi.ch:$port
+Endpoint = $WG_ENDPOINT_HOST:$port
 PersistentKeepalive = 25
 EOF
 
-  #amend_peer_config "$iface" "$client" "$pubkey" "$ip"
   qrencode -t ansiutf8 < "$cfg"
 
   # --- Rebuild server config from all clients ---
