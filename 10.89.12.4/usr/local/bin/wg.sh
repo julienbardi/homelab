@@ -185,7 +185,7 @@ EOF
   for cfg in "$CLIENT_DIR"/*-"$iface".conf; do
     [[ -f "$cfg" ]] || continue
     client=$(basename "$cfg" | cut -d- -f1)
-    pub=$(awk '/^PublicKey/{print $3}' "$cfg")
+    pub=$(awk -F' = ' '/^# ClientPublicKey/{print $2}' "$cfg")
     ip=$(awk '/^Address/{print $3}' "$cfg")
 
     if [[ -z "$pub" || -z "$ip" ]]; then
@@ -273,6 +273,7 @@ EOF
   port=$((BASE_WG_PORT + ${iface#wg}))
 
   cat >"$cfg" <<EOF
+# ClientPublicKey = $pubkey
 [Interface]
 PrivateKey = $privkey
 Address = $ip/32
