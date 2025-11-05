@@ -3,6 +3,10 @@ set -euo pipefail
 
 die() { echo "Error: $*" >&2; exit 1; }
 
+# --- Constants ---
+LAN_ONLY_ALLOWED="10.89.12.0/24"
+INET_ALLOWED="0.0.0.0/0"
+
 # --------------------------------------------------------------------
 # Interface mapping (bitmask scheme)
 #
@@ -34,6 +38,8 @@ die() { echo "Error: $*" >&2; exit 1; }
 
 show_helper() {
   cat <<'EOF'
+WireGuard management helper script
+
 Usage:
   /usr/local/bin/wg.sh [--static] [--force] add <iface> <client> [email] [forced-ip]
   /usr/local/bin/wg.sh clean
@@ -62,6 +68,7 @@ Windows users:
   Do NOT run before connecting. No need after disconnecting.
 EOF
 }
+
 # --- Policy mapping: single source of truth ---
 # Returns a pipe‑separated string: allowed|dns|expiry|label.
 policy_for_iface() {
@@ -93,6 +100,7 @@ policy_for_iface() {
     die "Interface $raw encodes no supported access policy"
   fi
 }
+
 # --- Command implementations ---
 
 cmd_show() {
@@ -113,7 +121,7 @@ cmd_show() {
 cmd_clean() {
   echo "Cleaning up stale WireGuard peers..."
   # Example: remove peers with expired configs
-  # (You can adapt this to your environment)
+  # (Adapt this logic to your environment)
   wg show | grep 'peer' || echo "No peers found."
 }
 
@@ -126,6 +134,7 @@ cmd_export() {
   cat "/etc/wireguard/clients/${client}${iface:+-$iface}.conf" 2>/dev/null \
     || echo "No config found for $client $iface"
 }
+
 # --- Main dispatcher ---
 case "${1:-}" in
   --helper) show_helper; exit 0 ;;
@@ -152,8 +161,4 @@ case "${1:-}" in
     exit 0
     ;;
   * )
-    echo "Unknown command: $1" >&2
-    show_helper
-    exit 1
-    ;;
-esac
+    echo "Unknown command: $1" >&
