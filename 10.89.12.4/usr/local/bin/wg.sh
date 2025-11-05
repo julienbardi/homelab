@@ -91,8 +91,46 @@ allocate_ip() {
   die "No free IPs available"
 }
 cmd_show() {
-  wg show
+  echo "=== WireGuard Interfaces ==="
+  printf "🔌 IFACE   🔑 PUBLIC-KEY (short)   📡 LISTEN-PORT   🖧 ADDRESS\n"
+  printf "%s\n" "------------------------------------------------------------------"
+
+  for iface in $(wg show interfaces); do
+    pub=$(wg show "$iface" public-key)
+    port=$(wg show "$iface" listen-port)
+    addr=$(wg show "$iface" | awk '/interface:/ {next} /inet/ {print $2; exit}')
+    printf "%-8s %-22s %-14s %-15s\n" \
+      "$iface" "${pub:0:20}…" "$port" "$addr"
+  done
+
+  echo
+  echo "=== WireGuard Peers ==="
+  printf "🔌 IFACE   🔑 PEER-PUBKEY (short)   🌐 ALLOWED-IPS        📡 ENDPOINT           ⏱️ HANDSHAKE        ⬆️ TX      ⬇️ RX\n"
+  printf "%s\n" "--------------------------------------------------------------------------------------------------------------------------------"
+
+  for iface in $(wg show interfaces); do
+    for peer in $(wg show "$iface" peers); do
+      allowed=$(wg show "$iface" allowed-ips | awk -v p="$peer" '$1==p {print $2}')
+      endpoint=$(wg show "$iface" endpoints | awk -v p="$peer" '$1==p {print $2}')
+      handshake=$(wg show "$iface" latest-handshakes | awk -v p="$peer" '$1==p {print $2}')
+      transfer=$(wg show "$iface" transfer | awk -v p="$peer" '$1==p {print $2" "$3" / "$4" "$5}')
+
+      # Format handshake
+      if [[ "$handshake" -eq 0 ]]; then
+        hstr="never"
+      else
+        hstr="$(date -d @"$handshake" '+%Y-%m-%d %H:%M:%S')"
+      fi
+
+      tx=$(echo "$transfer" | cut -d/ -f1)
+      rx=$(echo "$transfer" | cut -d/ -f2)
+
+      printf "%-8s %-22s %-20s %-18s %-18s %-8s %-8s\n" \
+        "$iface" "${peer:0:20}…" "$allowed" "$endpoint" "$hstr" "$tx" "$rx"
+    done
+  done
 }
+
 
 cmd_clean() {
   local iface="$1"
