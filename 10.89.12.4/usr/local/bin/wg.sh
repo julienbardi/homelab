@@ -92,44 +92,41 @@ allocate_ip() {
 }
 cmd_show() {
   echo "=== WireGuard Interfaces ==="
-  printf "🔌 IFACE   🔑 PUBLIC-KEY (short)   📡 LISTEN-PORT   🖧 ADDR(v4)        🖧 ADDR(v6)\n"
-  printf "%s\n" "------------------------------------------------------------------------------------------------"
-
-  for iface in $(wg show interfaces); do
-    pub=$(wg show "$iface" public-key)
-    port=$(wg show "$iface" listen-port)
-    addr4=$(ip -o -4 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
-    addr6=$(ip -o -6 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
-    printf "%-8s %-22s %-14s %-15s %-20s\n" \
-      "$iface" "${pub:0:20}…" "$port" "${addr4:-"-"}" "${addr6:-"-"}"
-  done
+  {
+    echo -e "🔌 IFACE\t🔑 PUBLIC-KEY\t📡 LISTEN-PORT\t🖧 ADDR(v4)\t🖧 ADDR(v6)"
+    for iface in $(wg show interfaces); do
+      pub=$(wg show "$iface" public-key)
+      port=$(wg show "$iface" listen-port)
+      addr4=$(ip -o -4 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
+      addr6=$(ip -o -6 addr show dev "$iface" | awk '{print $4}' | paste -sd "," -)
+      echo -e "$iface\t${pub:0:20}…\t$port\t${addr4:-"-"}\t${addr6:-"-"}"
+    done
+  } | column -t -s $'\t'
 
   echo
   echo "=== WireGuard Peers ==="
-  printf "🔌 IFACE   🔑 PEER-PUBKEY (short)   🌐 ALLOWED-IPS        📡 ENDPOINT           ⏱️ HANDSHAKE        ⬆️ TX      ⬇️ RX\n"
-  printf "%s\n" "--------------------------------------------------------------------------------------------------------------------------------"
+  {
+    echo -e "🔌 IFACE\t🔑 PEER-PUBKEY\t🌐 ALLOWED-IPS\t📡 ENDPOINT\t⏱️ HANDSHAKE\t⬆️ TX\t⬇️ RX"
+    for iface in $(wg show interfaces); do
+      for peer in $(wg show "$iface" peers); do
+        allowed=$(wg show "$iface" allowed-ips | awk -v p="$peer" '$1==p {print $2}')
+        endpoint=$(wg show "$iface" endpoints | awk -v p="$peer" '$1==p {print $2}')
+        handshake=$(wg show "$iface" latest-handshakes | awk -v p="$peer" '$1==p {print $2}')
+        transfer=$(wg show "$iface" transfer | awk -v p="$peer" '$1==p {print $2" "$3" / "$4" "$5}')
 
-  for iface in $(wg show interfaces); do
-    for peer in $(wg show "$iface" peers); do
-      allowed=$(wg show "$iface" allowed-ips | awk -v p="$peer" '$1==p {print $2}')
-      endpoint=$(wg show "$iface" endpoints | awk -v p="$peer" '$1==p {print $2}')
-      handshake=$(wg show "$iface" latest-handshakes | awk -v p="$peer" '$1==p {print $2}')
-      transfer=$(wg show "$iface" transfer | awk -v p="$peer" '$1==p {print $2" "$3" / "$4" "$5}')
+        if [[ "$handshake" -eq 0 ]]; then
+          hstr="never"
+        else
+          hstr="$(date -d @"$handshake" '+%Y-%m-%d %H:%M:%S')"
+        fi
 
-      # Format handshake
-      if [[ "$handshake" -eq 0 ]]; then
-        hstr="never"
-      else
-        hstr="$(date -d @"$handshake" '+%Y-%m-%d %H:%M:%S')"
-      fi
+        tx=$(echo "$transfer" | cut -d/ -f1)
+        rx=$(echo "$transfer" | cut -d/ -f2)
 
-      tx=$(echo "$transfer" | cut -d/ -f1)
-      rx=$(echo "$transfer" | cut -d/ -f2)
-
-      printf "%-8s %-22s %-20s %-18s %-18s %-8s %-8s\n" \
-        "$iface" "${peer:0:20}…" "$allowed" "$endpoint" "$hstr" "$tx" "$rx"
+        echo -e "$iface\t${peer:0:20}…\t$allowed\t$endpoint\t$hstr\t$tx\t$rx"
+      done
     done
-  done
+  } | column -t -s $'\t'
 }
 
 cmd_clean() {
