@@ -61,6 +61,7 @@ Usage:
   /usr/local/bin/wg.sh rebuild <iface>
   /usr/local/bin/wg.sh show
   /usr/local/bin/wg.sh export <client> [iface]
+  /usr/local/bin/wg.sh qr <client> [iface]
   /usr/local/bin/wg.sh setup-keys
   /usr/local/bin/wg.sh --helper
 EOF
@@ -306,6 +307,15 @@ cmd_export() {
     || echo "No config found for $client $iface"
 }
 
+cmd_qr() {
+  local client="$1"
+  local iface="${2:-}"
+  
+  # Pipe the output of cmd_export directly to qrencode
+  # We use the existing export function for the raw text, and pipe it.
+  cmd_export "$client" "$iface" | qrencode -t ansiutf8
+}
+
 #
 # --- [NEW HELPER FUNCTION] ---
 # Generates the PostUp/PostDown rules
@@ -506,12 +516,14 @@ PersistentKeepalive = 25
 EOF
 
   # --- Rebuild server config from all clients ---
-  ( cmd_rebuild "$iface" # <--- cmd_rebuild MUST be on the same line as (
+  ( cmd_rebuild "$iface"
     # Always show where the config was saved
     echo "   Client config saved at: $cfg"
-    echo "    View it with: sudo /usr/local/bin/wg.sh export $client $iface"
+    echo "    View text: sudo /usr/local/bin/wg.sh export $client $iface"
+    echo "    View QR:   sudo /usr/local/bin/wg.sh qr $client $iface"
   ) || true # Force function success, ignoring the mystery error
 }
+
 
 cmd_revoke() {
   local iface="$1"
@@ -549,6 +561,7 @@ case "${1:-}" in
   rebuild) shift; cmd_rebuild "$@" ;;
   show) shift; cmd_show "$@" ;;
   export) shift; cmd_export "$@" ;;
+  qr) shift; cmd_qr "$@" ;;
   "" ) show_helper; exit 0 ;;
   * ) echo "Unknown command: $1" >&2; show_helper; exit 1 ;;
 esac
