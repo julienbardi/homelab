@@ -495,7 +495,7 @@ case "${1:-}" in
   revoke) shift; cmd_revoke "$@" ;;
   clean) shift; cmd_clean "$@" ;;
   clean-all) shift; cmd_clean_all ;;
-Next  rebuild) shift; cmd_rebuild "$@" ;;
+  rebuild) shift; cmd_rebuild "$@" ;;
   show) shift; cmd_show "$@" ;;
   export) shift; cmd_export "$@" ;;
   "" ) show_helper; exit 0 ;;
