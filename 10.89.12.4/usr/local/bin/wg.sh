@@ -407,7 +407,8 @@ EOF
   mv "$conffile.new" "$conffile"
   # --- Reload without downtime ---
   (
-    sudo wg syncconf "$iface" <(sudo wg-quick strip "$iface")
+    # Pass the new config file path directly to wg syncconf
+    sudo wg syncconf "$iface" "$conffile"
     echo "✅ Rebuilt $conffile from client configs"
   ) || true # Force function success, ignoring the mystery error
 }
