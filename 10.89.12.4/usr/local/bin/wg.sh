@@ -401,7 +401,7 @@ EOF
   mv "$conffile.new" "$conffile"
 
   # --- Reload without downtime ---
-  wg syncconf "$iface" <(wg-quick strip "$iface")
+  sudo wg syncconf "$iface" <(sudo wg-quick strip "$iface")
 
   echo "✅ Rebuilt $conffile from client configs"
 }
@@ -453,7 +453,7 @@ To fix, copy and paste the following commands:\n\
 
     cat > "$WG_DIR/$iface.conf" <<EOF
 [Interface]
-PrivateKey = $(cat "$WG_DIR/$iface.key")
+PrivateKey = $(sudo cat "$WG_DIR/$iface.key")
 Address = $wg_ipv4_server, $wg_ipv6_server
 ListenPort = $port
 MTU = $SERVER_MTU
@@ -464,7 +464,7 @@ EOF
     chmod 600 "$WG_DIR/$iface.conf"
     chown root:root "$WG_DIR/$iface.conf"
 
-    wg-quick up "$iface"
+    sudo wg-quick up "$iface"
   fi
 
   # --- Generate client keys ---
@@ -499,7 +499,7 @@ DNS = $dns
 MTU = $SERVER_MTU
 
 [Peer]
-PublicKey = $(cat $WG_DIR/$iface.pub)
+PublicKey = $(sudo cat $WG_DIR/$iface.pub)
 AllowedIPs = $allowed
 Endpoint = $WG_ENDPOINT_HOST:$port
 PersistentKeepalive = 25
