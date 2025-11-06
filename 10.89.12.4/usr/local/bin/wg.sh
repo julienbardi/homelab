@@ -126,7 +126,8 @@ allocate_ip() {
   # Collect all used IPs across all interfaces
   local u
   u=$(wg show all allowed-ips | awk '{print $2}' | cut -d/ -f1)
-  
+
+  local i
   for i in $(seq $DYNAMIC_START $DYNAMIC_END); do
     local candidate="$subnet_base.$i"
     # Use -x for exact line match
@@ -139,6 +140,8 @@ allocate_ip() {
 }
 
 cmd_show() {
+  local iface pub port addr4 addr6 peer allowed endpoint handshake transfer 
+  local now match peer_name hstr status tx rx age
   echo "=== WireGuard Interfaces ==="
   {
     echo -e "🔌 IFACE\t🔑 PUBLIC-KEY\t📡 LISTEN-PORT\t🖧 ADDR(v4)\t🖧 ADDR(v6)"
@@ -422,7 +425,8 @@ cmd_add() {
   
   local num=${iface#wg}
   local port=$((BASE_WG_PORT + num))
-
+  local allowed dns expiry label
+  
   IFS='|' read -r allowed dns expiry label <<< "$(policy_for_iface "$iface")"
 
   # --- Check server key exists ---
