@@ -113,7 +113,14 @@ policy_for_iface() {
     echo "$INET_ALLOWED,$IPV6_INET_ALLOWED|${server_ipv4},${ext_dns_v4},${server_ipv6},${ext_dns_v6}|never|LAN + Internet + IPv6"
   fi
 }
-
+# Reads private key file and ensures a clean, single line for parser safety.
+#
+_get_private_key_clean() {
+    local keyfile="$1"
+    # Use 'tr -d' to explicitly delete any newline or carriage return characters
+    # This prevents the PrivateKey line from poisoning the next line (Address=...).
+    sudo cat "$keyfile" | tr -d '\n\r'
+}
 #
 # --- [MODIFIED] ---
 # Now allocates from the correct 10.N.0.x subnet
@@ -374,7 +381,7 @@ _rebuild_nolock() {
   # --- Rebuild [Interface] section ---
   cat > "$conffile.new" <<EOF
 [Interface]
-PrivateKey=$(< "$keyfile")
+PrivateKey=$(_get_private_key_clean "$keyfile")
 Address=$wg_ipv4_server
 Address=$wg_ipv6_server
 ListenPort=$port
@@ -460,7 +467,7 @@ To fix, copy and paste the following commands:\n\
 
     cat > "$WG_DIR/$iface.conf" <<EOF
 [Interface]
-PrivateKey=$(< "$WG_DIR/$iface.key")
+PrivateKey=$(_get_private_key_clean "$WG_DIR/$iface.key")
 Address=$wg_ipv4_server
 Address=$wg_ipv6_server
 ListenPort=$port
