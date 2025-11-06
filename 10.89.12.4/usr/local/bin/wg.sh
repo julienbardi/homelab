@@ -355,8 +355,8 @@ EOF
 }
 
 #
-# --- [MODIFIED] ---
-# Now uses the new IP scheme and adds routing rules
+# --- [FIXED] ---
+# Uses clean PrivateKey substitution and strict Address syntax.
 #
 _rebuild_nolock() {
   local iface="$1"
@@ -374,11 +374,11 @@ _rebuild_nolock() {
   # --- Rebuild [Interface] section ---
   cat > "$conffile.new" <<EOF
 [Interface]
-PrivateKey = $(sudo cat "$keyfile")
-Address = $wg_ipv4_server
-Address = $wg_ipv6_server
-ListenPort = $port
-MTU = $SERVER_MTU
+PrivateKey=$(< "$keyfile")
+Address=$wg_ipv4_server
+Address=$wg_ipv6_server
+ListenPort=$port
+MTU=$SERVER_MTU
 
 $(_get_routing_rules "$iface")
 EOF
@@ -423,9 +423,8 @@ cmd_rebuild() {
 }
 
 #
-# --- [MODIFIED] ---
-# Creates server config with new IP scheme + routing
-# Allocates client IP from the correct subnet
+# --- [FIXED] ---
+# Uses clean PrivateKey substitution and strict Address syntax.
 #
 cmd_add() {
   local iface="$1"
@@ -461,11 +460,11 @@ To fix, copy and paste the following commands:\n\
 
     cat > "$WG_DIR/$iface.conf" <<EOF
 [Interface]
-PrivateKey = $(sudo cat "$WG_DIR/$iface.key")
-Address = $wg_ipv4_server
-Address = $wg_ipv6_server
-ListenPort = $port
-MTU = $SERVER_MTU
+PrivateKey=$(< "$WG_DIR/$iface.key")
+Address=$wg_ipv4_server
+Address=$wg_ipv6_server
+ListenPort=$port
+MTU=$SERVER_MTU
 
 $(_get_routing_rules "$iface")
 EOF
@@ -502,11 +501,11 @@ EOF
   cat >"$cfg" <<EOF
 # ClientPublicKey = $pubkey
 [Interface]
-PrivateKey = $privkey
-Address = $ip/32
-Address = $ipv6/128
-DNS = $dns
-MTU = $SERVER_MTU
+PrivateKey=$privkey
+Address=$ip/32
+Address=$ipv6/128
+DNS=$dns
+MTU=$SERVER_MTU
 
 [Peer]
 PublicKey = $(sudo cat $WG_DIR/$iface.pub)
