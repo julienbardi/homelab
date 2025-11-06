@@ -201,16 +201,21 @@ cmd_clean() {
   (
     flock -x 200
     echo "🧹 Removing all clients from $iface..."
+    
     # 1. Remove client config files: julie-wg3.conf, etc.
     rm -f "$CLIENT_DIR"/*-"$iface".conf 2>/dev/null || true 
 
     if [[ "$mode" == "--full" ]]; then
+      # If keys are being deleted, the interface MUST be stopped first.
+      echo "⬇️ Shutting down $iface..."
+      sudo wg-quick down "$iface" 2>/dev/null || true
+      
       echo "⚠️  Performing FULL cleanup: Removing server keys and base config for $iface..."
       # Use sh -c for root-level wildcard deletion
       sudo sh -c "rm -f \"$WG_DIR/$iface.conf\" \"$WG_DIR/$iface.key\" \"$WG_DIR/$iface.pub\""
       echo "✅ $iface has been fully removed."
     else
-      # 2. Rebuild the server wgX.conf without any clients
+      # 2. Rebuild the server wgX.conf without any clients (Soft Clean default)
       _rebuild_nolock "$iface"
       echo "✅ $iface is now clean (no peers)."
     fi
@@ -219,13 +224,37 @@ cmd_clean() {
 }
 
 cmd_clean_all() {
-  read -p "⚠️  This will remove ALL client configs for ALL interfaces. Are you sure? [y/N] " ans
+  local mode="${1:-}" 
+  local cleanup_message="client configs and server configs"
+  local iface
+  
+  if [[ "$mode" == "--full" ]]; then
+    cleanup_message="ALL client configs, ALL server configs, and ALL server keys"
+  fi
+  
+  read -p "⚠️  This will remove $cleanup_message for all interfaces. Are you sure? [y/N] " ans
   case "$ans" in
     [yY][eE][sS]|[yY])
-      for iface in $(wg show interfaces); do
-        echo "🧹 Cleaning $iface..."
-        cmd_clean "$iface"
+      echo "🧹 Identifying interfaces from all config, key, pub, and lock files on disk..."
+      
+      # Use find to list all files starting with 'wg' (e.g., wg1.conf, wg1.key, wg1.lock).
+      # Pipe the output to sed to strip the path and file extension, leaving only the interface name (e.g., 'wg1').
+      # Then use sort -u to get a clean, unique list of interface names.
+      local interface_list
+      interface_list=$(sudo find "$WG_DIR" -maxdepth 1 -type f -name 'wg[0-9]*.*' 2>/dev/null | \
+                       sed 's|^.*/|| ; s/\.[^.]*$//' | sort -u)
+
+      for iface in $interface_list; do
+          # Call cmd_clean for the found interface, passing the --full mode if present.
+          # The logic inside cmd_clean will handle interface shutdown and file deletion.
+          cmd_clean "$iface" "$mode"
       done
+
+      if [[ -z "$interface_list" ]]; then
+          echo "ℹ️ Note: No WireGuard interface files were found on disk."
+      fi
+
+      echo "✅ Cleanup complete."
       ;;
     *)
       echo "❌ Aborted."
