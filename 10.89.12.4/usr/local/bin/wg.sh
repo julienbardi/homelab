@@ -266,38 +266,34 @@ _get_routing_rules() {
   local wg_ipv4_subnet="10.$num.0.0/24"
   local wg_ipv6_subnet="fd10:$num::/64"
 
-  if [[ "$NAS_LAN_IFACE" == "<!!!_CHANGE_ME_!!!>" ]]; then
-    die "You must edit NAS_LAN_IFACE at the top of the script."
-  fi
-
   cat <<EOF
 # --- START ROUTING & NAT RULES ---
 PostUp = sysctl -w net.ipv4.ip_forward=1
 PostUp = sysctl -w net.ipv6.conf.all.forwarding=1
 
 # IPv4 FORWARD chain
-PostUp = iptables -A FORWARD -i %i -j ACCEPT
-PostUp = iptables -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+PostUp = iptables-legacy -A FORWARD -i %i -j ACCEPT
+PostUp = iptables-legacy -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 # IPv4 NAT (MASQUERADE)
 # Rule: NAT traffic from WG subnet to anywhere *except* the LAN.
 # This relies on your router's static route for WG->LAN traffic.
-PostUp = iptables -t nat -A POSTROUTING -s $wg_ipv4_subnet -o $NAS_LAN_IFACE ! -d $LAN_SUBNET -j MASQUERADE
+PostUp = iptables-legacy -t nat -A POSTROUTING -s $wg_ipv4_subnet -o $NAS_LAN_IFACE ! -d $LAN_SUBNET -j MASQUERADE
 
 # IPv6 FORWARD chain
-PostUp = ip6tables -A FORWARD -i %i -j ACCEPT
-PostUp = ip6tables -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+PostUp = ip6tables-legacy -A FORWARD -i %i -j ACCEPT
+PostUp = ip6tables-legacy -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 # IPv6 NAT (MASQUERADE)
 # Note: This NATs all IPv6.
-PostUp = ip6tables -t nat -A POSTROUTING -s $wg_ipv6_subnet -o $NAS_LAN_IFACE -j MASQUERADE
+PostUp = ip6tables-legacy -t nat -A POSTROUTING -s $wg_ipv6_subnet -o $NAS_LAN_IFACE -j MASQUERADE
 
 # --- CLEANUP RULES ---
-PostDown = iptables -D FORWARD -i %i -j ACCEPT
-PostDown = iptables -D FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-PostDown = iptables -t nat -D POSTROUTING -s $wg_ipv4_subnet -o $NAS_LAN_IFACE ! -d $LAN_SUBNET -j MASQUERADE
+PostDown = iptables-legacy -D FORWARD -i %i -j ACCEPT
+PostDown = iptables-legacy -D FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+PostDown = iptables-legacy -t nat -D POSTROUTING -s $wg_ipv4_subnet -o $NAS_LAN_IFACE ! -d $LAN_SUBNET -j MASQUERADE
 
-PostDown = ip6tables -D FORWARD -i %i -j ACCEPT
-PostDown = ip6tables -D FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-PostDown = ip6tables -t nat -D POSTROUTING -s $wg_ipv6_subnet -o $NAS_LAN_IFACE -j MASQUERADE
+PostDown = ip6tables-legacy -D FORWARD -i %i -j ACCEPT
+PostDown = ip6tables-legacy -D FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+PostDown = ip6tables-legacy -t nat -D POSTROUTING -s $wg_ipv6_subnet -o $NAS_LAN_IFACE -j MASQUERADE
 # --- END ROUTING & NAT RULES ---
 EOF
 }
