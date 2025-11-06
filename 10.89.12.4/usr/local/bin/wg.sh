@@ -358,6 +358,8 @@ _rebuild_nolock() {
   local conffile="$WG_DIR/$iface.conf"
   local num=${iface#wg}
   local port=$((BASE_WG_PORT + num))
+  local wg_ipv4_server wg_ipv6_server
+  local cfg client pub ip
 
   # --- Define this interface's server IPs ---
   local wg_ipv4_server="10.$num.0.1/24"
@@ -426,6 +428,7 @@ cmd_add() {
   local num=${iface#wg}
   local port=$((BASE_WG_PORT + num))
   local allowed dns expiry label
+  local privkey pubkey ip ipv6 final_octet cfg
   
   IFS='|' read -r allowed dns expiry label <<< "$(policy_for_iface "$iface")"
 
