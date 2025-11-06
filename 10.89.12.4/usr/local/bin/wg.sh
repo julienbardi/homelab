@@ -407,11 +407,10 @@ EOF
   mv "$conffile.new" "$conffile"
 
   # --- Reload without downtime ---
-(
+  (
     sudo wg syncconf "$iface" <(sudo wg-quick strip "$iface")
     echo "✅ Rebuilt $conffile from client configs"
   ) || true # Force function success, ignoring the mystery error
-  echo "✅ Rebuilt $conffile from client configs"
 }
 
 cmd_rebuild() {
