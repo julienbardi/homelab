@@ -405,7 +405,6 @@ EOF
 
   # --- Replace config atomically ---
   mv "$conffile.new" "$conffile"
-
   # --- Reload without downtime ---
   (
     sudo wg syncconf "$iface" <(sudo wg-quick strip "$iface")
