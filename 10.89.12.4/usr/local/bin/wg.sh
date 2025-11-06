@@ -474,8 +474,11 @@ EOF
 
   # --- Allocate IPv6 client IP ---
   # Simple scheme: 10.N.0.X -> fd10:N::X
-  # Note: This is a basic string replace, works for IPs > ::9
-  ipv6="fd10:$num::${ip#10.$num.0.}"
+  # Reliable extraction of the final octet (X) from the allocated IPv4: 10.N.0.X
+  local final_octet="${ip##*.}"
+
+  # Simple scheme: fd10:N::X
+  local ipv6="fd10:$num::$final_octet"
 
   mkdir -p "$CLIENT_DIR"
   cfg="$CLIENT_DIR/${client}-${iface}.conf"
