@@ -196,13 +196,13 @@ cmd_show() {
 
 cmd_clean() {
   local iface="$1"
-  local mode="${2:-}" # Check for optional second argument (e.g., --full)
+  local mode="${2:-}" 
   
   (
     flock -x 200
     echo "🧹 Removing all clients from $iface..."
     
-    # 1. Remove client config files: julie-wg3.conf, etc.
+    # Client file deletion is MANDATORY for both soft and full cleanups.
     rm -f "$CLIENT_DIR"/*-"$iface".conf 2>/dev/null || true 
 
     if [[ "$mode" == "--full" ]]; then
@@ -211,11 +211,16 @@ cmd_clean() {
       sudo wg-quick down "$iface" 2>/dev/null || true
       
       echo "⚠️  Performing FULL cleanup: Removing server keys and base config for $iface..."
-      # Use sh -c for root-level wildcard deletion
+      # Delete server files
       sudo sh -c "rm -f \"$WG_DIR/$iface.conf\" \"$WG_DIR/$iface.key\" \"$WG_DIR/$iface.pub\""
+      
+      # Cleanup lock file and directory
+      sudo rm -f "$WG_DIR/$iface.lock" 2>/dev/null || true
+      sudo rmdir "$CLIENT_DIR" 2>/dev/null || true
+      
       echo "✅ $iface has been fully removed."
     else
-      # 2. Rebuild the server wgX.conf without any clients (Soft Clean default)
+      # Soft clean: Only rebuild the config after client files are removed above.
       _rebuild_nolock "$iface"
       echo "✅ $iface is now clean (no peers)."
     fi
