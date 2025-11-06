@@ -125,7 +125,7 @@ allocate_ip() {
 
   # Collect all used IPs across all interfaces
   local u
-  u=$(wg show all allowed-ips | awk '{print $2}' | cut -d/ -f1)
+  u=$(sudo wg show all allowed-ips | awk '{print $2}' | cut -d/ -f1)
 
   local i
   for i in $(seq $DYNAMIC_START $DYNAMIC_END); do
