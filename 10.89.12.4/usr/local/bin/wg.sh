@@ -155,7 +155,7 @@ cmd_show() {
   echo "=== WireGuard Peers ==="
   {
     echo -e "🔌 IFACE\t👤 NAME\t🔑 PEER-PUBKEY\t🌐 ALLOWED-IPS\t📡 ENDPOINT\t⏱️ HANDSHAKE\t⬆️ TX\t⬇️ RX\tSTATUS"
-    now=$(date +s)
+    now=$(date +%s)
     for iface in $(wg show interfaces); do
       for peer in $(wg show "$iface" peers); do
         allowed=$(wg show "$iface" allowed-ips | awk -v p="$peer" '$1==p {print $2}')
@@ -173,14 +173,14 @@ cmd_show() {
 
         # Handshake formatting + status
         if [[ "$handshake" -eq 0 ]]; then
-V         hstr="never"
+          hstr="never"
           status="❌"
         else
           hstr="$(date -d @"$handshake" '+%Y-%m-%d %H:%M:%S')"
           age=$(( now - handshake ))
           if (( age < 120 )); then
             status="✅"
-    s      else
+          else
             status="❌"
           fi
         fi
@@ -189,7 +189,7 @@ V         hstr="never"
         rx=$(echo "$transfer" | cut -d/ -f2)
 
         echo -e "$iface\t$peer_name\t${peer:0:20}…\t$allowed\t$endpoint\t$hstr\t$tx\t$rx\t$status"
-s     done
+      done
     done
   } | column -t -s $'\t'
 }
