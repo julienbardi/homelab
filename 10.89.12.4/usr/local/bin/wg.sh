@@ -534,15 +534,12 @@ cmd_revoke() {
 
   (
     flock -x 200
-
     # Remove the client config file
     rm -f "$cfg"
     echo "🗑️  Removed client config: $cfg"
-
     # Rebuild the server config from remaining clients
     # Note: _rebuild_nolock is called by cmd_rebuild
     _rebuild_nolock "$iface"
-
   ) 200>"$WG_DIR/$iface.lock"
 }
 
