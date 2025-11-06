@@ -317,7 +317,7 @@ _rebuild_nolock() {
   local wg_ipv4_server="10.$num.0.1/24"
   local wg_ipv6_server="fd10:$num::1/64"
 
-is  # --- Rebuild [Interface] section ---
+# --- Rebuild [Interface] section ---
   cat > "$conffile.new" <<EOF
 [Interface]
 PrivateKey = $(sudo cat "$keyfile")
@@ -332,7 +332,7 @@ EOF
   for cfg in "$CLIENT_DIR"/*-"$iface".conf; do
     [[ -f "$cfg" ]] || continue
     client=$(basename "$cfg" | cut -d- -f1)
-  t pub=$(awk -F' = ' '/^# ClientPublicKey/{print $2}' "$cfg")
+    pub=$(awk -F' = ' '/^# ClientPublicKey/{print $2}' "$cfg")
     ip=$(awk '/^Address/{print $3}' "$cfg")
 
     if [[ -z "$pub" || -z "$ip" ]]; then
@@ -347,7 +347,7 @@ EOF
 PublicKey = $pub
 AllowedIPs = $ip
 EOF
-s   done
+done
 
   # --- Replace config atomically ---
   mv "$conffile.new" "$conffile"
@@ -359,7 +359,7 @@ s   done
 }
 
 cmd_rebuild() {
-S  local iface="$1"
+  local iface="$1"
   (
     flock -x 200
     _rebuild_nolock "$iface"
@@ -372,7 +372,7 @@ S  local iface="$1"
 # Allocates client IP from the correct subnet
 #
 cmd_add() {
-s  local iface="$1"
+  local iface="$1"
   local client="$2"
   local email="${3:-}"
   local forced_ip="${4:-}"
