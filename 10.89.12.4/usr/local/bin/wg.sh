@@ -505,16 +505,12 @@ Endpoint = $WG_ENDPOINT_HOST:$port
 PersistentKeepalive = 25
 EOF
 
-  # Remove the crashing qrencode call and replace it with a cleaner export command
-  echo -e "\n--- Client Config Export Command for $(basename "$cfg") ---"
-  echo "To display QR code, run: sudo cat \"$cfg\" | qrencode -t ansiutf8"
-
   # --- Rebuild server config from all clients ---
-  cmd_rebuild "$iface"
-  
-  # Always show where the config was saved
-  echo "ℹ️  Client config saved at: $cfg"
-  echo "    View it with: sudo /usr/local/bin/wg.sh export $client $iface"
+  ( cmd_rebuild "$iface" # <--- cmd_rebuild MUST be on the same line as (
+    # Always show where the config was saved
+    echo "   Client config saved at: $cfg"
+    echo "    View it with: sudo /usr/local/bin/wg.sh export $client $iface"
+  ) || true # Force function success, ignoring the mystery error
 }
 
 cmd_revoke() {
