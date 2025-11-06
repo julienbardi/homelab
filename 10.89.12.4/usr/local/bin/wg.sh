@@ -534,7 +534,7 @@ case "${1:-}" in
   add) shift; cmd_add "$@" ;;
   revoke) shift; cmd_revoke "$@" ;;
   clean) shift; cmd_clean "$@" ;;
-  clean-all) shift; cmd_clean_all ;;
+  clean-all) shift; cmd_clean_all "$@" ;;
   rebuild) shift; cmd_rebuild "$@" ;;
   show) shift; cmd_show "$@" ;;
   export) shift; cmd_export "$@" ;;
