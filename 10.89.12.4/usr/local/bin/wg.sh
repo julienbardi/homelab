@@ -330,7 +330,6 @@ _get_routing_rules() {
 # --- START ROUTING & NAT RULES ---
 PostUp = sysctl -w net.ipv4.ip_forward=1
 PostUp = sysctl -w net.ipv6.conf.all.forwarding=1
-
 # IPv4 FORWARD chain
 PostUp = iptables-legacy -A FORWARD -i %i -j ACCEPT
 PostUp = iptables-legacy -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
@@ -338,19 +337,16 @@ PostUp = iptables-legacy -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLI
 # Rule: NAT traffic from WG subnet to anywhere *except* the LAN.
 # This relies on your router's static route for WG->LAN traffic.
 PostUp = iptables-legacy -t nat -A POSTROUTING -s $wg_ipv4_subnet -o $NAS_LAN_IFACE ! -d $LAN_SUBNET -j MASQUERADE
-
 # IPv6 FORWARD chain
 PostUp = ip6tables-legacy -A FORWARD -i %i -j ACCEPT
 PostUp = ip6tables-legacy -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 # IPv6 NAT (MASQUERADE)
 # Note: This NATs all IPv6.
 PostUp = ip6tables-legacy -t nat -A POSTROUTING -s $wg_ipv6_subnet -o $NAS_LAN_IFACE -j MASQUERADE
-
 # --- CLEANUP RULES ---
 PostDown = iptables-legacy -D FORWARD -i %i -j ACCEPT
 PostDown = iptables-legacy -D FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 PostDown = iptables-legacy -t nat -D POSTROUTING -s $wg_ipv4_subnet -o $NAS_LAN_IFACE ! -d $LAN_SUBNET -j MASQUERADE
-
 PostDown = ip6tables-legacy -D FORWARD -i %i -j ACCEPT
 PostDown = ip6tables-legacy -D FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 PostDown = ip6tables-legacy -t nat -D POSTROUTING -s $wg_ipv6_subnet -o $NAS_LAN_IFACE -j MASQUERADE
