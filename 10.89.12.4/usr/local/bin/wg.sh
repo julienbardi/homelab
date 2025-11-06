@@ -407,9 +407,9 @@ EOF
   mv "$conffile.new" "$conffile"
   # --- Reload without downtime ---
   (
-    sudo wg syncconf "$iface" <(sudo wg-quick strip "$iface")
-    echo "✅ Rebuilt $conffile from client configs"
-  ) || true # Force function success, ignoring the mystery error
+    sudo wg syncconf "$iface" <(sudo wg-quick strip "$iface")
+    echo "✅ Rebuilt $conffile from client configs"
+  ) || true # Force function success, ignoring the mystery error
 }
 
 cmd_rebuild() {
@@ -514,9 +514,9 @@ EOF
   # --- Rebuild server config from all clients ---
   ( cmd_rebuild "$iface"
     # Always show where the config was saved
-    echo "   Client config saved at: $cfg"
-    echo "    View text: sudo /usr/local/bin/wg.sh export $client $iface"
-    echo "    View QR:   sudo /usr/local/bin/wg.sh qr $client $iface"
+    echo "   Client config saved at: $cfg"
+    echo "    View text: sudo /usr/local/bin/wg.sh export $client $iface"
+    echo "    View QR:   sudo /usr/local/bin/wg.sh qr $client $iface"
   ) || true # Force function success, ignoring the mystery error
 }
 
