@@ -490,7 +490,9 @@ Endpoint = $WG_ENDPOINT_HOST:$port
 PersistentKeepalive = 25
 EOF
 
-  qrencode -t ansiutf8 < "$cfg"
+  # Remove the crashing qrencode call and replace it with a cleaner export command
+  echo -e "\n--- Client Config Export Command for $(basename "$cfg") ---"
+  echo "To display QR code, run: sudo cat \"$cfg\" | qrencode -t ansiutf8"
 
   # --- Rebuild server config from all clients ---
   cmd_rebuild "$iface"
