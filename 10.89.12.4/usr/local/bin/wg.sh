@@ -98,7 +98,7 @@ policy_for_iface() {
   elif [[ $lan -eq 1 && $inet -eq 1 && $ipv6 -eq 0 ]]; then
     # LAN + Internet: Use WG DNS + external fallback
     echo "$INET_ALLOWED|${server_ipv4},${ext_dns_v4}|never|LAN + Internet (IPv4)"
-e elif [[ $lan -eq 0 && $inet -eq 0 && $ipv6 -eq 1 ]]; then
+  elif [[ $lan -eq 0 && $inet -eq 0 && $ipv6 -eq 1 ]]; then
     # IPv6 only: Use external DNS
     echo "$IPV6_INET_ALLOWED|$ext_dns_v6|never|IPv6 only"
   elif [[ $lan -eq 1 && $inet -eq 0 && $ipv6 -eq 1 ]]; then
@@ -211,7 +211,7 @@ cmd_clean_all() {
     [yY][eE][sS]|[yY])
       for iface in $(wg show interfaces); do
         echo "🧹 Cleaning $iface..."
-s        cmd_clean "$iface"
+        cmd_clean "$iface"
       done
       ;;
     *)
@@ -223,7 +223,7 @@ s        cmd_clean "$iface"
 cmd_setup_keys() {
   for i in $(seq 1 7); do
     iface="wg$i"
-s   keyfile="$WG_DIR/$iface.key"
+    keyfile="$WG_DIR/$iface.key"
     pubfile="$WG_DIR/$iface.pub"
 
     if [[ -f "$keyfile" && -f "$pubfile" ]]; then
@@ -233,14 +233,14 @@ s   keyfile="$WG_DIR/$iface.key"
 
     echo "🔑 Generating keys for $iface..."
     umask 077
-s   wg genkey | tee "$keyfile" | wg pubkey > "$pubfile"
+    wg genkey | tee "$keyfile" | wg pubkey > "$pubfile"
     chmod 600 "$keyfile"
     chmod 644 "$pubfile"
     chown root:root "$keyfile" "$pubfile"
 
     # --- Add default client 'julie' if not already present ---
     if [[ ! -f "$CLIENT_DIR/julie-$iface.conf" ]]; then
-s     echo "👤 Creating default client 'julie' on $iface..."
+      echo "👤 Creating default client 'julie' on $iface..."
       cmd_add "$iface" julie
     else
       echo "ℹ️  Client 'julie' already exists on $iface, skipping."
@@ -386,7 +386,7 @@ s  local iface="$1"
   if [[ ! -f "$WG_DIR/$iface.pub" ]]; then
     echo -e "❌ Missing server public key: $WG_DIR/$iface.pub\n\
 To fix, copy and paste the following commands:\n\
-s   sudo /usr/bin/wg genkey | sudo tee $WG_DIR/$iface.key | sudo /usr/bin/wg pubkey | sudo tee $WG_DIR/$iface.pub > /dev/null\n\
+   sudo /usr/bin/wg genkey | sudo tee $WG_DIR/$iface.key | sudo /usr/bin/wg pubkey | sudo tee $WG_DIR/$iface.pub > /dev/null\n\
   sudo chown root:root $WG_DIR/$iface.key $WG_DIR/$iface.pub\n\
   sudo chmod 600 $WG_DIR/$iface.key\n\
   sudo chmod 644 $WG_DIR/$iface.pub"
@@ -411,7 +411,7 @@ MTU = $SERVER_MTU
 $(_get_routing_rules "$iface")
 EOF
 
-s   chmod 600 "$WG_DIR/$iface.conf"
+    chmod 600 "$WG_DIR/$iface.conf"
     chown root:root "$WG_DIR/$iface.conf"
 
     wg-quick up "$iface"
@@ -423,7 +423,7 @@ s   chmod 600 "$WG_DIR/$iface.conf"
 
   # --- Allocate IP ---
   if [[ -n "$forced_ip" ]]; then
-s   ip="$forced_ip"
+   ip="$forced_ip"
   else
     # Pass interface to allocate from correct subnet
     ip=$(allocate_ip "$iface")
@@ -454,7 +454,7 @@ EOF
 
   qrencode -t ansiutf8 < "$cfg"
 
-s  # --- Rebuild server config from all clients ---
+  # --- Rebuild server config from all clients ---
   cmd_rebuild "$iface"
   
   # Always show where the config was saved
@@ -469,11 +469,11 @@ cmd_revoke() {
   local cfg="$CLIENT_DIR/${client}-${iface}.conf"
 
   if [[ ! -f "$cfg" ]]; then
-s   echo "❌ No config found for client $client on $iface"
+    echo "❌ No config found for client $client on $iface"
     return 1
   fi
 
-s (
+  (
     flock -x 200
 
     # Remove the client config file
@@ -482,7 +482,7 @@ s (
 
     # Rebuild the server config from remaining clients
     # Note: _rebuild_nolock is called by cmd_rebuild
-s   _rebuild_nolock "$iface"
+    _rebuild_nolock "$iface"
 
   ) 200>"$WG_DIR/$iface.lock"
 }
@@ -494,7 +494,7 @@ case "${1:-}" in
   add) shift; cmd_add "$@" ;;
   revoke) shift; cmd_revoke "$@" ;;
   clean) shift; cmd_clean "$@" ;;
-s clean-all) shift; cmd_clean_all ;;
+  clean-all) shift; cmd_clean_all ;;
 Next  rebuild) shift; cmd_rebuild "$@" ;;
   show) shift; cmd_show "$@" ;;
   export) shift; cmd_export "$@" ;;
