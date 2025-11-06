@@ -375,8 +375,8 @@ _rebuild_nolock() {
   cat > "$conffile.new" <<EOF
 [Interface]
 PrivateKey = $(sudo cat "$keyfile")
-Address=$wg_ipv4_server
-Address=$wg_ipv6_server
+Address = $wg_ipv4_server
+Address = $wg_ipv6_server
 ListenPort = $port
 MTU = $SERVER_MTU
 
@@ -462,8 +462,8 @@ To fix, copy and paste the following commands:\n\
     cat > "$WG_DIR/$iface.conf" <<EOF
 [Interface]
 PrivateKey = $(sudo cat "$WG_DIR/$iface.key")
-Address=$wg_ipv4_server
-Address=$wg_ipv6_server
+Address = $wg_ipv4_server
+Address = $wg_ipv6_server
 ListenPort = $port
 MTU = $SERVER_MTU
 
@@ -503,8 +503,8 @@ EOF
 # ClientPublicKey = $pubkey
 [Interface]
 PrivateKey = $privkey
-Address=$ip/32
-Address=$ipv6/128
+Address = $ip/32
+Address = $ipv6/128
 DNS = $dns
 MTU = $SERVER_MTU
 
