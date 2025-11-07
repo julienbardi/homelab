@@ -379,9 +379,16 @@ _rebuild_nolock() {
   local wg_ipv6_server="fd10:$num::1/64"
 
   # --- Rebuild [Interface] section ---
-  cat > "$conffile.new" <<EOF
-[Interface]
-PrivateKey=$(_get_private_key_clean "$keyfile")
+  # CRITICAL FIX: Isolate PrivateKey to prevent here-doc corruption.
+  local server_privkey
+  server_privkey=$(_get_private_key_clean "$keyfile")
+
+  # Step 1: Write the header and the PrivateKey using echo (overwrites file).
+  echo "[Interface]" > "$conffile.new"
+  echo "PrivateKey=$server_privkey" >> "$conffile.new"
+  
+  # Step 2: Append the rest of the configuration using cat (appends to file).
+  cat >> "$conffile.new" <<EOF
 Address=$wg_ipv4_server
 Address=$wg_ipv6_server
 ListenPort=$port
