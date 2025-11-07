@@ -384,12 +384,12 @@ _rebuild_nolock() {
   local server_privkey
   server_privkey=$(_get_private_key_clean "$keyfile")
 
-  # Step 1: Write the header and the PrivateKey using echo (overwrites file).
-  echo "[Interface]" > "$conffile.new"
-  echo "PrivateKey=$server_privkey" >> "$conffile.new"
-  
-  # Step 2: Append the rest of the configuration using cat (appends to file).
-  cat >> "$conffile.new" <<EOF
+  # Step 1: Write the header and the PrivateKey using printf (overwrites file).
+    printf "[Interface]\n" > "$conffile.new"
+    printf "PrivateKey=%s\n" "$server_privkey" >> "$conffile.new"
+    
+    # Step 2: Append the rest of the configuration using cat (appends to file).
+    cat >> "$conffile.new" <<EOF
 Address=$wg_ipv4_server
 Address=$wg_ipv6_server
 ListenPort=$port
