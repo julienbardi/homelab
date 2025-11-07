@@ -484,9 +484,9 @@ To fix, copy and paste the following commands:\n\
     server_privkey=$(_get_private_key_clean "$WG_DIR/$iface.key")
 
     # >>> CRITICAL CHANGE: Write [Interface] and PrivateKey separately. <<<
-    # Step 1: Write the header and the PrivateKey using echo (overwrites file).
-    echo "[Interface]" > "$WG_DIR/$iface.conf"
-    echo "PrivateKey=$server_privkey" >> "$WG_DIR/$iface.conf"
+    # We use printf to ensure the key itself has a newline *only* after its content.
+    printf "[Interface]\n" > "$WG_DIR/$iface.conf"
+    printf "PrivateKey=%s\n" "$server_privkey" >> "$WG_DIR/$iface.conf"
     
     # Step 2: Append the rest of the configuration using cat (appends to file).
     cat >> "$WG_DIR/$iface.conf" <<EOF
