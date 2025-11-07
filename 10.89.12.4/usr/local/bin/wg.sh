@@ -463,7 +463,7 @@ To fix, copy and paste the following commands:\n\
     exit 1
   fi
 
-  # --- Ensure server config exists ---
+# --- Ensure server config exists ---
   if [[ ! -f "$WG_DIR/$iface.conf" ]]; then
     echo "⚙️  Creating base config for $iface at $WG_DIR/$iface.conf"
     
@@ -475,9 +475,13 @@ To fix, copy and paste the following commands:\n\
     local server_privkey
     server_privkey=$(_get_private_key_clean "$WG_DIR/$iface.key")
 
-    cat > "$WG_DIR/$iface.conf" <<EOF
-[Interface]
-PrivateKey=$server_privkey
+    # >>> CRITICAL CHANGE: Write [Interface] and PrivateKey separately. <<<
+    # Step 1: Write the header and the PrivateKey using echo (overwrites file).
+    echo "[Interface]" > "$WG_DIR/$iface.conf"
+    echo "PrivateKey=$server_privkey" >> "$WG_DIR/$iface.conf"
+    
+    # Step 2: Append the rest of the configuration using cat (appends to file).
+    cat >> "$WG_DIR/$iface.conf" <<EOF
 Address=$wg_ipv4_server
 Address=$wg_ipv6_server
 ListenPort=$port
