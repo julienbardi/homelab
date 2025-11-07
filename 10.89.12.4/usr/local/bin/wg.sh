@@ -117,9 +117,9 @@ policy_for_iface() {
 #
 _get_private_key_clean() {
     local keyfile="$1"
-    # Use 'tr -d' to explicitly delete any newline or carriage return characters
-    # This prevents the PrivateKey line from poisoning the next line (Address=...).
-    sudo cat "$keyfile" | tr -d '\n\r'
+    # CRITICAL FIX: Use awk to read the key and explicitly strip all trailing whitespace (spaces and tabs).
+    # This addresses the subtle issue where the PrivateKey line was poisoning the Address line.
+    sudo awk 'NR==1 {sub(/[ \t\r]+$/,""); print}' "$keyfile"
 }
 #
 # --- [MODIFIED] ---
@@ -470,10 +470,14 @@ To fix, copy and paste the following commands:\n\
     # --- Define this interface's server IPs ---
     local wg_ipv4_server="10.$num.0.1/24"
     local wg_ipv6_server="fd10:$num::1/64"
+    
+    # CRITICAL FIX: Read the key into a variable and strip all whitespace
+    local server_privkey
+    server_privkey=$(_get_private_key_clean "$WG_DIR/$iface.key")
 
     cat > "$WG_DIR/$iface.conf" <<EOF
 [Interface]
-PrivateKey=$(_get_private_key_clean "$WG_DIR/$iface.key")
+PrivateKey=$server_privkey
 Address=$wg_ipv4_server
 Address=$wg_ipv6_server
 ListenPort=$port
