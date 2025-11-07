@@ -120,7 +120,10 @@ _get_private_key_clean() {
     # CRITICAL FIX: Use tr to ruthlessly delete all newline (\n), carriage return (\r), 
     # and whitespace (including trailing spaces/tabs) from the key file contents.
     # This guarantees the output is a single, clean string.
-    sudo tr -d '\n\r ' < "$keyfile"
+    
+    # 💥 NEW FIX: Use 'tr' to delete all problematic chars, AND 'printf' to avoid 
+    # the shell's automatic newline from command substitution in the calling function.
+    printf "%s" "$(sudo tr -d '\n\r ' < "$keyfile")"
 }
 #
 # --- [MODIFIED] ---
