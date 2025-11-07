@@ -394,16 +394,22 @@ EOF
   for cfg in "$CLIENT_DIR"/*-"$iface".conf; do
     [[ -f "$cfg" ]] || continue
     client=$(basename "$cfg" | cut -d- -f1)
+  
+    # Extracts the client's Public Key from the comment line
     pub=$(awk -F' = ' '/^# ClientPublicKey/{print $2}' "$cfg")
-    ip=$(awk '/^Address/{print $3}' "$cfg")
-
+  
+    # FIXED: Reliably extracts the client's IPv4 address with the /32 mask.
+    # This finds the first Address line that contains /32, takes the value after '=', 
+    # and strips any leading/trailing whitespace.
+    ip=$(awk -F'=' '/^Address/{print $2}' "$cfg" | grep '/32' | head -n1 | tr -d ' ' | tr -d '\n\r')
+  
     if [[ -z "$pub" || -z "$ip" ]]; then
-      echo "⚠️  Skipping malformed client config: $cfg" >&2
+      echo "⚠️  Skipping malformed client config: $cfg" >&2
       continue
     fi
-
+  
     cat >> "$conffile.new" <<EOF
-
+  
 [Peer]
 # $client
 PublicKey = $pub
