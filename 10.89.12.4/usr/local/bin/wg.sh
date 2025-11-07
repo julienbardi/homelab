@@ -117,12 +117,9 @@ policy_for_iface() {
 #
 _get_private_key_clean() {
     local keyfile="$1"
-    # CRITICAL FIX: Use tr to ruthlessly delete all newline (\n), carriage return (\r), 
-    # and whitespace (including trailing spaces/tabs) from the key file contents.
-    # This guarantees the output is a single, clean string.
-    
-    # 💥 NEW FIX: Use 'tr' to delete all problematic chars, AND 'printf' to avoid 
-    # the shell's automatic newline from command substitution in the calling function.
+    # CRITICAL FIX: Use tr to ruthlessly delete all problematic characters.
+    # We wrap the output in printf "%s" to eliminate the *final* newline
+    # that shell command substitution usually includes.
     printf "%s" "$(sudo tr -d '\n\r ' < "$keyfile")"
 }
 #
