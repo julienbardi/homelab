@@ -117,9 +117,10 @@ policy_for_iface() {
 #
 _get_private_key_clean() {
     local keyfile="$1"
-    # CRITICAL FIX: Use awk to read the key and explicitly strip all trailing whitespace (spaces and tabs).
-    # This addresses the subtle issue where the PrivateKey line was poisoning the Address line.
-    sudo awk 'NR==1 {sub(/[ \t\r]+$/,""); print}' "$keyfile"
+    # CRITICAL FIX: Use tr to ruthlessly delete all newline (\n), carriage return (\r), 
+    # and whitespace (including trailing spaces/tabs) from the key file contents.
+    # This guarantees the output is a single, clean string.
+    sudo tr -d '\n\r ' < "$keyfile"
 }
 #
 # --- [MODIFIED] ---
