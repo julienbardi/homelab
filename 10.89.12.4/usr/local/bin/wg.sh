@@ -13,7 +13,7 @@ CLIENT_DIR="$WG_DIR/clients"
 # --- LAN & SUBNET CONSTANTS ---
 NAS_LAN_IP="10.89.12.4"
 LAN_SUBNET="10.89.12.0/24"
-LAN_SUBNET_V6="fd10:3::/64" # NEW: Your local IPv6 range
+#LAN_SUBNET_V6="fd10:3::/64" # NEW: Your local IPv6 range
 # On NAS run "ip -br link show type bridge" to list the interfaces
 NAS_LAN_IFACE="bridge0"
 
@@ -25,10 +25,10 @@ DYNAMIC_START=101
 DYNAMIC_END=254
 
 # --- AllowedIPs Constants ---
-LAN_ONLY_ALLOWED="$LAN_SUBNET,$LAN_SUBNET_V6" # MODIFIED: Includes IPv6 LAN
+#LAN_ONLY_ALLOWED="$LAN_SUBNET,$LAN_SUBNET_V6"
 INET_ALLOWED="0.0.0.0/0"
 IPV6_INET_ALLOWED="::/0"
-FULL_TUNNEL_ROUTES="$INET_ALLOWED,$IPV6_INET_ALLOWED,$LAN_SUBNET,$LAN_SUBNET_V6" # NEW: Full tunnel definition
+#FULL_TUNNEL_ROUTES="$INET_ALLOWED,$IPV6_INET_ALLOWED,$LAN_SUBNET,$LAN_SUBNET_V6"
 
 # --------------------------------------------------------------------
 # Interface mapping (bitmask scheme)
@@ -85,8 +85,8 @@ policy_for_iface() {
     local client_dns=""
     local policy_label=""
 
-    # --- Local Helper Variables (LAN_SUBNET and LAN_SUBNET_V6 must be defined earlier) ---
-    local LAN_ROUTES="$LAN_SUBNET,$LAN_SUBNET_V6"
+    # --- Local Helper Variables (LAN_SUBNET must be defined earlier) ---
+    local LAN_ROUTES="$LAN_SUBNET" # IPv4 LAN only (10.89.12.0/24)
     local SERVER_ONLY_ROUTES="$server_ipv4/32,$server_ipv6/128"
 
     # --- Case Statement Logic (Grouped by Policy) ---
@@ -97,14 +97,14 @@ policy_for_iface() {
             policy_label="$raw: Null profile (no access)"
             ;;
         1) # wg1 (LAN V4 Only) - LAN Only Policy (001)
-            client_allowed_ips="$LAN_SUBNET,$server_ipv4/32"
+            client_allowed_ips="$LAN_ROUTES,$server_ipv4/32"
             client_dns="$NAS_LAN_IP"
             policy_label="$raw: LAN only (IPv4)"
             ;;
-        5) # wg5 (LAN V4 + V6) - LAN Only Policy (101)
-            client_allowed_ips="$LAN_ROUTES,$SERVER_ONLY_ROUTES"
+        5) # wg5 (LAN V4 + V6) - LAN Only Policy (101) - SPLIT TUNNEL
+            client_allowed_ips="$LAN_ROUTES,fd10:$num::/64,$SERVER_ONLY_ROUTES"
             client_dns="$NAS_LAN_IP"
-            policy_label="$raw: LAN (v4) + IPv6 (No Internet)"
+            policy_label="$raw: LAN (v4) + IPv6 (Split: $num Subnet)"
             ;;
         
         2) # wg2 (Internet V4 Only) - Pure Full Tunnel (010)
@@ -112,25 +112,21 @@ policy_for_iface() {
             client_dns="$ext_dns_v4"
             policy_label="$raw: Internet only (IPv4)"
             ;;
-        6) # wg6 (Internet V4 + V6) - Pure Full Tunnel (110)
-            client_allowed_ips="$INET_ALLOWED,$IPV6_INET_ALLOWED"
-            client_dns="$ext_dns_v4,$ext_dns_v6"
-            policy_label="$raw: Internet (v4) + IPv6"
-            ;;
         4) # wg4 (IPv6 Only) - Pure Full Tunnel (100)
             client_allowed_ips="$IPV6_INET_ALLOWED"
             client_dns="$ext_dns_v6"
             policy_label="$raw: IPv6 only"
             ;;
+        6) # wg6 (Internet V4 + V6) - Pure Full Tunnel (110)
+            client_allowed_ips="$INET_ALLOWED,$IPV6_INET_ALLOWED"
+            client_dns="$ext_dns_v4,$ext_dns_v6"
+            policy_label="$raw: Internet (v4) + IPv6"
+            ;;
 
-        3|7|*) # wg3, wg7, and Default (*) - Full Tunnel + Explicit LAN routes (011, 111, ...)
-            local TUNNEL_ROUTES="$INET_ALLOWED,$IPV6_INET_ALLOWED"
-            
-            # NOTE: LAN routes are placed first to ensure split-tunneling clients on the LAN
-            # correctly route local traffic over the physical network.
-            client_allowed_ips="$LAN_ROUTES,$TUNNEL_ROUTES" 
-            
-            # DNS: NAS Primary + Public Fallbacks (Router IP excluded for security/control)
+        3|7|*) # wg3, wg7, and Default (*) - Full Tunnel (011, 111, ...)
+            # LAN_ROUTES nur noch IPv4. ::/0 deckt IPv6-Internet und -LAN ab.
+            client_allowed_ips="$LAN_ROUTES,$INET_ALLOWED,$IPV6_INET_ALLOWED"
+            # DNS: NAS Primary + Public Fallbacks
             client_dns="$NAS_LAN_IP,$ext_dns_v4,$ext_dns_v6"
             policy_label="$raw: Full Tunnel (LAN + Internet + IPv6)"
             ;;
@@ -139,6 +135,7 @@ policy_for_iface() {
     # Return the policy string: <AllowedIPs>|<DNS>|<Expiry>|<Label>
     echo "$client_allowed_ips|$client_dns|never|$policy_label"
 }
+
 # Reads private key file and ensures a clean, single line for parser safety.
 #
 _get_private_key_clean() {
