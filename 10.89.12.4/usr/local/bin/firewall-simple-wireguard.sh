@@ -204,7 +204,7 @@ connectivity_check(){
     if ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1; then :; else ok=0; fi
   fi
   # Informational: local sshd listen
-  if ! ss -tnl 2>/dev/null | grep -E -- '(:22 |:22$)' >/dev/null 2>&1; then
+  if ! ss -tnl 2>/dev/null | grep -E -- ':(22|2222)\b' >/dev/null 2>&1; then
     echo "Notice: local sshd not detected (ok if you are on local console)"
   fi
   return $ok
