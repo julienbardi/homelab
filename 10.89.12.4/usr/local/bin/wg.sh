@@ -414,8 +414,11 @@ _rebuild_nolock() {
   local cfg client pub ip
 
   # --- Define this interface's server IPs ---
-  local wg_ipv4_server="10.$num.0.1/24"
-  local wg_ipv6_server="fd10:$num::1/64"
+  # CRITICAL FIX: Sanitize the string definition from invisible characters
+   local wg_ipv4_server
+   local wg_ipv6_server
+   wg_ipv4_server=$(echo "10.$num.0.1/24" | tr -d ' \t\r\n\u00a0\u200b')
+   wg_ipv6_server=$(echo "fd10:$num::1/64" | tr -d ' \t\r\n\u00a0\u200b')
 
   # --- Rebuild [Interface] section ---
   # CRITICAL FIX: Isolate PrivateKey to prevent here-doc corruption.
@@ -510,14 +513,16 @@ To fix, copy and paste the following commands:\n\
     exit 1
   fi
 
-# --- Ensure server config exists ---
+  # --- Ensure server config exists ---
   if [[ ! -f "$WG_DIR/$iface.conf" ]]; then
     echo "⚙️  Creating base config for $iface at $WG_DIR/$iface.conf"
     
     # --- Define this interface's server IPs ---
-    local wg_ipv4_server="10.$num.0.1/24"
-    local wg_ipv6_server="fd10:$num::1/64"
-    
+    local wg_ipv4_server
+    local wg_ipv6_server
+    wg_ipv4_server=$(echo "10.$num.0.1/24" | tr -d ' \t\r\n\u00a0\u200b')
+    wg_ipv6_server=$(echo "fd10:$num::1/64" | tr -d ' \t\r\n\u00a0\u200b')
+
     # CRITICAL FIX: Read the key into a variable and strip all whitespace
     local server_privkey
     server_privkey=$(_get_private_key_clean "$WG_DIR/$iface.key")
