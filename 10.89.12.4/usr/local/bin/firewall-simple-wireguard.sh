@@ -307,3 +307,27 @@ case "$cmd" in
     exit 2
     ;;
 esac
+echo; echo "Done. Current POSTROUTING (nat) and FORWARD (filter) rules:"
+$IPT -t nat -L POSTROUTING --line-numbers -n -v
+$IPT -L FORWARD --line-numbers -n -v
+$IP6T -L FORWARD --line-numbers -n -v 2>/dev/null || true
+# Helpful comments and runtime reminders:
+# To list current POSTROUTING rules with line numbers:
+#   sudo /usr/sbin/iptables-legacy -t nat -L POSTROUTING --line-numbers -n -v
+#
+# To list FORWARD rules with line numbers (IPv4):
+#   sudo /usr/sbin/iptables-legacy -L FORWARD --line-numbers -n -v
+#
+# To delete a rule by number from POSTROUTING (replace N):
+#   sudo /usr/sbin/iptables-legacy -t nat -D POSTROUTING N
+#
+# To delete a rule by number from FORWARD (replace N):
+#   sudo /usr/sbin/iptables-legacy -D FORWARD N
+#
+# To find duplicate identical rules (shows counts):
+#   sudo /usr/sbin/iptables-legacy -t nat -S | sort | uniq -c
+#
+# If duplicates appear, list the chain with line numbers, pick the duplicate line number(s),
+# and delete them with the -D commands shown above.
+#
+# End of script
