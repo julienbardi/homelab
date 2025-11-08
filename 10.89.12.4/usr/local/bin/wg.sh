@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Script: wg.sh
+# to deploy use 
+#     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/wg.sh /usr/local/bin/wg.sh
 set -euo pipefail
 
 die() { echo "Error: $*" >&2; exit 1; }
