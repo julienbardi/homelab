@@ -4,12 +4,19 @@
 #     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/wg.sh /usr/local/bin/wg.sh
 set -euo pipefail
 
+# --- NAS WIREGUARD PARSER CONSTRAINTS (Confirmed by debugging) ---
+# 1. Format: Must use STRICT no-space format (Key=Value).
+# 2. Server [Interface] section MUST OMIT the Address= line (IP/CIDR must be set via PostUp).
+# 3. Server [Interface] section MUST OMIT the MTU= line (kernel default is used).
+# 4. Routing Rules: Must be appended cleanly (already fixed below).
+# --------------------------------------------------------------------
+
 die() { echo "Error: $*" >&2; exit 1; }
 
 # --- Constants ---
 WG_ENDPOINT_HOST="bardi.ch"
 BASE_WG_PORT=51420
-SERVER_MTU=1420
+SERVER_MTU=1420 # This constant remains for client config, but is removed from server config.
 WG_DIR="/etc/wireguard"
 CLIENT_DIR="$WG_DIR/clients"
 
@@ -426,11 +433,12 @@ local server_privkey
 server_privkey=$(_get_private_key_clean "$keyfile")
 
 printf "[Interface]\n" > "$conffile.new"
-printf "PrivateKey = %s\n" "$server_privkey" >> "$conffile.new"
-printf "Address = %s\n" "$wg_ipv4_server" >> "$conffile.new"
-printf "Address = %s\n" "$wg_ipv6_server" >> "$conffile.new"
+# FIX 1 & 2: Use Key=Value format, remove Address= lines
+printf "PrivateKey=%s\n" "$server_privkey" >> "$conffile.new"
+#printf "Address = %s\n" "$wg_ipv4_server" >> "$conffile.new" # REMOVED due to NAS constraint
+#printf "Address = %s\n" "$wg_ipv6_server" >> "$conffile.new" # REMOVED due to NAS constraint
 printf "ListenPort = %s\n" "$port" >> "$conffile.new"
-printf "MTU = %s\n" "$SERVER_MTU" >> "$conffile.new"
+#printf "MTU = %s\n" "$SERVER_MTU" >> "$conffile.new" # REMOVED due to NAS constraint
 _get_routing_rules "$iface" >> "$conffile.new"
 
 # --- Loop over all client configs ---
@@ -518,14 +526,13 @@ echo "DEBUG 522: \$wg_ipv4_server for $iface is >>$wg_ipv4_server<<" >&2
 local server_privkey
 server_privkey=$(_get_private_key_clean "$WG_DIR/$iface.key")
 
-# CRITICAL FIX: Add spaces around the equals sign (e.g., 'Address = %s\n') for 
-# strict parser compatibility on this NAS, resolving the "Line unrecognized" error.
+# FIX 1, 2, 3: Use Key=Value format, remove Address= and MTU=
 printf "[Interface]\n" > "$WG_DIR/$iface.conf"
-printf "PrivateKey = %s\n" "$server_privkey" >> "$WG_DIR/$iface.conf"
-printf "Address = %s\n" "$wg_ipv4_server" >> "$WG_DIR/$iface.conf"
-printf "Address = %s\n" "$wg_ipv6_server" >> "$WG_DIR/$iface.conf"
-printf "ListenPort = %s\n" "$port" >> "$WG_DIR/$iface.conf"
-printf "MTU = %s\n" "$SERVER_MTU" >> "$WG_DIR/$iface.conf"
+printf "PrivateKey=%s\n" "$server_privkey" >> "$WG_DIR/$iface.conf"
+#printf "Address = %s\n" "$wg_ipv4_server" >> "$WG_DIR/$iface.conf"
+#printf "Address = %s\n" "$wg_ipv6_server" >> "$WG_DIR/$iface.conf"
+printf "ListenPort=%s\n" "$port" >> "$WG_DIR/$iface.conf"
+#printf "MTU = %s\n" "$SERVER_MTU" >> "$WG_DIR/$iface.conf" # REMOVED due to NAS constraint
 
 # Step 3: Append the routing rules.
 _get_routing_rules "$iface" >> "$WG_DIR/$iface.conf"
@@ -560,19 +567,19 @@ mkdir -p "$CLIENT_DIR"
 cfg="$CLIENT_DIR/${client}-${iface}.conf"
 
 cat >"$cfg" <<EOF
-# ClientPublicKey = $pubkey
+# ClientPublicKey=$pubkey
 [Interface]
-PrivateKey = $privkey
-Address = $ip/32
-Address = $ipv6/128
-DNS = $dns
-MTU = $SERVER_MTU
+PrivateKey=$privkey
+Address=$ip/32
+Address=$ipv6/128
+DNS=$dns
+MTU=$SERVER_MTU
 
 [Peer]
-PublicKey = $(sudo cat $WG_DIR/$iface.pub)
-AllowedIPs = $allowed
-Endpoint = $WG_ENDPOINT_HOST:$port
-PersistentKeepalive = 25
+PublicKey=$(sudo cat $WG_DIR/$iface.pub)
+AllowedIPs=$allowed
+Endpoint=$WG_ENDPOINT_HOST:$port
+PersistentKeepalive=25
 EOF
 
 # --- Rebuild server config from all clients ---
