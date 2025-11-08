@@ -417,7 +417,6 @@ _rebuild_nolock() {
     # Step 2: Append the rest of the configuration using cat (appends to file).
     cat >> "$conffile.new" <<EOF
 Address=$wg_ipv4_server
-Address=$wg_ipv6_server
 ListenPort=$port
 MTU=$SERVER_MTU
 
@@ -517,7 +516,6 @@ To fix, copy and paste the following commands:\n\
     # Step 2: Append the rest of the configuration using cat (appends to file).
     cat >> "$WG_DIR/$iface.conf" <<EOF
 Address=$wg_ipv4_server
-Address=$wg_ipv6_server
 ListenPort=$port
 MTU=$SERVER_MTU
 
