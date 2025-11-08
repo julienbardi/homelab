@@ -402,8 +402,8 @@ _rebuild_nolock() {
   local cfg client pub ip
 
   # --- Define this interface's server IPs ---
-  local wg_ipv4_server="10.$num.0.1/32"
-  local wg_ipv6_server="fd10:$num::1/128"
+  local wg_ipv4_server="10.$num.0.1/24"
+  local wg_ipv6_server="fd10:$num::1/64"
 
   # --- Rebuild [Interface] section ---
   # CRITICAL FIX: Isolate PrivateKey to prevent here-doc corruption.
@@ -502,8 +502,8 @@ To fix, copy and paste the following commands:\n\
     echo "⚙️  Creating base config for $iface at $WG_DIR/$iface.conf"
     
     # --- Define this interface's server IPs ---
-    local wg_ipv4_server="10.$num.0.1/32"
-    local wg_ipv6_server="fd10:$num::1/128"
+    local wg_ipv4_server="10.$num.0.1/24"
+    local wg_ipv6_server="fd10:$num::1/64"
     
     # CRITICAL FIX: Read the key into a variable and strip all whitespace
     local server_privkey
