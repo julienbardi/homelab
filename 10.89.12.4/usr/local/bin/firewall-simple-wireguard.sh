@@ -3,7 +3,7 @@
 # Minimal WireGuard FORWARD + POSTROUTING manager with a lightweight first-apply snapshot
 #
 # to deploy use 
-#     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/firewall-simple-wireguard.sh /usr/local/bin/firewall-simple-wireguard.sh
+#     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/firewall-simple-wireguard.sh /usr/local/bin/
 #     sudo chown root:root /usr/local/bin/firewall-simple-wireguard.sh
 #     sudo chmod 700 /usr/local/bin/firewall-simple-wireguard.sh
 #
