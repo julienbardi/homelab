@@ -6,7 +6,7 @@
 #     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/firewall-simple-wireguard.sh /usr/local/bin/firewall-simple-wireguard.sh
 #     sudo chown root:root /usr/local/bin/firewall-simple-wireguard.sh
 #     sudo chmod 700 /usr/local/bin/firewall-simple-wireguard.sh
-
+# Prerequisites:
 #
 # Usage:
 #   sudo firewall-simple-wireguard.sh               # dry-run (default): show planned ADD/DEL rules
@@ -33,12 +33,12 @@ exec {LOCKFD}>"$LOCKFILE"
 flock -n "$LOCKFD" || { echo "ERROR: another instance is running"; exit 2; }
 
 # Replace with preferred binaries if needed
-IPT4_CMD="iptables-legacy"
-IPT6_CMD="ip6tables-legacy"
-RESTORE4_CMD="iptables-restore"
-RESTORE6_CMD="ip6tables-restore"
-SAVE4_CMD="iptables-save"
-SAVE6_CMD="ip6tables-save"
+IPT4_CMD="/usr/sbin/iptables-legacy" # sudo which iptables-legacy
+IPT6_CMD="/usr/sbin/ip6tables-legacy"
+RESTORE4_CMD="/usr/sbin/iptables-restore"
+RESTORE6_CMD="/usr/sbin/ip6tables-restore"
+SAVE4_CMD="/usr/sbin/iptables-save"
+SAVE6_CMD="/usr/sbin/ip6tables-save"
 
 # --- Hardcoded rules (edit only here) ---
 # Manage only FORWARD and POSTROUTING; do not touch INPUT or default chain policies.
