@@ -32,13 +32,13 @@ LOCKFILE="/var/lock/firewall-simple-wireguard.lock"
 exec {LOCKFD}>"$LOCKFILE"
 flock -n "$LOCKFD" || { echo "ERROR: another instance is running"; exit 2; }
 
-# Replace with preferred binaries if needed
-IPT4_CMD="/usr/sbin/iptables-legacy" # sudo which iptables-legacy
+# Use these exact assignments in the script (they match DXP4800+): use sudo which iptables-legacy-restore to find correct path
+IPT4_CMD="/usr/sbin/iptables-legacy"
 IPT6_CMD="/usr/sbin/ip6tables-legacy"
-RESTORE4_CMD="/usr/sbin/iptables-restore"
-RESTORE6_CMD="/usr/sbin/ip6tables-restore"
-SAVE4_CMD="/usr/sbin/iptables-save"
-SAVE6_CMD="/usr/sbin/ip6tables-save"
+RESTORE4_CMD="/usr/sbin/iptables-legacy-restore"
+RESTORE6_CMD="/usr/sbin/ip6tables-legacy-restore"
+SAVE4_CMD="/usr/sbin/iptables-legacy-save"
+SAVE6_CMD="/usr/sbin/ip6tables-legacy-save"
 
 # --- Hardcoded rules (edit only here) ---
 # Manage only FORWARD and POSTROUTING; do not touch INPUT or default chain policies.
