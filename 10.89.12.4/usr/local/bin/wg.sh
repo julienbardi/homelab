@@ -431,10 +431,7 @@ printf "Address = %s\n" "$wg_ipv4_server" >> "$conffile.new"
 printf "Address = %s\n" "$wg_ipv6_server" >> "$conffile.new"
 printf "ListenPort = %s\n" "$port" >> "$conffile.new"
 printf "MTU = %s\n" "$SERVER_MTU" >> "$conffile.new"
-cat >> "$conffile.new" <<EOF
-
-$(_get_routing_rules "$iface")
-EOF
+_get_routing_rules "$iface" >> "$conffile.new"
 
 # --- Loop over all client configs ---
 for cfg in "$CLIENT_DIR"/*-"$iface".conf; do
@@ -531,10 +528,7 @@ printf "ListenPort = %s\n" "$port" >> "$WG_DIR/$iface.conf"
 printf "MTU = %s\n" "$SERVER_MTU" >> "$WG_DIR/$iface.conf"
 
 # Step 3: Append the routing rules.
-cat >> "$WG_DIR/$iface.conf" <<EOF
-
-$(_get_routing_rules "$iface")
-EOF
+_get_routing_rules "$iface" >> "$WG_DIR/$iface.conf"
 
 chmod 600 "$WG_DIR/$iface.conf"
 chown root:root "$WG_DIR/$iface.conf"
