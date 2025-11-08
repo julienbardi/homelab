@@ -11,7 +11,7 @@
 #      sudo /usr/sbin/iptables-legacy -t nat -L POSTROUTING --line-numbers -n -v
 #      sudo /usr/sbin/ip6tables-legacy -t nat -L POSTROUTING --line-numbers -n -v
 # Prerequisites:
-#
+#   depends on /usr/local/bin/remove-dup-rule.sh
 # Usage:
 #   sudo firewall-simple-wireguard.sh               # dry-run (default): show planned ADD/DEL rules
 #   sudo firewall-simple-wireguard.sh apply         # apply ADD rules; will snapshot on first apply then keep snapshot for emergency restore
