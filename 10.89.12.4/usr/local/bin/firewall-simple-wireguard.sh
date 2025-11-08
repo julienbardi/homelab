@@ -311,6 +311,11 @@ echo; echo "Done. Current POSTROUTING (nat) and FORWARD (filter) rules:"
 $IPT -t nat -L POSTROUTING --line-numbers -n -v
 $IPT -L FORWARD --line-numbers -n -v
 $IP6T -L FORWARD --line-numbers -n -v 2>/dev/null || true
+sudo /usr/local/bin/remove-dup-rule.sh POSTROUTING v6
+sudo /usr/local/bin/remove-dup-rule.sh POSTROUTING
+sudo /usr/local/bin/remove-dup-rule.sh FORWARD v6
+sudo /usr/local/bin/remove-dup-rule.sh FORWARD
+
 # Helpful comments and runtime reminders:
 # To list current POSTROUTING rules with line numbers:
 #   sudo /usr/sbin/iptables-legacy -t nat -L POSTROUTING --line-numbers -n -v
