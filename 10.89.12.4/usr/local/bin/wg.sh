@@ -13,6 +13,7 @@ CLIENT_DIR="$WG_DIR/clients"
 # --- LAN & SUBNET CONSTANTS ---
 NAS_LAN_IP="10.89.12.4"
 LAN_SUBNET="10.89.12.0/24"
+LAN_SUBNET_V6="fd10:3::/64" # NEW: Your local IPv6 range
 # On NAS run "ip -br link show type bridge" to list the interfaces
 NAS_LAN_IFACE="bridge0"
 
@@ -24,9 +25,10 @@ DYNAMIC_START=101
 DYNAMIC_END=254
 
 # --- AllowedIPs Constants ---
-LAN_ONLY_ALLOWED="$LAN_SUBNET"
+LAN_ONLY_ALLOWED="$LAN_SUBNET,$LAN_SUBNET_V6" # MODIFIED: Includes IPv6 LAN
 INET_ALLOWED="0.0.0.0/0"
 IPV6_INET_ALLOWED="::/0"
+FULL_TUNNEL_ROUTES="$INET_ALLOWED,$IPV6_INET_ALLOWED,$LAN_SUBNET,$LAN_SUBNET_V6" # NEW: Full tunnel definition
 
 # --------------------------------------------------------------------
 # Interface mapping (bitmask scheme)
@@ -37,18 +39,17 @@ IPV6_INET_ALLOWED="::/0"
 #   Bit 3 (value 4) → IPv6 access (::/0)
 #
 # Truth table:
-#   Interface | Bits (lan,inet,ipv6) | Meaning                        | Windows note
-#   ----------+----------------------+--------------------------------+-------------------------------
-#   wg0       | 000                  | Null profile (no access, testing only) | -
-#   wg1       | 001                  | LAN only (IPv4)                | -
-#   wg2       | 010                  | Internet only (IPv4)           | -
-#   wg3       | 011                  | LAN + Internet (IPv4)          | -
-#   wg4 * | 100                  | IPv6 only (rarely useful)      | * May cause routing issues
-#   wg5 * | 101                  | LAN (IPv4) + IPv6              | * May cause routing issues
-#   wg6 * | 110                  | Internet (IPv4) + IPv6         | * May cause routing issues
-#   wg7 * | 111                  | LAN + Internet + IPv6 (full tunnel) | * May cause routing issues
+#   Interface | Bits | Meaning                        | Client AllowedIPs Logic
+#   ----------+------+--------------------------------+-------------------------------
+#   wg0       | 000  | Null profile (no access)       | None
+#   wg1       | 001  | LAN only (IPv4)                | LAN-ONLY (LAN-v4 + Server-v4)
+#   wg2       | 010  | Internet only (IPv4)           | FULL-TUNNEL (v4 Full Tunnel)
+#   wg3       | 011  | LAN + Internet (IPv4)          | FULL-TUNNEL (v4 Full Tunnel + Explicit LAN-v4)
+#   wg4       | 100  | IPv6 only                      | FULL-TUNNEL (v6 Full Tunnel)
+#   wg5       | 101  | LAN (v4) + IPv6                | LAN-ONLY (LAN-v4/v6 + Server-v4/v6)
+#   wg6       | 110  | Internet (v4) + IPv6           | FULL-TUNNEL (v4/v6 Full Tunnel)
+#   wg7       | 111  | LAN + Internet + IPv6          | FULL-TUNNEL (v4/v6 Full Tunnel + Explicit LAN-v4/v6)
 # --------------------------------------------------------------------
-
 show_helper() {
   cat <<'EOF'
 WireGuard management helper script (MODIFIED)
@@ -68,50 +69,75 @@ EOF
 }
 
 #
-# --- [MODIFIED] ---
-# Now returns correct DNS IPs based on the interface
-#
 policy_for_iface() {
-  local raw="$1"
-  [[ "$raw" =~ ^wg([0-9]+)$ ]] || die "Invalid interface name: $raw"
-  local num="${BASH_REMATCH[1]}"
+    local raw="$1" 
+    [[ "$raw" =~ ^wg([0-9]+)$ ]] || die "Invalid interface name: $raw"
+    local num="${BASH_REMATCH[1]}"
 
-  # --- Define this interface's server-side IPs (used for DNS) ---
-  local server_ipv4="10.$num.0.1"
-  local server_ipv6="fd10:$num::1"
-  
-  # --- Define external fallbacks ---
-  local ext_dns_v4="1.1.1.1,8.8.8.8"
-  local ext_dns_v6="2606:4700:4700::1111"
+    # --- Define server and external IPs ---
+    local server_ipv4="10.$num.0.1"
+    local server_ipv6="fd10:$num::1"
+    local ext_dns_v4="1.1.1.1,8.8.8.8"
+    local ext_dns_v6="2606:4700:4700::1111"
+    
+    # --- Output Variables ---
+    local client_allowed_ips=""
+    local client_dns=""
+    local policy_label=""
 
-  local lan=$(( num & 1 ))
-  local inet=$(( (num >> 1) & 1 ))
-  local ipv6=$(( (num >> 2) & 1 ))
+    # --- Local Helper Variables (LAN_SUBNET and LAN_SUBNET_V6 must be defined earlier) ---
+    local LAN_ROUTES="$LAN_SUBNET,$LAN_SUBNET_V6"
+    local SERVER_ONLY_ROUTES="$server_ipv4/32,$server_ipv6/128"
 
-  if [[ $num -eq 0 ]]; then
-    echo "| |never|Null profile (no access)"
-  elif [[ $lan -eq 1 && $inet -eq 0 && $ipv6 -eq 0 ]]; then
-    # LAN only: Use WG DNS only
-    echo "$LAN_ONLY_ALLOWED|${server_ipv4}|never|LAN only (IPv4)"
-  elif [[ $lan -eq 0 && $inet -eq 1 && $ipv6 -eq 0 ]]; then
-    # Internet only: Use external DNS
-    echo "$INET_ALLOWED|$ext_dns_v4|$(date -d '+1 year' +'%Y-%m-%d')|Internet only (IPv4)"
-  elif [[ $lan -eq 1 && $inet -eq 1 && $ipv6 -eq 0 ]]; then
-    # LAN + Internet: Use WG DNS + external fallback
-    echo "$INET_ALLOWED|${server_ipv4},${ext_dns_v4}|never|LAN + Internet (IPv4)"
-  elif [[ $lan -eq 0 && $inet -eq 0 && $ipv6 -eq 1 ]]; then
-    # IPv6 only: Use external DNS
-    echo "$IPV6_INET_ALLOWED|$ext_dns_v6|never|IPv6 only"
-  elif [[ $lan -eq 1 && $inet -eq 0 && $ipv6 -eq 1 ]]; then
-    # LAN + IPv6: Use WG DNS (v4 + v6)
-    echo "$LAN_ONLY_ALLOWED,$IPV6_INET_ALLOWED|${server_ipv4},${server_ipv6}|never|LAN + IPv6"
-  elif [[ $lan -eq 0 && $inet -eq 1 && $ipv6 -eq 1 ]]; then
-    # Internet + IPv6: Use external DNS
-    echo "$INET_ALLOWED,$IPV6_INET_ALLOWED|${ext_dns_v4},${ext_dns_v6}|never|Internet + IPv6"
-  elif [[ $lan -eq 1 && $inet -eq 1 && $ipv6 -eq 1 ]]; then
-    # Full tunnel: Use WG DNS + external fallbacks
-    echo "$INET_ALLOWED,$IPV6_INET_ALLOWED|${server_ipv4},${ext_dns_v4},${server_ipv6},${ext_dns_v6}|never|LAN + Internet + IPv6"
-  fi
+    # --- Case Statement Logic (Grouped by Policy) ---
+    case "$num" in
+        0) # wg0: Null Profile (000)
+            client_allowed_ips=""
+            client_dns="$NAS_LAN_IP"
+            policy_label="$raw: Null profile (no access)"
+            ;;
+        1) # wg1 (LAN V4 Only) - LAN Only Policy (001)
+            client_allowed_ips="$LAN_SUBNET,$server_ipv4/32"
+            client_dns="$NAS_LAN_IP"
+            policy_label="$raw: LAN only (IPv4)"
+            ;;
+        5) # wg5 (LAN V4 + V6) - LAN Only Policy (101)
+            client_allowed_ips="$LAN_ROUTES,$SERVER_ONLY_ROUTES"
+            client_dns="$NAS_LAN_IP"
+            policy_label="$raw: LAN (v4) + IPv6 (No Internet)"
+            ;;
+        
+        2) # wg2 (Internet V4 Only) - Pure Full Tunnel (010)
+            client_allowed_ips="$INET_ALLOWED"
+            client_dns="$ext_dns_v4"
+            policy_label="$raw: Internet only (IPv4)"
+            ;;
+        6) # wg6 (Internet V4 + V6) - Pure Full Tunnel (110)
+            client_allowed_ips="$INET_ALLOWED,$IPV6_INET_ALLOWED"
+            client_dns="$ext_dns_v4,$ext_dns_v6"
+            policy_label="$raw: Internet (v4) + IPv6"
+            ;;
+        4) # wg4 (IPv6 Only) - Pure Full Tunnel (100)
+            client_allowed_ips="$IPV6_INET_ALLOWED"
+            client_dns="$ext_dns_v6"
+            policy_label="$raw: IPv6 only"
+            ;;
+
+        3|7|*) # wg3, wg7, and Default (*) - Full Tunnel + Explicit LAN routes (011, 111, ...)
+            local TUNNEL_ROUTES="$INET_ALLOWED,$IPV6_INET_ALLOWED"
+            
+            # NOTE: LAN routes are placed first to ensure split-tunneling clients on the LAN
+            # correctly route local traffic over the physical network.
+            client_allowed_ips="$LAN_ROUTES,$TUNNEL_ROUTES" 
+            
+            # DNS: NAS Primary + Public Fallbacks (Router IP excluded for security/control)
+            client_dns="$NAS_LAN_IP,$ext_dns_v4,$ext_dns_v6"
+            policy_label="$raw: Full Tunnel (LAN + Internet + IPv6)"
+            ;;
+    esac
+
+    # Return the policy string: <AllowedIPs>|<DNS>|<Expiry>|<Label>
+    echo "$client_allowed_ips|$client_dns|never|$policy_label"
 }
 # Reads private key file and ensures a clean, single line for parser safety.
 #
