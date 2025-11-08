@@ -50,9 +50,18 @@ iptables -A INPUT -i lo -j ACCEPT
 # CRITICAL: Allows return traffic for established outgoing connections (e.g., recursive DNS queries)
 iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
+# 🛑 TEMPORARY: OPEN ALL PORTS FOR LAN SUBNET
+echo "🛑 TEMPORARY: Opening ALL TCP/UDP ports for ${LAN_SUBNET}"
+iptables -A INPUT -p tcp -s ${LAN_SUBNET} -j ACCEPT
+iptables -A INPUT -p udp -s ${LAN_SUBNET} -j ACCEPT
+# -----------------------------------------------
+
 # Allow SSH from LAN (Ports 22 and 2222)
 iptables -A INPUT -p tcp --dport ${SSH_PORT_DEFAULT} -s ${LAN_SUBNET} -j ACCEPT
 iptables -A INPUT -p tcp --dport ${SSH_PORT_CUSTOM} -s ${LAN_SUBNET} -j ACCEPT
+
+# Allow NAS Web UI from LAN (Port 9999)
+iptables -A INPUT -p tcp --dport 9999 -s ${LAN_SUBNET} -j ACCEPT
 
 # Allow DNS from LAN/trusted subnets
 iptables -A INPUT -p udp --dport ${DNS_PORT} -s ${LAN_SUBNET} -j ACCEPT
