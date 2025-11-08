@@ -424,11 +424,11 @@ local server_privkey
 server_privkey=$(_get_private_key_clean "$keyfile")
 
 printf "[Interface]\n" > "$conffile.new"
-printf "PrivateKey=%s\n" "$server_privkey" >> "$conffile.new"
-printf "Address=%s\n" "$wg_ipv4_server" >> "$conffile.new"
-printf "Address=%s\n" "$wg_ipv6_server" >> "$conffile.new"
-printf "ListenPort=%s\n" "$port" >> "$conffile.new"
-printf "MTU=%s\n" "$SERVER_MTU" >> "$conffile.new"
+printf "PrivateKey = %s\n" "$server_privkey" >> "$conffile.new"
+printf "Address = %s\n" "$wg_ipv4_server" >> "$conffile.new"
+printf "Address = %s\n" "$wg_ipv6_server" >> "$conffile.new"
+printf "ListenPort = %s\n" "$port" >> "$conffile.new"
+printf "MTU = %s\n" "$SERVER_MTU" >> "$conffile.new"
 cat >> "$conffile.new" <<EOF
 
 $(_get_routing_rules "$iface")
@@ -519,13 +519,14 @@ echo "DEBUG 522: \$wg_ipv4_server for $iface is >>$wg_ipv4_server<<" >&2
 local server_privkey
 server_privkey=$(_get_private_key_clean "$WG_DIR/$iface.key")
 
-# >>> CRITICAL CHANGE: Write [Interface] and all parameters using printf. <<<
+# CRITICAL FIX: Add spaces around the equals sign (e.g., 'Address = %s\n') for 
+# strict parser compatibility on this NAS, resolving the "Line unrecognized" error.
 printf "[Interface]\n" > "$WG_DIR/$iface.conf"
-printf "PrivateKey=%s\n" "$server_privkey" >> "$WG_DIR/$iface.conf"
-printf "Address=%s\n" "$wg_ipv4_server" >> "$WG_DIR/$iface.conf"
-printf "Address=%s\n" "$wg_ipv6_server" >> "$WG_DIR/$iface.conf"
-printf "ListenPort=%s\n" "$port" >> "$WG_DIR/$iface.conf"
-printf "MTU=%s\n" "$SERVER_MTU" >> "$WG_DIR/$iface.conf"
+printf "PrivateKey = %s\n" "$server_privkey" >> "$WG_DIR/$iface.conf"
+printf "Address = %s\n" "$wg_ipv4_server" >> "$WG_DIR/$iface.conf"
+printf "Address = %s\n" "$wg_ipv6_server" >> "$WG_DIR/$iface.conf"
+printf "ListenPort = %s\n" "$port" >> "$WG_DIR/$iface.conf"
+printf "MTU = %s\n" "$SERVER_MTU" >> "$WG_DIR/$iface.conf"
 
 # Step 3: Append the routing rules.
 cat >> "$WG_DIR/$iface.conf" <<EOF
@@ -565,11 +566,11 @@ cfg="$CLIENT_DIR/${client}-${iface}.conf"
 cat >"$cfg" <<EOF
 # ClientPublicKey = $pubkey
 [Interface]
-PrivateKey=$privkey
-Address=$ip/32
-Address=$ipv6/128
-DNS=$dns
-MTU=$SERVER_MTU
+PrivateKey = $privkey
+Address = $ip/32
+Address = $ipv6/128
+DNS = $dns
+MTU = $SERVER_MTU
 
 [Peer]
 PublicKey = $(sudo cat $WG_DIR/$iface.pub)
