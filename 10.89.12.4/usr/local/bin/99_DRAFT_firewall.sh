@@ -1,9 +1,9 @@
 #!/bin/bash
-set -euo pipefail
-
+# Script: firewall.sh
 # to deploy use 
 #     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/firewall.sh /usr/local/bin/firewall.sh
 
+set -euo pipefail
 # source "/home/julie/homelab/scripts/config/homelab.env"
 
 # Require root for all scripts
