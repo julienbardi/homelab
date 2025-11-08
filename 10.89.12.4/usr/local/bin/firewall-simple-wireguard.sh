@@ -6,6 +6,10 @@
 #     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/firewall-simple-wireguard.sh /usr/local/bin/firewall-simple-wireguard.sh
 #     sudo chown root:root /usr/local/bin/firewall-simple-wireguard.sh
 #     sudo chmod 700 /usr/local/bin/firewall-simple-wireguard.sh
+#
+#     Verify current nat POSTROUTING state (confirm cleanup):
+#      sudo /usr/sbin/iptables-legacy -t nat -L POSTROUTING --line-numbers -n -v
+#      sudo /usr/sbin/ip6tables-legacy -t nat -L POSTROUTING --line-numbers -n -v
 # Prerequisites:
 #
 # Usage:
@@ -194,19 +198,31 @@ restore_last_snapshot(){
 }
 
 connectivity_check(){
-  local gw ok=1
+  local gw ok=0
   gw="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
   if [[ -n "$gw" ]]; then
-    if ping -c 1 -W 2 "$gw" >/dev/null 2>&1; then :; else
-      if ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1; then :; else ok=0; fi
+    if sudo ping -c 1 -W 2 "$gw" >/dev/null 2>&1; then
+      ok=0
+    else
+      if sudo ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1; then
+        ok=0
+      else
+        ok=1
+      fi
     fi
   else
-    if ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1; then :; else ok=0; fi
+    if sudo ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1; then
+      ok=0
+    else
+      ok=1
+    fi
   fi
+
   # Informational: local sshd listen
   if ! ss -tnl 2>/dev/null | grep -E -- ':(22|2222)\b' >/dev/null 2>&1; then
     echo "Notice: local sshd not detected (ok if you are on local console)"
   fi
+
   return $ok
 }
 
