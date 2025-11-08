@@ -73,10 +73,16 @@ EOF
 
 #
 policy_for_iface() {
-    local raw="$1" 
-    [[ "$raw" =~ ^wg([0-9]+)$ ]] || die "Invalid interface name: $raw"
-    local num="${BASH_REMATCH[1]}"
-
+    local raw="$1"
+    local num # Must be declared for scoping
+    case "$raw" in
+        wg[0-9]|wg[0-9][0-9])
+            num="${raw#wg}" # POSIX extraction
+            ;;
+        *)
+            die "Invalid interface name: $raw"
+            ;;
+    esac
     # --- Define server and external IPs ---
     local server_ipv4="10.$num.0.1"
     local server_ipv6="fd10:$num::1"
@@ -154,8 +160,15 @@ _get_private_key_clean() {
 #
 allocate_ip() {
   local iface="$1"
-  [[ "$iface" =~ ^wg([0-9]+)$ ]] || die "Invalid iface for allocate_ip: $iface"
-  local num="${BASH_REMATCH[1]}"
+  local num # Must be declared for scoping
+    case "$raw" in
+        wg[0-9]|wg[0-9][0-9])
+            num="${raw#wg}" # POSIX extraction
+            ;;
+        *)
+            die "Invalid interface name: $raw"
+            ;;
+    esac
   local subnet_base="10.$num.0"
 
   # Collect all used IPs across all interfaces
