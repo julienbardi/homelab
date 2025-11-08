@@ -423,17 +423,12 @@ echo "DEBUG419: \$wg_ipv4_server for $iface is >>$wg_ipv4_server<<" >&2
 local server_privkey
 server_privkey=$(_get_private_key_clean "$keyfile")
 
-# Step 1: Write the header and the PrivateKey using printf (overwrites file).
 printf "[Interface]\n" > "$conffile.new"
 printf "PrivateKey=%s\n" "$server_privkey" >> "$conffile.new"
-
-# Step 2: Append the rest of the configuration using clean printf.
-printf "Address=%s\n" "$wg_ipv4_server" | tr -d '\u00a0' >> "$conffile.new"
-printf "Address=%s\n" "$wg_ipv6_server" | tr -d '\u00a0' >> "$conffile.new"
-printf "ListenPort=%s\n" "$port" | tr -d '\u00a0' >> "$conffile.new"
-printf "MTU=%s\n" "$SERVER_MTU" | tr -d '\u00a0' >> "$conffile.new"
-
-# Step 3: Append the routing rules.
+printf "Address=%s\n" "$wg_ipv4_server" >> "$conffile.new"
+printf "Address=%s\n" "$wg_ipv6_server" >> "$conffile.new"
+printf "ListenPort=%s\n" "$port" >> "$conffile.new"
+printf "MTU=%s\n" "$SERVER_MTU" >> "$conffile.new"
 cat >> "$conffile.new" <<EOF
 
 $(_get_routing_rules "$iface")
@@ -526,11 +521,11 @@ server_privkey=$(_get_private_key_clean "$WG_DIR/$iface.key")
 
 # >>> CRITICAL CHANGE: Write [Interface] and all parameters using printf. <<<
 printf "[Interface]\n" > "$WG_DIR/$iface.conf"
-printf "PrivateKey=%s\n" "$server_privkey" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
-printf "Address=%s\n" "$wg_ipv4_server" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
-printf "Address=%s\n" "$wg_ipv6_server" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
-printf "ListenPort=%s\n" "$port" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
-printf "MTU=%s\n" "$SERVER_MTU" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
+printf "PrivateKey=%s\n" "$server_privkey" >> "$WG_DIR/$iface.conf"
+printf "Address=%s\n" "$wg_ipv4_server" >> "$WG_DIR/$iface.conf"
+printf "Address=%s\n" "$wg_ipv6_server" >> "$WG_DIR/$iface.conf"
+printf "ListenPort=%s\n" "$port" >> "$WG_DIR/$iface.conf"
+printf "MTU=%s\n" "$SERVER_MTU" >> "$WG_DIR/$iface.conf"
 
 # Step 3: Append the routing rules.
 cat >> "$WG_DIR/$iface.conf" <<EOF
