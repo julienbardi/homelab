@@ -375,6 +375,11 @@ cmd_export "$client" "$iface" | qrencode -t ansiutf8
 # Generates the PostUp/PostDown rules
 #
 _get_routing_rules() {
+# Returns only a comment. Rules are now handled externally.
+echo "# Static rules are handled by the NAS firewall configuration."
+}
+
+_get_routing_rules_NOT_USED() {
 local iface="$1"
 local num=${iface#wg}
 local wg_ipv4_subnet="10.$num.0.0/24"
