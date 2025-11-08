@@ -427,9 +427,10 @@ _rebuild_nolock() {
     printf "PrivateKey=%s\n" "$server_privkey" >> "$conffile.new"
     
     # Step 2: Append the rest of the configuration using clean printf.
-    printf "Address=%s\n" "$wg_ipv4_server" >> "$conffile.new"
-    printf "ListenPort=%s\n" "$port" >> "$conffile.new"
-    printf "MTU=%s\n" "$SERVER_MTU" >> "$conffile.new"
+    printf "Address=%s\n" "$wg_ipv4_server" | tr -d '\u00a0' >> "$conffile.new"
+    printf "Address=%s\n" "$wg_ipv6_server" | tr -d '\u00a0' >> "$conffile.new"
+    printf "ListenPort=%s\n" "$port" | tr -d '\u00a0' >> "$conffile.new"
+    printf "MTU=%s\n" "$SERVER_MTU" | tr -d '\u00a0' >> "$conffile.new"
 
     # Step 3: Append the routing rules.
     cat >> "$conffile.new" <<EOF
@@ -523,10 +524,11 @@ To fix, copy and paste the following commands:\n\
 
     # >>> CRITICAL CHANGE: Write [Interface] and all parameters using printf. <<<
     printf "[Interface]\n" > "$WG_DIR/$iface.conf"
-    printf "PrivateKey=%s\n" "$server_privkey" >> "$WG_DIR/$iface.conf"
-    printf "Address=%s\n" "$wg_ipv4_server" >> "$WG_DIR/$iface.conf"
-    printf "ListenPort=%s\n" "$port" >> "$WG_DIR/$iface.conf"
-    printf "MTU=%s\n" "$SERVER_MTU" >> "$WG_DIR/$iface.conf"
+    printf "PrivateKey=%s\n" "$server_privkey" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
+    printf "Address=%s\n" "$wg_ipv4_server" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
+    printf "Address=%s\n" "$wg_ipv6_server" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
+    printf "ListenPort=%s\n" "$port" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
+    printf "MTU=%s\n" "$SERVER_MTU" | tr -d '\u00a0' >> "$WG_DIR/$iface.conf"
     
     # Step 3: Append the routing rules.
     cat >> "$WG_DIR/$iface.conf" <<EOF
