@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# /usr/local/bin/firewall-simple-wireguard.sh
+# sudo /usr/local/bin/firewall-simple-wireguard.sh
 # Minimal WireGuard FORWARD + POSTROUTING manager with a lightweight first-apply snapshot
 #
 # to deploy use 
@@ -308,9 +308,9 @@ case "$cmd" in
     ;;
 esac
 echo; echo "Done. Current POSTROUTING (nat) and FORWARD (filter) rules:"
-$IPT -t nat -L POSTROUTING --line-numbers -n -v
-$IPT -L FORWARD --line-numbers -n -v
-$IP6T -L FORWARD --line-numbers -n -v 2>/dev/null || true
+$IPT4_CMD -t nat -L POSTROUTING --line-numbers -n -v
+$IPT4_CMD -L FORWARD --line-numbers -n -v
+$IPT6_CMD -L FORWARD --line-numbers -n -v 2>/dev/null || true
 sudo /usr/local/bin/remove-dup-rule.sh POSTROUTING v6
 sudo /usr/local/bin/remove-dup-rule.sh POSTROUTING
 sudo /usr/local/bin/remove-dup-rule.sh FORWARD v6
