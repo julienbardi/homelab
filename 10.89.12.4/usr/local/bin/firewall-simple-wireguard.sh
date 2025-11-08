@@ -4,6 +4,9 @@
 #
 # to deploy use 
 #     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/firewall-simple-wireguard.sh /usr/local/bin/firewall-simple-wireguard.sh
+#     sudo chown root:root /usr/local/bin/firewall-simple-wireguard.sh
+#     sudo chmod 700 /usr/local/bin/firewall-simple-wireguard.sh
+
 #
 # Usage:
 #   sudo firewall-simple-wireguard.sh               # dry-run (default): show planned ADD/DEL rules
