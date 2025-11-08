@@ -416,6 +416,8 @@ local cfg client pub ip
 local wg_ipv4_server="10.${num}.0.1/24"
 local wg_ipv6_server="fd10:${num}::1/64"
 
+echo "DEBUG419: \$wg_ipv4_server for $iface is >>$wg_ipv4_server<<" >&2
+
 # --- Rebuild [Interface] section ---
 # CRITICAL FIX: Isolate PrivateKey to prevent here-doc corruption.
 local server_privkey
@@ -517,6 +519,7 @@ echo "⚙️  Creating base config for $iface at $WG_DIR/$iface.conf"
 local wg_ipv4_server="10.${num}.0.1/24"
 local wg_ipv6_server="fd10:${num}::1/64"
 
+echo "DEBUG 522: \$wg_ipv4_server for $iface is >>$wg_ipv4_server<<" >&2
 # CRITICAL FIX: Read the key into a variable and strip all whitespace
 local server_privkey
 server_privkey=$(_get_private_key_clean "$WG_DIR/$iface.key")
