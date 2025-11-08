@@ -315,6 +315,10 @@ sudo /usr/local/bin/remove-dup-rule.sh POSTROUTING v6
 sudo /usr/local/bin/remove-dup-rule.sh POSTROUTING
 sudo /usr/local/bin/remove-dup-rule.sh FORWARD v6
 sudo /usr/local/bin/remove-dup-rule.sh FORWARD
+echo; echo "Done. Current POSTROUTING (nat) and FORWARD (filter) rules after duplication removal:"
+$IPT4_CMD -t nat -L POSTROUTING --line-numbers -n -v
+$IPT4_CMD -L FORWARD --line-numbers -n -v
+$IPT6_CMD -L FORWARD --line-numbers -n -v 2>/dev/null || true
 
 # Helpful comments and runtime reminders:
 # To list current POSTROUTING rules with line numbers:
