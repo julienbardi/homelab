@@ -437,7 +437,7 @@ printf "[Interface]\n" > "$conffile.new"
 printf "PrivateKey=%s\n" "$server_privkey" >> "$conffile.new"
 #printf "Address = %s\n" "$wg_ipv4_server" >> "$conffile.new" # REMOVED due to NAS constraint
 #printf "Address = %s\n" "$wg_ipv6_server" >> "$conffile.new" # REMOVED due to NAS constraint
-printf "ListenPort = %s\n" "$port" >> "$conffile.new"
+printf "ListenPort=%s\n" "$port" >> "$conffile.new"
 #printf "MTU = %s\n" "$SERVER_MTU" >> "$conffile.new" # REMOVED due to NAS constraint
 _get_routing_rules "$iface" >> "$conffile.new"
 
