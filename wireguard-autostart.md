@@ -58,8 +58,10 @@ Resulting binaries:
 
 Optional check the version 
 ```bash
-wg --version # UGOS version
-/opt/wireguard-latest/bin/wg --version # version you just installed
+# UGOS version - to restore use sudo apt install --reinstall wireguard-tools
+wg --version 
+# version you just installed
+/opt/wireguard-latest/bin/wg --version 
 ```
 
 ##  Step 4: Create WireGuard Configurations (Later)
