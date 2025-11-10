@@ -1,10 +1,10 @@
 Deploying a Custom WireGuard Build on a NAS with Systemd Autostart
 Author: Julie Date: November 2025 Status: under construction
 
-Introduction
+# Introduction
 WireGuard has become the de‑facto standard for secure, performant VPN tunnels. Many NAS systems ship with older versions of wireguard-tools, which can lead to syntax mismatches or missing features. This article describes how to build and install the latest WireGuard tools in a clean, isolated way, and configure systemd to ensure tunnels start automatically at boot — without overwriting vendor‑managed binaries.
 
-Step 1: Prepare a Build Workspace
+# Step 1: Prepare a Build Workspace
 Keep source code separate from system directories:
 
 bash
@@ -12,7 +12,7 @@ mkdir -p ~/src
 cd ~/src
 git clone https://git.zx2c4.com/wireguard-tools
 cd wireguard-tools/src
-Step 2: Build the Tools
+# Step 2: Build the Tools
 Compile the binaries locally:
 
 bash
@@ -30,10 +30,10 @@ Resulting binaries:
 
 /opt/wireguard-latest/bin/wg-quick
 
-Step 4: Create WireGuard Configurations (Later)
+# Step 4: Create WireGuard Configurations (Later)
 Configuration files (/etc/wireguard/wg0.conf, wg1.conf, …) define interfaces, keys, endpoints, and subnets. For now, you can postpone this step until you regenerate secure keys and finalize your subnet conventions.
 
-Step 5: Override the Systemd Unit
+# Step 5: Override the Systemd Unit
 Systemd’s wg-quick@.service template normally calls /usr/bin/wg-quick. Override it to use your custom binary:
 
 bash
@@ -73,5 +73,5 @@ Precise control: only the service is redirected; your shell can still use the ve
 
 Easy rollback: remove the override with sudo systemctl revert wg-quick@.service.
 
-Conclusion
+# Conclusion
 By installing WireGuard into /opt/wireguard-latest and overriding the systemd unit, you gain the benefits of the latest features while keeping your NAS system stable and vendor‑compliant. This workflow is robust, reversible, and ready for production once your configuration files are finalized.
