@@ -86,9 +86,19 @@ This ensures systemd always uses your build.
 Reload systemd and enable the service for your chosen interface (e.g. wg0):
 
 ```bash
-sudo systemctl daemon-reexec
-sudo systemctl enable wg-quick@wg0
-sudo systemctl start wg-quick@wg0
+sudo systemctl daemon-reexec # Reloads systemd itself after you’ve edited unit files.
+sudo systemctl enable /opt/wireguard-latest/bin/wg-quick@wg0
+sudo systemctl start  /opt/wireguard-latest/bin/wg-quick@wg0
+```
+
+Notes:
+- always use full path when running manually. Not required with systemctl as it uses the override defined in ExecStart.
+- To stop and disable autostart manually, you would use
+```
+sudo systemctl stop    /opt/wireguard-latest/bin/wg-quick/wg-quick@wg0
+sudo systemctl disable /opt/wireguard-latest/bin/wg-quick/wg-quick@wg0
+sudo                   /opt/wireguard-latest/bin/wg-quick down wg0
+sudo ip link delete wg0
 ```
 
 ## Step 7: Verify
@@ -96,7 +106,7 @@ Check service status and interface details:
 
 ```bash
 systemctl status wg-quick@wg0
-wg show
+/opt/wireguard-latest/bin/wg show
 ip addr show wg0
 ```
 After reboot, the tunnel will come up automatically using your custom binaries.
