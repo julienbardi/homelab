@@ -56,6 +56,12 @@ Resulting binaries:
 - `/opt/wireguard-latest/bin/wg`
 - `/opt/wireguard-latest/bin/wg-quick`
 
+Optional check the version 
+```bash
+wg --version # UGOS version
+/opt/wireguard-latest/bin/wg --version # version you just installed
+```
+
 ##  Step 4: Create WireGuard Configurations (Later)
 Configuration files (/etc/wireguard/wg0.conf, wg1.conf, …) define interfaces, keys, endpoints, and subnets. For now, you can postpone this step until you regenerate secure keys and finalize your subnet conventions.
 
