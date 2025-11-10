@@ -27,6 +27,24 @@ Install into /opt/wireguard-latest so your build is clearly separated from the N
 ```bash
 sudo make PREFIX=/opt/wireguard-latest install
 ```
+
+You get
+```
+install: creating directory '/opt/wireguard-latest'
+install: creating directory '/opt/wireguard-latest/bin'
+'wg' -> '/opt/wireguard-latest/bin/wg'
+install: creating directory '/opt/wireguard-latest/share'
+install: creating directory '/opt/wireguard-latest/share/man'
+install: creating directory '/opt/wireguard-latest/share/man/man8'
+'man/wg.8' -> '/opt/wireguard-latest/share/man/man8/wg.8'
+'wg-quick/linux.bash' -> '/opt/wireguard-latest/bin/wg-quick'
+'man/wg-quick.8' -> '/opt/wireguard-latest/share/man/man8/wg-quick.8'
+removed '/lib/systemd/system/wg-quick.target'
+'systemd/wg-quick.target' -> '/lib/systemd/system/wg-quick.target'
+removed '/lib/systemd/system/wg-quick@.service'
+'systemd/wg-quick@.service' -> '/lib/systemd/system/wg-quick@.service'
+```
+
 Resulting binaries:
 - `/opt/wireguard-latest/bin/wg`
 - `/opt/wireguard-latest/bin/wg-quick`
