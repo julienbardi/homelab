@@ -60,12 +60,17 @@ sudo systemctl edit wg-quick@.service
 ```
 Add:
 ```
+# Custom WireGuard override
+# This file redirects wg-quick@.service to use /opt/wireguard-latest binaries
+# Do not edit /lib/systemd/system/wg-quick@.service directly
+# %i is a systemd placeholder that expands to the interface name (e.g. wg0, wg1)
+
 [Service]
 # Clear the default ExecStart line from the original unit
 ExecStart=
 
 # Use our custom wg-quick binary from /opt/wireguard-latest
-# %i is replaced by the interface name (e.g. wg0, wg1, ...)
+# %i will be replaced by the interface name when the service runs
 ExecStart=/opt/wireguard-latest/bin/wg-quick up %i
 
 # Clear the default ExecStop line
