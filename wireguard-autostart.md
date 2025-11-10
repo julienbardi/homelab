@@ -14,6 +14,13 @@ git clone https://git.zx2c4.com/wireguard-tools
 cd wireguard-tools/src
 ```
 ##  Step 2: Build the Tools
+
+Choose the version you want to install
+```bash
+git tag -l
+git checkout v1.0.20250521  # latest stable tag from previous command
+```
+
 Compile the binaries locally:
 
 ```bash
