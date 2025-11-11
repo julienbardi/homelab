@@ -1,3 +1,79 @@
+
+## Conventions
+
+### 🔑 Convention
+Use fd10:8912:0:XX::/64 where XX is the subnet ID matching the WireGuard interface number.
+
+🔑 wg0–wg7 mapping (8912 convention)
+Interface	Subnet (ULA)	NAS address     	Firewall (UDP port)	Notes
+wg0	fd10:8912:0:10::/64	fd10:8912:0:10::1	51420	Advertises DNS (::1) in radvd
+wg1	fd10:8912:0:11::/64	fd10:8912:0:11::1	51421	You already set this one
+wg2	fd10:8912:0:12::/64	fd10:8912:0:12::1	51422	Assign next port sequentially
+wg3	fd10:8912:0:13::/64	fd10:8912:0:13::1	51423	
+wg4	fd10:8912:0:14::/64	fd10:8912:0:14::1	51424	
+wg5	fd10:8912:0:15::/64	fd10:8912:0:15::1	51425	
+wg6	fd10:8912:0:16::/64	fd10:8912:0:16::1	51426	
+wg7	fd10:8912:0:17::/64	fd10:8912:0:17::1	51427	Replace any old fd10:7:: rules
+
+
+#### NAS: Network>Network Connection>Network Bridging
+
+BR-LAN1 edit
+Under IPv6, full the NAS UI
+IPv6 address: fd10:8912:0:0::4/64
+Default gateway (UI requirement): fd10:8912:0:0::1 (arbitrary, just needs to be in the same /64)
+Preferred DNS: whichever NAS address you bind your resolver to (fd10:8912:0:0::4 or ::1)
+⚡ Important note
+The “default gateway” you enter in the NAS UI is not the real upstream gateway. It’s just a placeholder to satisfy the UI.
+
+The real connectivity to the router/ISP is handled by ndppd, which makes the NAS answer neighbor discovery for those ULA addresses and forward traffic upstream.
+
+
+#### a) Firewall on NAS
+Write rules using these exact /64 prefixes.
+
+Example: allow UDP forwarding for fd10:8912:0:17::/64 instead of fd10:7::/64.
+
+This ensures packets match what radvd and WireGuard are actually advertising.
+
+b) radvd.conf
+Already correct in your working config: each interface wgX { … } block advertises the matching fd10:8912:0:XX::/64.
+
+Keep bridge0 on fd10:8912:0:0::/64.
+
+c) wg0.conf – wg7.conf
+Assign each peer an address inside the matching subnet.
+
+Example for wg7 peer:
+
+ini
+[Interface]
+Address = fd10:8912:0:17::2/64
+The NAS itself can use ::1 in each subnet (e.g. fd10:8912:0:17::1).
+
+d) NAS network bridge properties
+For bridge0, assign the NAS a stable address like:
+
+Code
+fd10:8912:0:0::1/64
+That’s the address you already advertise as DNS in radvd.
+
+Keep the global IPv6 and IPv4 addresses as they are; this ULA is just your internal namespace.
+
+✅ Summary
+Firewall: match fd10:8912:0:XX::/64.
+
+radvd.conf: already aligned with fd10:8912:0:XX::/64.
+
+wgX.conf: assign NAS ::1, peers ::2, ::3, etc. inside the correct subnet.
+
+bridge0: NAS = fd10:8912:0:0::1/64.
+
+This way, everything — firewall, radvd, WireGuard configs, and bridge properties — uses the same fd10:8912 namespace.
+
+
+### NOTE USED: this would require also ndppd if I understood correctly
+
 Addressing and ports table (finalized)
 Interface	IPv4 subnet	IPv4 client dynamic range	IPv6 prefix (shared)	IPv6 client allocation range	WireGuard port
 wg0	10.0.0.0/24	10.0.0.100 – 10.0.0.199	2a01:8b81:4800:9c00::/64	2a01:8b81:4800:9c00::100 – ::1FF	51820
