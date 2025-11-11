@@ -3,7 +3,7 @@ Description=Router Advertisement Daemon
 After=network.target
 
 [Service]
-ExecStart=/usr/local/sbin/radvd -C /etc/radvd.conf
+ExecStart=/usr/local/sbin/radvd -C /etc/radvd.conf -n
 Restart=on-failure
 
 [Install]
