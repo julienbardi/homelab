@@ -22,11 +22,17 @@ Endpoint (public): bardi.ch — the WireGuard port for each interface must be fo
 
 
 ## Step 5: Build and install radvd 2.20
-Now you can fetch and build the latest release:
 
+
+Now you can fetch and build the latest release:
+Install GNU autotools packages
+sudo apt install autoconf automake libtool pkg-config m4 libbsd-dev bison flex
 ```bash
+mkdir -p /home/julie/src
+cd /home/julie/src
 git clone https://github.com/radvd-project/radvd.git
 cd radvd
+git tag -l
 git checkout v2.20
 
 ./autogen.sh
@@ -35,4 +41,60 @@ make
 sudo make install
 ```
 This will place the new binary in `/usr/local/sbin/radvd`.
+
+Output of `./configure --prefix=/usr/local --sysconfdir=/etc --mandir=/usr/share/man`
+Your build configuration:
+
+        CPPFLAGS =
+        CFLAGS = -g -O2
+        LDFLAGS =
+        Arch = linux
+        Extras: privsep-linux.o device-linux.o netlink.o
+        prefix: /usr/local
+        PID file: /var/run/radvd.pid
+        Log file: /var/log/radvd.log
+        Config file: /etc/radvd.conf
+        Radvd version: 2.20
+
+/usr/local/sbin/radvd --version
+
+IPv6 requires a link‑local address on every interface.
+
+How to fix
+Enable IPv6 on the bridge interface Make sure IPv6 is enabled in sysctl:
+
+bash
+sudo sysctl -w net.ipv6.conf.bridge0.disable_ipv6=0
+To make it permanent, add to /etc/sysctl.conf:
+
+Code
+net.ipv6.conf.bridge0.disable_ipv6=0
+Assign a link‑local address manually (optional) Normally the kernel auto‑assigns a link‑local when IPv6 is enabled. If not, you can add one:
+
+bash
+sudo ip -6 addr add fe80::1/64 dev bridge0
+Verify Check addresses:
+
+bash
+ip -6 addr show dev bridge0
+You should see a fe80::... entry.
+
+Restart radvd Once the link‑local is present, restart radvd:
+
+bash
+sudo systemctl restart radvd
+or if you’re running manually:
+
+bash
+sudo /usr/local/sbin/radvd -C /etc/radvd.conf -d 5 -n
+⚡ Confirm advertisements
+After radvd is running with a link‑local:
+
+bash
+sudo tcpdump -i bridge0 icmp6 and ip6[40] == 134
+You should see ICMPv6 Router Advertisements being sent. Or use:
+
+bash
+rdisc6 bridge0
+to query the RA directly.
 
