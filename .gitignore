@@ -17,7 +17,8 @@
 # === Systemd units (deployed copies, not source templates) ===
 # We generate/manage .service files dynamically on the host, so don’t track them here
 # Source: https://www.freedesktop.org/software/systemd/man/systemd.unit.html
-*.service
+# commented on 2025-11-11
+#*.service
 
 # === OS-specific junk ===
 # macOS Finder metadata
