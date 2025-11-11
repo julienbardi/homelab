@@ -19,3 +19,20 @@ IPv4 reservation rule: .1 reserved for server/gateway, .2–.10 reserved for inf
 AllowedIPs format on server peers: use IPv4/32, IPv6/128 (example: 10.3.0.100/32, 2a01:8b81:4800:9c00::400/128).
 
 Endpoint (public): bardi.ch — the WireGuard port for each interface must be forwarded on the ASUS router to the NAS (10.89.12.4) for the corresponding port shown in the table. Forward UDP ports 51820–51827 to 10.89.12.4 so external clients can reach the correct wg interface.
+
+
+## Step 5: Build and install radvd 2.20
+Now you can fetch and build the latest release:
+
+```bash
+git clone https://github.com/radvd-project/radvd.git
+cd radvd
+git checkout v2.20
+
+./autogen.sh
+./configure --prefix=/usr/local --sysconfdir=/etc --mandir=/usr/share/man
+make
+sudo make install
+```
+This will place the new binary in `/usr/local/sbin/radvd`.
+
