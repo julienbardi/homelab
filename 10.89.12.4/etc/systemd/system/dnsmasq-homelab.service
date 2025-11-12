@@ -1,0 +1,15 @@
+[Unit]
+Description=dnsmasq (homelab instance)
+After=network.target
+Wants=network.target
+
+[Service]
+ExecStart=/usr/sbin/dnsmasq \
+  --conf-file=/etc/dnsmasq.conf \
+  --dhcp-leasefile=/var/lib/misc/dnsmasq-homelab.leases \
+  --pid-file=/run/dnsmasq-homelab.pid \
+  --no-resolv
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
