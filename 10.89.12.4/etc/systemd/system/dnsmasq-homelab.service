@@ -4,7 +4,7 @@ After=network.target
 Wants=network.target
 
 [Service]
-ExecStart=/usr/sbin/dnsmasq \
+ExecStart=/usr/sbin/dnsmasq -k \
   --conf-file=/etc/dnsmasq.conf \
   --dhcp-leasefile=/var/lib/misc/dnsmasq-homelab.leases \
   --pid-file=/run/dnsmasq-homelab.pid \
