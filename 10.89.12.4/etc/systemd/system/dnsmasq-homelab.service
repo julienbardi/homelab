@@ -8,8 +8,12 @@ ExecStart=/usr/sbin/dnsmasq \
   --conf-file=/etc/dnsmasq.conf \
   --dhcp-leasefile=/var/lib/misc/dnsmasq-homelab.leases \
   --pid-file=/run/dnsmasq-homelab.pid \
-  --no-resolv
+  --no-resolv \
+  --bind-interfaces
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
+# Reload systemd and enable your new service
+#  sudo cp /home/julie/homelab/10.89.12.4/etc/systemd/system/dnsmasq-homelab.service /etc/systemd/system/dnsmasq-homelab.service
+#  sudo systemctl daemon-reload;sudo systemctl enable dnsmasq-homelab;sudo systemctl restart dnsmasq-homelab;sudo systemctl status dnsmasq-homelab;sudo journalctl -u dnsmasq-homelab -f
