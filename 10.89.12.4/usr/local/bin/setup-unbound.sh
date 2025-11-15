@@ -7,8 +7,7 @@
 # DO NOT EDIT — changes will be overwritten by homelab automation
 #
 # to deploy use
-#     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/setup-unbound.sh /usr/local/bin/
-#     sudo chown root:root /usr/local/bin/setup-unbound.sh;sudo chmod 700 /usr/local/bin/setup-unbound.sh
+#     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/setup-unbound.sh /usr/local/bin/;sudo chown root:root /usr/local/bin/setup-unbound.sh;sudo chmod 700 /usr/local/bin/setup-unbound.sh
 #
 # Prerequisites:
 #   - Requires root privileges (sudo).
