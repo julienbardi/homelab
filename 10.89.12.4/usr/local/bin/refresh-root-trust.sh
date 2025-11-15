@@ -33,27 +33,23 @@ echo "🔑 Step 2: Attempting trust anchor refresh..."
 if unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v; then
     echo "✅ Trust anchor refreshed successfully."
 else
-    echo "⚠️ Anchor invalid, forcing bootstrap..."
+    echo "❌ Anchor invalid, forcing bootstrap..."
     rm -f /var/lib/unbound/root.key
-    if unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v; then
-        echo "✅ Trust anchor bootstrapped from scratch."
+    if unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -R 1.1.1.1; then
+        echo "✅ Trust anchor bootstrapped via Cloudflare."
     else
-        echo "⚠️ Bootstrap via root hints failed, retrying with Cloudflare..."
-        if unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -R 1.1.1.1; then
-            echo "✅ Trust anchor bootstrapped via Cloudflare."
+        echo "⚠️ Cloudflare bootstrap failed, retrying with Quad9..."
+        if unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -R 9.9.9.9; then
+            echo "✅ Trust anchor bootstrapped via Quad9."
         else
-            echo "⚠️ Cloudflare failed, retrying with Quad9..."
-            if unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -R 9.9.9.9; then
-                echo "✅ Trust anchor bootstrapped via Quad9."
-            else
-                echo "❌ All bootstrap attempts failed, fetching root-anchors.xml directly..."
-                wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml
-                unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -f /var/lib/unbound/root-anchors.xml
-                echo "✅ Trust anchor forced from root-anchors.xml."
-            fi
+            echo "❌ All bootstrap attempts failed, fetching root-anchors.xml directly..."
+            wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml
+            unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -f /var/lib/unbound/root-anchors.xml
+            echo "✅ Trust anchor forced from root-anchors.xml."
         fi
     fi
 fi
+
 
 
 echo "🔧 Step 3: Fixing file ownership..."
