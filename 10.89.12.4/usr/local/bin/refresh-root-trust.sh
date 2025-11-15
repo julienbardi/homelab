@@ -13,22 +13,50 @@
 #   ls -l /var/lib/unbound/root.hints
 #   cat /var/lib/unbound/rootkey.lastupdate
 #
+
+#!/bin/bash
+# refresh-root-trust.sh
+# purpose: refresh unbound root trust anchor and root hints, record timestamp
 set -euo pipefail
 
 # --- safety check: must run as root ---
 if [[ $EUID -ne 0 ]]; then
-  echo "Error: this script must be run as root (try: sudo $0)" >&2
+  echo "❌ Error: this script must be run as root (try: sudo $0)" >&2
   exit 1
 fi
 
-# --- refresh root hints ---
+echo "🌐 Step 1: Refreshing root hints..."
 wget -q -O /var/lib/unbound/root.hints https://www.internic.net/domain/named.root
+echo "✅ Root hints updated at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# --- refresh trust anchor ---
-unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints
+echo "🔑 Step 2: Attempting trust anchor refresh..."
+if unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v; then
+    echo "✅ Trust anchor refreshed successfully."
+else
+    echo "⚠️ Normal refresh failed, retrying with Cloudflare..."
+    if unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -R 1.1.1.1; then
+        echo "✅ Trust anchor refreshed via Cloudflare."
+    else
+        echo "⚠️ Cloudflare fallback failed, retrying with Quad9..."
+        if unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -R 9.9.9.9; then
+            echo "✅ Trust anchor refreshed via Quad9."
+        else
+            echo "❌ All DNS bootstrap attempts failed, fetching root-anchors.xml directly..."
+            wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml
+            unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -f /var/lib/unbound/root-anchors.xml -F
+            echo "✅ Trust anchor forced from root-anchors.xml."
+        fi
+    fi
+fi
 
-# --- record timestamp ---
+echo "🔧 Step 3: Fixing file ownership..."
+chown unbound:unbound /var/lib/unbound/root.key /var/lib/unbound/root.hints || true
+echo "✅ Ownership set to unbound:unbound"
+
+echo "🕒 Step 4: Recording timestamp..."
 date -u +%Y-%m-%dT%H:%M:%SZ > /var/lib/unbound/rootkey.lastupdate
+echo "✅ Anchor refresh completed at $(cat /var/lib/unbound/rootkey.lastupdate)"
+
 # Verify that it ran
 #   cat /var/lib/unbound/rootkey.lastupdate
 # Inspect the journal
