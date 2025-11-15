@@ -51,8 +51,17 @@ for dir in /var/lib/headscale /etc/headscale; do
     else
         echo "✅ Directory $dir already exists"
     fi
-    echo "🔒 Fixing ownership for $dir → headscale:headscale"
-    sudo chown -R headscale:headscale "$dir"
+
+    # Check current ownership
+    owner=$(stat -c "%U" "$dir")
+    group=$(stat -c "%G" "$dir")
+
+    if [ "$owner" = "headscale" ] && [ "$group" = "headscale" ]; then
+        echo "✅ Ownership already correct for $dir → $owner:$group"
+    else
+        echo "🔒 Fixing ownership for $dir (was $owner:$group → headscale:headscale)"
+        sudo chown -R headscale:headscale "$dir"
+    fi
 done
 
 echo "🎉 Headscale setup complete"
