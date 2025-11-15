@@ -130,6 +130,10 @@ for f in /etc/unbound/root.hints /etc/unbound/root.key; do
     fi
 done
 
+# Block of AppArmor read rules required for Unbound remote-control TLS key/cert files.
+# These lines must be present in /etc/apparmor.d/usr.sbin.unbound before the deny rule,
+# otherwise Unbound will fail with "Permission denied" when loading its TLS certificates.
+
 # Ensure remote-control TLS keys/certs exist
 if [ ! -s /etc/unbound/unbound_server.key ] || \
    [ ! -s /etc/unbound/unbound_server.pem ] || \
@@ -145,56 +149,35 @@ sudo chown unbound:unbound /etc/unbound/unbound_server.* /etc/unbound/unbound_co
 sudo chmod 600 /etc/unbound/unbound_server.key /etc/unbound/unbound_control.key
 sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 
-# Ensure AppArmor profile allows Unbound to read remote-control TLS certs
-PROFILE="/etc/apparmor.d/usr.sbin.unbound"
+# AppArmor read‑rules block for Unbound remote‑control TLS key/cert files.
+# Must be inserted before the deny line "audit deny /etc/unbound/unbound_control.{key,pem} rw,"
+# Without these rules, Unbound fails to start with "Permission denied" on its TLS certs.
+REQUIRED_TEXT="  /etc/unbound/unbound_server.key r,
+  /etc/unbound/unbound_server.pem r,
+  /etc/unbound/unbound_control.key r,
+  /etc/unbound/unbound_control.pem r,"
 
-# Define the required block
-REQUIRED_LINES=(
-"  /etc/unbound/unbound_server.key r,"
-"  /etc/unbound/unbound_server.pem r,"
-"  /etc/unbound/unbound_control.key r,"
-"  /etc/unbound/unbound_control.pem r,"
-)
+TS="$(date +%Y%m%d-%H%M%S)"   # define timestamp once
 
-# Check if all required lines are present
-MISSING=false
-for line in "${REQUIRED_LINES[@]}"; do
-    if ! grep -qF "$line" "$PROFILE"; then
-        MISSING=true
-        break
-    fi
-done
-
-if [ "$MISSING" = true ]; then
-    echo "✍️ AppArmor TLS cert read rules missing, preparing to insert"
-
-    TS="$(date +%Y%m%d-%H%M%S)"
+# Check if the required text is present
+if ! grep -Fq "/etc/unbound/unbound_server.key r," "$PROFILE"; then
     BACKUP="${PROFILE}.bak.${TS}"
     sudo cp "$PROFILE" "$BACKUP"
 
-    BLOCK="$(printf '%s\n' "${REQUIRED_LINES[@]}")"
+    cat <<EOF
+✍️ AppArmor TLS cert read rules missing, preparing to insert
+📂 Backup created at $BACKUP
+➡️ Please open the profile with: sudoedit $PROFILE
+⚠️ Then insert the following block BEFORE the line:
+   audit deny /etc/unbound/unbound_control.{key,pem} rw,
 
-    # Check anchor line exists
-    if grep -qE '^  audit deny /etc/unbound/unbound_control\.\{key,pem\} rw,' "$PROFILE"; then
-        # Insert block before the anchor line
-        sudo perl -0777 -pe "s/(?=^  audit deny \\/etc\\/unbound\\/unbound_control\\.\\{key,pem\\} rw,)/${BLOCK}\n/m" \
-            "$PROFILE" | sudo tee "$PROFILE" >/dev/null
+$REQUIRED_TEXT
 
-        echo "🔄 Reloading AppArmor profile with: sudo apparmor_parser -r $PROFILE"
-        if ! sudo apparmor_parser -r "$PROFILE"; then
-            echo "❌ Failed to reload AppArmor profile $PROFILE — restoring backup"
-            sudo cp "$BACKUP" "$PROFILE"
-            exit 3
-        fi
-        echo "✅ AppArmor patch applied and profile reloaded"
-    else
-        echo "⚠️ Anchor line not found in $PROFILE — no insertion performed"
-        echo "   Expected: 'audit deny /etc/unbound/unbound_control.{key,pem} rw,'"
-        echo "   Please review manually."
-        exit 4
-    fi
+⚠️ When done, execute the present script again.
+EOF
+    exit 4
 else
-    echo "✅ AppArmor profile already contains the full TLS cert read block"
+    echo "✅ AppArmor TLS cert read rules already present — verified at $TS"
 fi
 
 # Enable service only if not already enabled
