@@ -157,11 +157,13 @@ sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 PROFILE="/etc/apparmor.d/usr.sbin.unbound"
 
 # AppArmor read‑rules block for Unbound remote‑control TLS key/cert files.
-REQUIRED_TEXT="# ⚠️ inserted according to instructions in setup-unbound.sh in AppArmor read‑rules block for Unbound remote‑control TLS key/cert files
+REQUIRED_TEXT="  # /---
+  # inserted according to instructions in setup-unbound.sh in AppArmor read‑rules block for Unbound remote‑control TLS key/cert files
   /etc/unbound/unbound_server.key r,
   /etc/unbound/unbound_server.pem r,
   /etc/unbound/unbound_control.key r,
   /etc/unbound/unbound_control.pem r,
+  # \---
 "
 
 TS="$(date +%Y%m%d-%H%M%S)"   # define timestamp once
