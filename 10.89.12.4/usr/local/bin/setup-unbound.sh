@@ -147,24 +147,29 @@ sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 
 # Ensure AppArmor profile allows Unbound to read remote-control TLS certs
 PROFILE="/etc/apparmor.d/usr.sbin.unbound"
-RULES=(
-"/etc/unbound/unbound_server.key r,"
-"/etc/unbound/unbound_server.pem r,"
-"/etc/unbound/unbound_control.key r,"
-"/etc/unbound/unbound_control.pem r,"
-)
-NEEDS_RELOAD=false
-for rule in "${RULES[@]}"; do
-    if ! grep -qF "$rule" "$PROFILE"; then
-        echo "✍️ Adding AppArmor rule: $rule"
-        echo "  $rule" | sudo tee -a "$PROFILE" >/dev/null
-        NEEDS_RELOAD=true
-    fi
-done
-if [ "$NEEDS_RELOAD" = true ]; then
-    echo "🔄 Reloading AppArmor profile"
+
+# Detect whether the block is already present (idempotent check)
+if ! grep -qE '^[[:space:]]*/etc/unbound/unbound_server\.key r,$' "$PROFILE"; then
+    echo "✍️ Inserting AppArmor TLS cert read rules into $PROFILE"
+    # Backup before edit
+    TS="$(date +%Y%m%d-%H%M%S)"
+    sudo cp "$PROFILE" "${PROFILE}.bak.${TS}"
+
+    # Prepare exact block with newlines; indentation matches profile style
+    BLOCK="$(printf '%s\n' \
+'  /etc/unbound/unbound_server.key r,' \
+'  /etc/unbound/unbound_server.pem r,' \
+'  /etc/unbound/unbound_control.key r,' \
+'  /etc/unbound/unbound_control.pem r,' )"
+
+    # Insert block before the first audit deny on unbound_control in non-chrooted section
+    # This keeps read rules immediately preceding the deny rules, inside the profile block.
+    sudo sed -i "/audit deny \\/etc\\/unbound\\/unbound_control.{key,pem} rw,/i ${BLOCK}" "$PROFILE"
+
+    echo "🔄 Reloading AppArmor profile with: sudo apparmor_parser -r $PROFILE"
     if ! sudo apparmor_parser -r "$PROFILE"; then
-        echo "❌ Failed to reload AppArmor profile $PROFILE"
+        echo "❌ Failed to reload AppArmor profile $PROFILE — restoring backup"
+        sudo cp "${PROFILE}.bak.${TS}" "$PROFILE"
         exit 3
     fi
 else
