@@ -108,6 +108,15 @@ for f in /etc/unbound/root.hints /etc/unbound/root.key; do
         echo "❌ Required file missing or empty: $f"
         exit 2
     fi
+    # Fix ownership and permissions if needed
+    if [ "$(stat -c %U:%G $f)" != "unbound:unbound" ]; then
+        echo "🔧 Fixing ownership of $f to unbound:unbound"
+        sudo chown unbound:unbound "$f"
+    fi
+    if [ "$(stat -c %a $f)" != "644" ]; then
+        echo "🔧 Fixing permissions of $f to 644"
+        sudo chmod 0644 "$f"
+    fi
 done
 
 # Enable service only if not already enabled
