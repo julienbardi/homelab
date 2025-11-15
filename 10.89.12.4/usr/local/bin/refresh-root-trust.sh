@@ -46,13 +46,15 @@ if echo "$output" | grep -q "success"; then
 else
   log "❌ Anchor invalid, forcing bootstrap..."
   rm -f /var/lib/unbound/root.key
+  log "📥 Fetching root-anchors.xml..."
   if wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml; then
+    log "✅ root-anchors.xml downloaded"
     output=$(unbound-anchor -a /var/lib/unbound/root.key -f /var/lib/unbound/root-anchors.xml -v 2>&1)
     echo "$output"
     if echo "$output" | grep -q "success"; then
       log "✅ Trust anchor bootstrapped from root-anchors.xml."
     else
-      log "❌ Failed to bootstrap trust anchor"
+      log "❌ FBootstrap failed — see output above"
       exit 1
     fi
   else
