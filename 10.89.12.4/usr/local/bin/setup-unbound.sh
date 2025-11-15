@@ -134,6 +134,17 @@ sudo chown unbound:unbound /etc/unbound/unbound_server.* /etc/unbound/unbound_co
 sudo chmod 600 /etc/unbound/unbound_server.key /etc/unbound/unbound_control.key
 sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 
+# Ensure ULA IPv6 address is present on bridge0
+ULA_ADDR="fd10:8912:0:0::4/64"
+IFACE="bridge0"
+
+if ! ip -6 addr show dev "$IFACE" | grep -q "${ULA_ADDR%%/*}"; then
+    echo "🔧 ULA $ULA_ADDR not found on $IFACE, adding it..."
+    sudo ip addr add "$ULA_ADDR" dev "$IFACE"
+else
+    echo "✅ ULA $ULA_ADDR already present on $IFACE"
+fi
+
 # Enable service only if not already enabled
 if ! systemctl is-enabled --quiet unbound; then
     echo "🔧 Enabling Unbound service"
