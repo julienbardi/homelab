@@ -152,6 +152,11 @@ sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 # AppArmor read‑rules block for Unbound remote‑control TLS key/cert files.
 # Must be inserted before the deny line "audit deny /etc/unbound/unbound_control.{key,pem} rw,"
 # Without these rules, Unbound fails to start with "Permission denied" on its TLS certs.
+
+# Path to AppArmor profile for Unbound
+PROFILE="/etc/apparmor.d/usr.sbin.unbound"
+
+# AppArmor read‑rules block for Unbound remote‑control TLS key/cert files.
 REQUIRED_TEXT="  /etc/unbound/unbound_server.key r,
   /etc/unbound/unbound_server.pem r,
   /etc/unbound/unbound_control.key r,
@@ -160,7 +165,7 @@ REQUIRED_TEXT="  /etc/unbound/unbound_server.key r,
 TS="$(date +%Y%m%d-%H%M%S)"   # define timestamp once
 
 # Check if the required text is present
-if ! grep -Fq "/etc/unbound/unbound_server.key r," "$PROFILE"; then
+if ! grep -Fq "$REQUIRED_TEXT" "$PROFILE"; then
     BACKUP="${PROFILE}.bak.${TS}"
     sudo cp "$PROFILE" "$BACKUP"
 
