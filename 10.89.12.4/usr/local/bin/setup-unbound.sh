@@ -185,7 +185,7 @@ $REQUIRED_TEXT
 EOF
     exit 4
 else
-    echo "✅ AppArmor TLS cert read rules already present — verified at $TS"
+    echo "✅ AppArmor TLS cert read rules already present in $PROFILE — verified at $TS"
 fi
 
 # Enable service only if not already enabled
