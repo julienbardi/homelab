@@ -189,7 +189,9 @@ if [ "$MISSING" = true ]; then
 
 $REQUIRED_TEXT
 
-⚠️ When done, execute the present script again.
+⚠️ When done, 
+sudo apparmor_parser -r /etc/apparmor.d/usr.sbin.unbound
+sudo setup-unbound.sh
 EOF
     exit 4
 else
