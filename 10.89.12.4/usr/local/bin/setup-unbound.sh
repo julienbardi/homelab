@@ -167,7 +167,14 @@ REQUIRED_TEXT="# ⚠️ inserted according to instructions in setup-unbound.sh i
 TS="$(date +%Y%m%d-%H%M%S)"   # define timestamp once
 
 # Check if the required text is present
-if ! grep -Fq "$REQUIRED_TEXT" "$PROFILE"; then
+MISSING=false
+while IFS= read -r line; do
+    if ! grep -Fq "$line" "$PROFILE"; then
+        MISSING=true
+        break
+    fi
+done <<< "$REQUIRED_TEXT"
+if [ "$MISSING" = true ]; then
     BACKUP="${PROFILE}.bak.${TS}"
     sudo cp "$PROFILE" "$BACKUP"
 
