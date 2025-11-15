@@ -27,7 +27,7 @@ log() {
 
 # --- safety check: must run as root ---
 if [[ $EUID -ne 0 ]]; then
-  echo "❌ Error: this script must be run as root (try: sudo $0)" >&2
+  log "❌ Error: must run as root (try: sudo $0)"
   exit 1
 fi
 
