@@ -119,6 +119,21 @@ for f in /etc/unbound/root.hints /etc/unbound/root.key; do
     fi
 done
 
+# Ensure remote-control TLS keys/certs exist
+if [ ! -s /etc/unbound/unbound_server.key ] || \
+   [ ! -s /etc/unbound/unbound_server.pem ] || \
+   [ ! -s /etc/unbound/unbound_control.key ] || \
+   [ ! -s /etc/unbound/unbound_control.pem ]; then
+    echo "🔧 Remote-control TLS files missing, running unbound-control-setup..."
+    sudo unbound-control-setup
+fi
+
+# Fix ownership and permissions
+echo "🔧 Fixing ownership and permissions for remote-control TLS files"
+sudo chown unbound:unbound /etc/unbound/unbound_server.* /etc/unbound/unbound_control.*
+sudo chmod 600 /etc/unbound/unbound_server.key /etc/unbound/unbound_control.key
+sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
+
 # Enable service only if not already enabled
 if ! systemctl is-enabled --quiet unbound; then
     echo "🔧 Enabling Unbound service"
