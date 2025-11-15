@@ -64,8 +64,8 @@ server:
     hide-version: yes
     qname-minimisation: yes
 
-    root-hints: "/var/lib/unbound/root.hints"
-    auto-trust-anchor-file: "/var/lib/unbound/root.key"
+    root-hints: "/etc/unbound/root.hints"
+    auto-trust-anchor-file: "/etc/unbound/root.key"
     do-not-query-localhost: no
 
 remote-control:
@@ -103,7 +103,7 @@ if ! output=$(sudo unbound-checkconf "$conf_file" 2>&1); then
 fi
 
 # Ensure root hints and trust anchor files exist
-for f in /var/lib/unbound/root.hints /var/lib/unbound/root.key; do
+for f in /etc/unbound/root.hints /etc/unbound/root.key; do
     if [ ! -s "$f" ]; then
         echo "❌ Required file missing or empty: $f"
         exit 2
