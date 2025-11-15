@@ -1,3 +1,4 @@
+# /etc/systemd/system/unbound.service
 [Unit]
 Description=Unbound DNS resolver
 After=network.target
@@ -8,3 +9,5 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
+# after sudoedit /etc/systemd/system/unbound.service
+# sudo systemctl daemon-reload;sudo systemctl restart unbound;sudo systemctl status unbound
