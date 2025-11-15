@@ -138,7 +138,7 @@ sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 ULA_ADDR="fd10:8912:0:0::4/64"
 IFACE="bridge0"
 
-if ! ip -6 addr show dev "$IFACE" | grep -q "${ULA_ADDR%%/*}"; then
+if ! ip -6 addr show dev "$IFACE" | grep -q "$ULA_ADDR"; then
     echo "🔧 ULA $ULA_ADDR not found on $IFACE, adding it..."
     sudo ip addr add "$ULA_ADDR" dev "$IFACE"
 else
