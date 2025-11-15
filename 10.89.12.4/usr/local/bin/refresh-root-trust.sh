@@ -35,22 +35,16 @@ if unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v
 else
     echo "❌ Anchor invalid, forcing bootstrap..."
     rm -f /var/lib/unbound/root.key
-    if unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -R 1.1.1.1; then
-        echo "✅ Trust anchor bootstrapped via Cloudflare."
+
+    # Try direct XML fetch from IANA
+    wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml
+    if unbound-anchor -a /var/lib/unbound/root.key -f /var/lib/unbound/root-anchors.xml -v; then
+        echo "✅ Trust anchor bootstrapped from root-anchors.xml."
     else
-        echo "⚠️ Cloudflare bootstrap failed, retrying with Quad9..."
-        if unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -R 9.9.9.9; then
-            echo "✅ Trust anchor bootstrapped via Quad9."
-        else
-            echo "❌ All bootstrap attempts failed, fetching root-anchors.xml directly..."
-            wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml
-            unbound-anchor -F -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v -f /var/lib/unbound/root-anchors.xml
-            echo "✅ Trust anchor forced from root-anchors.xml."
-        fi
+        echo "❌ Failed to bootstrap trust anchor. Check connectivity or XML file."
+        exit 1
     fi
 fi
-
-
 
 echo "🔧 Step 3: Fixing file ownership..."
 chown unbound:unbound /var/lib/unbound/root.key /var/lib/unbound/root.hints || true
