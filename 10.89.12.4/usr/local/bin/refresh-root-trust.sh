@@ -20,12 +20,10 @@
 set -euo pipefail
 
 log() {
-  # Log both to stdout and systemd journal
   echo "$1"
   logger -t refresh-root-trust.sh "$1"
 }
 
-# --- safety check: must run as root ---
 if [[ $EUID -ne 0 ]]; then
   log "❌ Error: must run as root (try: sudo $0)"
   exit 1
@@ -40,13 +38,18 @@ else
 fi
 
 log "🔑 Step 2: Attempting trust anchor refresh..."
-if unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v; then
+output=$(unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v 2>&1)
+echo "$output"
+
+if echo "$output" | grep -q "success"; then
   log "✅ Trust anchor refreshed successfully."
 else
   log "❌ Anchor invalid, forcing bootstrap..."
   rm -f /var/lib/unbound/root.key
   if wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml; then
-    if unbound-anchor -a /var/lib/unbound/root.key -f /var/lib/unbound/root-anchors.xml -v; then
+    output=$(unbound-anchor -a /var/lib/unbound/root.key -f /var/lib/unbound/root-anchors.xml -v 2>&1)
+    echo "$output"
+    if echo "$output" | grep -q "success"; then
       log "✅ Trust anchor bootstrapped from root-anchors.xml."
     else
       log "❌ Failed to bootstrap trust anchor"
