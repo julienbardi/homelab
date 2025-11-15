@@ -157,11 +157,14 @@ sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 PROFILE="/etc/apparmor.d/usr.sbin.unbound"
 
 # AppArmor read‑rules block for Unbound remote‑control TLS key/cert files.
-REQUIRED_TEXT="  /etc/unbound/unbound_server.key r,
-  /etc/unbound/unbound_server.pem r,
-  /etc/unbound/unbound_control.key r,
-  /etc/unbound/unbound_control.pem r,
-  audit deny /etc/unbound/unbound_control.{key,pem} w,
+REQUIRED_TEXT="  /etc/unbound/unbound_control.{key,pem} r,
+  # non-chrooted paths
+  /etc/unbound/** r,
+  owner /etc/unbound/*.key* rw,
+  # explicitly deny (and audit) attempts to write to the key files
+  # this should be unnecessary after switch to /run/unbound.ctl control socket
+  # (here and below)
+  audit deny /etc/unbound/unbound_control.{key,pem} rw,
   audit deny /etc/unbound/unbound_server.key w,
 "
 
