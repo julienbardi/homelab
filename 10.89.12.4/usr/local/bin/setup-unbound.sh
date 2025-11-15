@@ -161,7 +161,8 @@ REQUIRED_TEXT="# ⚠️ inserted according to instructions in setup-unbound.sh i
   /etc/unbound/unbound_server.key r,
   /etc/unbound/unbound_server.pem r,
   /etc/unbound/unbound_control.key r,
-  /etc/unbound/unbound_control.pem r,"
+  /etc/unbound/unbound_control.pem r,
+"
 
 TS="$(date +%Y%m%d-%H%M%S)"   # define timestamp once
 
