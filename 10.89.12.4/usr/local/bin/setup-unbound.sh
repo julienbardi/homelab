@@ -157,7 +157,8 @@ sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 PROFILE="/etc/apparmor.d/usr.sbin.unbound"
 
 # AppArmor read‑rules block for Unbound remote‑control TLS key/cert files.
-REQUIRED_TEXT="  /etc/unbound/unbound_server.key r,
+REQUIRED_TEXT="# ⚠️ inserted according to instructions in setup-unbound.sh in AppArmor read‑rules block for Unbound remote‑control TLS key/cert files
+  /etc/unbound/unbound_server.key r,
   /etc/unbound/unbound_server.pem r,
   /etc/unbound/unbound_control.key r,
   /etc/unbound/unbound_control.pem r,"
@@ -174,7 +175,8 @@ if ! grep -Fq "$REQUIRED_TEXT" "$PROFILE"; then
 📂 Backup created at $BACKUP
 ➡️ Please open the profile with: sudoedit $PROFILE
 ⚠️ Then insert the following block BEFORE the line:
-   audit deny /etc/unbound/unbound_control.{key,pem} rw,
+   # explicitly deny (and audit) attempts to write to the key files
+   as the first audit deny appear after it.
 
 $REQUIRED_TEXT
 
