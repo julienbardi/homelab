@@ -1,0 +1,10 @@
+[Unit]
+Description=Unbound DNS resolver
+After=network.target
+
+[Service]
+ExecStart=/usr/sbin/unbound -d -c /etc/unbound/unbound.conf
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
