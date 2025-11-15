@@ -55,6 +55,7 @@ else
     fi
 fi
 
+
 echo "🔧 Step 3: Fixing file ownership..."
 chown unbound:unbound /var/lib/unbound/root.key /var/lib/unbound/root.hints || true
 echo "✅ Ownership set to unbound:unbound"
