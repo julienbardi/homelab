@@ -146,6 +146,32 @@ sudo chown unbound:unbound /etc/unbound/unbound_server.* /etc/unbound/unbound_co
 sudo chmod 600 /etc/unbound/unbound_server.key /etc/unbound/unbound_control.key
 sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 
+# Ensure AppArmor profile allows Unbound to read remote-control TLS certs
+PROFILE="/etc/apparmor.d/usr.sbin.unbound"
+RULES=(
+"/etc/unbound/unbound_server.key r,"
+"/etc/unbound/unbound_server.pem r,"
+"/etc/unbound/unbound_control.key r,"
+"/etc/unbound/unbound_control.pem r,"
+)
+NEEDS_RELOAD=false
+for rule in "${RULES[@]}"; do
+    if ! grep -qF "$rule" "$PROFILE"; then
+        echo "✍️ Adding AppArmor rule: $rule"
+        echo "  $rule" | sudo tee -a "$PROFILE" >/dev/null
+        NEEDS_RELOAD=true
+    fi
+done
+if [ "$NEEDS_RELOAD" = true ]; then
+    echo "🔄 Reloading AppArmor profile"
+    if ! sudo apparmor_parser -r "$PROFILE"; then
+        echo "❌ Failed to reload AppArmor profile $PROFILE"
+        exit 3
+    fi
+else
+    echo "✅ AppArmor profile already allows TLS cert reads"
+fi
+
 # Enable service only if not already enabled
 if ! systemctl is-enabled --quiet unbound; then
     echo "🔧 Enabling Unbound service"
