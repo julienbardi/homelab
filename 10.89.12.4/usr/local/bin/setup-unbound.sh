@@ -145,9 +145,9 @@ fi
 
 # Fix ownership and permissions
 echo "🔧 Fixing ownership and permissions for remote-control TLS files"
-sudo chown unbound:unbound /etc/unbound/unbound_server.* /etc/unbound/unbound_control.*
-sudo chmod 600 /etc/unbound/unbound_server.key /etc/unbound/unbound_control.key
-sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
+sudo chown root:unbound /etc/unbound/unbound_server.pem /etc/unbound/unbound_server.key
+sudo chown root:unbound /etc/unbound_control.pem /etc/unbound_control.key
+sudo chmod 640 /etc/unbound/unbound_*.pem /etc/unbound/unbound_*.key
 
 # AppArmor read‑rules block for Unbound remote‑control TLS key/cert files.
 # Must be inserted before the deny line "audit deny /etc/unbound/unbound_control.{key,pem} rw,"
