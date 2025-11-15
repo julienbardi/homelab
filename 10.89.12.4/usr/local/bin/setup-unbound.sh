@@ -148,32 +148,53 @@ sudo chmod 640 /etc/unbound/unbound_server.pem /etc/unbound/unbound_control.pem
 # Ensure AppArmor profile allows Unbound to read remote-control TLS certs
 PROFILE="/etc/apparmor.d/usr.sbin.unbound"
 
-# Detect whether the block is already present (idempotent check)
-if ! grep -qE '^[[:space:]]*/etc/unbound/unbound_server\.key r,$' "$PROFILE"; then
-    echo "✍️ Inserting AppArmor TLS cert read rules into $PROFILE"
-    # Backup before edit
+# Define the required block
+REQUIRED_LINES=(
+"  /etc/unbound/unbound_server.key r,"
+"  /etc/unbound/unbound_server.pem r,"
+"  /etc/unbound/unbound_control.key r,"
+"  /etc/unbound/unbound_control.pem r,"
+)
+
+# Check if all required lines are present
+MISSING=false
+for line in "${REQUIRED_LINES[@]}"; do
+    if ! grep -qF "$line" "$PROFILE"; then
+        MISSING=true
+        break
+    fi
+done
+
+if [ "$MISSING" = true ]; then
+    echo "✍️ AppArmor TLS cert read rules missing, preparing to insert"
+
     TS="$(date +%Y%m%d-%H%M%S)"
-    sudo cp "$PROFILE" "${PROFILE}.bak.${TS}"
+    BACKUP="${PROFILE}.bak.${TS}"
+    sudo cp "$PROFILE" "$BACKUP"
 
-    # Prepare exact block with newlines; indentation matches profile style
-    BLOCK="$(printf '%s\n' \
-'  /etc/unbound/unbound_server.key r,' \
-'  /etc/unbound/unbound_server.pem r,' \
-'  /etc/unbound/unbound_control.key r,' \
-'  /etc/unbound/unbound_control.pem r,' )"
+    BLOCK="$(printf '%s\n' "${REQUIRED_LINES[@]}")"
 
-    # Insert block before the first audit deny on unbound_control in non-chrooted section
-    # This keeps read rules immediately preceding the deny rules, inside the profile block.
-    sudo sed -i "/audit deny \\/etc\\/unbound\\/unbound_control.{key,pem} rw,/i ${BLOCK}" "$PROFILE"
+    # Check anchor line exists
+    if grep -qE '^  audit deny /etc/unbound/unbound_control\.\{key,pem\} rw,' "$PROFILE"; then
+        # Insert block before the anchor line
+        sudo perl -0777 -pe "s/(?=^  audit deny \\/etc\\/unbound\\/unbound_control\\.\\{key,pem\\} rw,)/${BLOCK}\n/m" \
+            "$PROFILE" | sudo tee "$PROFILE" >/dev/null
 
-    echo "🔄 Reloading AppArmor profile with: sudo apparmor_parser -r $PROFILE"
-    if ! sudo apparmor_parser -r "$PROFILE"; then
-        echo "❌ Failed to reload AppArmor profile $PROFILE — restoring backup"
-        sudo cp "${PROFILE}.bak.${TS}" "$PROFILE"
-        exit 3
+        echo "🔄 Reloading AppArmor profile with: sudo apparmor_parser -r $PROFILE"
+        if ! sudo apparmor_parser -r "$PROFILE"; then
+            echo "❌ Failed to reload AppArmor profile $PROFILE — restoring backup"
+            sudo cp "$BACKUP" "$PROFILE"
+            exit 3
+        fi
+        echo "✅ AppArmor patch applied and profile reloaded"
+    else
+        echo "⚠️ Anchor line not found in $PROFILE — no insertion performed"
+        echo "   Expected: 'audit deny /etc/unbound/unbound_control.{key,pem} rw,'"
+        echo "   Please review manually."
+        exit 4
     fi
 else
-    echo "✅ AppArmor profile already allows TLS cert reads"
+    echo "✅ AppArmor profile already contains the full TLS cert read block"
 fi
 
 # Enable service only if not already enabled
