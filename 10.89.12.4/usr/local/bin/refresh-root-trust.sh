@@ -16,3 +16,7 @@ unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints
 
 # --- record timestamp ---
 date -u +%Y-%m-%dT%H:%M:%SZ > /var/lib/unbound/rootkey.lastupdate
+# Verify that it ran
+#   cat /var/lib/unbound/rootkey.lastupdate
+# Inspect the journal
+#   sudo journalctl -u unbound -b | grep refresh-root-trust
