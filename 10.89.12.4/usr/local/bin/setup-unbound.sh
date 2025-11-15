@@ -116,15 +116,23 @@ if ! systemctl is-enabled --quiet unbound; then
     sudo systemctl enable unbound
 fi
 
-# Restart Unbound if config changed, otherwise just reload
+# Restart Unbound if config changed, otherwise try reload safely
 if [ ! -f "$conf_file" ] || ! diff -q <(echo "$desired_conf") "$conf_file" >/dev/null; then
     echo "🔄 Restarting Unbound (config changed)..."
     echo "➡️ Command: sudo systemctl restart unbound"
     sudo systemctl restart unbound
 else
     echo "🔄 Reloading Unbound (config unchanged)..."
-    echo "➡️ Command: sudo systemctl reload unbound"
-    sudo systemctl reload unbound
+    if command -v unbound-control >/dev/null; then
+        echo "➡️ Command: sudo unbound-control reload"
+        sudo unbound-control reload || {
+            echo "⚠️ Reload failed, falling back to restart"
+            sudo systemctl restart unbound
+        }
+    else
+        echo "➡️ Command: sudo systemctl restart unbound (reload unsupported)"
+        sudo systemctl restart unbound
+    fi
 fi
 
 # Verify Unbound is responsive
