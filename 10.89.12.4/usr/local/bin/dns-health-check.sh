@@ -40,20 +40,34 @@ done
 get_header() { printf '%s' "$1" | sed -n 's/^;; ->>HEADER<<- \(.*\)$/\1/p'; }
 # tolerant extractors that scan all lines and return the first match
 get_status() {
+  # prints e.g. NOERROR or SERVFAIL or nothing
   printf '%s' "$1" | awk '
-    BEGIN { status=""; }
     /^;; ->>HEADER<<- / {
-      for(i=1;i<=NF;i++) if ($i ~ /^status:/) { split($i,a,":"); status=a[2]; gsub(/[^A-Z]/,"",status); print status; exit }
+      for(i=1;i<=NF;i++) {
+        if ($i ~ /^status:/) {
+          sub(/^status:/, "", $i)
+          gsub(/[^A-Z]/, "", $i)
+          print $i
+          exit
+        }
+      }
     }
+    END { exit }
   '
 }
 
 get_flags() {
+  # prints the space-separated flags content, e.g. "qr rd ra ad"
   printf '%s' "$1" | awk '
     /^;; flags: / {
-      # capture everything after ";; flags: " up to the first semicolon (if present)
-      sub(/^;; flags: /,""); sub(/;.*/,""); print; exit
+      sub(/^;; flags: /,"")
+      # strip trailing semicolon-part if present (e.g. "; QUERY:")
+      sub(/;.*/,"")
+      gsub(/^[ \t]+|[ \t]+$/,"")
+      print
+      exit
     }
+    END { exit }
   '
 }
 
