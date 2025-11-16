@@ -61,35 +61,34 @@ else
 fi
 
 log "🔑 Step 3: Generating candidate trust anchor $candidate..."
-# Capture output reliably
 ua_out=$(unbound-anchor -a "$candidate" -f "$anchors_xml" -v 2>&1 || true)
 echo "$ua_out"
 
-# Explicit validation without causing set -e aborts
-valid_output=false
-valid_file=false
+# Validate using both the tool output and the file content after generation
+output_ok=false
+file_ok=false
 
 if echo "$ua_out" | grep -qi "success"; then
-  valid_output=true
+  output_ok=true
 fi
 
 if [[ -s "$candidate" ]] && grep -q "DNSKEY" "$candidate"; then
-  valid_file=true
+  file_ok=true
 fi
 
-if [[ "$valid_output" == "true" && "$valid_file" == "true" ]]; then
-  log "✅ Candidate $ts is valid, activating..."
+if [[ "$output_ok" == "true" && "$file_ok" == "true" ]]; then
+  log "✅ Candidate $ts validated (output_ok=true, file_ok=true). Activating…"
   mv -f "$candidate" /var/lib/unbound/root.key
   chown unbound:unbound /var/lib/unbound/root.key || log "⚠️ chown failed; verify permissions"
 else
-  # Preserve the evidence and do not overwrite the current root.key
-  suffix="_ko"
-  # If file exists but is empty, still keep it with _ko for audit
   if [[ -e "$candidate" ]]; then
-    mv -f "$candidate" "${candidate}${suffix}"
+    mv -f "$candidate" "${candidate}_ko"
+    log "❌ Candidate $ts invalid (output_ok=$output_ok, file_ok=$file_ok). Kept existing root.key; marked candidate with _ko."
+  else
+    log "❌ Candidate $ts was not created by unbound-anchor (output_ok=$output_ok). Kept existing root.key."
   fi
-  log "❌ Candidate $ts invalid (output_ok=$valid_output, file_ok=$valid_file). Kept existing root.key; marked candidate with _ko."
 fi
+
 
 log "🕒 Step 4: Recording timestamp..."
 date -u +%Y-%m-%dT%H:%M:%SZ > /var/lib/unbound/rootkey.lastupdate
