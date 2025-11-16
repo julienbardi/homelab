@@ -55,7 +55,7 @@ get_header() {
 }
 
 get_status() {
-  # Read raw dig output from $1 or stdin; print NOERROR|SERVFAIL|NXDOMAIN etc. or nothing
+  # Read raw dig output from $1 or stdin; print an uppercase RCODE token (NOERROR|SERVFAIL|NXDOMAIN) or nothing
   local raw header s
   if [[ $# -gt 0 ]]; then raw="$1"; else raw="$(cat -)"; fi
   [[ -z "${raw:-}" ]] && return
