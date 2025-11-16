@@ -1,0 +1,28 @@
+# ------------------------------------------------------------
+# CoreDNS configuration file
+# /etc/coredns/Corefile
+# ------------------------------------------------------------
+127.0.0.1:8053 {
+    log
+    errors
+    doh {
+        path /dns-query
+    }
+    forward . 127.0.0.1:53 {
+        policy sequential
+        health_check 5s
+    }
+    cache 30
+}
+# After modification run
+# sudo mkdir -p /etc/coredns
+# sudo chown root:root /etc/coredns
+# sudo chmod 0755 /etc/coredns
+# sudo cp /home/julie/homelab/10.89.12.4/etc/coredns/Corefile /etc/coredns/Corefile   # from build dir
+# Create /etc/systemd/system/coredns.service:
+# sudo systemctl daemon-reload
+# sudo systemctl enable --now coredns
+# sudo journalctl -u coredns -f
+# sudo ss -ltnp | grep 8053
+# DoH JSON test: curl -s 'http://127.0.0.1:8053/dns-query?name=example.com&type=A' -H 'accept: application/dns-json' | jq .
+# Check logs: sudo journalctl -u coredns -n 200 --no-pager
