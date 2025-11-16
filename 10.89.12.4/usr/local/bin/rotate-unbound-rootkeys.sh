@@ -128,46 +128,46 @@ for v in "${kept[@]}"; do echo "  $v"; done
 echo "REMOVE LIST (${#removed[@]}):"
 for v in "${removed[@]}"; do echo "  $v"; done
 
-# perform deletions -- simple, robust, and guaranteed to process every element
+# perform deletions -- remove all candidates in one single command, then verify
 removed_count=0
 failed=0
 
-for ((i=0; i<${#removed[@]}; i++)); do
-  f=${removed[i]}
-  basef=$(basename -- "$f")
+if (( ${#removed[@]} == 0 )); then
+  echo "INFO: nothing to remove"
+else
+  echo "Attempting to remove all ${#removed[@]} files"
+  for f in "${removed[@]}"; do echo "  $f"; done
 
-  # protect live file and name pattern
-  if [[ "$basef" == "$LIVE" ]]; then
-    echo "FATAL: attempted to remove live file $f" >&2
-    exit 1
+  # Protect live file and unexpected names before doing anything destructive
+  for f in "${removed[@]}"; do
+    basef=$(basename -- "$f")
+    if [[ "$basef" == "$LIVE" ]]; then
+      echo "FATAL: attempted to remove live file $f" >&2
+      exit 1
+    fi
+    case "$basef" in
+      root.key.*) ;;
+      *) echo "WARN: unexpected filename: $f"; ((failed++));;
+    esac
+  done
+
+  # Actually remove everything in one command; -v makes actions visible
+  if (( ${#removed[@]} > 0 )); then
+    rm -vf -- "${removed[@]}" || true
   fi
-  case "$basef" in
-    root.key.*) ;;
-    *) echo "WARN: unexpected filename: $f"; ((failed++)); continue;;
-  esac
 
-  if [[ ! -e "$f" ]]; then
-    echo "SKIP: not found: $f"
-    ((failed++))
-    continue
-  fi
-
-  echo "Attempting to remove $f"
-
-  # Temporarily disable -e so rm failures do not abort the whole script
-  set +e
-  rm -f -- "$f"
-  rc=$?
-  set -e
-
-  if (( rc == 0 )); then
-    echo "Removed $f"
-    ((removed_count++))
-  else
-    echo "WARN: failed to remove $f (exit=$rc)"
-    ((failed++))
-  fi
-done
+  # Re-check which ones were removed
+  for f in "${removed[@]}"; do
+    if [[ -e "$f" ]]; then
+      echo "STILL PRESENT: $f"
+      ((failed++))
+    else
+      echo "Removed: $f"
+      ((removed_count++))
+    fi
+  done
+fi
 
 echo "INFO: removed count=${removed_count}; failed=${failed}"
 if (( failed > 0 )); then exit 2; fi
+
