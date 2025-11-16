@@ -4,9 +4,11 @@
 # Operates only on /var/lib/unbound/root.key.* (excludes /var/lib/unbound/root.key).
 #
 # To install:
-#   sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/rotate-unbound-rootkeys.sh /usr/local/bin/rotate-unbound-rootkeys.sh; sudo chmod 755 /usr/local/bin/rotate-unbound-rootkeys.sh
+#   sudo cp /home/julie/homelab/.../rotate-unbound-rootkeys.sh /usr/local/bin/rotate-unbound-rootkeys.sh
+#   sudo chmod 755 /usr/local/bin/rotate-unbound-rootkeys.sh
 # To run manually:
 #   sudo /usr/local/bin/rotate-unbound-rootkeys.sh
+
 set -euo pipefail
 
 # Configurable retention (edit here)
@@ -17,78 +19,141 @@ MONTHS=60        # keep newest file per UTC month for the last N months
 TARGET_DIR=/var/lib/unbound
 PATTERN='root.key.*'
 LIVE='root.key'
+LOGGER_TAG='rotate-unbound-rootkeys'
 
-cd "$TARGET_DIR" || exit 0
+# helpers
+log() { logger -t "$LOGGER_TAG" -- "$*"; }
+die() { log "FATAL: $*"; exit 1; }
 
-# fast exit if no candidates
-shopt -s nullglob
-candidates=( $PATTERN )
-shopt -u nullglob
-if [[ ${#candidates[@]} -eq 0 ]]; then
+# Safety: must run as root (we expect root-owned files and to be invoked by system jobs)
+if [[ "$(id -u)" -ne 0 ]]; then
+  die "must be run as root"
+fi
+
+# Work in the target dir, fail safe if not accessible
+cd "$TARGET_DIR" || die "cannot chdir to $TARGET_DIR"
+
+# Quick sanity: ensure live file exists and is not selected
+if [[ ! -e "$LIVE" ]]; then
+  log "WARN: live anchor $TARGET_DIR/$LIVE not present; continuing"
+fi
+
+# Build a sorted list (oldest -> newest) of candidate backups; explicitly exclude LIVE
+list=()
+while IFS= read -r line; do
+  list+=("$line")
+done < <(find . -maxdepth 1 -type f -name "$PATTERN" ! -name "$LIVE" -printf '%T@ %p\n' 2>/dev/null | sort -n)
+
+if [[ ${#list[@]} -eq 0 ]]; then
+  log "INFO: no candidate backup files found (pattern: $PATTERN) - nothing to rotate"
   exit 0
 fi
 
-# Produce sorted list: epoch filename (oldest -> newest)
-list=()
-while IFS= read -r line; do list+=("$line"); done < <(find . -maxdepth 1 -type f -name "$PATTERN" ! -name "$LIVE" -printf '%T@ %p\n' 2>/dev/null | sort -n)
-
-# Build arrays of filenames and epochs
+# Expand into indexed arrays (1..n)
 n=0
-for line in "${list[@]}"; do
-  epoch=${line%% *}
-  file=${line#* }
+declare -a files
+declare -a epochs
+for entry in "${list[@]}"; do
+  epoch=${entry%% *}
+  file=${entry#* }
   file=${file#./}
   ((n++))
   files[n]="$file"
+  # store integer seconds (strip fractional part to avoid inconsistency)
   epochs[n]="${epoch%.*}"
 done
 
+log "DEBUG: discovered $n candidate backups; KEEP_NEWEST=$KEEP_NEWEST DAYS=$DAYS MONTHS=$MONTHS"
+
+# Build keep set
 declare -A keep
 now=$(date -u +%s)
 
-# 1) keep KEEP_NEWEST newest
-for ((i=n;i>n-KEEP_NEWEST && i>0;i--)); do
+# 1) keep KEEP_NEWEST newest (safety)
+for ((i=n; i>n-KEEP_NEWEST && i>0; i--)); do
   keep["${files[i]}"]=1
+  log "DEBUG: keep newest safety -> ${files[i]}"
 done
 
-# 2) keep newest per day for last DAYS (UTC)
+# 2) keep newest per UTC day for last DAYS
 for ((d=0; d<DAYS; d++)); do
   target=$(date -u -d "-$d day" +%Y-%m-%d)
   best_idx=0; best_e=0
-  for ((i=1;i<=n;i++)); do
+  for ((i=1; i<=n; i++)); do
     file_day=$(date -u -d "@${epochs[i]}" +%Y-%m-%d)
     if [[ "$file_day" == "$target" && "${epochs[i]}" -gt "$best_e" ]]; then
       best_e=${epochs[i]}; best_idx=$i
     fi
   done
-  (( best_idx > 0 )) && keep["${files[best_idx]}"]=1
+  if (( best_idx > 0 )); then
+    keep["${files[best_idx]}"]=1
+    log "DEBUG: keep newest for day $target -> ${files[best_idx]}"
+  fi
 done
 
-# 3) keep newest per month for last MONTHS (UTC)
+# 3) keep newest per UTC month for last MONTHS
 for ((m=0; m<MONTHS; m++)); do
-  # use 30-day offset as anchor for month calculation
   target=$(date -u -d "-$m month" +%Y-%m)
   best_idx=0; best_e=0
-  for ((i=1;i<=n;i++)); do
+  for ((i=1; i<=n; i++)); do
     file_mon=$(date -u -d "@${epochs[i]}" +%Y-%m)
     if [[ "$file_mon" == "$target" && "${epochs[i]}" -gt "$best_e" ]]; then
       best_e=${epochs[i]}; best_idx=$i
     fi
   done
-  (( best_idx > 0 )) && keep["${files[best_idx]}"]=1
-done
-
-# Remove files not marked to keep (never touch live root.key)
-# Remove files not marked to keep (never touch live root.key)
-for ((i=1;i<=n;i++)); do
-  f=${files[i]}
-  if [[ -z "${keep[$f]:-}" ]]; then
-    if rm -f -- "$f"; then
-      logger -t rotate-unbound-rootkeys "Removed old anchor backup: $f"
-    else
-      logger -t rotate-unbound-rootkeys "Failed to remove old anchor backup: $f (check permissions/immutable bit/FS)"
-    fi
+  if (( best_idx > 0 )); then
+    keep["${files[best_idx]}"]=1
+    log "DEBUG: keep newest for month $target -> ${files[best_idx]}"
   fi
 done
 
+# Final decision lists for visibility
+kept=()
+removed=()
+for ((i=1; i<=n; i++)); do
+  f=${files[i]}
+  if [[ -n "${keep[$f]:-}" ]]; then
+    kept+=("$f")
+  else
+    removed+=("$f")
+  fi
+done
+
+log "INFO: keep count=${#kept[@]}; remove count=${#removed[@]}"
+# If nothing to remove, exit cleanly
+if [[ ${#removed[@]} -eq 0 ]]; then
+  log "INFO: nothing to remove after retention rules"
+  exit 0
+fi
+
+# Final safety checks before removal
+#  - ensure we absolutely never remove the live file even if pattern matched
+for f in "${removed[@]}"; do
+  if [[ "$f" == "$LIVE" ]]; then
+    die "invariant violation: attempted to remove live file $f"
+  fi
+done
+
+# Attempt removal with per-file logging and explicit failures
+any_failed=0
+for f in "${removed[@]}"; do
+  # double-check path is within TARGET_DIR and matches pattern
+  case "$f" in
+    root.key.*) ;;
+    *) log "ERROR: unexpected filename not matching root.key.*: $f"; any_failed=1; continue ;;
+  esac
+
+  if rm -f -- "$f"; then
+    log "Removed old anchor backup: $f"
+  else
+    log "ERROR: failed to remove $f - check permissions/immutable flag/FS"
+    any_failed=1
+  fi
+done
+
+if (( any_failed )); then
+  die "one or more removals failed"
+fi
+
+log "INFO: rotation completed successfully"
 exit 0
