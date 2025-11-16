@@ -78,9 +78,16 @@ for ((m=0; m<MONTHS; m++)); do
 done
 
 # Remove files not marked to keep (never touch live root.key)
+# Remove files not marked to keep (never touch live root.key)
 for ((i=1;i<=n;i++)); do
   f=${files[i]}
-  [[ -z "${keep[$f]:-}" ]] && { rm -f -- "$f" && logger -t rotate-unbound-rootkeys "Removed old anchor backup: $f"; }
+  if [[ -z "${keep[$f]:-}" ]]; then
+    if rm -f -- "$f"; then
+      logger -t rotate-unbound-rootkeys "Removed old anchor backup: $f"
+    else
+      logger -t rotate-unbound-rootkeys "Failed to remove old anchor backup: $f (check permissions/immutable bit/FS)"
+    fi
+  fi
 done
 
 exit 0
