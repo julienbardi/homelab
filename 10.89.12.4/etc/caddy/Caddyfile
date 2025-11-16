@@ -33,47 +33,47 @@
 # ------------------------------------------------------------
 
 bardi.ch {
-        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-        reverse_proxy 10.89.12.2:443 # DiskStation HTTPS
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 10.89.12.2:443 # DiskStation HTTPS
 }
 
 router.bardi.ch:80 {
-        reverse_proxy 10.89.12.1:8080
+	reverse_proxy 10.89.12.1:8080
 }
 
 bardi.ch:80 {
-        reverse_proxy 10.89.12.2:80 # DiskStation HTTP (Let's Encrypt renewal)
+	reverse_proxy 10.89.12.2:80 # DiskStation HTTP (Let's Encrypt renewal)
 }
 
 dns.bardi.ch {
-        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-        reverse_proxy 127.0.0.1:8053 # Unbound DNS over HTTPS
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 127.0.0.1:8053 # Unbound DNS over HTTPS
 }
 
 vpn.bardi.ch {
-        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-        reverse_proxy 127.0.0.1:8910 # Headscale control plane (internal only, not exposed directly)
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 127.0.0.1:8910 # Headscale control plane (internal only, not exposed directly)
 }
 
 derp.vpn.bardi.ch {
-        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-        reverse_proxy 127.0.0.1:8912 # DERP relay (exposed externally)
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 127.0.0.1:8912 # DERP relay (exposed externally)
 }
 
 # DiskStation extra services
 bardi.ch:5001 {
-        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-        reverse_proxy 10.89.12.2:5001
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 10.89.12.2:5001
 }
 
 bardi.ch:5006 {
-        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-        reverse_proxy 10.89.12.2:5006
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 10.89.12.2:5006
 }
 
 bardi.ch:6690 {
-        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-        reverse_proxy 10.89.12.2:6690
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 10.89.12.2:6690
 }
 
 # After modification run
