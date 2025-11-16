@@ -36,7 +36,7 @@ for cmd in dig sed grep logger awk; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required command: $cmd"; exit 2; }
 done
 
-# --- keep everything in-memory, no temp files ---
+# --- in‑memory dig runner and robust extractors (single copy) ---
 export LC_ALL=C LANG=C
 
 dig_q() {
@@ -61,27 +61,36 @@ get_header() {
   raw="$1"
   while IFS= read -r line; do
     case "$line" in
-      ';; ->>HEADER<<-'*) printf '%s\n' "${line#;; ->>HEADER<<- }"; return ;;
-      *";; ->>HEADER<<-"*) printf '%s\n' "${line#*;; ->>HEADER<<- }"; return ;;
+      ';; ->>HEADER<<-'* ) printf '%s\n' "${line#;; ->>HEADER<<- }"; return ;;
+      *';; ->>HEADER<<-'* ) printf '%s\n' "${line#*;; ->>HEADER<<- }"; return ;;
     esac
   done <<<"$raw"
 }
 
 get_status() {
-  # $1 = raw dig output or sentinel
-  local raw line tok
+  # $1 = raw dig output or sentinel; return NOERROR|SERVFAIL|NXDOMAIN etc.
+  local raw line tok s
   raw="$1"
   if [[ "$raw" == "%%EMPTY%%" ]]; then return; fi
   while IFS= read -r line; do
-    # normalize and scan tokens for status:
+    # scan tokens on each line for "status:"
     for tok in $line; do
-      case "$tok" in status:*) tok="${tok#status:}"; tok="${tok//[^A-Z]/}"; [[ -n "$tok" ]] && printf '%s\n' "$tok" && return ;; esac
+      case "$tok" in
+        status:*) s="${tok#status:}"; s="${s//[^A-Z]/}"; [[ -n "$s" ]] && printf '%s\n' "$s" && return ;;
+      esac
     done
+    # also handle if "status:" appears in the middle (e.g. punctuation attached)
+    if [[ "$line" == *"status:"* ]]; then
+      s="${line#*status:}"
+      # keep only letters A-Z from the start
+      s="${s%%[^A-Z]*}"
+      if [[ -n "$s" ]]; then printf '%s\n' "$s"; return; fi
+    fi
   done <<<"$raw"
 }
 
 get_flags() {
-  # $1 = raw dig output or sentinel
+  # $1 = raw dig output or sentinel; return e.g. "qr rd ra ad"
   local raw line rest
   raw="$1"
   if [[ "$raw" == "%%EMPTY%%" ]]; then return; fi
@@ -95,7 +104,7 @@ get_flags() {
         printf '%s\n' "$rest"
         return
         ;;
-      *";; flags:"* )
+      *';; flags:'* )
         rest="${line#*;; flags: }"
         rest="${rest%%;*}"
         rest="${rest#"${rest%%[![:space:]]*}"}"
@@ -106,12 +115,7 @@ get_flags() {
     esac
   done <<<"$raw"
 }
-# --- end in-memory block ---
-
-dig_q() {
-  # use a slightly higher timeout to avoid false negatives on slow networks
-  dig @"$RESOLVER" "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>/dev/null || true
-}
+# --- end in-memory runner+extractors ---
 
 # run a dig and return raw output; ensure non-empty
 run_query() {
