@@ -184,6 +184,7 @@ if [[ "${neg_status:-}" == "SERVFAIL" ]]; then
   neg_ok=true
 fi
 
+rec_status="${rec_status:-}"; pos_status="${pos_status:-}"; neg_status="${neg_status:-}"
 
 # Output summary
 log "🧪 DNS health check against resolver ${RESOLVER}"
