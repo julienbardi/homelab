@@ -3,8 +3,7 @@
 # Purpose: Verify local DNS recursion and DNSSEC validation with clear, plain-English output.
 #
 # To deploy use:
-#   sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/dns-health-check.sh /usr/local/bin/
-#   sudo chmod 755 /usr/local/bin/dns-health-check.sh
+#   sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/dns-health-check.sh /usr/local/bin/;sudo chmod 755 /usr/local/bin/dns-health-check.sh
 #   # Optional: wire into Unbound as an ExecStartPost health probe (non-blocking)
 #   #   sudo systemctl edit unbound
 #   #   [Service]
