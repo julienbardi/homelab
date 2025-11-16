@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # rotate-unbound-rootkeys.sh
 # Keeps newest N files, newest per UTC day for D days, newest per UTC month for M months.
 # Deletes by default. Edit KEEP_NEWEST/DAYS/MONTHS at top to change behavior.
@@ -10,35 +10,43 @@ DAYS=5
 MONTHS=60
 # -------------------
 
-TARGET_DIR=/var/lib/unbound/
+TARGET_DIR=/var/lib/unbound
 PATTERN='root.key.*'
-LIVE=root.key
+LIVE='root.key'
 
 echo "CONFIG: TARGET_DIR=${TARGET_DIR} KEEP_NEWEST=${KEEP_NEWEST} DAYS=${DAYS} MONTHS=${MONTHS} (deletions enabled)"
 
-cd "$TARGET_DIR" || { echo "FATAL: cannot chdir to $TARGET_DIR" >&2; exit 1; }
+cd -- "$TARGET_DIR" || { echo "FATAL: cannot chdir to $TARGET_DIR" >&2; exit 1; }
 
+# collect candidates with a safe glob expansion into an array
 shopt -s nullglob
-cands=( $PATTERN )
+mapfile -t cands < <(printf '%s\0' $PATTERN | xargs -0 -n1 printf '%s\n') || true
 shopt -u nullglob
 
-# remove live file from candidates
-for i in "${!cands[@]}"; do
-  if [[ "$(basename -- "${cands[i]}")" == "$LIVE" ]]; then
-    unset 'cands[i]'
+# remove live file from candidates (handle full names)
+filtered=()
+for f in "${cands[@]}"; do
+  if [[ "$(basename -- "$f")" == "$LIVE" ]]; then
+    echo "DEBUG: skipping live file $f"
+    continue
   fi
+  filtered+=("$f")
 done
+cands=("${filtered[@]}")
 
 if [[ ${#cands[@]} -eq 0 ]]; then
   echo "INFO: no candidate backup files found - nothing to rotate"
   exit 0
 fi
 
-# build "epoch filename" list
+# build list of "epoch<tab>file" safely
 entries=()
 for f in "${cands[@]}"; do
-  epoch=$(stat -c %Y -- "$f") || { echo "WARN: stat failed on $f"; continue; }
-  entries+=("$epoch $f")
+  if ! epoch=$(stat -c %Y -- "$f" 2>/dev/null); then
+    echo "WARN: stat failed on '$f' - skipping"
+    continue
+  fi
+  entries+=("$epoch"$'\t'"$f")
 done
 
 if [[ ${#entries[@]} -eq 0 ]]; then
@@ -46,60 +54,72 @@ if [[ ${#entries[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# sort in memory and populate list array
-sorted=$(printf '%s\n' "${entries[@]}" | sort -n)
-mapfile -t list <<< "$sorted"
-unset sorted
+# sort by epoch numeric ascending (oldest first)
+IFS=$'\n' sorted=($(printf '%s\n' "${entries[@]}" | sort -n -t$'\t' -k1,1)) ; unset IFS
 
-# expand into indexed arrays
-n=0
-declare -a files epochs
-for entry in "${list[@]}"; do
-  epoch=${entry%% *}
-  file=${entry#* }
-  ((n++))
-  files[n]="$file"
-  epochs[n]="${epoch%.*}"
+# expand into 0-based arrays
+files=()
+epochs=()
+for item in "${sorted[@]}"; do
+  epoch=${item%%$'\t'*}
+  file=${item#*$'\t'}
+  files+=("$file")
+  epochs+=("$epoch")
 done
+n=${#files[@]}
+if (( n == 0 )); then
+  echo "INFO: nothing to process after sorting; exiting"
+  exit 0
+fi
 
-# decide keeps
 declare -A keep
-for ((i=n; i>n-KEEP_NEWEST && i>0; i--)); do
+# keep newest N (iterate from newest)
+for ((i=n-1; i>=0 && i>n-1-KEEP_NEWEST; i--)); do
   keep["${files[i]}"]=1
 done
 
+# keep newest per UTC day for DAYS
 for ((d=0; d<DAYS; d++)); do
   target=$(date -u -d "-$d day" +%Y-%m-%d)
-  best_idx=0; best_e=0
-  for ((i=1; i<=n; i++)); do
-    file_day=$(date -u -d "@${epochs[i]}" +%Y-%m-%d)
-    if [[ "$file_day" == "$target" && "${epochs[i]}" -gt "$best_e" ]]; then
-      best_e=${epochs[i]}; best_idx=$i
+  best_idx=-1
+  best_e=0
+  for ((i=0; i<n; i++)); do
+    # guard: skip empty epoch
+    e=${epochs[i]:-0}
+    # date -u -d "@$e" will fail if e is not numeric; guard that
+    if ! [[ $e =~ ^[0-9]+$ ]]; then continue; fi
+    file_day=$(date -u -d "@$e" +%Y-%m-%d)
+    if [[ "$file_day" == "$target" && "$e" -gt "$best_e" ]]; then
+      best_e=$e; best_idx=$i
     fi
   done
-  if (( best_idx > 0 )); then
+  if (( best_idx >= 0 )); then
     keep["${files[best_idx]}"]=1
   fi
 done
 
+# keep newest per UTC month for MONTHS
 for ((m=0; m<MONTHS; m++)); do
   target=$(date -u -d "-$m month" +%Y-%m)
-  best_idx=0; best_e=0
-  for ((i=1; i<=n; i++)); do
-    file_mon=$(date -u -d "@${epochs[i]}" +%Y-%m)
-    if [[ "$file_mon" == "$target" && "${epochs[i]}" -gt "$best_e" ]]; then
-      best_e=${epochs[i]}; best_idx=$i
+  best_idx=-1
+  best_e=0
+  for ((i=0; i<n; i++)); do
+    e=${epochs[i]:-0}
+    if ! [[ $e =~ ^[0-9]+$ ]]; then continue; fi
+    file_mon=$(date -u -d "@$e" +%Y-%m)
+    if [[ "$file_mon" == "$target" && "$e" -gt "$best_e" ]]; then
+      best_e=$e; best_idx=$i
     fi
   done
-  if (( best_idx > 0 )); then
+  if (( best_idx >= 0 )); then
     keep["${files[best_idx]}"]=1
   fi
 done
 
-# build final lists
-kept=(); removed=()
-for ((i=1; i<=n; i++)); do
-  f=${files[i]}
+# build final kept and removed lists
+kept=()
+removed=()
+for f in "${files[@]}"; do
   if [[ -n "${keep[$f]:-}" ]]; then
     kept+=("$f")
   else
