@@ -40,15 +40,39 @@ done
 get_header() { printf '%s' "$1" | sed -n 's/^;; ->>HEADER<<- \(.*\)$/\1/p'; }
 # replace existing get_status() with this tolerant extractor
 get_status() {
-  # prints e.g. NOERROR or SERVFAIL or nothing
-  printf '%s' "$1" | grep -m1 '^;; ->>HEADER<<-' | sed -n 's/.*status:[[:space:]]*\([A-Z]\+\).*/\1/p'
+  # return NOERROR, SERVFAIL, NXDOMAIN, etc., or empty string if not found
+  printf '%s\n' "$1" | while IFS= read -r line; do
+    case "$line" in
+      ';; ->>HEADER<<-'*) 
+        for tok in $line; do
+          case "$tok" in status:*) 
+            printf '%s' "${tok#status:}" | tr -cd 'A-Z'
+            return
+            ;;
+          esac
+        done
+        ;;
+    esac
+  done
 }
-
 
 get_flags() {
-  # prints e.g. "qr rd ra ad" or nothing
-  printf '%s' "$1" | grep -m1 '^;; flags:' | sed -n 's/^;; flags:[[:space:]]*\([^;]*\).*/\1/p'
+  # return space-separated flags like "qr rd ra ad" or empty string
+  printf '%s\n' "$1" | while IFS= read -r line; do
+    case "$line" in
+      ';; flags:'*)
+        rest="${line#;; flags: }"
+        rest="${rest%%;*}"   # strip trailing semicolon part if any
+        # trim leading/trailing whitespace
+        rest="${rest#"${rest%%[![:space:]]*}"}"
+        rest="${rest%"${rest##*[![:space:]]}"}"
+        printf '%s' "$rest"
+        return
+        ;;
+    esac
+  done
 }
+
 
 
 dig_q() {
