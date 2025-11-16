@@ -115,7 +115,7 @@ Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
    ````
 
 
-## Headscale 0.27
+## Headscale 0.27 (broken)
 
 ### Install version 0.27
 
@@ -163,3 +163,9 @@ sudo headscale namespaces list
 v0.26.1
 
 sudo headscale users create homelab
+
+
+## sudo apt
+
+sudo apt update
+sudo apt install -y shellcheck
