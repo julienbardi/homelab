@@ -36,41 +36,42 @@ for cmd in dig sed grep logger awk; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required command: $cmd"; exit 2; }
 done
 
-# safe extractors: handle dig variants where header and flags are separate lines
-get_header() { printf '%s' "$1" | sed -n 's/^;; ->>HEADER<<- \(.*\)$/\1/p'; }
-# replace existing get_status() with this tolerant extractor
+# safe extractors — replace existing get_header/get_status/get_flags with this block
+export LC_ALL=C LANG=C
+
+get_header() {
+  # return the raw ->>HEADER<<- content (everything after the marker)
+  printf '%s' "$1" | awk '/^;; ->>HEADER<<- /{ sub(/^;; ->>HEADER<<- /,""); print; exit }'
+}
+
 get_status() {
-  # return NOERROR, SERVFAIL, NXDOMAIN, etc., or empty string if not found
-  printf '%s\n' "$1" | while IFS= read -r line; do
-    case "$line" in
-      ';; ->>HEADER<<-'*) 
-        for tok in $line; do
-          case "$tok" in status:*) 
-            printf '%s' "${tok#status:}" | tr -cd 'A-Z'
-            return
-            ;;
-          esac
-        done
-        ;;
-    esac
-  done
+  # return e.g. NOERROR or SERVFAIL or empty if not found
+  printf '%s' "$1" | awk '
+    /^;; ->>HEADER<<- / {
+      for (i=1; i<=NF; i++) {
+        if ($i ~ /^status:/) {
+          s=$i
+          sub(/^status:/,"",s)
+          gsub(/[^A-Z]/,"",s)
+          print s
+          exit
+        }
+      }
+    }
+  '
 }
 
 get_flags() {
-  # return space-separated flags like "qr rd ra ad" or empty string
-  printf '%s\n' "$1" | while IFS= read -r line; do
-    case "$line" in
-      ';; flags:'*)
-        rest="${line#;; flags: }"
-        rest="${rest%%;*}"   # strip trailing semicolon part if any
-        # trim leading/trailing whitespace
-        rest="${rest#"${rest%%[![:space:]]*}"}"
-        rest="${rest%"${rest##*[![:space:]]}"}"
-        printf '%s' "$rest"
-        return
-        ;;
-    esac
-  done
+  # return space-separated flags like "qr rd ra ad" or empty if not found
+  printf '%s' "$1" | awk '
+    /^;; flags: / {
+      sub(/^;; flags: /,"")
+      sub(/;.*/,"")
+      gsub(/^[ \t]+|[ \t]+$/,"")
+      print
+      exit
+    }
+  '
 }
 
 
