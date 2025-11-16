@@ -45,6 +45,11 @@ bardi.ch:80 {
         reverse_proxy 10.89.12.2:80 # DiskStation HTTP (Let's Encrypt renewal)
 }
 
+dns.bardi.ch {
+        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+        reverse_proxy 127.0.0.1:8053 # Unbound DNS over HTTPS
+}
+
 vpn.bardi.ch {
         tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
         reverse_proxy 127.0.0.1:8910 # Headscale control plane (internal only, not exposed directly)
