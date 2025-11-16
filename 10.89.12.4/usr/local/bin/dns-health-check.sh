@@ -40,7 +40,6 @@ done
 export LC_ALL=C LANG=C
 
 dig_q() {
-  # return full dig output as stdout (caller captures into a variable)
   dig @"$RESOLVER" "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>/dev/null || true
 }
 
