@@ -4,7 +4,7 @@
 # Operates only on /var/lib/unbound/root.key.* (excludes /var/lib/unbound/root.key).
 #
 # To install:
-#   sudo cp /path/to/rotate-unbound-rootkeys.sh /usr/local/bin/rotate-unbound-rootkeys.sh
+#   sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/rotate-unbound-rootkeys.sh /usr/local/bin/rotate-unbound-rootkeys.sh
 #   sudo chmod 755 /usr/local/bin/rotate-unbound-rootkeys.sh
 # To run manually:
 #   sudo /usr/local/bin/rotate-unbound-rootkeys.sh
