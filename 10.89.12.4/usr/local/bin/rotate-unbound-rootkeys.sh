@@ -17,9 +17,10 @@ TARGET_DIR=/var/lib/unbound
 PATTERN='root.key.*'
 LIVE='root.key'
 
-echo "CONFIG: TARGET_DIR=${TARGET_DIR} KEEP_NEWEST=${KEEP_NEWEST} DAYS=${DAYS} MONTHS=${MONTHS} (deletions enabled)"
+printf '⚙️  CONFIG: TARGET_DIR=%s KEEP_NEWEST=%s DAYS=%s MONTHS=%s (deletions enabled)\n' \
+  "$TARGET_DIR" "$KEEP_NEWEST" "$DAYS" "$MONTHS"
 
-cd -- "$TARGET_DIR" || { echo "FATAL: cannot chdir to $TARGET_DIR" >&2; exit 1; }
+cd -- "$TARGET_DIR" || { printf '❌ FATAL: cannot chdir to %s\n' "$TARGET_DIR" >&2; exit 1; }
 
 shopt -s nullglob
 # expand safely into array of pathnames
@@ -30,7 +31,7 @@ shopt -u nullglob
 tmp=()
 for f in "${cands[@]}"; do
   if [[ "$(basename -- "$f")" == "$LIVE" ]]; then
-    echo "DEBUG: skipping live file $f"
+    printf '🔍 DEBUG: skipping live file %s\n' "$f"
     continue
   fi
   tmp+=("$f")
@@ -38,7 +39,7 @@ done
 cands=("${tmp[@]}")
 
 if [[ ${#cands[@]} -eq 0 ]]; then
-  echo "INFO: no candidate backup files found - nothing to rotate"
+  printf 'ℹ️  INFO: no candidate backup files found - nothing to rotate\n'
   exit 0
 fi
 
@@ -46,14 +47,14 @@ fi
 entries=()
 for f in "${cands[@]}"; do
   if ! epoch=$(stat -c %Y -- "$f" 2>/dev/null); then
-    echo "WARN: stat failed on '$f' - skipping"
+    printf '⚠️  WARN: stat failed on %s - skipping\n' "$f"
     continue
   fi
   entries+=("$epoch"$'\t'"$f")
 done
 
 if [[ ${#entries[@]} -eq 0 ]]; then
-  echo "INFO: no stat-able candidate backups found; nothing to rotate"
+  printf 'ℹ️  INFO: no stat-able candidate backups found; nothing to rotate\n'
   exit 0
 fi
 
@@ -123,31 +124,31 @@ for ((i=0; i<n; i++)); do
   fi
 done
 
-echo "KEEP LIST (${#kept[@]}):"
-for v in "${kept[@]}"; do echo "  $v"; done
-echo "REMOVE LIST (${#removed[@]}):"
-for v in "${removed[@]}"; do echo "  $v"; done
+printf '📁 KEEP LIST (%d):\n' "${#kept[@]}"
+for v in "${kept[@]}"; do printf '  ✅ %s\n' "$v"; done
+printf '🗑️  REMOVE LIST (%d):\n' "${#removed[@]}"
+for v in "${removed[@]}"; do printf '  🗑️ %s\n' "$v"; done
 
 # perform deletions -- remove all candidates in one single command, then verify
 removed_count=0
 failed=0
 
 if (( ${#removed[@]} == 0 )); then
-  echo "INFO: nothing to remove"
+  printf 'ℹ️  INFO: nothing to remove\n'
 else
-  echo "Attempting to remove all ${#removed[@]} files"
-  for f in "${removed[@]}"; do echo "  $f"; done
+  printf '🗑️  Attempting to remove all %d files\n' "${#removed[@]}"
+  for f in "${removed[@]}"; do printf '  🗑️ %s\n' "$f"; done
 
   # Protect live file and unexpected names before doing anything destructive
   for f in "${removed[@]}"; do
     basef=$(basename -- "$f")
     if [[ "$basef" == "$LIVE" ]]; then
-      echo "FATAL: attempted to remove live file $f" >&2
+      printf '❌ FATAL: attempted to remove live file %s\n' "$f" >&2
       exit 1
     fi
     case "$basef" in
       root.key.*) ;;
-      *) echo "WARN: unexpected filename: $f"; ((failed++));;
+      *) printf '⚠️  WARN: unexpected filename: %s\n' "$f"; ((failed++));;
     esac
   done
 
@@ -159,15 +160,14 @@ else
   # Re-check which ones were removed
   for f in "${removed[@]}"; do
     if [[ -e "$f" ]]; then
-      echo "STILL PRESENT: $f"
+      printf '⚠️  STILL PRESENT: %s\n' "$f"
       ((failed++))
     else
-      echo "Removed: $f"
+      printf '✅ Removed: %s\n' "$f"
       ((removed_count++))
     fi
   done
 fi
 
-echo "INFO: removed count=${removed_count}; failed=${failed}"
+printf '📊 INFO: removed=%d failed=%d\n' "$removed_count" "$failed"
 if (( failed > 0 )); then exit 2; fi
-
