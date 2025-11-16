@@ -128,37 +128,45 @@ for v in "${kept[@]}"; do echo "  $v"; done
 echo "REMOVE LIST (${#removed[@]}):"
 for v in "${removed[@]}"; do echo "  $v"; done
 
-# perform deletions -- robust numeric-loop to ensure every element is processed
+# perform deletions -- robust: each file handled in its own subshell so set -e cannot abort the whole script
 removed_count=0
 failed=0
 for ((i=0; i<${#removed[@]}; i++)); do
   f=${removed[i]}
-  basef=$(basename -- "$f")
-  if [[ "$basef" == "$LIVE" ]]; then
-    echo "FATAL: attempted to remove live file $f" >&2
-    exit 1
-  fi
-  case "$basef" in
-    root.key.*) ;;
-    *) echo "WARN: unexpected filename: $f"; ((failed++)); continue;;
-  esac
+  (
+    set -euo pipefail
+    basef=$(basename -- "$f")
+    if [[ "$basef" == "$LIVE" ]]; then
+      echo "FATAL: attempted to remove live file $f" >&2
+      exit 2
+    fi
+    case "$basef" in
+      root.key.*) ;;
+      *) echo "WARN: unexpected filename: $f"; exit 3;;
+    esac
 
-  if [[ ! -e "$f" ]]; then
-    echo "SKIP: not found: $f"
-    ((failed++))
-    continue
-  fi
+    if [[ ! -e "$f" ]]; then
+      echo "SKIP: not found: $f"
+      exit 4
+    fi
 
-  echo "Attempting to remove $f"
-  if rm -f -- "$f"; then
-    echo "Removed $f"
+    echo "Attempting to remove $f"
+    if rm -f -- "$f"; then
+      echo "Removed $f"
+      exit 0
+    else
+      echo "WARN: failed to remove $f"
+      exit 5
+    fi
+  )
+  rc=$?
+  if (( rc == 0 )); then
     ((removed_count++))
   else
-    echo "WARN: failed to remove $f"
+    # treat SKIP (4) and unexpected-name (3) as non-fatal but count as failed
     ((failed++))
   fi
 done
 
 echo "INFO: removed count=${removed_count}; failed=${failed}"
 if (( failed > 0 )); then exit 2; fi
-exit 0
