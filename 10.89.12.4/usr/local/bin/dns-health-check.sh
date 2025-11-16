@@ -36,17 +36,22 @@ for cmd in dig sed grep logger awk; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required command: $cmd"; exit 2; }
 done
 
-# safe extractors — replace existing get_header/get_status/get_flags with this block
+# robust, locale-stable extractors for dig multiline output
 export LC_ALL=C LANG=C
 
 get_header() {
-  # return the raw ->>HEADER<<- content (everything after the marker)
+  # return the raw ->>HEADER<<- content (everything after the marker) or empty
   printf '%s' "$1" | awk '/^;; ->>HEADER<<- /{ sub(/^;; ->>HEADER<<- /,""); print; exit }'
 }
 
 get_status() {
-  # return e.g. NOERROR or SERVFAIL or empty if not found
+  # return NOERROR|SERVFAIL|NXDOMAIN etc., or empty string
+  # tolerate an "%%EMPTY%%" sentinel
+  if [[ "$1" == "%%EMPTY%%" ]]; then
+    return
+  fi
   printf '%s' "$1" | awk '
+    BEGIN { OFS=""; }
     /^;; ->>HEADER<<- / {
       for (i=1; i<=NF; i++) {
         if ($i ~ /^status:/) {
@@ -62,7 +67,10 @@ get_status() {
 }
 
 get_flags() {
-  # return space-separated flags like "qr rd ra ad" or empty if not found
+  # return space-separated flags e.g. "qr rd ra ad" or empty string
+  if [[ "$1" == "%%EMPTY%%" ]]; then
+    return
+  fi
   printf '%s' "$1" | awk '
     /^;; flags: / {
       sub(/^;; flags: /,"")
@@ -73,8 +81,6 @@ get_flags() {
     }
   '
 }
-
-
 
 dig_q() {
   # use a slightly higher timeout to avoid false negatives on slow networks
