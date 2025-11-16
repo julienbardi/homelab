@@ -32,7 +32,7 @@ fi
 ts=$(date -u +%Y%m%dT%H%M%SZ)
 candidate="/var/lib/unbound/root.key.$ts"
 
-llog "📥 Step 1: Fetching root-anchors.xml..."
+log "📥 Step 1: Fetching root-anchors.xml..."
 if ! wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml; then
   log "❌ Failed to fetch root-anchors.xml"
   exit 1
