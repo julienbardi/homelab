@@ -169,3 +169,93 @@ sudo headscale users create homelab
 
 sudo apt update
 sudo apt install -y shellcheck
+
+
+## Core DNS (experimental)
+
+We use CorDNS to provide DOH for our DNS
+
+Quick (recommended): install prebuilt binary
+Download and install the latest prebuilt binary:
+
+```
+sudo curl -L -o /usr/local/bin/coredns \
+  "https://github.com/coredns/coredns/releases/latest/download/coredns_amd64"
+sudo chmod 0755 /usr/local/bin/coredns
+sudo mkdir -p /etc/coredns
+```
+
+Verify binary and plugins:
+
+```
+/usr/local/bin/coredns -version
+/usr/local/bin/coredns -plugins
+```
+If the doh plugin appears in -plugins you’re good for DoH without compiling.
+
+Compile CoreDNS on Debian 12 (when you need custom plugins)
+Prerequisites
+
+Debian 12, internet access, a user with sudo.
+
+Go toolchain (use Go 1.20+; match project recommendations).
+
+Install Go and build tools:
+
+```
+sudo apt update
+sudo apt install -y git build-essential
+
+
+# Install Go from Debian repos (may be older) or the official tarball. Example: official tarball install
+GO_VER=1.21.2
+wget -q https://go.dev/dl/go${GO_VER}.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go${GO_VER}.linux-amd64.tar.gz
+rm go${GO_VER}.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.profile
+export PATH=$PATH:/usr/local/go/bin
+```
+
+Clone CoreDNS:
+
+```
+git clone https://github.com/coredns/coredns.git
+cd coredns
+# Optionally check out a release tag:
+git fetch --tags
+git checkout v1.11.0   # replace with desired release tag
+```
+Build the default CoreDNS binary:
+
+```
+make
+
+# produced binary: ./coredns
+```
+Build with a specific plugin set (optional)
+
+To include or exclude plugins, set COREDNS_PLUGINS:
+
+```
+# example: build with doh, forward, cache explicitly
+COREDNS_PLUGINS="doh forward cache log errors" make
+```
+After building, verify plugins:
+
+```
+./coredns -plugins
+```
+
+Install the binary system-wide:
+
+```
+sudo cp coredns /usr/local/bin/coredns
+sudo chmod 0755 /usr/local/bin/coredns
+```
+Basic run/test (non-root port to test quickly):
+
+```
+./coredns -dns.port=1053 &
+dig @127.0.0.1 -p 1053 example.com
+```
