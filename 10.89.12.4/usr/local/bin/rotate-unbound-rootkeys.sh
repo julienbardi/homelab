@@ -18,28 +18,28 @@ echo "CONFIG: TARGET_DIR=${TARGET_DIR} KEEP_NEWEST=${KEEP_NEWEST} DAYS=${DAYS} M
 
 cd -- "$TARGET_DIR" || { echo "FATAL: cannot chdir to $TARGET_DIR" >&2; exit 1; }
 
-# collect candidates with a safe glob expansion into an array
 shopt -s nullglob
-mapfile -t cands < <(printf '%s\0' $PATTERN | xargs -0 -n1 printf '%s\n') || true
+# expand safely into array of pathnames
+mapfile -t cands < <(printf '%s\n' $PATTERN)
 shopt -u nullglob
 
-# remove live file from candidates (handle full names)
-filtered=()
+# exclude live file
+tmp=()
 for f in "${cands[@]}"; do
   if [[ "$(basename -- "$f")" == "$LIVE" ]]; then
     echo "DEBUG: skipping live file $f"
     continue
   fi
-  filtered+=("$f")
+  tmp+=("$f")
 done
-cands=("${filtered[@]}")
+cands=("${tmp[@]}")
 
 if [[ ${#cands[@]} -eq 0 ]]; then
   echo "INFO: no candidate backup files found - nothing to rotate"
   exit 0
 fi
 
-# build list of "epoch<tab>file" safely
+# build "epoch<TAB>file" entries
 entries=()
 for f in "${cands[@]}"; do
   if ! epoch=$(stat -c %Y -- "$f" 2>/dev/null); then
@@ -54,39 +54,31 @@ if [[ ${#entries[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# sort by epoch numeric ascending (oldest first)
-IFS=$'\n' sorted=($(printf '%s\n' "${entries[@]}" | sort -n -t$'\t' -k1,1)) ; unset IFS
+# sort ascending by epoch
+IFS=$'\n' sorted=($(printf '%s\n' "${entries[@]}" | sort -n -t$'\t' -k1,1)); unset IFS
 
 # expand into 0-based arrays
 files=()
 epochs=()
 for item in "${sorted[@]}"; do
-  epoch=${item%%$'\t'*}
-  file=${item#*$'\t'}
-  files+=("$file")
-  epochs+=("$epoch")
+  epochs+=("${item%%$'\t'*}")
+  files+=("${item#*$'\t'}")
 done
 n=${#files[@]}
-if (( n == 0 )); then
-  echo "INFO: nothing to process after sorting; exiting"
-  exit 0
-fi
 
 declare -A keep
-# keep newest N (iterate from newest)
+# keep newest N
 for ((i=n-1; i>=0 && i>n-1-KEEP_NEWEST; i--)); do
   keep["${files[i]}"]=1
 done
 
-# keep newest per UTC day for DAYS
+# keep newest per UTC day
 for ((d=0; d<DAYS; d++)); do
   target=$(date -u -d "-$d day" +%Y-%m-%d)
   best_idx=-1
   best_e=0
   for ((i=0; i<n; i++)); do
-    # guard: skip empty epoch
     e=${epochs[i]:-0}
-    # date -u -d "@$e" will fail if e is not numeric; guard that
     if ! [[ $e =~ ^[0-9]+$ ]]; then continue; fi
     file_day=$(date -u -d "@$e" +%Y-%m-%d)
     if [[ "$file_day" == "$target" && "$e" -gt "$best_e" ]]; then
@@ -98,7 +90,7 @@ for ((d=0; d<DAYS; d++)); do
   fi
 done
 
-# keep newest per UTC month for MONTHS
+# keep newest per UTC month
 for ((m=0; m<MONTHS; m++)); do
   target=$(date -u -d "-$m month" +%Y-%m)
   best_idx=-1
@@ -116,10 +108,11 @@ for ((m=0; m<MONTHS; m++)); do
   fi
 done
 
-# build final kept and removed lists
+# build final lists
 kept=()
 removed=()
-for f in "${files[@]}"; do
+for ((i=0; i<n; i++)); do
+  f=${files[i]}
   if [[ -n "${keep[$f]:-}" ]]; then
     kept+=("$f")
   else
@@ -132,10 +125,11 @@ for v in "${kept[@]}"; do echo "  $v"; done
 echo "REMOVE LIST (${#removed[@]}):"
 for v in "${removed[@]}"; do echo "  $v"; done
 
-# perform deletions
+# perform deletions -- robust numeric-loop to ensure every element is processed
 removed_count=0
 failed=0
-for f in "${removed[@]}"; do
+for ((i=0; i<${#removed[@]}; i++)); do
+  f=${removed[i]}
   basef=$(basename -- "$f")
   if [[ "$basef" == "$LIVE" ]]; then
     echo "FATAL: attempted to remove live file $f" >&2
@@ -145,6 +139,12 @@ for f in "${removed[@]}"; do
     root.key.*) ;;
     *) echo "WARN: unexpected filename: $f"; ((failed++)); continue;;
   esac
+
+  if [[ ! -e "$f" ]]; then
+    echo "SKIP: not found: $f"
+    ((failed++))
+    continue
+  fi
 
   echo "Attempting to remove $f"
   if rm -f -- "$f"; then
