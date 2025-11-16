@@ -85,7 +85,9 @@ if [[ ${#entries[@]} -eq 0 ]]; then
   exit 0
 fi
 
-mapfile -t list < <(printf '%s\n' "${entries[@]}" | sort -n)
+sorted=$(printf '%s\n' "${entries[@]}" | sort -n)
+mapfile -t list <<< "$sorted"
+unset sorted
 
 if [[ ${#list[@]} -eq 0 ]]; then
   out "INFO: nothing after sorting; aborting"
