@@ -38,11 +38,25 @@ done
 
 # safe extractors: handle dig variants where header and flags are separate lines
 get_header() { printf '%s' "$1" | sed -n 's/^;; ->>HEADER<<- \(.*\)$/\1/p'; }
-get_status() { printf '%s' "$1" | sed -n 's/^;; ->>HEADER<<- .*status: \([A-Z]\+\).*/\1/p'; }
-get_flags()  {
-  # match a line starting with ";; flags:" and capture up to the first semicolon (if present)
-  printf '%s' "$1" | sed -n 's/^;; flags: \([^;]*\).*/\1/p'
+# tolerant extractors that scan all lines and return the first match
+get_status() {
+  printf '%s' "$1" | awk '
+    BEGIN { status=""; }
+    /^;; ->>HEADER<<- / {
+      for(i=1;i<=NF;i++) if ($i ~ /^status:/) { split($i,a,":"); status=a[2]; gsub(/[^A-Z]/,"",status); print status; exit }
+    }
+  '
 }
+
+get_flags() {
+  printf '%s' "$1" | awk '
+    /^;; flags: / {
+      # capture everything after ";; flags: " up to the first semicolon (if present)
+      sub(/^;; flags: /,""); sub(/;.*/,""); print; exit
+    }
+  '
+}
+
 
 dig_q() {
   # use a slightly higher timeout to avoid false negatives on slow networks
