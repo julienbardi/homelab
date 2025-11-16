@@ -259,3 +259,12 @@ Basic run/test (non-root port to test quickly):
 ./coredns -dns.port=1053 &
 dig @127.0.0.1 -p 1053 example.com
 ```
+
+
+permission set on 2025-11-16
+sudo useradd -r -s /usr/sbin/nologin coredns || true
+sudo mkdir -p /etc/coredns
+sudo chown root:coredns /etc/coredns
+sudo chmod 750 /etc/coredns
+sudo chown root:coredns /etc/coredns/Corefile
+sudo chmod 640 /etc/coredns/Corefile
