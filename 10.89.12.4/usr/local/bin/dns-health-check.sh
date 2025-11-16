@@ -124,20 +124,16 @@ neg_status="$(get_status "$neg_raw" || true)"
 neg_ok=false
 # Primary: header token SERVFAIL
 if [[ "${neg_status:-}" == "SERVFAIL" ]]; then neg_ok=true; fi
-# Fallbacks
+# Fallback: re-check using get_status (handles ->>HEADER<<- and other formats)
 if [[ "$neg_ok" != "true" ]]; then
-  # header-style awk fallback
-  n="$(printf '%s' "$neg_raw" | awk -F'status:' '{
-    for(i=1;i<=NF;i++){
-      if(i>1){ g=$i; sub(/^[^A-Z]*/,"",g); match(g,/[A-Z]+/); if(RSTART){ print substr(g,RSTART,RLENGTH); exit } }
-    }
-  }')"
+  n="$(get_status "$neg_raw" || true)"
   if [[ -n "${n:-}" && "$n" == "SERVFAIL" ]]; then neg_status="SERVFAIL"; neg_ok=true; fi
 fi
 if [[ "$neg_ok" != "true" ]]; then
   # loose token search
   if printf '%s' "$neg_raw" | grep -qiE '\bSERVFAIL\b'; then neg_status="SERVFAIL"; neg_ok=true; fi
 fi
+
 
 # Ensure defined under set -u
 rec_status="${rec_status:-}"
