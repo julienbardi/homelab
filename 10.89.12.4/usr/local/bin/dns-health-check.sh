@@ -43,7 +43,7 @@ dig_q() {
   dig @"$RESOLVER" "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>/dev/null || true
 }
 
-# run_query returns the raw dig output (or the sentinel "%%EMPTY%%")
+# run_query returns the raw dig output (or empty string on no output)
 run_query() {
   local out
   out="$(dig_q "$@")"
@@ -58,18 +58,22 @@ get_header() {
   # $1 = raw dig output
   local raw line
   raw="$1"
+  [[ -z "${raw:-}" ]] && return
   while IFS= read -r line; do
     case "$line" in
-      ';; ->>HEADER<<-'* ) printf '%s\n' "${line#;; ->>HEADER<<- }"; return ;;
-      *';; ->>HEADER<<-'* ) printf '%s\n' "${line#*;; ->>HEADER<<- }"; return ;;
+      *'->>HEADER<<-'* ) printf '%s\n' "${line#*->>HEADER<<- }"; return ;;
     esac
   done <<<"$raw"
 }
 
 get_status() {
-  # $1 = raw dig output; prints NOERROR|SERVFAIL|NXDOMAIN etc. or nothing
+  # Read raw dig output from stdin or from $1 if provided; print NOERROR|SERVFAIL|NXDOMAIN etc.
   local raw
-  raw="$1"
+  if [[ $# -gt 0 ]]; then
+    raw="$1"
+  else
+    raw="$(cat -)"
+  fi
   [[ -z "${raw:-}" ]] && return
   printf '%s' "$raw" | awk -F'status:' '{
     for(i=1;i<=NF;i++){
@@ -87,20 +91,12 @@ get_status() {
 }
 
 get_flags() {
-  # $1 = raw dig output or sentinel; return e.g. "qr rd ra ad"
+  # $1 = raw dig output; return e.g. "qr rd ra ad"
   local raw line rest
   raw="$1"
-  if [[ "$raw" == "%%EMPTY%%" ]]; then return; fi
+  [[ -z "${raw:-}" ]] && return
   while IFS= read -r line; do
     case "$line" in
-      ';; flags:'* )
-        rest="${line#;; flags: }"
-        rest="${rest%%;*}"
-        rest="${rest#"${rest%%[![:space:]]*}"}"
-        rest="${rest%"${rest##*[![:space:]]}"}"
-        printf '%s\n' "$rest"
-        return
-        ;;
       *';; flags:'* )
         rest="${line#*;; flags: }"
         rest="${rest%%;*}"
@@ -117,10 +113,10 @@ get_flags() {
 # 1) Recursion check (use a stable public name)
 rec_raw="$(run_query www.example.com A)"
 rec_hdr="$(get_header "$rec_raw" || true)"
-rec_status="$(get_status "$rec_raw" || true)"
+rec_status="$(get_status <<<"$rec_raw" || true)"
 rec_flags="$(get_flags "$rec_raw" || true)"
 rec_has_ra=false
-if [[ "$rec_flags" != "%%EMPTY%%" ]] && printf " %s " "$rec_flags" | grep -q ' ra '; then
+if [[ -n "${rec_flags:-}" ]] && printf " %s " "$rec_flags" | grep -q ' ra '; then
   rec_has_ra=true
 fi
 rec_ok=false
@@ -130,10 +126,10 @@ fi
 
 # 2) DNSSEC positive (sigok)
 pos_raw="$(run_query sigok.verteiltesysteme.net A +dnssec)"
-pos_status="$(get_status "$pos_raw" || true)"
+pos_status="$(get_status <<<"$pos_raw" || true)"
 pos_flags="$(get_flags "$pos_raw" || true)"
 pos_has_ad=false
-if [[ "$pos_flags" != "%%EMPTY%%" ]] && printf " %s " "$pos_flags" | grep -q ' ad '; then
+if [[ -n "${pos_flags:-}" ]] && printf " %s " "$pos_flags" | grep -q ' ad '; then
   pos_has_ad=true
 fi
 pos_ok=false
@@ -143,7 +139,7 @@ fi
 
 # 3) DNSSEC negative (sigfail) — deterministic parse and fallbacks
 neg_raw="$(run_query sigfail.verteiltesysteme.net A +dnssec)"
-neg_status="$(get_status "$neg_raw" || true)"
+neg_status="$(get_status <<<"$neg_raw" || true)"
 neg_ok=false
 
 # If primary extractor failed, try a few deterministic fallbacks
@@ -157,7 +153,7 @@ if [[ -z "${neg_status:-}" ]]; then
 fi
 
 if [[ -z "${neg_status:-}" ]]; then
-  # 2) loose fallback: look for a standalone SERVFAIL token anywhere (safe, case-insensitive)
+  # 2) loose fallback: look for a standalone SERVFAIL token anywhere (case-insensitive)
   if printf '%s' "$neg_raw" | grep -qiE '\bSERVFAIL\b'; then
     neg_status="SERVFAIL"
   fi
