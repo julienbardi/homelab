@@ -14,14 +14,15 @@ set -euo pipefail
 KEEP_NEWEST=5        # keep this many newest files as a safety net
 DAYS=5               # keep newest file per UTC day for the last N days
 MONTHS=60            # keep newest file per UTC month for the last N months
-DRY_RUN=0            # default behavior: 0 => perform deletions. Set to 1 to preview.
+DRY_RUN=1            # safe default: 1 => preview only. Set to 0 to enable deletions.
 # ---------------------------------------------------
 
 TARGET_DIR=/var/lib/unbound/
 PATTERN='root.key.*'
 LIVE=root.key
-# plain terminal output only; no syslog to avoid surprises
-echoout(){ printf '%s\n' "$*"; }
+
+# plain terminal output
+out(){ printf '%s\n' "$*"; }
 die(){ printf 'FATAL: %s\n' "$*" >&2; exit 1; }
 warn(){ printf 'WARN: %s\n' "$*"; }
 
@@ -35,10 +36,7 @@ if [[ "$(id -u)" -ne 0 ]]; then die "must be run as root"; fi
 if ! command -v stat >/dev/null 2>&1; then die "stat(1) required"; fi
 if ! stat -c %Y / >/dev/null 2>&1; then die "stat version incompatible (expecting GNU stat)"; fi
 
-# ----- CLI argument parsing (minimal) -----
-# Supported flags:
-#   --dry-run      force dry-run mode (no deletions)
-#   --help         show short usage and exit
+# CLI: only --dry-run supported (overrides in-script default)
 CLI_DRY_RUN=""
 while [[ ${1:-} != "" ]]; do
   case "$1" in
@@ -48,20 +46,19 @@ while [[ ${1:-} != "" ]]; do
   esac
 done
 if [[ -n "$CLI_DRY_RUN" ]]; then DRY_RUN=1; fi
-# -------------------------------------------
 
-echoout "CONFIG: TARGET_DIR=${TARGET_DIR} KEEP_NEWEST=${KEEP_NEWEST} DAYS=${DAYS} MONTHS=${MONTHS} DRY_RUN=${DRY_RUN}"
+out "CONFIG: TARGET_DIR=${TARGET_DIR} KEEP_NEWEST=${KEEP_NEWEST} DAYS=${DAYS} MONTHS=${MONTHS} DRY_RUN=${DRY_RUN}"
 
 cd "$TARGET_DIR" || die "cannot chdir to $TARGET_DIR"
 
 if [[ ! -e "$LIVE" ]]; then warn "live anchor ${TARGET_DIR}${LIVE} not present; continuing"; fi
 
-# 1) list files (shell glob), exclude LIVE (all in memory)
+# 1) list files
 shopt -s nullglob
 cands=( $PATTERN )
 shopt -u nullglob
 
-# Normalize and remove any entry whose basename is LIVE
+# remove any candidate whose basename is the live file
 for i in "${!cands[@]}"; do
   if [[ "$(basename -- "${cands[i]}")" == "$LIVE" ]]; then
     unset 'cands[i]'
@@ -69,35 +66,33 @@ for i in "${!cands[@]}"; do
 done
 
 if [[ ${#cands[@]} -eq 0 ]]; then
-  echoout "INFO: no candidate backup files found (pattern: $PATTERN) - nothing to rotate"
+  out "INFO: no candidate backup files found (pattern: $PATTERN) - nothing to rotate"
   exit 0
 fi
 
-# 2) build "epoch filename" entries and sort (oldest -> newest)
+# 2) build epoch+filename list and sort
 entries=()
 for f in "${cands[@]}"; do
   if ! epoch=$(stat -c %Y -- "$f" 2>/dev/null); then
     warn "stat failed on $f; skipping"
     continue
   fi
-  # ensure single-line entry; epoch and filename separated by NUL-safe approach is overkill here
   entries+=("$epoch $f")
 done
 
 if [[ ${#entries[@]} -eq 0 ]]; then
-  echoout "INFO: no stat-able candidate backups found; nothing to rotate"
+  out "INFO: no stat-able candidate backups found; nothing to rotate"
   exit 0
 fi
 
-# sort numerically, oldest first
 mapfile -t list < <(printf '%s\n' "${entries[@]}" | sort -n)
 
 if [[ ${#list[@]} -eq 0 ]]; then
-  echoout "INFO: nothing after sorting; aborting"
+  out "INFO: nothing after sorting; aborting"
   exit 0
 fi
 
-# 3) expand into indexed arrays and compute keeps
+# 3) expand and choose keeps
 n=0
 declare -a files epochs
 for entry in "${list[@]}"; do
@@ -108,17 +103,17 @@ for entry in "${list[@]}"; do
   epochs[n]="${epoch%.*}"
 done
 
-echoout "DEBUG: discovered $n candidate backups; KEEP_NEWEST=$KEEP_NEWEST DAYS=$DAYS MONTHS=$MONTHS"
+out "DEBUG: discovered $n candidate backups; KEEP_NEWEST=$KEEP_NEWEST DAYS=$DAYS MONTHS=$MONTHS"
 
 declare -A keep
 
-# keep newest KEEP_NEWEST
+# newest KEEP_NEWEST
 for ((i=n; i>n-KEEP_NEWEST && i>0; i--)); do
   keep["${files[i]}"]=1
-  echoout "DEBUG: keep newest safety -> ${files[i]}"
+  out "DEBUG: keep newest safety -> ${files[i]}"
 done
 
-# keep newest per UTC day for last DAYS
+# newest per UTC day
 for ((d=0; d<DAYS; d++)); do
   target=$(date -u -d "-$d day" +%Y-%m-%d)
   best_idx=0; best_e=0
@@ -130,11 +125,11 @@ for ((d=0; d<DAYS; d++)); do
   done
   if (( best_idx > 0 )); then
     keep["${files[best_idx]}"]=1
-    echoout "DEBUG: keep newest for day $target -> ${files[best_idx]}"
+    out "DEBUG: keep newest for day $target -> ${files[best_idx]}"
   fi
 done
 
-# keep newest per UTC month for last MONTHS
+# newest per UTC month
 for ((m=0; m<MONTHS; m++)); do
   target=$(date -u -d "-$m month" +%Y-%m)
   best_idx=0; best_e=0
@@ -146,11 +141,11 @@ for ((m=0; m<MONTHS; m++)); do
   done
   if (( best_idx > 0 )); then
     keep["${files[best_idx]}"]=1
-    echoout "DEBUG: keep newest for month $target -> ${files[best_idx]}"
+    out "DEBUG: keep newest for month $target -> ${files[best_idx]}"
   fi
 done
 
-# Build final KEEP and REMOVE lists (memory-only)
+# build KEEP and REMOVE lists
 kept=(); removed=()
 for ((i=1; i<=n; i++)); do
   f=${files[i]}
@@ -161,29 +156,19 @@ for ((i=1; i<=n; i++)); do
   fi
 done
 
-# Print lists explicitly to the screen
-echoout "KEEP LIST (${#kept[@]}):"
-for v in "${kept[@]}"; do echoout "  $v"; done
-echoout "REMOVE LIST (${#removed[@]}):"
-for v in "${removed[@]}"; do echoout "  $v"; done
+# print lists
+out "KEEP LIST (${#kept[@]}):"
+for v in "${kept[@]}"; do out "  $v"; done
+out "REMOVE LIST (${#removed[@]}):"
+for v in "${removed[@]}"; do out "  $v"; done
 
-# If DRY_RUN enabled, stop here
+# stop if dry
 if [[ "$DRY_RUN" == "1" ]]; then
-  echoout "DRY_RUN=1 active; no files will be deleted. Use --dry-run to force, or set DRY_RUN=0 in the script to enable deletions."
+  out "DRY_RUN=1 active; no files will be deleted. Run with no --dry-run (or edit DRY_RUN=0) to enable deletions."
   exit 0
 fi
 
-# Interactive confirm if run in a terminal
-if [[ -t 0 ]]; then
-  printf 'Proceed to delete %d files? Type YES to confirm: ' "${#removed[@]}"
-  read -r ans
-  if [[ "$ans" != "YES" ]]; then
-    echoout "User aborted deletion"
-    exit 0
-  fi
-fi
-
-# 4) delete files one-by-one
+# perform deletions (non-interactive)
 failed=0
 removed_count=0
 for f in "${removed[@]}"; do
@@ -200,24 +185,24 @@ for f in "${removed[@]}"; do
       ;;
   esac
 
-  echoout "Attempting to remove $f"
+  out "Attempting to remove $f"
   if rm -f -- "$f"; then
-    echoout "Removed $f"
+    out "Removed $f"
     ((removed_count++))
   else
-    warn "failed to remove $f - collecting diagnostics"
-    warn "ls -l output (if any):"
+    warn "failed to remove $f"
+    warn "ls -l output:"
     ls -l -- "$f" 2>/dev/null || true
     if command -v lsattr >/dev/null 2>&1; then
-      warn "lsattr output (if any):"
+      warn "lsattr output:"
       lsattr -- "$f" 2>/dev/null || true
     fi
-    warn "Suggested remediation if immutable: sudo chattr -i -- \"$f\""
+    warn "Suggested remediation: sudo chattr -i -- \"$f\""
     ((failed++))
   fi
 done
 
-echoout "INFO: removed count=${removed_count}; failed=${failed}"
+out "INFO: removed count=${removed_count}; failed=${failed}"
 
 if (( failed > 0 )); then
   exit 2
