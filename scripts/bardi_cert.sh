@@ -15,10 +15,31 @@ issue() {
 deploy_headscale() {
   log "[cert] deploying certificate for Headscale"
   mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
+  
+  # copy new certs atomically
   cp "$SSL_CHAIN_ECC" "$SSL_DEPLOY_DIR_HEADSCALE/fullchain.pem"
   cp "$SSL_KEY_ECC" "$SSL_DEPLOY_DIR_HEADSCALE/privkey.pem"
+
   chmod 600 "$SSL_DEPLOY_DIR_HEADSCALE"/*
+
+  # tighten on-disk permissions (owner headscale; group headscale kept as-is)
+  chmod 0640 /etc/headscale/certs/privkey.pem
+  chmod 0644 /etc/headscale/certs/fullchain.pem
+
+  # ensure ACL grants only the caddy service read access (idempotent)
+  setfacl -m u:caddy:r /etc/headscale/certs/privkey.pem
+  setfacl -m u:caddy:r /etc/headscale/certs/fullchain.pem
+
   systemctl restart headscale || true
+
+  # validate Caddy can read the key before reloading; if not, fail loudly
+  if sudo -u caddy test -r "$SSL_DEPLOY_DIR_HEADSCALE/privkey.pem"; then
+    log "[cert] caddy can read private key, reloading caddy"
+    /usr/bin/caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
+  else
+    echo "$(date -Iseconds) [cert][ERROR] caddy cannot read $SSL_DEPLOY_DIR_HEADSCALE/privkey.pem" >&2
+    exit 1
+  fi
 }
 
 validate() {
