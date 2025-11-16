@@ -67,10 +67,10 @@ get_header() {
 }
 
 get_status() {
-  # $1 = raw dig output or sentinel; return NOERROR|SERVFAIL|NXDOMAIN etc.
+  # $1 = raw dig output; prints NOERROR|SERVFAIL|NXDOMAIN etc. or nothing
   local raw
   raw="$1"
-  if [[ "$raw" == "%%EMPTY%%" ]]; then return; fi
+  [[ -z "${raw:-}" ]] && return
   printf '%s' "$raw" | awk -F'status:' '{
     for(i=1;i<=NF;i++){
       if(i>1){
