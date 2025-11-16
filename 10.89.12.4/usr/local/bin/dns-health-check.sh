@@ -36,49 +36,51 @@ for cmd in dig sed grep logger awk; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required command: $cmd"; exit 2; }
 done
 
-# robust, minimal extractors for dig multiline output
+# --- robust file-based extractors and query runner ---
 export LC_ALL=C LANG=C
+TMPDIR="${TMPDIR:-/tmp}"
+cleanup_tmp() { rm -f "$tmpfile" "${tmpfile:-}"* 2>/dev/null || true; }
+trap cleanup_tmp EXIT
+
+dig_q() {
+  # run dig and write full output to stdout (caller will capture file)
+  dig @"$RESOLVER" "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>/dev/null || true
+}
+
+run_query() {
+  # write dig output to a temp file and print the filename
+  tmpfile="$(mktemp "${TMPDIR}/dns-health.XXXXXX")"
+  dig_q "$@" > "$tmpfile" || true
+  # ensure file is non-empty; if empty write sentinel
+  if [[ ! -s "$tmpfile" ]]; then
+    printf '%%EMPTY%%' > "$tmpfile"
+  fi
+  printf '%s' "$tmpfile"
+}
 
 get_header() {
-  # return the full ->>HEADER<<- line content (after the marker) or empty
-  printf '%s' "$1" | awk '
-    { if ($0 ~ /;;[[:space:]]*->>HEADER<<-/) {
-        sub(/.*;;[[:space:]]*->>HEADER<<-/, "")
-        print; exit
-      }
-    }'
+  # $1 = filename
+  awk '/;;[[:space:]]*->>HEADER<<-/{ sub(/.*;;[[:space:]]*->>HEADER<<-/, ""); print; exit }' "$1" 2>/dev/null || true
 }
 
 get_status() {
-  # return a single token like NOERROR or SERVFAIL, or empty
-  # tolerate the %%EMPTY%% sentinel
-  if [[ "$1" == "%%EMPTY%%" ]]; then return; fi
-  printf '%s' "$1" | awk '
+  # $1 = filename
+  if grep -q '^%%EMPTY%%$' "$1" 2>/dev/null; then return; fi
+  awk '
     {
-      # find any "status:" token anywhere on any line
       for(i=1;i<=NF;i++) if ($i ~ /^status:/) {
         s=$i; sub(/^status:/,"",s); gsub(/[^A-Z]/,"",s); print s; exit
       }
-    }'
+    }' "$1" 2>/dev/null || true
 }
 
 get_flags() {
-  # return flags string like "qr rd ra ad" or empty
-  if [[ "$1" == "%%EMPTY%%" ]]; then return; fi
-  printf '%s' "$1" | awk '
-    {
-      # match the flags: token and print the following tokens until a semicolon or end-of-line
-      if ($0 ~ /;;[[:space:]]*flags:/) {
-        # remove leading part up to "flags:" and any trailing semicolon-part
-        sub(/.*;;[[:space:]]*flags:[[:space:]]*/,"")
-        sub(/;.*/,"")
-        # trim whitespace
-        gsub(/^[ \t]+|[ \t]+$/,"")
-        print
-        exit
-      }
-    }'
+  # $1 = filename
+  if grep -q '^%%EMPTY%%$' "$1" 2>/dev/null; then return; fi
+  awk '/;;[[:space:]]*flags:/{ sub(/.*;;[[:space:]]*flags:[[:space:]]*/,""); sub(/;.*/,""); gsub(/^[ \t]+|[ \t]+$/,""); print; exit }' "$1" 2>/dev/null || true
 }
+# --- end block ---
+
 
 
 dig_q() {
