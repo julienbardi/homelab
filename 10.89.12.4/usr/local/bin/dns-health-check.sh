@@ -100,8 +100,8 @@ get_flags() {
 
 # 1) Recursion
 rec_raw="$(run_query www.example.com A)"
-rec_status="$(get_status <<<"$rec_raw" || true)"
-rec_flags="$(get_flags <<<"$rec_raw" || true)"
+rec_status="$(get_status "$rec_raw" || true)"
+rec_flags="$(get_flags "$rec_raw" || true)"
 rec_has_ra=false
 if [[ -n "${rec_flags:-}" ]] && printf " %s " "$rec_flags" | grep -q ' ra '; then rec_has_ra=true; fi
 rec_ok=false
@@ -109,8 +109,8 @@ if [[ "${rec_status:-}" == "NOERROR" && "$rec_has_ra" == "true" ]]; then rec_ok=
 
 # 2) DNSSEC positive (sigok)
 pos_raw="$(run_query sigok.verteiltesysteme.net A +dnssec)"
-pos_status="$(get_status <<<"$pos_raw" || true)"
-pos_flags="$(get_flags <<<"$pos_raw" || true)"
+pos_status="$(get_status "$pos_raw" || true)"
+pos_flags="$(get_flags "$pos_raw" || true)"
 pos_has_ad=false
 # AD detection: prefer flags, but also accept explicit "ad" mentions in output
 if [[ -n "${pos_flags:-}" ]] && printf " %s " "$pos_flags" | grep -q ' ad '; then pos_has_ad=true; fi
@@ -120,7 +120,7 @@ if [[ "${pos_status:-}" == "NOERROR" && "$pos_has_ad" == "true" ]]; then pos_ok=
 
 # 3) DNSSEC negative (sigfail)
 neg_raw="$(run_query sigfail.verteiltesysteme.net A +dnssec)"
-neg_status="$(get_status <<<"$neg_raw" || true)"
+neg_status="$(get_status "$neg_raw" || true)"
 neg_ok=false
 # Primary: header token SERVFAIL
 if [[ "${neg_status:-}" == "SERVFAIL" ]]; then neg_ok=true; fi
