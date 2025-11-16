@@ -1,4 +1,4 @@
---- 
+---
 # /etc/headscale/config.yaml
 # Public URL clients will use
 server_url: https://vpn.bardi.ch
