@@ -28,7 +28,7 @@ done
 export LC_ALL=C LANG=C
 
 dig_q() {
-  dig @"$RESOLVER" "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>/dev/null || true
+  dig @"$RESOLVER" "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>&1 || true
 }
 
 # run_query: return raw dig output (empty on no output)
