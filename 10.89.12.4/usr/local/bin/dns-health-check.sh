@@ -31,9 +31,7 @@ dig_q() {
   dig @"$RESOLVER" "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>/dev/null || true
 }
 
-# run_query: log a human-readable dig command then return raw dig output (empty on no output)
-# Usage: run_query <dig-arg...>
-# run_query returns the raw dig output (or empty string on no output)
+# run_query: return raw dig output (empty on no output)
 run_query() {
   local out
   out="$(dig_q "$@")"
