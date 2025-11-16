@@ -171,12 +171,26 @@ if [[ "${pos_status:-}" == "NOERROR" && "$pos_has_ad" == "true" ]]; then
   pos_ok=true
 fi
 
-# 3) DNSSEC negative (sigfail)
+# 3) DNSSEC negative (sigfail) — robust primary parse + fallback
 neg_raw="$(run_query sigfail.verteiltesysteme.net A +dnssec)"
 neg_status="$(get_status "$neg_raw" || true)"
 neg_ok=false
+
+# Primary: exact token from header (preferred)
 if [[ "${neg_status:-}" == "SERVFAIL" ]]; then
   neg_ok=true
+else
+  # Fallback 1: look for "status: SERVFAIL" or " status: SERVFAIL," anywhere
+  if printf '%s' "$neg_raw" | grep -qiE 'status:[[:space:]]*SERVFAIL'; then
+    neg_status="SERVFAIL"
+    neg_ok=true
+  else
+    # Fallback 2: if header absent, treat any top-level "SERVFAIL" occurrence as SERVFAIL
+    if printf '%s' "$neg_raw" | grep -qiE '^;; .*SERVFAIL|[[:space:]]SERVFAIL([,[:space:]]|$)'; then
+      neg_status="SERVFAIL"
+      neg_ok=true
+    fi
+  fi
 fi
 
 # Output summary
