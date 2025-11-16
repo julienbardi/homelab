@@ -68,7 +68,7 @@ echo "$ua_out"
 output_ok=false
 file_ok=false
 
-if echo "$ua_out" | grep -qi "success"; then
+if echo "$ua_out" | grep -qi "success" && ! echo "$ua_out" | grep -qi "does not exist"; then
   output_ok=true
 fi
 
