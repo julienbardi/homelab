@@ -2,6 +2,9 @@
 # rotate-unbound-rootkeys.sh
 # Keeps newest N files, newest per UTC day for D days, newest per UTC month for M months.
 # Deletes by default. Edit KEEP_NEWEST/DAYS/MONTHS at top to change behavior.
+# to deploy, use
+#   sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/rotate-unbound-rootkeys.sh /usr/local/bin/rotate-unbound-rootkeys.sh;sudo chmod 755 /usr/local/bin/rotate-unbound-rootkeys.sh
+#   sudo rotate-unbound-rootkeys.sh; ls -la /var/lib/unbound/root.key.* | wc -l
 set -euo pipefail
 
 # --- edit these ---
