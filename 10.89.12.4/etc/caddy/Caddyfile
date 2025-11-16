@@ -1,0 +1,83 @@
+# ------------------------------------------------------------
+# a) CNAMEs to define
+#    - vpn.bardi.ch      → CNAME to bardi.ch   (Headscale control plane, proxied internally)
+#    - derp.vpn.bardi.ch → CNAME to bardi.ch   (Headscale DERP relay, exposed externally)
+#    - bardi.ch          → A record or CNAME to your dynamic DNS (jam9.synology.me)
+#    - www.bardi.ch      → not needed in your setup
+#    - WireGuard (wg0–wg7) → no extra CNAMEs required; clients use vpn.bardi.ch + port
+#
+# b) Ports to forward
+#    Forward to DiskStation (10.89.12.2):
+#      - 5001 (DSM management HTTPS)
+#      - 5006 (Synology service)
+#      - 6690 (Synology Drive)
+#
+#    Forward to Headscale host (10.89.12.4):
+#      - 8912 (Headscale DERP relay, exposed externally)
+#      - 3478 (UDP STUN/DERP for NAT traversal)
+#      - 51420–51427 (UDP, WireGuard wg0–wg7 interfaces)
+#      - 80   (HTTP, for Let's Encrypt renewal)
+#      - 443  (HTTPS, DSM / DiskStation services)
+#
+#    DO NOT forward 8910 externally:
+#      - Reason: 8910 is the Headscale API. Exposing it directly increases attack surface.
+#        Instead, clients connect via vpn.bardi.ch on 443, with Caddy proxying internally.
+#
+# c) WireGuard VPN (wg0–wg7 on 51420–51427 UDP)
+#    - No extra CNAMEs are needed: WireGuard clients connect directly to your public IP + port.
+#    - You can use vpn.bardi.ch as the hostname for convenience:
+#        wg0 → udp://vpn.bardi.ch:51420
+#        wg1 → udp://vpn.bardi.ch:51421
+#        ...
+#        wg7 → udp://vpn.bardi.ch:51427
+# ------------------------------------------------------------
+
+bardi.ch {
+        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+        reverse_proxy 10.89.12.2:443 # DiskStation HTTPS
+}
+
+router.bardi.ch:80 {
+        reverse_proxy 10.89.12.1:8080
+}
+
+bardi.ch:80 {
+        reverse_proxy 10.89.12.2:80 # DiskStation HTTP (Let's Encrypt renewal)
+}
+
+vpn.bardi.ch {
+        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+        reverse_proxy 127.0.0.1:8910 # Headscale control plane (internal only, not exposed directly)
+}
+
+derp.vpn.bardi.ch {
+        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+        reverse_proxy 127.0.0.1:8912 # DERP relay (exposed externally)
+}
+
+# DiskStation extra services
+bardi.ch:5001 {
+        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+        reverse_proxy 10.89.12.2:5001
+}
+
+bardi.ch:5006 {
+        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+        reverse_proxy 10.89.12.2:5006
+}
+
+bardi.ch:6690 {
+        tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+        reverse_proxy 10.89.12.2:6690
+}
+
+# After modification run
+# 1. Check the config first (dry run):
+#    sudo caddy validate --config /etc/caddy/Caddyfile
+#    sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+# 2. Reload gracefully:
+#    sudo caddy reload --config /etc/caddy/Caddyfile
+# 3. If running as a systemd service:
+#    sudo systemctl reload caddy
+# Don’t use systemctl restart caddy unless you want a hard restart — that will drop connections.
+# Don’t kill the process manually; you’ll interrupt traffic.
