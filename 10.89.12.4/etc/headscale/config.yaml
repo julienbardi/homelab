@@ -1,0 +1,87 @@
+--- 
+# /etc/headscale/config.yaml
+# Public URL clients will use
+server_url: https://vpn.bardi.ch
+
+# Headscale API (internal only, proxied via Caddy)
+listen_addr: 127.0.0.1:8910
+# grpc_listen_addr: 0.0.0.0:5000
+# metrics_listen_addr: 127.0.0.1:9090
+
+# grpc_allow_insecure: true
+
+# tls:
+# i  disabled: true
+
+noise:
+  private_key_path: /etc/headscale/noise_private.key
+
+# WireGuard prefixes
+ip_prefixes:
+  - fd7a:115c:a1e0::/48
+  - 100.64.0.0/10
+
+# prefixes:
+#   v4: 100.64.0.0/10
+#   v6: fd7a:115c:a1e0::/48
+#   allocation: sequential
+
+derp:
+  server:
+    enabled: true
+    region_id: 999
+    region_code: "ch"
+    region_name: "Switzerland"
+    verify_clients: true
+    stun_listen_addr: "0.0.0.0:3478"
+    listen_addr: 127.0.0.1:8912
+    private_key_path: /var/lib/headscale/derp_server_private.key
+  urls:
+    - https://derp.vpn.bardi.ch/derpmap
+
+disable_check_updates: false
+ephemeral_node_inactivity_timeout: 30m
+
+database:
+  type: sqlite3
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+    write_ahead_log: true
+    wal_autocheckpoint: 1000
+
+# acme_url: https://acme-v02.api.letsencrypt.org/directory
+# acme_email: ""
+# tls_letsencrypt_hostname: ""
+# tls_letsencrypt_cache_dir: /var/lib/headscale/cache
+# tls_letsencrypt_challenge_type: TLS-ALPN-01
+# tls_letsencrypt_listen: ":http"
+log:
+  level: info
+  format: text
+
+policy:
+  mode: file
+  path: ""
+
+dns:
+  override_local_dns: false
+  nameservers:
+    - 10.89.12.4
+    - 10.89.12.1
+  magic_dns: true
+
+# unix_socket: /var/run/headscale/headscale.sock
+# unix_socket_permission: "0770"
+
+# logtail:
+#   enabled: false
+
+# randomize_client_port: false
+
+# yamllint /etc/headscale/config.yaml
+# headscale version
+# Run headscale in foreground
+# headscale serve --config /etc/headscale/config.yaml --help
+# curl -vk https://vpn.bardi.ch/health
+# curl -vk https://derp.vpn.bardi.ch/derpmap
+# tailscale up --login-server=https://vpn.bardi.ch
