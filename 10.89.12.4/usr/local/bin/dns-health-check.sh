@@ -36,51 +36,50 @@ for cmd in dig sed grep logger awk; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required command: $cmd"; exit 2; }
 done
 
-# robust, locale-stable extractors for dig multiline output
+# robust, minimal extractors for dig multiline output
 export LC_ALL=C LANG=C
 
 get_header() {
-  # return the raw ->>HEADER<<- content (everything after the marker) or empty
-  printf '%s' "$1" | awk '/^;; ->>HEADER<<- /{ sub(/^;; ->>HEADER<<- /,""); print; exit }'
+  # return the full ->>HEADER<<- line content (after the marker) or empty
+  printf '%s' "$1" | awk '
+    { if ($0 ~ /;;[[:space:]]*->>HEADER<<-/) {
+        sub(/.*;;[[:space:]]*->>HEADER<<-/, "")
+        print; exit
+      }
+    }'
 }
 
 get_status() {
-  # return NOERROR|SERVFAIL|NXDOMAIN etc., or empty string
-  # tolerate an "%%EMPTY%%" sentinel
-  if [[ "$1" == "%%EMPTY%%" ]]; then
-    return
-  fi
+  # return a single token like NOERROR or SERVFAIL, or empty
+  # tolerate the %%EMPTY%% sentinel
+  if [[ "$1" == "%%EMPTY%%" ]]; then return; fi
   printf '%s' "$1" | awk '
-    BEGIN { OFS=""; }
-    /^;; ->>HEADER<<- / {
-      for (i=1; i<=NF; i++) {
-        if ($i ~ /^status:/) {
-          s=$i
-          sub(/^status:/,"",s)
-          gsub(/[^A-Z]/,"",s)
-          print s
-          exit
-        }
+    {
+      # find any "status:" token anywhere on any line
+      for(i=1;i<=NF;i++) if ($i ~ /^status:/) {
+        s=$i; sub(/^status:/,"",s); gsub(/[^A-Z]/,"",s); print s; exit
       }
-    }
-  '
+    }'
 }
 
 get_flags() {
-  # return space-separated flags e.g. "qr rd ra ad" or empty string
-  if [[ "$1" == "%%EMPTY%%" ]]; then
-    return
-  fi
+  # return flags string like "qr rd ra ad" or empty
+  if [[ "$1" == "%%EMPTY%%" ]]; then return; fi
   printf '%s' "$1" | awk '
-    /^;; flags: / {
-      sub(/^;; flags: /,"")
-      sub(/;.*/,"")
-      gsub(/^[ \t]+|[ \t]+$/,"")
-      print
-      exit
-    }
-  '
+    {
+      # match the flags: token and print the following tokens until a semicolon or end-of-line
+      if ($0 ~ /;;[[:space:]]*flags:/) {
+        # remove leading part up to "flags:" and any trailing semicolon-part
+        sub(/.*;;[[:space:]]*flags:[[:space:]]*/,"")
+        sub(/;.*/,"")
+        # trim whitespace
+        gsub(/^[ \t]+|[ \t]+$/,"")
+        print
+        exit
+      }
+    }'
 }
+
 
 dig_q() {
   # use a slightly higher timeout to avoid false negatives on slow networks
