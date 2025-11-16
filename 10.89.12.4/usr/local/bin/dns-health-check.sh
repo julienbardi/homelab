@@ -60,21 +60,33 @@ get_status() {
   if [[ $# -gt 0 ]]; then raw="$1"; else raw="$(cat -)"; fi
   [[ -z "${raw:-}" ]] && return
 
-  # 1) If a ->>HEADER<<- line exists, extract the token after status: (tolerant, normalize upper)
+  # 1) Prefer the ->>HEADER<<- line if present and extract status: token (case-insensitive)
   header="$(printf '%s' "$raw" | sed -n '/->>HEADER<<-/p' | head -n1 || true)"
   if [[ -n "${header:-}" ]]; then
-    s="$(printf '%s' "$header" \
-      | sed -E 's/.*[Ss][Tt][Aa][Tt][Uu][Ss]:[[:space:]]*([^ ;,]+).*/\1/; s/^[[:space:]]*//; s/[[:space:]]*$//; s/.*/\U&/')"
-    if [[ -n "${s:-}" ]]; then printf '%s' "$s"; return; fi
+    s="$(printf '%s' "$header" | grep -oEi 'status:[[:space:]]*[A-Za-z]+' | head -n1 || true)"
+    if [[ -n "${s:-}" ]]; then
+      s="${s#*:}"
+      s="$(printf '%s' "$s" | tr '[:lower:]' '[:upper:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      printf '%s' "$s"
+      return
+    fi
   fi
 
-  # 2) Scan entire output for a status: token (tolerant to case/spacing/punctuation), normalize upper
-  s="$(printf '%s' "$raw" | sed -n '1,200p' | sed -E 's/.*[Ss][Tt][Aa][Tt][Uu][Ss]:[[:space:]]*([^ ;,]+).*/\1/; t print; d; :print; p' 2>/dev/null | head -n1 || true)"
-  if [[ -n "${s:-}" ]]; then printf '%s' "$(printf '%s' "$s" | sed -E 's/.*/\U&/')" ; return; fi
+  # 2) Look for a status: token anywhere in the output (case-insensitive)
+  s="$(printf '%s' "$raw" | grep -oEi 'status:[[:space:]]*[A-Za-z]+' | head -n1 || true)"
+  if [[ -n "${s:-}" ]]; then
+    s="${s#*:}"
+    s="$(printf '%s' "$s" | tr '[:lower:]' '[:upper:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    printf '%s' "$s"
+    return
+  fi
 
-  # 3) Final fallback: look for common RCODE tokens anywhere (case-insensitive), normalize upper
+  # 3) Final fallback: common RCODE tokens anywhere (case-insensitive)
   s="$(printf '%s' "$raw" | grep -oEi 'SERVFAIL|NOERROR|NXDOMAIN' | head -n1 || true)"
-  if [[ -n "${s:-}" ]]; then printf '%s' "$(printf '%s' "$s" | tr '[:lower:]' '[:upper:]')" ; return; fi
+  if [[ -n "${s:-}" ]]; then
+    printf '%s' "$(printf '%s' "$s" | tr '[:lower:]' '[:upper:]')"
+    return
+  fi
 
   return
 }
