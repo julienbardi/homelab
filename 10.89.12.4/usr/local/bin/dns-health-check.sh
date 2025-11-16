@@ -24,7 +24,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 RESOLVER="${1:-127.0.0.1}"
-TIMEOUT_SECONDS=3
+TIMEOUT_SECONDS=5
 
 log() {
   echo "$1"
