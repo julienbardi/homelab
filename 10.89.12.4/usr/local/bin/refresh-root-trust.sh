@@ -29,45 +29,29 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-log "🌐 Step 1: Refreshing root hints..."
-if wget -q -O /var/lib/unbound/root.hints https://www.internic.net/domain/named.root; then
-  log "✅ Root hints updated at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-else
-  log "❌ Failed to update root hints"
+ts=$(date -u +%Y%m%dT%H%M%SZ)
+candidate="/var/lib/unbound/root.key.$ts"
+
+llog "📥 Step 1: Fetching root-anchors.xml..."
+if ! wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml; then
+  log "❌ Failed to fetch root-anchors.xml"
   exit 1
 fi
 
-log "🔑 Step 2: Attempting trust anchor refresh..."
-output=$(unbound-anchor -a /var/lib/unbound/root.key -r /var/lib/unbound/root.hints -v 2>&1)
+log "🔑 Step 2: Generating candidate trust anchor $candidate..."
+output=$(unbound-anchor -a "$candidate" -f /var/lib/unbound/root-anchors.xml -v 2>&1)
 echo "$output"
 
-if echo "$output" | grep -q "success"; then
-  log "✅ Trust anchor refreshed successfully."
+if grep -q "success" <<<"$output" && grep -q "DNSKEY" "$candidate"; then
+  log "✅ Candidate $ts is valid, activating..."
+  mv "$candidate" /var/lib/unbound/root.key
+  chown unbound:unbound /var/lib/unbound/root.key
 else
-  log "❌ Anchor invalid, forcing bootstrap..."
-  rm -f /var/lib/unbound/root.key
-  log "📥 Fetching root-anchors.xml..."
-  if wget -q -O /var/lib/unbound/root-anchors.xml https://data.iana.org/root-anchors/root-anchors.xml; then
-    log "✅ root-anchors.xml downloaded"
-    output=$(unbound-anchor -a /var/lib/unbound/root.key -f /var/lib/unbound/root-anchors.xml -v 2>&1)
-    echo "$output"
-    if echo "$output" | grep -q "success"; then
-      log "✅ Trust anchor bootstrapped from root-anchors.xml."
-    else
-      log "❌ FBootstrap failed — see output above"
-      exit 1
-    fi
-  else
-    log "❌ Could not fetch root-anchors.xml"
-    exit 1
-  fi
+  log "❌ Candidate $ts invalid, marking with _ko"
+  mv "$candidate" "${candidate}_ko"
 fi
 
-log "🔧 Step 3: Fixing file ownership..."
-chown unbound:unbound /var/lib/unbound/root.key /var/lib/unbound/root.hints || true
-log "✅ Ownership set to unbound:unbound"
-
-log "🕒 Step 4: Recording timestamp..."
+log "🕒 Step 3: Recording timestamp..."
 date -u +%Y-%m-%dT%H:%M:%SZ > /var/lib/unbound/rootkey.lastupdate
 log "✅ Anchor refresh completed at $(cat /var/lib/unbound/rootkey.lastupdate)"
 
