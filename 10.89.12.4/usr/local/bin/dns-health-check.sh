@@ -131,18 +131,6 @@ get_flags() {
 }
 # --- end in-memory runner+extractors ---
 
-# run a dig and return raw output; ensure non-empty
-run_query() {
-  local out
-  out="$(dig_q "$@")"
-  if [[ -z "${out//[[:space:]]/}" ]]; then
-    # empty output -> return a marker so callers can handle gracefully
-    printf '%%EMPTY%%'
-  else
-    printf '%s' "$out"
-  fi
-}
-
 # 1) Recursion check (use a stable public name)
 rec_raw="$(run_query www.example.com A)"
 rec_hdr="$(get_header "$rec_raw" || true)"
