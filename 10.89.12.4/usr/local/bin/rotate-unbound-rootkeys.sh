@@ -29,7 +29,8 @@ if [[ ${#candidates[@]} -eq 0 ]]; then
 fi
 
 # Produce sorted list: epoch filename (oldest -> newest)
-mapfile -t list < <(find . -maxdepth 1 -type f -name "$PATTERN" ! -name "$LIVE" -printf '%T@ %p\n' 2>/dev/null | sort -n)
+list=()
+while IFS= read -r line; do list+=("$line"); done < <(find . -maxdepth 1 -type f -name "$PATTERN" ! -name "$LIVE" -printf '%T@ %p\n' 2>/dev/null | sort -n)
 
 # Build arrays of filenames and epochs
 n=0
