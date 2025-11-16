@@ -100,7 +100,6 @@ get_flags() {
 
 # 1) Recursion
 rec_raw="$(run_query www.example.com A)"
-rec_hdr="$(get_header <<<"$rec_raw" || true)"
 rec_status="$(get_status <<<"$rec_raw" || true)"
 rec_flags="$(get_flags <<<"$rec_raw" || true)"
 rec_has_ra=false
