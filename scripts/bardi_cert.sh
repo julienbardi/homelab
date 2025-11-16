@@ -23,6 +23,7 @@ deploy_headscale() {
   chmod 600 "$SSL_DEPLOY_DIR_HEADSCALE"/*
 
   # tighten on-disk permissions (owner headscale; group headscale kept as-is)
+  sudo chown headscale:headscale /etc/headscale/ssl/privkey.pem /etc/headscale/ssl/fullchain.pem
   chmod 0640 /etc/headscale/certs/privkey.pem
   chmod 0644 /etc/headscale/certs/fullchain.pem
 
