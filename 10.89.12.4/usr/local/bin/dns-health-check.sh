@@ -134,6 +134,14 @@ if [[ "${pos_status:-}" == "NOERROR" && "$pos_has_ad" == "true" ]]; then pos_ok=
 neg_raw="$(run_query sigfail.verteiltesysteme.net A +dnssec)"
 neg_status="$(get_status "$neg_raw" || true)"
 neg_ok=false
+
+# Diagnostic: if status is empty, log the first ~200 chars of raw output for analysis
+if [[ -z "${neg_status:-}" ]]; then
+  log "DEBUG: sigfail raw (first 200 chars):"
+  # safely print raw with newlines collapsed and truncated
+  printf '%s' "$neg_raw" | tr '\n' ' ' | sed -n '1,200p' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | while IFS= read -r line; do log "DEBUG: $line"; done
+fi
+
 # Primary: header token SERVFAIL
 if [[ "${neg_status:-}" == "SERVFAIL" ]]; then neg_ok=true; fi
 # Fallback: re-check using get_status (handles ->>HEADER<<- and other formats)
