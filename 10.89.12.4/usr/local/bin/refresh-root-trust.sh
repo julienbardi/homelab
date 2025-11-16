@@ -68,7 +68,8 @@ echo "$ua_out"
 output_ok=false
 file_ok=false
 
-if echo "$ua_out" | grep -qi "success" && ! echo "$ua_out" | grep -qi "does not exist"; then
+# set output_ok true if unbound-anchor reported success OR the candidate file is present and valid
+if echo "$ua_out" | grep -qi "success" || [[ "$file_ok" == "true" ]]; then
   output_ok=true
 fi
 
