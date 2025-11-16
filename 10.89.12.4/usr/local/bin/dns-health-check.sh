@@ -158,27 +158,32 @@ if [[ "${pos_status:-}" == "NOERROR" && "$pos_has_ad" == "true" ]]; then
   pos_ok=true
 fi
 
-# 3) DNSSEC negative (sigfail) — robust primary parse + fallback
+# 3) DNSSEC negative (sigfail) — deterministic parse and fallbacks
 neg_raw="$(run_query sigfail.verteiltesysteme.net A +dnssec)"
 neg_status="$(get_status "$neg_raw" || true)"
 neg_ok=false
 
-# Primary: exact token from header (preferred)
-if [[ "${neg_status:-}" == "SERVFAIL" ]]; then
-  neg_ok=true
-else
-  # Fallback 1: look for "status: SERVFAIL" or " status: SERVFAIL," anywhere
-  if printf '%s' "$neg_raw" | grep -qiE 'status:[[:space:]]*SERVFAIL'; then
+# If primary extractor failed, try a few deterministic fallbacks
+if [[ -z "${neg_status:-}" ]]; then
+  # 1) header-style fallback: extract after "->>HEADER<<-" any all-caps token following "status:"
+  neg_status="$(printf '%s' "$neg_raw" | awk -F'status:' '{
+    for(i=1;i<=NF;i++){
+      if(i>1){ g=$i; sub(/^[^A-Z]*/,"",g); match(g,/[A-Z]+/); if(RSTART) { print substr(g,RSTART,RLENGTH); exit } }
+    }
+  }')"
+fi
+
+if [[ -z "${neg_status:-}" ]]; then
+  # 2) loose fallback: look for a standalone SERVFAIL token anywhere (safe, case-insensitive)
+  if printf '%s' "$neg_raw" | grep -qiE '\bSERVFAIL\b'; then
     neg_status="SERVFAIL"
-    neg_ok=true
-  else
-    # Fallback 2: if header absent, treat any top-level "SERVFAIL" occurrence as SERVFAIL
-    if printf '%s' "$neg_raw" | grep -qiE '^;; .*SERVFAIL|[[:space:]]SERVFAIL([,[:space:]]|$)'; then
-      neg_status="SERVFAIL"
-      neg_ok=true
-    fi
   fi
 fi
+
+if [[ "${neg_status:-}" == "SERVFAIL" ]]; then
+  neg_ok=true
+fi
+
 
 # Output summary
 log "🧪 DNS health check against resolver ${RESOLVER}"
