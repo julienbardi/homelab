@@ -38,37 +38,16 @@ done
 
 # safe extractors: handle dig variants where header and flags are separate lines
 get_header() { printf '%s' "$1" | sed -n 's/^;; ->>HEADER<<- \(.*\)$/\1/p'; }
-# tolerant extractors that scan all lines and return the first match
+# replace existing get_status() with this tolerant extractor
 get_status() {
   # prints e.g. NOERROR or SERVFAIL or nothing
-  printf '%s' "$1" | awk '
-    /^;; ->>HEADER<<- / {
-      for(i=1;i<=NF;i++) {
-        if ($i ~ /^status:/) {
-          sub(/^status:/, "", $i)
-          gsub(/[^A-Z]/, "", $i)
-          print $i
-          exit
-        }
-      }
-    }
-    END { exit }
-  '
+  printf '%s' "$1" | grep -m1 '^;; ->>HEADER<<-' | sed -n 's/.*status:[[:space:]]*\([A-Z]\+\).*/\1/p'
 }
 
+
 get_flags() {
-  # prints the space-separated flags content, e.g. "qr rd ra ad"
-  printf '%s' "$1" | awk '
-    /^;; flags: / {
-      sub(/^;; flags: /,"")
-      # strip trailing semicolon-part if present (e.g. "; QUERY:")
-      sub(/;.*/,"")
-      gsub(/^[ \t]+|[ \t]+$/,"")
-      print
-      exit
-    }
-    END { exit }
-  '
+  # prints e.g. "qr rd ra ad" or nothing
+  printf '%s' "$1" | grep -m1 '^;; flags:' | sed -n 's/^;; flags:[[:space:]]*\([^;]*\).*/\1/p'
 }
 
 
