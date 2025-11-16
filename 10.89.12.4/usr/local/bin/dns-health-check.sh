@@ -33,13 +33,16 @@ dig_q() {
 
 # run_query: return raw dig output (empty on no output)
 run_query() {
-  local out
-  out="$(dig_q "$@")"
-  if [[ -z "${out//[[:space:]]/}" ]]; then
-    printf ''
-  else
-    printf '%s' "$out"
-  fi
+  local out tries=0 max=3
+  while :; do
+    out="$(dig_q "$@")"
+    if [[ -n "${out//[[:space:]]/}" ]] && ! printf '%s' "$out" | grep -qEi 'communications error'; then
+      printf '%s' "$out"; return
+    fi
+    tries=$((tries+1))
+    if [[ $tries -ge $max ]]; then printf '%s' "$out"; return; fi
+    sleep 1
+  done
 }
 
 get_header() {
