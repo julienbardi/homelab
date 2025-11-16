@@ -33,7 +33,18 @@ dig_q() {
 
 # run_query: log a human-readable dig command then return raw dig output (empty on no output)
 # Usage: run_query <dig-arg...>
+# run_query returns the raw dig output (or empty string on no output)
 run_query() {
+  local out
+  out="$(dig_q "$@")"
+  if [[ -z "${out//[[:space:]]/}" ]]; then
+    printf ''
+  else
+    printf '%s' "$out"
+  fi
+}
+
+run_query_ko() {
   local out human args
   args=("$@")
   human="dig @${RESOLVER} ${args[*]} +tries=1 +time=${TIMEOUT_SECONDS}"
