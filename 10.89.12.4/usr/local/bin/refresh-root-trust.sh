@@ -79,7 +79,7 @@ fi
 
 if [[ "$output_ok" == "true" && "$file_ok" == "true" ]]; then
   log "✅ Candidate $ts validated (output_ok=true, file_ok=true). Activating…"
-  mv -f "$candidate" /var/lib/unbound/root.key
+  cp -p -- "$candidate" /var/lib/unbound/root.key
   chown unbound:unbound /var/lib/unbound/root.key || log "⚠️ chown failed; verify permissions"
 else
   if [[ -e "$candidate" ]]; then
@@ -89,7 +89,6 @@ else
     log "❌ Candidate $ts was not created by unbound-anchor (output_ok=$output_ok). Kept existing root.key."
   fi
 fi
-
 
 log "🕒 Step 4: Recording timestamp..."
 date -u +%Y-%m-%dT%H:%M:%SZ > /var/lib/unbound/rootkey.lastupdate
