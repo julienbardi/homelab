@@ -71,33 +71,50 @@ get_header() {
 }
 
 get_status() {
-  # Read raw dig output from stdin or from $1; print NOERROR|SERVFAIL|NXDOMAIN etc.
-  local raw
-  if [[ $# -gt 0 ]]; then raw="$1"; else raw="$(cat -)"; fi
+  # Read raw dig output from $1 or stdin; print NOERROR|SERVFAIL|NXDOMAIN etc. or nothing
+  local raw header s
+  if [[ $# -gt 0 ]]; then
+    raw="$1"
+  else
+    raw="$(cat -)"
+  fi
   [[ -z "${raw:-}" ]] && return
 
-  # Primary: extract token after "status:" using awk (robust to spacing/punctuation)
-  local s
-  s="$(printf '%s' "$raw" | awk -F'status:' '{
-    for(i=1;i<=NF;i++){
-      if(i>1){
-        g=$i
-        sub(/^[^A-Z]*/,"",g)
-        match(g,/[A-Z]+/)
-        if(RSTART){ print substr(g,RSTART,RLENGTH); exit }
-      }
-    }
-  }')"
+  # 1) Prefer the ->>HEADER<<- line if present: extract token after "status:" (case-insensitive, tolerant)
+  header="$(printf '%s' "$raw" | sed -n '/->>HEADER<<-/p' | head -n1 || true)"
+  if [[ -n "${header:-}" ]]; then
+    s="$(printf '%s' "$header" \
+      | awk -F'[Ss][Tt][Aa][Tt][Uu][Ss]:' '{
+          for(i=1;i<=NF;i++){
+            if(i>1){
+              g=$i; sub(/^[^A-Za-z]*/,"",g); match(g,/[A-Za-z]+/);
+              if(RSTART){ print toupper(substr(g,RSTART,RLENGTH)); exit }
+            }
+          }
+        }')"
+    if [[ -n "${s:-}" ]]; then printf '%s' "$s"; return; fi
+  fi
+
+  # 2) Primary scan: anywhere in the output look for "status:" then token after it (tolerant)
+  s="$(printf '%s' "$raw" \
+    | awk -F'[Ss][Tt][Aa][Tt][Uu][Ss]:' '{
+        for(i=1;i<=NF;i++){
+          if(i>1){
+            g=$i; sub(/^[^A-Za-z]*/,"",g); match(g,/[A-Za-z]+/);
+            if(RSTART){ print toupper(substr(g,RSTART,RLENGTH)); exit }
+          }
+        }
+      }')"
   if [[ -n "${s:-}" ]]; then printf '%s' "$s"; return; fi
 
-  # Fallback: look for a standalone uppercase token (SERVFAIL/NOERROR/NXDOMAIN) on header line
-  s="$(printf '%s' "$raw" | sed -n '1,40p' | grep -oE 'status:[[:space:]]*[A-Z]+' | head -n1 | sed -E 's/.*status:[[:space:]]*([A-Z]+).*/\1/')"
-  if [[ -n "${s:-}" ]]; then printf '%s' "$s"; return; fi
-
-  # Loose fallback: any occurrence of SERVFAIL/NOERROR/NXDOMAIN anywhere
+  # 3) Fallback: look for common RCODEs anywhere (case-insensitive), normalize to uppercase
   s="$(printf '%s' "$raw" | grep -oEi 'SERVFAIL|NOERROR|NXDOMAIN' | head -n1 || true)"
-  if [[ -n "${s:-}" ]]; then printf '%s' "$s"; return; fi
+  if [[ -n "${s:-}" ]]; then printf '%s' "$(printf '%s' "$s" | tr '[:lower:]' '[:upper:]')"; return; fi
+
+  # nothing found
+  return
 }
+
 
 get_flags() {
   # $1 = raw dig output or stdin; returns "qr rd ra ad" style
