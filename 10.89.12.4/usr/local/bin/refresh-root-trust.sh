@@ -42,7 +42,7 @@ log "🔑 Step 2: Generating candidate trust anchor $candidate..."
 output=$(unbound-anchor -a "$candidate" -f /var/lib/unbound/root-anchors.xml -v 2>&1)
 echo "$output"
 
-if grep -q "success" <<<"$output" && grep -q "DNSKEY" "$candidate"; then
+if echo "$output" | grep -q "success" && grep -q "DNSKEY" "$candidate"; then
   log "✅ Candidate $ts is valid, activating..."
   mv "$candidate" /var/lib/unbound/root.key
   chown unbound:unbound /var/lib/unbound/root.key
