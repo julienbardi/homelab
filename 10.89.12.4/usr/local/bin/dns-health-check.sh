@@ -48,7 +48,7 @@ run_query() {
   local out
   out="$(dig_q "$@")"
   if [[ -z "${out//[[:space:]]/}" ]]; then
-    printf '%%EMPTY%%'
+    printf ''   # return empty string (not a sentinel)
   else
     printf '%s' "$out"
   fi
