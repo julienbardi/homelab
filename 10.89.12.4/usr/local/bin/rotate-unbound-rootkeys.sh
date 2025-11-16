@@ -22,32 +22,66 @@ LIVE='root.key'
 LOGGER_TAG='rotate-unbound-rootkeys'
 
 # helpers
-log() { logger -t "$LOGGER_TAG" -- "$*"; }
-die() { log "FATAL: $*"; exit 1; }
+log()   { logger -t "$LOGGER_TAG" -- "$*"; }
+die()   { log "FATAL: $*"; exit 1; }
 
-# Safety: must run as root (we expect root-owned files and to be invoked by system jobs)
+# Safety: require root
 if [[ "$(id -u)" -ne 0 ]]; then
   die "must be run as root"
 fi
 
-# Work in the target dir, fail safe if not accessible
+# Ensure target directory is accessible
 cd "$TARGET_DIR" || die "cannot chdir to $TARGET_DIR"
 
-# Quick sanity: ensure live file exists and is not selected
+# Log missing live file but continue (we never remove LIVE)
 if [[ ! -e "$LIVE" ]]; then
   log "WARN: live anchor $TARGET_DIR/$LIVE not present; continuing"
 fi
 
-# Build a sorted list (oldest -> newest) of candidate backups; explicitly exclude LIVE
-list=()
-while IFS= read -r line; do
-  list+=("$line")
-done < <(find . -maxdepth 1 -type f -name "$PATTERN" ! -name "$LIVE" -printf '%T@ %p\n' 2>/dev/null | sort -n)
+# ------------------ Build sorted list (oldest -> newest) safely ------------------
+# Use shell glob to gather candidates, explicitly exclude the live file.
+shopt -s nullglob
+cands=( root.key.* )
+shopt -u nullglob
 
-if [[ ${#list[@]} -eq 0 ]]; then
+for i in "${!cands[@]}"; do
+  [[ "${cands[i]}" == "$LIVE" ]] && unset 'cands[i]'
+done
+
+if [[ ${#cands[@]} -eq 0 ]]; then
   log "INFO: no candidate backup files found (pattern: $PATTERN) - nothing to rotate"
   exit 0
 fi
+
+# Build "epoch filename" entries in-memory, sort numerically, then read back into array.
+entries=()
+for f in "${cands[@]}"; do
+  # stat -c %Y returns integer seconds since epoch on Linux; treat failure gracefully
+  if ! epoch=$(stat -c %Y -- "$f" 2>/dev/null); then
+    log "WARN: stat failed on $f; skipping"
+    continue
+  fi
+  entries+=("$epoch $f")
+done
+
+if [[ ${#entries[@]} -eq 0 ]]; then
+  log "INFO: no stat-able candidate backups found; nothing to rotate"
+  exit 0
+fi
+
+# Sort entries numerically (oldest -> newest) and read into list array
+list=()
+# Use printf to preserve whitespace and avoid subshell read races
+# The while-read is in the current shell so list is populated deterministically
+printf '%s\n' "${entries[@]}" | sort -n | while IFS= read -r line; do
+  list+=("$line")
+done
+
+if [[ ${#list[@]} -eq 0 ]]; then
+  log "INFO: nothing after sorting; aborting"
+  exit 0
+fi
+# -------------------------------------------------------------------------------
 
 # Expand into indexed arrays (1..n)
 n=0
@@ -59,7 +93,6 @@ for entry in "${list[@]}"; do
   file=${file#./}
   ((n++))
   files[n]="$file"
-  # store integer seconds (strip fractional part to avoid inconsistency)
   epochs[n]="${epoch%.*}"
 done
 
@@ -69,7 +102,7 @@ log "DEBUG: discovered $n candidate backups; KEEP_NEWEST=$KEEP_NEWEST DAYS=$DAYS
 declare -A keep
 now=$(date -u +%s)
 
-# 1) keep KEEP_NEWEST newest (safety)
+# 1) keep KEEP_NEWEST newest
 for ((i=n; i>n-KEEP_NEWEST && i>0; i--)); do
   keep["${files[i]}"]=1
   log "DEBUG: keep newest safety -> ${files[i]}"
@@ -107,7 +140,7 @@ for ((m=0; m<MONTHS; m++)); do
   fi
 done
 
-# Final decision lists for visibility
+# Final decision lists
 kept=()
 removed=()
 for ((i=1; i<=n; i++)); do
@@ -120,24 +153,21 @@ for ((i=1; i<=n; i++)); do
 done
 
 log "INFO: keep count=${#kept[@]}; remove count=${#removed[@]}"
-# If nothing to remove, exit cleanly
 if [[ ${#removed[@]} -eq 0 ]]; then
   log "INFO: nothing to remove after retention rules"
   exit 0
 fi
 
 # Final safety checks before removal
-#  - ensure we absolutely never remove the live file even if pattern matched
 for f in "${removed[@]}"; do
   if [[ "$f" == "$LIVE" ]]; then
     die "invariant violation: attempted to remove live file $f"
   fi
 done
 
-# Attempt removal with per-file logging and explicit failures
+# Removal with per-file logging and clear failure handling
 any_failed=0
 for f in "${removed[@]}"; do
-  # double-check path is within TARGET_DIR and matches pattern
   case "$f" in
     root.key.*) ;;
     *) log "ERROR: unexpected filename not matching root.key.*: $f"; any_failed=1; continue ;;
@@ -146,14 +176,4 @@ for f in "${removed[@]}"; do
   if rm -f -- "$f"; then
     log "Removed old anchor backup: $f"
   else
-    log "ERROR: failed to remove $f - check permissions/immutable flag/FS"
-    any_failed=1
-  fi
-done
-
-if (( any_failed )); then
-  die "one or more removals failed"
-fi
-
-log "INFO: rotation completed successfully"
-exit 0
+    log "ERROR: failed
