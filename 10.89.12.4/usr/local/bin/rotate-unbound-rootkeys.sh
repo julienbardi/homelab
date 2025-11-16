@@ -140,6 +140,7 @@ else
   for f in "${removed[@]}"; do printf '  🗑️ %s\n' "$f"; done
 
   # Protect live file and unexpected names before doing anything destructive
+  warn_count=0
   for f in "${removed[@]}"; do
     basef=$(basename -- "$f")
     if [[ "$basef" == "$LIVE" ]]; then
@@ -148,7 +149,10 @@ else
     fi
     case "$basef" in
       root.key.*) ;;
-      *) printf '⚠️  WARN: unexpected filename: %s\n' "$f"; ((failed++));;
+      *)
+        printf '⚠️  WARN: unexpected filename: %s\n' "$f"
+        ((warn_count++))
+        ;;
     esac
   done
 
@@ -158,6 +162,7 @@ else
   fi
 
   # Re-check which ones were removed
+  failed=0
   for f in "${removed[@]}"; do
     if [[ -e "$f" ]]; then
       printf '⚠️  STILL PRESENT: %s\n' "$f"
@@ -167,6 +172,10 @@ else
       ((removed_count++))
     fi
   done
+
+  if (( warn_count > 0 )); then
+    printf '⚠️  WARN: %d unexpected filenames detected (non-fatal)\n' "$warn_count"
+  fi
 fi
 
 printf '📊 INFO: removed=%d failed=%d\n' "$removed_count" "$failed"
