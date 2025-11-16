@@ -97,9 +97,16 @@ log "✅ Anchor refresh completed at $(cat /var/lib/unbound/rootkey.lastupdate)"
 # rotate backups using standalone rotator (no-op if not present)
 if command -v /usr/local/bin/rotate-unbound-rootkeys.sh >/dev/null 2>&1; then
   if (( EUID == 0 )); then
-    /usr/local/bin/rotate-unbound-rootkeys.sh || log "⚠️ rotate-unbound-rootkeys.sh failed"
+    /usr/local/bin/rotate-unbound-rootkeys.sh
+    rc=$?
   else
-    sudo /usr/local/bin/rotate-unbound-rootkeys.sh || log "⚠️ rotate-unbound-rootkeys.sh failed"
+    # use -n so sudo does not block waiting for a password (returns 1 instead)
+    sudo -n /usr/local/bin/rotate-unbound-rootkeys.sh
+    rc=$?
+  fi
+
+  if (( rc != 0 )); then
+    log "⚠️ rotate-unbound-rootkeys.sh failed (exit=${rc})"
   fi
 fi
 
