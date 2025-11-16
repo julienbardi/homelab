@@ -36,52 +36,77 @@ for cmd in dig sed grep logger awk; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required command: $cmd"; exit 2; }
 done
 
-# --- robust file-based extractors and query runner ---
+# --- keep everything in-memory, no temp files ---
 export LC_ALL=C LANG=C
-TMPDIR="${TMPDIR:-/tmp}"
-cleanup_tmp() { rm -f "$tmpfile" "${tmpfile:-}"* 2>/dev/null || true; }
-trap cleanup_tmp EXIT
 
 dig_q() {
-  # run dig and write full output to stdout (caller will capture file)
+  # return full dig output as stdout (caller captures into a variable)
   dig @"$RESOLVER" "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>/dev/null || true
 }
 
+# run_query returns the raw dig output (or the sentinel "%%EMPTY%%")
 run_query() {
-  # write dig output to a temp file and print the filename
-  tmpfile="$(mktemp "${TMPDIR}/dns-health.XXXXXX")"
-  dig_q "$@" > "$tmpfile" || true
-  # ensure file is non-empty; if empty write sentinel
-  if [[ ! -s "$tmpfile" ]]; then
-    printf '%%EMPTY%%' > "$tmpfile"
+  local out
+  out="$(dig_q "$@")"
+  if [[ -z "${out//[[:space:]]/}" ]]; then
+    printf '%%EMPTY%%'
+  else
+    printf '%s' "$out"
   fi
-  printf '%s' "$tmpfile"
 }
 
 get_header() {
-  # $1 = filename
-  awk '/;;[[:space:]]*->>HEADER<<-/{ sub(/.*;;[[:space:]]*->>HEADER<<-/, ""); print; exit }' "$1" 2>/dev/null || true
+  # $1 = raw dig output
+  local raw line
+  raw="$1"
+  while IFS= read -r line; do
+    case "$line" in
+      ';; ->>HEADER<<-'*) printf '%s\n' "${line#;; ->>HEADER<<- }"; return ;;
+      *";; ->>HEADER<<-"*) printf '%s\n' "${line#*;; ->>HEADER<<- }"; return ;;
+    esac
+  done <<<"$raw"
 }
 
 get_status() {
-  # $1 = filename
-  if grep -q '^%%EMPTY%%$' "$1" 2>/dev/null; then return; fi
-  awk '
-    {
-      for(i=1;i<=NF;i++) if ($i ~ /^status:/) {
-        s=$i; sub(/^status:/,"",s); gsub(/[^A-Z]/,"",s); print s; exit
-      }
-    }' "$1" 2>/dev/null || true
+  # $1 = raw dig output or sentinel
+  local raw line tok
+  raw="$1"
+  if [[ "$raw" == "%%EMPTY%%" ]]; then return; fi
+  while IFS= read -r line; do
+    # normalize and scan tokens for status:
+    for tok in $line; do
+      case "$tok" in status:*) tok="${tok#status:}"; tok="${tok//[^A-Z]/}"; [[ -n "$tok" ]] && printf '%s\n' "$tok" && return ;; esac
+    done
+  done <<<"$raw"
 }
 
 get_flags() {
-  # $1 = filename
-  if grep -q '^%%EMPTY%%$' "$1" 2>/dev/null; then return; fi
-  awk '/;;[[:space:]]*flags:/{ sub(/.*;;[[:space:]]*flags:[[:space:]]*/,""); sub(/;.*/,""); gsub(/^[ \t]+|[ \t]+$/,""); print; exit }' "$1" 2>/dev/null || true
+  # $1 = raw dig output or sentinel
+  local raw line rest
+  raw="$1"
+  if [[ "$raw" == "%%EMPTY%%" ]]; then return; fi
+  while IFS= read -r line; do
+    case "$line" in
+      ';; flags:'* )
+        rest="${line#;; flags: }"
+        rest="${rest%%;*}"
+        rest="${rest#"${rest%%[![:space:]]*}"}"
+        rest="${rest%"${rest##*[![:space:]]}"}"
+        printf '%s\n' "$rest"
+        return
+        ;;
+      *";; flags:"* )
+        rest="${line#*;; flags: }"
+        rest="${rest%%;*}"
+        rest="${rest#"${rest%%[![:space:]]*}"}"
+        rest="${rest%"${rest##*[![:space:]]}"}"
+        printf '%s\n' "$rest"
+        return
+        ;;
+    esac
+  done <<<"$raw"
 }
-# --- end block ---
-
-
+# --- end in-memory block ---
 
 dig_q() {
   # use a slightly higher timeout to avoid false negatives on slow networks
