@@ -94,6 +94,11 @@ log "🕒 Step 4: Recording timestamp..."
 date -u +%Y-%m-%dT%H:%M:%SZ > /var/lib/unbound/rootkey.lastupdate
 log "✅ Anchor refresh completed at $(cat /var/lib/unbound/rootkey.lastupdate)"
 
+# rotate backups using standalone rotator (no-op if not present)
+if command -v /usr/local/bin/rotate-unbound-rootkeys.sh >/dev/null 2>&1; then
+  /usr/local/bin/rotate-unbound-rootkeys.sh || log "⚠️ rotate-unbound-rootkeys.sh failed"
+fi
+
 # Verify that it ran
 #   cat /var/lib/unbound/rootkey.lastupdate
 # Inspect the journal
