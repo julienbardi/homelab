@@ -12,3 +12,8 @@ LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
+# After modification
+# sudo systemctl daemon-reload
+# sudo systemctl reset-failed
+# sudo systemctl enable --now coredns
+# sudo journalctl -u coredns -f
