@@ -44,20 +44,6 @@ run_query() {
   fi
 }
 
-run_query_ko() {
-  local out human args
-  args=("$@")
-  human="dig @${RESOLVER} ${args[*]} +tries=1 +time=${TIMEOUT_SECONDS}"
-  log "⤷ CMD: ${human}"   # comment this line to silence command logging
-  out="$(dig_q "${args[@]}")"
-  if [[ -z "${out//[[:space:]]/}" ]]; then
-    printf ''
-  else
-    printf '%s' "$out"
-  fi
-}
-
-
 get_header() {
   # accepts raw text as $1 or stdin
   local raw line
