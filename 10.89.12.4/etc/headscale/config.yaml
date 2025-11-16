@@ -16,10 +16,15 @@ listen_addr: 127.0.0.1:8910
 noise:
   private_key_path: /etc/headscale/noise_private.key
 
-# WireGuard prefixes
-ip_prefixes:
-  - fd7a:115c:a1e0::/48
-  - 100.64.0.0/10
+namespaces:
+  - name: default
+
+ipv4_prefixes:
+  - "100.64.0.0/10"
+
+# Optional: add an IPv6 ULA if you want IPv6 addresses assigned
+ipv6_prefixes:
+  - "fd7a:115c:a1e0::/48"
 
 # prefixes:
 #   v4: 100.64.0.0/10
@@ -79,6 +84,7 @@ dns:
 # randomize_client_port: false
 
 # yamllint /etc/headscale/config.yaml
+# Quick YAML sanity check: python3 -c "import yaml,sys; yaml.safe_load(open('/etc/headscale/config.yaml')); print('YAML OK')"
 # headscale version
 # Run headscale in foreground
 # headscale serve --config /etc/headscale/config.yaml --help
