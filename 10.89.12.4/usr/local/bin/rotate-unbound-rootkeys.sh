@@ -128,42 +128,43 @@ for v in "${kept[@]}"; do echo "  $v"; done
 echo "REMOVE LIST (${#removed[@]}):"
 for v in "${removed[@]}"; do echo "  $v"; done
 
-# perform deletions -- robust: each file handled in its own subshell so set -e cannot abort the whole script
+# perform deletions -- simple, robust, and guaranteed to process every element
 removed_count=0
 failed=0
+
 for ((i=0; i<${#removed[@]}; i++)); do
   f=${removed[i]}
-  (
-    set -euo pipefail
-    basef=$(basename -- "$f")
-    if [[ "$basef" == "$LIVE" ]]; then
-      echo "FATAL: attempted to remove live file $f" >&2
-      exit 2
-    fi
-    case "$basef" in
-      root.key.*) ;;
-      *) echo "WARN: unexpected filename: $f"; exit 3;;
-    esac
+  basef=$(basename -- "$f")
 
-    if [[ ! -e "$f" ]]; then
-      echo "SKIP: not found: $f"
-      exit 4
-    fi
+  # protect live file and name pattern
+  if [[ "$basef" == "$LIVE" ]]; then
+    echo "FATAL: attempted to remove live file $f" >&2
+    exit 1
+  fi
+  case "$basef" in
+    root.key.*) ;;
+    *) echo "WARN: unexpected filename: $f"; ((failed++)); continue;;
+  esac
 
-    echo "Attempting to remove $f"
-    if rm -f -- "$f"; then
-      echo "Removed $f"
-      exit 0
-    else
-      echo "WARN: failed to remove $f"
-      exit 5
-    fi
-  )
+  if [[ ! -e "$f" ]]; then
+    echo "SKIP: not found: $f"
+    ((failed++))
+    continue
+  fi
+
+  echo "Attempting to remove $f"
+
+  # Temporarily disable -e so rm failures do not abort the whole script
+  set +e
+  rm -f -- "$f"
   rc=$?
+  set -e
+
   if (( rc == 0 )); then
+    echo "Removed $f"
     ((removed_count++))
   else
-    # treat SKIP (4) and unexpected-name (3) as non-fatal but count as failed
+    echo "WARN: failed to remove $f (exit=$rc)"
     ((failed++))
   fi
 done
