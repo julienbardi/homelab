@@ -17,7 +17,7 @@ TARGET_DIR=/var/lib/unbound
 PATTERN='root.key.*'
 LIVE='root.key'
 
-printf '⚙️  CONFIG: TARGET_DIR=%s KEEP_NEWEST=%s DAYS=%s MONTHS=%s (deletions enabled)\n' \
+printf '⚙️  CONFIG: TARGET_DIR=%s KEEP_NEWEST=%s DAYS=%s MONTHS=%s\n' \
   "$TARGET_DIR" "$KEEP_NEWEST" "$DAYS" "$MONTHS"
 
 cd -- "$TARGET_DIR" || { printf '❌ FATAL: cannot chdir to %s\n' "$TARGET_DIR" >&2; exit 1; }
