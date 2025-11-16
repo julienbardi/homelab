@@ -68,39 +68,22 @@ get_header() {
 
 get_status() {
   # $1 = raw dig output or sentinel; return NOERROR|SERVFAIL|NXDOMAIN etc.
-  local raw line tok next s seen_status=false
+  local raw
   raw="$1"
   if [[ "$raw" == "%%EMPTY%%" ]]; then return; fi
-  while IFS= read -r line; do
-    # scan tokens on each line
-    for tok in $line; do
-      # case A: token contains status:VALUE or status:VALUE, (single token)
-      if [[ "$tok" == status:* ]]; then
-        s="${tok#status:}"
-        s="${s//[^A-Z]/}"
-        if [[ -n "$s" ]]; then printf '%s\n' "$s"; return; fi
-        # if token is exactly "status:" treat next token as the value
-        seen_status=true
-        continue
-      fi
-      # case B: previous token was "status:" so this token holds the value
-      if [[ "$seen_status" == true ]]; then
-        next="$tok"
-        # strip trailing punctuation and keep only leading A-Z letters
-        next="${next%%[^A-Z]*}"
-        next="${next//[^A-Z]/}"
-        if [[ -n "$next" ]]; then printf '%s\n' "$next"; return; fi
-        seen_status=false
-      fi
-    done
-    # also handle inline "status: VALUE" with punctuation (fallback)
-    if [[ "$line" == *"status:"* ]]; then
-      s="${line#*status:}"
-      s="${s%%[^A-Z]*}"
-      s="${s//[^A-Z]/}"
-      if [[ -n "$s" ]]; then printf '%s\n' "$s"; return; fi
-    fi
-  done <<<"$raw"
+  printf '%s' "$raw" | awk -F'status:' '{
+    for(i=1;i<=NF;i++){
+      if(i>1){
+        g=$i
+        sub(/^[^A-Z]*/,"",g)
+        match(g,/[A-Z]+/)
+        if(RSTART){
+          print substr(g,RSTART,RLENGTH)
+          exit
+        }
+      }
+    }
+  }'
 }
 
 get_flags() {
