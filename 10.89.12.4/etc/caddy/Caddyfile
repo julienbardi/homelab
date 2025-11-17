@@ -81,7 +81,6 @@ bardi.ch:6690 {
 # 1. Deploy teh file
 #    sudo cp /home/julie/homelab/10.89.12.4/etc/caddy/Caddyfile /etc/caddy/Caddyfile
 # 2. Check the config first (dry run):
-#    sudo cp /home/julie/homelab/10.89.12.4/etc/caddy/Caddyfile /etc/caddy/Caddyfile
 #    sudo caddy validate --config /etc/caddy/Caddyfile
 #    sudo caddy fmt --overwrite /etc/caddy/Caddyfile
 # 3. Reload gracefully:
