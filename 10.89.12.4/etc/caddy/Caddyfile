@@ -78,12 +78,15 @@ bardi.ch:6690 {
 }
 
 # After modification run
-# 1. Check the config first (dry run):
+# 1. Deploy teh file
+#    sudo cp /home/julie/homelab/10.89.12.4/etc/caddy/Caddyfile /etc/caddy/Caddyfile
+# 2. Check the config first (dry run):
+#    sudo cp /home/julie/homelab/10.89.12.4/etc/caddy/Caddyfile /etc/caddy/Caddyfile
 #    sudo caddy validate --config /etc/caddy/Caddyfile
 #    sudo caddy fmt --overwrite /etc/caddy/Caddyfile
-# 2. Reload gracefully:
+# 3. Reload gracefully:
 #    sudo caddy reload --config /etc/caddy/Caddyfile
-# 3. If running as a systemd service:
+# 4. If running as a systemd service:
 #    sudo systemctl reload caddy
 # Don’t use systemctl restart caddy unless you want a hard restart — that will drop connections.
 # Don’t kill the process manually; you’ll interrupt traffic.
