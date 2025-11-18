@@ -41,6 +41,10 @@ bardi.ch:80 {
 	reverse_proxy 10.89.12.2:80 # DiskStation HTTP (Let's Encrypt renewal)
 }
 
+bardi.ch:8384 {
+	reverse_proxy 10.89.12.2:8384 # Syncthing GUI
+}
+
 router.bardi.ch {
 	bind 10.89.12.4 fd7a:115c:a1e0::4
 	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
