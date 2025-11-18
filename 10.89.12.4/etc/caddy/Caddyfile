@@ -37,16 +37,18 @@ bardi.ch {
 	reverse_proxy 10.89.12.2:443 # DiskStation HTTPS
 }
 
-router.bardi.ch {
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 10.89.12.1:8080
-}
-
 bardi.ch:80 {
 	reverse_proxy 10.89.12.2:80 # DiskStation HTTP (Let's Encrypt renewal)
 }
 
+router.bardi.ch {
+	bind 10.89.12.1 fd7a:115c:a1e0::1
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 10.89.12.1:8080
+}
+
 dns.bardi.ch {
+	bind 10.89.12.1 fd7a:115c:a1e0::1
 	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
 	reverse_proxy 127.0.0.1:8053 # Unbound DNS over HTTPS
 }
@@ -61,10 +63,22 @@ derp.vpn.bardi.ch {
 	reverse_proxy 127.0.0.1:8912 # DERP relay (exposed externally)
 }
 
-# DiskStation extra services
 bardi.ch:5001 {
+	bind 10.89.12.2 fd7a:115c:a1e0::2
 	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
 	reverse_proxy 10.89.12.2:5001
+}
+
+qnap.bardi.ch {
+	bind 10.89.12.3 fd7a:115c:a1e0::3
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 10.89.12.3:8080
+}
+
+nas.bardi.ch {
+	bind 10.89.12.4 fd7a:115c:a1e0::4
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	reverse_proxy 127.0.0.1:9999
 }
 
 bardi.ch:5006 {
