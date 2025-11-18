@@ -27,7 +27,7 @@ namespaces:
   - name: default
 
 # Optional: add an IPv6 ULA if you want IPv6 addresses assigned
-ip_prefixes:
+prefixes:
   - 100.64.0.0/10
   - fd7a:115c:a1e0::/48
 
