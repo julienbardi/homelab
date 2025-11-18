@@ -48,19 +48,27 @@ bardi.ch:8384 {
 
 	# DiskStation main HTTPS
 	@bardi host bardi.ch
-	reverse_proxy @bardi 10.89.12.2:443
+	reverse_proxy @bardi 10.89.12.2:443 {
+		header_up bardi.ch
+	}
 
 	# DSM management
 	@syno5001 host bardi.ch
-	reverse_proxy @syno5001 10.89.12.2:5001
+	reverse_proxy @syno5001 10.89.12.2:5001 {
+		header_up bardi.ch
+	}
 
 	# Synology service
 	@syno5006 host bardi.ch
-	reverse_proxy @syno5006 10.89.12.2:5006
+	reverse_proxy @syno5006 10.89.12.2:5006 {
+		header_up bardi.ch
+	}
 
 	# Synology Drive
 	@syno6690 host bardi.ch
-	reverse_proxy @syno6690 10.89.12.2:6690
+	reverse_proxy @syno6690 10.89.12.2:6690 {
+		header_up bardi.ch
+	}
 
 	# Router
 	@router host router.bardi.ch
