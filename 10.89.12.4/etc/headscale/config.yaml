@@ -1,6 +1,6 @@
 ---
 # /etc/headscale/config.yaml
-# sudo cp /home/julie/10.89.12.4/etc/headscale/config.yaml /etc/headscale/config.yaml;sudo chown headscale:headscale /etc/headscale/config.yaml;sudo chmod 640 /etc/headscale/config.yaml
+# sudo cp /home/julie/homelab/10.89.12.4/etc/headscale/config.yaml /etc/headscale/config.yaml;sudo chown headscale:headscale /etc/headscale/config.yaml;sudo chmod 640 /etc/headscale/config.yaml
 # Public URL clients will use
 server_url: https://vpn.bardi.ch
 
