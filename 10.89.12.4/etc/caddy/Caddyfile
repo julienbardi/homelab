@@ -42,7 +42,7 @@ bardi.ch:80 {
 }
 
 router.bardi.ch {
-	bind 10.89.12.1 fd7a:115c:a1e0::1
+	bind 10.89.12.4 fd7a:115c:a1e0::4
 	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
 	reverse_proxy 10.89.12.1:8080
 }
@@ -64,13 +64,13 @@ derp.vpn.bardi.ch {
 }
 
 bardi.ch:5001 {
-	bind 10.89.12.2 fd7a:115c:a1e0::2
+	bind 10.89.12.4 fd7a:115c:a1e0::4
 	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
 	reverse_proxy 10.89.12.2:5001
 }
 
 qnap.bardi.ch {
-	bind 10.89.12.3 fd7a:115c:a1e0::3
+	bind 10.89.12.4 fd7a:115c:a1e0::4
 	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
 	reverse_proxy 10.89.12.3:8080
 }
