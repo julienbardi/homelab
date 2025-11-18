@@ -28,15 +28,16 @@ namespaces:
 
 # Optional: add an IPv6 ULA if you want IPv6 addresses assigned
 
-ipv4_prefixes:
+#ipv4_prefixes:
+#  - 100.64.0.0/10
+
+#ipv6_prefixes:
+#  - fd7a:115c:a1e0::/48
+
+prefixes:
   - 100.64.0.0/10
-
-ipv6_prefixes:
   - fd7a:115c:a1e0::/48
-
-# ip_prefixes:
-#   - 100.64.0.0/10
-#   - fd7a:115c:a1e0::/48
+  allocation: sequential
 
 
 derp:
