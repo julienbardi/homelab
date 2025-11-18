@@ -32,72 +32,64 @@
 #        wg7 → udp://vpn.bardi.ch:51427
 # ------------------------------------------------------------
 
-bardi.ch {
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 10.89.12.2:443 # DiskStation HTTPS
-}
-
+# HTTP port for Let's Encrypt renewal
 bardi.ch:80 {
-	reverse_proxy 10.89.12.2:80 # DiskStation HTTP (Let's Encrypt renewal)
+	reverse_proxy 10.89.12.2:80
 }
 
+# Syncthing GUI
 bardi.ch:8384 {
-	reverse_proxy 10.89.12.2:8384 # Syncthing GUI
+	reverse_proxy 10.89.12.2:8384
 }
 
-router.bardi.ch {
-	bind 10.89.12.4 2a01:8b81:4800:9c00::4
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 10.89.12.1:8080
-}
-
-dns.bardi.ch {
-	bind 10.89.12.4 2a01:8b81:4800:9c00::4
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 127.0.0.1:8053 # Unbound DNS over HTTPS
-}
-
-vpn.bardi.ch {
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 127.0.0.1:8910 # Headscale control plane (internal only, not exposed directly)
-}
-
-derp.vpn.bardi.ch {
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 127.0.0.1:8912 # DERP relay (exposed externally)
-}
-
-bardi.ch:5001 {
-	bind 10.89.12.4 2a01:8b81:4800:9c00::4
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 10.89.12.2:5001
-}
-
-qnap.bardi.ch {
-	bind 10.89.12.4 2a01:8b81:4800:9c00::4
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 10.89.12.3:8080
-}
-
-nas.bardi.ch {
-	bind 10.89.12.4 2a01:8b81:4800:9c00::4
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 127.0.0.1:9999
-}
-
-bardi.ch:5006 {
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 10.89.12.2:5006
-}
-
-bardi.ch:6690 {
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
-	reverse_proxy 10.89.12.2:6690
-}
-
+# Consolidated HTTPS listener
 :443 {
-	@unknown not host bardi.ch router.bardi.ch dns.bardi.ch vpn.bardi.ch derp.vpn.bardi.ch
+	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+
+	# DiskStation main HTTPS
+	@bardi host bardi.ch
+	reverse_proxy @bardi 10.89.12.2:443
+
+	# DSM management
+	@syno5001 host bardi.ch
+	reverse_proxy @syno5001 10.89.12.2:5001
+
+	# Synology service
+	@syno5006 host bardi.ch
+	reverse_proxy @syno5006 10.89.12.2:5006
+
+	# Synology Drive
+	@syno6690 host bardi.ch
+	reverse_proxy @syno6690 10.89.12.2:6690
+
+	# Router
+	@router host router.bardi.ch
+	reverse_proxy @router 10.89.12.1:8080
+
+	# DNS over HTTPS
+	@dns host dns.bardi.ch
+	reverse_proxy @dns 127.0.0.1:8053
+
+	# Headscale control plane (internal only)
+	@vpn host vpn.bardi.ch
+	reverse_proxy @vpn 127.0.0.1:8910
+
+	# DERP relay (external)
+	@derp host derp.vpn.bardi.ch
+	reverse_proxy @derp 127.0.0.1:8912
+
+	# QNAP
+	@qnap host qnap.bardi.ch
+	reverse_proxy @qnap 10.89.12.3:8080
+
+	# NAS internal service
+	@nas host nas.bardi.ch
+	reverse_proxy @nas 127.0.0.1:9999
+
+	# Unknown host fallback
+	@unknown not host bardi.ch router.bardi.ch dns.bardi.ch vpn.bardi.ch derp.vpn.bardi.ch qnap.bardi.ch nas.bardi.ch
 	respond @unknown "Not Found" 404
+
 	# log disabled to avoid disk spin
 }
 
