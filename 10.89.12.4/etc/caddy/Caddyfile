@@ -48,7 +48,7 @@ router.bardi.ch {
 }
 
 dns.bardi.ch {
-	bind 10.89.12.1 fd7a:115c:a1e0::1
+	bind 10.89.12.4 fd7a:115c:a1e0::4
 	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
 	reverse_proxy 127.0.0.1:8053 # Unbound DNS over HTTPS
 }
