@@ -1,6 +1,12 @@
 ---
 # /etc/headscale/config.yaml
 # sudo cp /home/julie/homelab/10.89.12.4/etc/headscale/config.yaml /etc/headscale/config.yaml;sudo chown headscale:headscale /etc/headscale/config.yaml;sudo chmod 640 /etc/headscale/config.yaml
+# sudo systemctl restart headscale
+# sudo systemctl status headscale
+# sudo journalctl -u headscale -f
+
+# sudo ss -tulnp | grep 8912
+
 # Public URL clients will use
 server_url: https://vpn.bardi.ch
 
@@ -20,17 +26,10 @@ noise:
 namespaces:
   - name: default
 
-ipv4_prefixes:
+# ✅ Correct schema for v0.27.1, Optional: add an IPv6 ULA if you want IPv6 addresses assigned
+ip_prefixes:
   - 100.64.0.0/10
-
-# Optional: add an IPv6 ULA if you want IPv6 addresses assigned
-ipv6_prefixes:
   - fd7a:115c:a1e0::/48
-
-# prefixes:
-#   v4: 100.64.0.0/10
-#   v6: fd7a:115c:a1e0::/48
-#   allocation: sequential
 
 derp:
   server:
