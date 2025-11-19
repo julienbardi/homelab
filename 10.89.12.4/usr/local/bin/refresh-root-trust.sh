@@ -1,7 +1,7 @@
 #!/bin/bash
 # refresh-root-trust.sh
 # purpose: refresh unbound root trust anchor and record timestamp
-# to deploy use 
+# to deploy use
 #   sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/refresh-root-trust.sh /usr/local/bin/;sudo chmod 755 /usr/local/bin/refresh-root-trust.sh
 #   wire it into systemd; sudo systemctl edit unbound
 #   enter
@@ -24,7 +24,7 @@ set -euo pipefail
 
 log() {
   echo "$1"
-  logger -t refresh-root-trust.sh "$1" || echo "⚠️ logger failed: $1"
+  logger -t refresh-root-trust.sh "$1" || echo "⚠️logger failed: $1"
 }
 
 require_cmd() {
@@ -60,39 +60,21 @@ else
   exit 1
 fi
 
-log "🔑 Step 3: Generating candidate trust anchor $candidate..."
-ua_out=$(unbound-anchor -a "$candidate" -f "$anchors_xml" -v 2>&1 || true)
-echo "$ua_out"
-
-# Validate using both the tool output and the file content after generation
-output_ok=false
-file_ok=false
-
-# set output_ok true if unbound-anchor reported success OR the candidate file is present and valid
-if echo "$ua_out" | grep -qi "success" || [[ "$file_ok" == "true" ]]; then
-  output_ok=true
-fi
-
-if [[ -s "$candidate" ]] && grep -q "DNSKEY" "$candidate"; then
-  file_ok=true
-fi
-
-if [[ "$output_ok" == "true" && "$file_ok" == "true" ]]; then
-  log "✅ Candidate $ts validated (output_ok=true, file_ok=true). Activating…"
-  cp -p -- "$candidate" /var/lib/unbound/root.key
-  chown unbound:unbound /var/lib/unbound/root.key || log "⚠️ chown failed; verify permissions"
+log "🔑 Step 3: Generating trust anchor..."
+ua_out=$(unbound-anchor -a "$root_key.$ts" -f "$anchors_xml" 2>&1 || true)
+#echo "$ua_out"
+if [ -s "$root_key.$ts" ] && grep -q "DNSKEY" "$root_key.$ts"; then
+  cp -p "$root_key.$ts" "$root_key"
+  chown unbound:unbound "$root_key"
+  chmod 644 "$root_key"
+  log "✅ Trust anchor refreshed"
 else
-  if [[ -e "$candidate" ]]; then
-    mv -f "$candidate" "${candidate}_ko"
-    log "❌ Candidate $ts invalid (output_ok=$output_ok, file_ok=$file_ok). Kept existing root.key; marked candidate with _ko."
-  else
-    log "❌ Candidate $ts was not created by unbound-anchor (output_ok=$output_ok). Kept existing root.key."
-  fi
+  log "❌ unbound-anchor failed; keeping existing root.key"
 fi
 
 log "🕒 Step 4: Recording timestamp..."
 date -u +%Y-%m-%dT%H:%M:%SZ > /var/lib/unbound/rootkey.lastupdate
-log "✅ Anchor refresh completed at $(cat /var/lib/unbound/rootkey.lastupdate)"
+log "✅ Completed at $(cat /var/lib/unbound/rootkey.lastupdate)"
 
 # rotate backups using standalone rotator (no-op if not present)
 if command -v /usr/local/bin/rotate-unbound-rootkeys.sh >/dev/null 2>&1; then
