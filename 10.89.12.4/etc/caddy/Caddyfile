@@ -92,7 +92,10 @@ bardi.ch:8384 {
     @vpn host vpn.bardi.ch
     @vpn_lan4 remote_ip 10.89.12.0/24
     @vpn_lan6 remote_ip 2a01:8b81:4800:9c00::/64
-    reverse_proxy @vpn @vpn_lan4 @vpn_lan6 127.0.0.1:8910
+    reverse_proxy @vpn @vpn_lan4 @vpn_lan6 127.0.0.1:8910 {
+    transport http {
+        versions h2c
+    }
 
     # DERP relay (external)
     @derp host derp.vpn.bardi.ch
