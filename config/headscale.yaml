@@ -16,6 +16,7 @@ dns:
   override_local_dns: true
   base_domain: tailnet
   nameservers:
-    - 10.89.12.4   # CoreDNS on NAS
-    - 1.1.1.1      # Cloudflare DNS as fallback
+    global:
+      - 10.89.12.4   # CoreDNS on NAS
+      - 1.1.1.1      # Cloudflare DNS as fallback
 
