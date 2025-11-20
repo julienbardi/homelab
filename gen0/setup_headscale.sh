@@ -58,6 +58,19 @@ dns:
     - ${NAS_IP}   # CoreDNS will run here
 EOF
 
+# --- Noise private key generation (Headscale v0.27+ requirement) ---
+if [ ! -f /etc/headscale/noise_private.key ]; then
+    echo "$(date +'%F %T') [setup_headscale] Generating Noise private key..."
+    headscale generate noise-key -o /etc/headscale/noise_private.key
+    if [ $? -eq 0 ]; then
+        echo "$(date +'%F %T') [setup_headscale] Noise private key created at /etc/headscale/noise_private.key"
+    else
+        echo "$(date +'%F %T') [setup_headscale] ERROR: Failed to generate Noise private key" >&2
+    fi
+else
+    echo "$(date +'%F %T') [setup_headscale] Noise private key already exists, skipping generation"
+fi
+
 # --- Systemd unit ---
 log "Creating systemd unit at ${SYSTEMD_UNIT}..."
 cat > "${SYSTEMD_UNIT}" <<EOF
