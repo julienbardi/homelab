@@ -97,3 +97,24 @@ __pycache__/
 *.ap_
 *.dex
 *.obb
+
+# === Homelab-specific artifacts ===
+# Sensitive or generated files from WireGuard, Headscale, Unbound, and router scripts
+# Source: internal homelab stack documentation
+/etc/wireguard/*.key
+/etc/wireguard/*.conf
+/etc/wireguard/qr/*.qr
+
+/etc/headscale/db.sqlite
+/etc/headscale/private.key
+
+/var/lib/unbound/root.key
+/var/lib/subnet-router.version
+
+# Systemd runtime overrides (not source templates)
+/*.service.d/
+/*.pid
+
+# Future site/dashboard build artifacts
+gen2/site/node_modules/
+gen2/site/dist/
