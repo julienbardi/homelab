@@ -1,3 +1,14 @@
+# ============================================================
+# Homelab Project .gitignore
+# ------------------------------------------------------------
+# This file defines what should NOT be tracked in Git.
+# RULES:
+#   1. Never commit secrets or environment files.
+#   2. Only commit source templates, not generated configs.
+#   3. Logs, runtime artifacts, and OS/IDE junk must be ignored.
+#   4. Update this file whenever new tooling introduces artifacts.
+# ============================================================
+
 # === Logs & runtime output ===
 # Ignore log files and runtime artifacts that should never be versioned
 # Source: https://git-scm.com/docs/gitignore
@@ -6,6 +17,15 @@
 *.bak
 *.swp
 *.pid
+
+# === Secrets & environment ===
+# Secrets must be managed outside Git (password manager, systemd env, etc.)
+# Source: https://12factor.net/config
+.env
+*.env
+secrets/
+config/*.generated
+*.bak.conf
 
 # === FreeFileSync databases & temp files ===
 # FreeFileSync creates sync databases (.ffs_db), temp files (.ffs_tmp), and lock files (.ffs_lock)
@@ -17,32 +37,26 @@
 # === Systemd units (deployed copies, not source templates) ===
 # We generate/manage .service files dynamically on the host, so don’t track them here
 # Source: https://www.freedesktop.org/software/systemd/man/systemd.unit.html
-# commented on 2025-11-11
-#*.service
+*.service.deployed
 
 # === OS-specific junk ===
 # macOS Finder metadata
+# Source: https://developer.apple.com/library/archive/technotes/tn1150/_index.html
 .DS_Store
 .AppleDouble
 .LSOverride
 
 # Windows Explorer metadata
+# Source: https://learn.microsoft.com/en-us/windows/win32/shell/metadata
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
 # Linux temp files
+# Source: https://man7.org/linux/man-pages/man5/nfs.5.html
 *~
 .nfs*
-
-# === Android build artifacts ===
-# Ignore Android package and build outputs
-# Source: https://developer.android.com/studio/build
-*.apk
-*.ap_
-*.dex
-*.obb
 
 # === IDE / Editor artifacts ===
 # Ignore project settings from common IDEs
@@ -62,6 +76,7 @@ $RECYCLE.BIN/
 
 # === Archive files (optional) ===
 # Ignore compressed archives if you don’t want to track them
+# Source: https://www.gnu.org/software/tar/manual/html_node/Standard.html
 *.tar
 *.gz
 *.zip
@@ -75,3 +90,10 @@ node_modules/
 __pycache__/
 *.pyc
 
+# === Android build artifacts ===
+# Ignore Android package and build outputs
+# Source: https://developer.android.com/studio/build
+*.apk
+*.ap_
+*.dex
+*.obb
