@@ -1,9 +1,140 @@
-# Homelab
+# Homelab Gateway Stack
 
-This repository contains scripts and supporting files I use to manage and automate my homelab environment.  
-The focus is on **clarity, reproducibility, and auditability** — every script is self‑contained, idempotent, and integrates with `systemd` where appropriate.
+## Overview
+This repository contains a modular, audit‑friendly homelab stack built in **generations**:
+
+- **Gen0** → foundational services (Headscale, CoreDNS, Unbound, firewall, audit)
+- **Gen1** → helpers (Caddy reload, tailnet management, trust anchor rotation, WireGuard baseline)
+- **Gen2** → deployment artifact (site landing page)
+- **Supporting scripts** → subnet router logic, aliases, systemd unit
+- **Config templates** → Headscale, CoreDNS, Unbound
+
+The design principle is **minimal, explicit, reproducible**. Every script logs degraded mode if a step fails, so you always know what state the system is in.
 
 ---
+
+## Repository Layout
+
+```
+/home/julie/src/homelab
+│
+├── Makefile                 # Orchestration entrypoint (Gen0 → Gen2)
+├── .gitignore               # Hygiene rules (Gen0 check)
+├── README.md                # Repo policy, usage, resilience notes
+│
+├── gen0/                    # Foundational scripts
+│   ├── setup_headscale.sh
+│   ├── setup_coredns.sh
+│   ├── dns_setup.sh
+│   ├── wg_firewall_apply.sh
+│   └── router_audit.sh
+│
+├── gen1/                    # Dependent helpers
+│   ├── caddy-reload.sh
+│   ├── tailnet.sh
+│   ├── rotate-unbound-rootkeys.sh
+│   └── wg_baseline.sh
+│
+├── gen2/                    # Final deployment artifacts
+│   └── site/
+│       └── index.html
+│
+├── config/                  # Static config templates
+│   ├── headscale.yaml
+│   ├── coredns/Corefile
+│   └── unbound/unbound.conf.template
+│
+├── systemd/                 # Unit templates (not deployed copies)
+│   ├── headscale.service
+│   ├── coredns.service
+│   └── subnet-router.service
+│
+└── scripts/                 # Supporting utilities
+    ├── setup-subnet-router.sh
+    └── aliases.sh           # router-logs, router-deploy
+```
+
+---
+
+
+## Usage
+
+### Orchestration
+Run the full stack:
+
+```bash
+make all
+```
+Run a specific generation:
+
+```
+make gen0
+make gen1
+make gen2
+```
+
+Linting
+Check all scripts for syntax errors:
+```
+make lint
+```
+Cleaning
+Remove generated artifacts (keys, configs, QR codes):
+
+```
+make clean
+```
+
+Supporting Scripts
+setup-subnet-router.sh → subnet router logic with conflict detection, NAT, dnsmasq restart, GRO tuning, version auto‑increment, footer logging.
+
+aliases.sh → operational shortcuts:
+
+router-logs → tail live logs of subnet-router.service
+
+router-deploy → copy updated script and restart service
+
+subnet-router.service → systemd unit to run router script at boot and log version line.
+
+Config Templates
+headscale.yaml → Headscale server + DNS integration
+
+coredns/Corefile → CoreDNS plugin for tailnet resolution, forwards to Unbound
+
+unbound.conf.template → Unbound baseline with DNSSEC trust anchors
+
+Resilience Notes
+Degraded mode logging: every script logs failures without aborting the entire stack.
+
+iptables‑legacy enforced: firewall scripts explicitly call iptables-legacy for deterministic behavior.
+
+Versioning: subnet router script auto‑increments version and logs timestamp at deploy.
+
+Auditability: all logs go to both file and syslog, so you can grep across services.
+
+Collaborator Policy
+Keep changes minimal and explicit.
+
+Always document .PHONY targets in the Makefile.
+
+Never trust source IP alone — scope firewall rules to interfaces.
+
+Validate configs before reload (Caddy, Unbound).
+
+Use router-deploy alias for safe updates.
+
+Next Steps
+Extend site/index.html into a dashboard (service health, logs).
+
+Add regression tests for DNSSEC rotation.
+
+Document rollback commands for each generation.
+
+
+
+
+
+
 
 ## Current Scripts
 

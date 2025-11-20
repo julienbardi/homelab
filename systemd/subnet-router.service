@@ -1,0 +1,26 @@
+# ============================================================
+# subnet-router.service
+# ------------------------------------------------------------
+# Systemd unit: run setup-subnet-router.sh at boot
+# Responsibilities:
+#   - Execute subnet router setup script
+#   - Log version + timestamp at boot for grepping
+#   - Restart on failure
+# ============================================================
+
+[Unit]
+Description=Subnet Router Setup Service
+After=network.target dnsmasq.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/setup-subnet-router.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=subnet-router
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
