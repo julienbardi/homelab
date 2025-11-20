@@ -6,7 +6,8 @@
 # Host: 10.89.12.4 (NAS / VPN node)
 # Responsibilities:
 #   - Install prerequisites (Go, SQLite/Postgres, WireGuard kernel module)
-#   - Generate headscale.yaml config with DNS plugin enabled
+#   - Deploy headscale.yaml from repo (config/headscale.yaml)
+#   - Generate Noise private key if missing
 #   - Create systemd unit for Headscale
 #   - Log degraded mode if dependencies are unreachable
 # ============================================================
@@ -17,6 +18,7 @@ SERVICE_NAME="headscale"
 CONFIG_DIR="/etc/headscale"
 CONFIG_FILE="${CONFIG_DIR}/headscale.yaml"
 SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
+REPO_CONFIG="/home/julie/src/homelab/config/headscale.yaml"
 NAS_IP="10.89.12.4"
 ROUTER_IP="10.89.12.1"
 UNBOUND_IP="${NAS_IP}"   # Unbound runs locally on NAS
@@ -43,32 +45,22 @@ if ! command -v headscale >/dev/null 2>&1; then
     go install github.com/juanfont/headscale/cmd/headscale@latest || log "ERROR: Headscale install failed, continuing degraded"
 fi
 
-# --- Generate config ---
-log "Generating Headscale config at ${CONFIG_FILE}..."
+# --- Deploy config from repo ---
+log "Deploying Headscale config from ${REPO_CONFIG} to ${CONFIG_FILE}..."
 mkdir -p "${CONFIG_DIR}"
-cat > "${CONFIG_FILE}" <<EOF
-server_url: http://${NAS_IP}:8080
-listen_addr: 0.0.0.0:8080
-private_key_path: ${CONFIG_DIR}/private.key
-db_type: sqlite
-db_path: ${CONFIG_DIR}/db.sqlite
-dns:
-  base_domain: tailnet
-  nameservers:
-    - ${NAS_IP}   # CoreDNS will run here
-EOF
+cp "${REPO_CONFIG}" "${CONFIG_FILE}"
 
 # --- Noise private key generation (Headscale v0.27+ requirement) ---
-if [ ! -f /etc/headscale/noise_private.key ]; then
-    echo "$(date +'%F %T') [setup_headscale] Generating Noise private key..."
-    headscale generate noise-key -o /etc/headscale/noise_private.key
+if [ ! -f "${CONFIG_DIR}/noise_private.key" ]; then
+    log "Generating Noise private key..."
+    headscale generate noise-key -o "${CONFIG_DIR}/noise_private.key"
     if [ $? -eq 0 ]; then
-        echo "$(date +'%F %T') [setup_headscale] Noise private key created at /etc/headscale/noise_private.key"
+        log "Noise private key created at ${CONFIG_DIR}/noise_private.key"
     else
-        echo "$(date +'%F %T') [setup_headscale] ERROR: Failed to generate Noise private key" >&2
+        log "ERROR: Failed to generate Noise private key"
     fi
 else
-    echo "$(date +'%F %T') [setup_headscale] Noise private key already exists, skipping generation"
+    log "Noise private key already exists, skipping generation"
 fi
 
 # --- Systemd unit ---
