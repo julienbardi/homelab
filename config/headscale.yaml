@@ -1,0 +1,17 @@
+# ============================================================
+# headscale.yaml
+# ------------------------------------------------------------
+# Headscale configuration template
+# ============================================================
+
+server_url: http://10.89.12.4:8080
+listen_addr: 0.0.0.0:8080
+private_key_path: /etc/headscale/private.key
+db_type: sqlite
+db_path: /etc/headscale/db.sqlite
+
+dns:
+  base_domain: tailnet
+  nameservers:
+    - 10.89.12.4   # CoreDNS on NAS
+
