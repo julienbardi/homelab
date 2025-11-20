@@ -54,6 +54,37 @@ The design principle is **minimal, explicit, reproducible**. Every script logs d
     └── aliases.sh           # router-logs, router-deploy
 ```
 
+## Homelab Dependency Graph
+```
+all
+ ├── gen0
+ │    ├── headscale
+ │    │    ├── setup_headscale.sh
+ │    │    └── noise-key generation (/etc/headscale/noise_private.key)
+ │    ├── coredns
+ │    │    └── setup_coredns.sh
+ │    ├── dns
+ │    │    └── dns_setup.sh
+ │    ├── firewall
+ │    │    └── wg_firewall_apply.sh
+ │    └── audit
+ │         └── router_audit.sh
+ │
+ ├── gen1
+ │    ├── caddy
+ │    │    └── caddy-reload.sh
+ │    ├── tailnet
+ │    │    └── tailnet.sh
+ │    ├── rotate
+ │    │    └── rotate-unbound-rootkeys.sh
+ │    └── wg-baseline
+ │         └── wg_baseline.sh
+ │
+ └── gen2
+      └── site
+           └── index.html
+```
+
 ---
 
 
