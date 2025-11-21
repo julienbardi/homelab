@@ -72,9 +72,13 @@ install-checkmake: install-pandoc install-go
 	@rm -rf ~/src/checkmake
 	@git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake
 	@cd ~/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
-	@cd ~/src/checkmake && env BUILDER_NAME="$$(git config --get user.name || echo $$USER)" make
+	@cd ~/src/checkmake && \
+		BUILDER_NAME="$$(git config --get user.name || echo $$USER)" \
+		BUILDER_EMAIL="$$(git config --get user.email || echo $$USER@example.com)" \
+		make
 	@sudo install -m 0755 ~/src/checkmake/cmd/checkmake/checkmake /usr/local/bin/checkmake
 	@checkmake --version
+
 
 remove-checkmake:
 	@echo "[Makefile] Removing checkmake..."
