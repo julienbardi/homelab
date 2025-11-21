@@ -71,6 +71,7 @@ site:
 lint:
 	@echo "[Makefile] Linting scripts..."
 	@bash -n gen0/*.sh gen1/*.sh scripts/*.sh scripts/gen1/*.sh
+	@bash -n gen1/namespaces_headscale.sh
 	@echo "[Makefile] Validating Headscale config..."
 	@headscale configtest -c config/headscale.yaml || (echo "Headscale config invalid!" && exit 1)
 
