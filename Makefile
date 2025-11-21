@@ -66,22 +66,15 @@ remove-pandoc:
 	@sudo apt-get remove -y pandoc || echo "[Makefile] pandoc not installed"
 	@$(MAKE) autoremove
 
-install-checkmake:
-	@echo "[Makefile] Installing checkmake (v0.2.2)..."
+install-checkmake: install-pandoc install-go
+	@echo "[Makefile] Installing checkmake (v0.2.2) using upstream Makefile..."
 	@mkdir -p ~/src
 	@rm -rf ~/src/checkmake
 	@git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake
 	@cd ~/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
-	@cd ~/src/checkmake/cmd/checkmake && \
-		go build -ldflags "\
-			-X main.version=0.2.2 \
-			-X main.builtAt=$$(date -Iseconds) \
-			-X main.builtBy=julie \
-			-X main.goVersion=$$(go version | awk '{print $$3}')\
-		" -o checkmake .
+	@cd ~/src/checkmake && make
 	@sudo install -m 0755 ~/src/checkmake/cmd/checkmake/checkmake /usr/local/bin/checkmake
 	@checkmake --version
-
 
 remove-checkmake:
 	@echo "[Makefile] Removing checkmake..."
