@@ -53,9 +53,15 @@ install-checkmake:
 	@git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake
 	@cd ~/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
 	@cd ~/src/checkmake/cmd/checkmake && \
-		go build -ldflags "-X main.version=0.2.2 -X main.builtAt=$$(date -Iseconds) -X main.builtBy=julie -X main.goVersion=$$(go version | awk '{print $$3}')" -o checkmake .
+		go build -ldflags "\
+			-X main.version=0.2.2 \
+			-X main.builtAt=$$(date -Iseconds) \
+			-X main.builtBy=julie \
+			-X main.goVersion=$$(go version | awk '{print $$3}')\
+		" -o checkmake .
 	@sudo install -m 0755 ~/src/checkmake/cmd/checkmake/checkmake /usr/local/bin/checkmake
 	@checkmake --version
+
 
 remove-checkmake:
 	@echo "[Makefile] Removing checkmake..."
