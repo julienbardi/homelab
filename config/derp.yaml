@@ -1,0 +1,20 @@
+# ============================================================
+# derp.yaml
+# ------------------------------------------------------------
+# External DERPMap configuration for Headscale v0.27.1+dirty
+# ============================================================
+
+regions:
+  1:
+    region_id: 1
+    region_code: "global"
+    region_name: "Tailscale Global DERPs"
+    nodes:
+      - name: "derp1"
+        region_id: 1
+        host_name: "derp1.tailscale.com"
+        stun: true
+      - name: "derp2"
+        region_id: 1
+        host_name: "derp2.tailscale.com"
+        stun: true
