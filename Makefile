@@ -7,7 +7,18 @@
 
 SHELL := /bin/bash
 
-.PHONY: all gen0 gen1 gen2 lint clean namespaces
+.PHONY: all gen0 gen1 gen2 lint clean namespaces deps
+
+# --- Dependencies ---
+deps:
+	@echo "[Makefile] Checking dependencies..."
+	@if ! command -v checkmake >/dev/null 2>&1; then \
+		echo "[Makefile] Installing checkmake..."; \
+		sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/checkmake.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"; \
+		sudo apt-get install --only-upgrade -y checkmake; \
+	else \
+		echo "[Makefile] checkmake already installed"; \
+	fi
 
 # --- Default target ---
 all: gen0 gen1 gen2
@@ -68,7 +79,7 @@ site:
 	@cp gen2/site/index.html /var/www/html/index.html
 
 # --- Lint target ---
-lint:
+lint: deps
 	@echo "[Makefile] Linting scripts..."
 	@bash -n gen0/*.sh gen1/*.sh scripts/*.sh scripts/gen1/*.sh
 	@bash -n gen1/namespaces_headscale.sh
