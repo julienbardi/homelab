@@ -72,15 +72,18 @@ remove-pandoc:
 	@$(MAKE) autoremove
 
 install-checkmake: install-pandoc install-go
-	@echo "[Makefile] Installing checkmake (v0.2.2) using upstream Makefile..."
-	@mkdir -p ~/src
-	@rm -rf ~/src/checkmake
-	@git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake
-	@cd ~/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
-	@cd ~/src/checkmake && BUILDER_NAME="$(BUILDER_NAME)" BUILDER_EMAIL="$(BUILDER_EMAIL)" make
-	@sudo install -m 0755 ~/src/checkmake/checkmake /usr/local/bin/checkmake
-	@echo "[Makefile] Installed checkmake built by $(BUILDER_NAME) <$(BUILDER_EMAIL)>"
-	@checkmake --version
+    @echo "[Makefile] Installing checkmake (v0.2.2) using upstream Makefile..."
+    @mkdir -p ~/src
+    @rm -rf ~/src/checkmake
+    @git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake
+    @cd ~/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
+    @cd ~/src/checkmake && \
+        BUILDER_NAME="$(shell git config --get user.name)" \
+        BUILDER_EMAIL="$(shell git config --get user.email)" \
+        make
+    @sudo install -m 0755 ~/src/checkmake/checkmake /usr/local/bin/checkmake
+    @echo "[Makefile] Installed checkmake built by $(shell git config --get user.name) <$(shell git config --get user.email)>"
+    @checkmake --version
 
 remove-checkmake:
 	@echo "[Makefile] Removing checkmake..."
