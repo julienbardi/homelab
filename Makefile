@@ -55,8 +55,8 @@ wg-baseline:
 	@bash gen1/wg_baseline.sh test-client
 
 namespaces:
-    @echo "[Makefile] Running namespaces_headscale.sh..."
-    @bash scripts/gen1/namespaces_headscale.sh
+	@echo "[Makefile] Running namespaces_headscale.sh..."
+	@bash gen1/namespaces_headscale.sh
 
 # --- Gen2: site artifact ---
 gen2: site
