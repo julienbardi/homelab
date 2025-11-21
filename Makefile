@@ -86,6 +86,12 @@ lint: deps
 	@echo "[Makefile] Validating Headscale config..."
 	@headscale configtest -c config/headscale.yaml || (echo "Headscale config invalid!" && exit 1)
 	@echo "[Makefile] Validating Makefile syntax..."
+	@if command -v checkmake >/dev/null 2>&1; then \
+		checkmake Makefile; \
+	else \
+		echo "[Makefile] checkmake not installed, using make -n fallback"; \
+		make -n all >/dev/null; \
+	fi
 	@checkmake Makefile || (echo "Makefile lint failed, run 'make -n' for dry-run check" && exit 1)
 
 # --- Clean target ---
