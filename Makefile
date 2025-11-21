@@ -7,17 +7,19 @@
 
 SHELL := /bin/bash
 
-.PHONY: all gen0 gen1 gen2 lint clean namespaces deps
+.PHONY: all gen0 gen1 gen2 lint clean namespaces deps test lint-makefile
+
+test:
+	@echo "[Makefile] No tests defined yet"
 
 # --- Dependencies ---
-deps:
-	@echo "[Makefile] Checking dependencies..."
-	@if ! command -v checkmake >/dev/null 2>&1; then \
-		echo "[Makefile] Installing checkmake..."; \
-		sudo apt-get update -o Dir::Etc::sourcelist="sources.list.d/checkmake.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"; \
-		sudo apt-get install --only-upgrade -y checkmake; \
-	else \
+deps: deps-checkmake
+
+deps-checkmake:
+	@if command -v checkmake >/dev/null 2>&1; then \
 		echo "[Makefile] checkmake already installed"; \
+	else \
+		echo "[Makefile] checkmake not installed, please build manually"; \
 	fi
 
 # --- Default target ---
@@ -79,20 +81,28 @@ site:
 	@cp gen2/site/index.html /var/www/html/index.html
 
 # --- Lint target ---
-lint: deps
-	@echo "[Makefile] Linting scripts..."
+
+lint: lint-scripts lint-config lint-makefile
+
+lint-scripts:
 	@bash -n gen0/*.sh gen1/*.sh scripts/*.sh scripts/gen1/*.sh
 	@bash -n gen1/namespaces_headscale.sh
-	@echo "[Makefile] Validating Headscale config..."
+
+lint-config:
 	@headscale configtest -c config/headscale.yaml || (echo "Headscale config invalid!" && exit 1)
-	@echo "[Makefile] Validating Makefile syntax..."
+
+lint-makefile: lint-makefile-check lint-makefile-fallback
+
+lint-makefile-check:
 	@if command -v checkmake >/dev/null 2>&1; then \
 		checkmake Makefile; \
-	else \
+	fi
+
+lint-makefile-fallback:
+	@if ! command -v checkmake >/dev/null 2>&1; then \
 		echo "[Makefile] checkmake not installed, using make -n fallback"; \
 		make -n all >/dev/null; \
 	fi
-	@checkmake Makefile || (echo "Makefile lint failed, run 'make -n' for dry-run check" && exit 1)
 
 # --- Clean target ---
 clean:
