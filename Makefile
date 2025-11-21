@@ -56,7 +56,7 @@ wg-baseline:
 	@echo "[Makefile] Running wg_baseline.sh <client-name>..."
 	@bash gen1/wg_baseline.sh test-client
 
-namespaces:
+namespaces: headscale
 	@echo "[Makefile] Running namespaces_headscale.sh..."
 	@bash gen1/namespaces_headscale.sh
 
