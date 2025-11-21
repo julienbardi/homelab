@@ -63,6 +63,16 @@ else
     log "Noise private key already exists, skipping generation"
 fi
 
+# --- Ensure database file exists with correct permissions ---
+log "Ensuring database file exists with correct ownership and permissions..."
+if [ ! -f /etc/headscale/db.sqlite ]; then
+    touch /etc/headscale/db.sqlite
+fi
+chown headscale:headscale /etc/headscale/db.sqlite
+chmod 640 /etc/headscale/db.sqlite
+chown headscale:headscale /etc/headscale
+chmod 750 /etc/headscale
+
 # --- Systemd unit ---
 log "Creating systemd unit at ${SYSTEMD_UNIT}..."
 cat > "${SYSTEMD_UNIT}" <<EOF
