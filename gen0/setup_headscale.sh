@@ -100,7 +100,8 @@ DERP_FILE="/etc/headscale/derp.yaml"
 if [ ! -f "${DERP_FILE}" ]; then
     cat > "${DERP_FILE}" <<EOF
 regions:
-  - region_id: 1
+  1:
+    region_id: 1
     region_code: "global"
     region_name: "Tailscale Global DERPs"
     nodes:
