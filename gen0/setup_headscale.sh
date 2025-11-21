@@ -68,10 +68,17 @@ log "Ensuring database file exists with correct ownership and permissions..."
 if [ ! -f /etc/headscale/db.sqlite ]; then
     touch /etc/headscale/db.sqlite
 fi
+
+# Ownership
 chown headscale:headscale /etc/headscale/db.sqlite
-chmod 640 /etc/headscale/db.sqlite
 chown headscale:headscale /etc/headscale
-chmod 750 /etc/headscale
+
+# Permissions
+chmod 660 /etc/headscale/db.sqlite
+chmod 770 /etc/headscale
+
+# Clean up stale SQLite lock/journal files
+rm -f /etc/headscale/db.sqlite-*
 
 # --- Systemd unit ---
 log "Creating systemd unit at ${SYSTEMD_UNIT}..."
