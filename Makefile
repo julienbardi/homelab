@@ -78,6 +78,7 @@ install-checkmake: install-pandoc install-go
 	@checkmake --version
 
 
+
 remove-checkmake:
 	@echo "[Makefile] Removing checkmake..."
 	@sudo rm -f /usr/local/bin/checkmake
