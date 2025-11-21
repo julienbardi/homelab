@@ -8,20 +8,16 @@
 #   - Detect conflicts against *all* current IPv4/IPv6 subnets
 #   - Configure NAT
 #   - Apply GRO tuning for performance
-#   - Auto-increment version number on each deploy
-#   - Echo footer with version + timestamp for auditability
+#   - Echo footer for auditability
 # Note:
+#   LAN_IF must be set to br0 (bridge interface) for correct routing.
 #   DNS resolver reload (Unbound) is not handled here.
-#   It should be declared as a dependency in the Makefile or dns_setup.sh
-#   for consistency across orchestration.
 # ============================================================
 
 set -euo pipefail
 
 SCRIPT_NAME="setup-subnet-router.sh"
-SCRIPT_PATH="/usr/local/bin/${SCRIPT_NAME}"
-STATE_FILE="/var/lib/subnet-router.version"
-LAN_IF="eth0"
+LAN_IF="bridge0"
 LAN_SUBNET="10.89.12.0/24"
 
 log() {
@@ -29,17 +25,13 @@ log() {
     logger -t ${SCRIPT_NAME} "$*"
 }
 
-# --- Version auto-increment ---
-if [ ! -f "${STATE_FILE}" ]; then
-    echo "1.0" > "${STATE_FILE}"
+# --- Interface guard ---
+if ! ip link show "${LAN_IF}" | grep -q "state UP"; then
+    log "ERROR: Interface ${LAN_IF} not found or not UP, aborting NAT setup."
+    exit 1
 fi
-CURRENT_VERSION=$(cat "${STATE_FILE}")
-NEXT_VERSION=$(echo "${CURRENT_VERSION}" | awk -F. '{print $1 "." $2+1}')
-echo "${NEXT_VERSION}" > "${STATE_FILE}"
 
 # --- Conflict detection ---
-# Detect conflicts against *all* current IPv4 and IPv6 routes.
-# Safe: if IPv6 not configured, no matches are produced.
 log "Checking for subnet conflicts..."
 conflicts=""
 
@@ -64,5 +56,4 @@ log "Applying GRO tuning..."
 ethtool -K "${LAN_IF}" gro off || log "WARN: Failed to disable GRO on ${LAN_IF}"
 
 # --- Footer logging ---
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-log "Subnet router setup complete. Version ${NEXT_VERSION}, deployed at ${TIMESTAMP}."
+log "Subnet router setup complete."
