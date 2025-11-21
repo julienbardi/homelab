@@ -46,32 +46,16 @@ test:
 deps: install-go install-pandoc install-checkmake
 
 install-go:
-	@if ! command -v go >/dev/null 2>&1; then \
-		echo "[Makefile] Installing Go runtime..."; \
-		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends golang-go); \
-	else \
-		echo "[Makefile] Go runtime already installed"; \
-		go version; \
-	fi
+	$(call apt_install,go,golang-go)
 
 remove-go:
-	@echo "[Makefile] Removing Go runtime..."
-	$(call run_as_root,apt-get remove -y golang-go || echo "[Makefile] Go runtime not installed")
-	@$(MAKE) autoremove
+	$(call apt_remove,golang-go)
 
 install-pandoc:
-	@if ! command -v pandoc >/dev/null 2>&1; then \
-		echo "[Makefile] Installing pandoc..."; \
-		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends pandoc); \
-	else \
-		echo "[Makefile] pandoc already installed"; \
-		pandoc --version | head -n1; \
-	fi
+	$(call apt_install,pandoc,pandoc)
 
 remove-pandoc:
-	@echo "[Makefile] Removing pandoc..."
-	$(call run_as_root,apt-get remove -y pandoc || echo "[Makefile] pandoc not installed")
-	@$(MAKE) autoremove
+	$(call apt_remove,pandoc)
 
 install-checkmake: install-pandoc install-go
 	@echo "[Makefile] Installing checkmake (v0.2.2) using upstream Makefile..."
@@ -88,10 +72,7 @@ install-checkmake: install-pandoc install-go
 	@checkmake --version
 
 remove-checkmake:
-	@echo "[Makefile] Removing checkmake..."
-	$(call run_as_root,rm -f /usr/local/bin/checkmake)
-	@rm -rf ~/src/checkmake
-	@$(MAKE) autoremove
+	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf ~/src/checkmake)
 
 headscale-build: install-go
 	@echo "[Makefile] Building Headscale..."
@@ -150,7 +131,7 @@ wg-baseline:
 
 namespaces: headscale
 	@echo "[Makefile] Running namespaces_headscale.sh..."
-	@bash gen1/namespaces_headscale.sh
+	$(call run_as_root,bash gen1/namespaces_headscale.sh)
 
 # --- Gen2: site artifact ---
 gen2: site
@@ -164,30 +145,48 @@ lint: lint-scripts lint-config lint-makefile
 
 lint-scripts:
 	@bash -n gen0/*.sh gen1/*.sh scripts/*.sh
-	@bash -n gen1/namespaces_headscale.sh
+	@sh -c '$(call run_as_root,bash -n gen1/namespaces_headscale.sh)'
 
 lint-config:
-	@headscale configtest -c config/headscale.yaml || (echo "Headscale config invalid!" && exit 1)
+	@sh -c '$(call run_as_root,headscale configtest -c config/headscale.yaml)' || \
+		(echo "Headscale config invalid!" && exit 1)
 
 lint-makefile:
 	@if command -v checkmake >/dev/null 2>&1; then \
-		echo "[Makefile] Running checkmake..."; \
-		checkmake Makefile; \
-		checkmake --version; \
+		$(call run_as_root,checkmake Makefile); \
+		$(call run_as_root,checkmake --version); \
 	else \
-		echo "[Makefile] checkmake not installed, using make -n fallback"; \
 		make -n all >/dev/null; \
 	fi
 
 # --- Clean target ---
-clean:
-	@echo "[Makefile] Cleaning generated artifacts..."
-	$(call run_as_root,rm -f /etc/headscale/db.sqlite)
-	$(call run_as_root,rm -f /etc/wireguard/*.conf.generated)
-	$(call run_as_root,rm -f /etc/wireguard/*.key.generated)
-	$(call run_as_root,rm -f /etc/wireguard/qr/*.qr)
+WIREGUARD_DIR := /etc/wireguard
 
-# --- Shared autoremove helper ---
+clean:
+	$(call run_as_root,rm -f /etc/headscale/db.sqlite \
+		$(WIREGUARD_DIR)/*.conf.generated \
+		$(WIREGUARD_DIR)/*.key.generated \
+		$(WIREGUARD_DIR)/qr/*.qr)
+
+# --- Shared helpers ---
 autoremove:
 	@echo "[Makefile] Cleaning up unused dependencies..."
 	$(call run_as_root,apt-get autoremove -y)
+
+define apt_install
+	@if ! command -v $(1) >/dev/null 2>&1; then \
+		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends $(2)); \
+	else \
+		$(1) --version | head -n1; \
+	fi
+endef
+
+define apt_remove
+	$(call remove_cmd,$(1),apt-get remove -y $(1) || echo "[Makefile] $(1) not installed")
+endef
+
+define remove_cmd
+	@echo "[Makefile] Removing $(1)..."
+	$(call run_as_root,$(2))
+	@$(MAKE) autoremove
+endef
