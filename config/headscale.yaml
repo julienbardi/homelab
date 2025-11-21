@@ -12,7 +12,7 @@ noise:
   private_key_path: /etc/headscale/noise_private.key
 
 database:
-  type: sqlite
+  type: sqlite3
   path: /etc/headscale/db.sqlite
 
 prefixes:
