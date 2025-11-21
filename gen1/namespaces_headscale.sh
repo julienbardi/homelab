@@ -2,47 +2,47 @@
 # ============================================================
 # namespaces_headscale.sh
 # ------------------------------------------------------------
-# Generation 1 script: provision Headscale namespaces
-# Host: 10.89.12.4 (NAS / VPN node)
-# Responsibilities:
-#   - Ensure baseline namespaces exist:
-#       * bardi-family (trusted devices, full access)
-#       * bardi-guests (restricted devices, relay-only)
-#   - Detect extra namespaces and suggest cleanup commit messages
-#   - Log all actions with timestamps and syslog integration
+# Gen1 helper: ensure baseline namespaces exist
+# Idempotent: skips creation if namespace already exists
 # ============================================================
 
 set -euo pipefail
 
-LOG_FILE="/var/log/namespaces_headscale.log"
-
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [namespaces_headscale] $*" | tee -a "${LOG_FILE}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [namespaces_headscale] $*" | tee -a /var/log/namespaces_headscale.log
     logger -t namespaces_headscale "$*"
 }
 
-BASE_NAMESPACES=("bardi-family" "bardi-guests")
+# Baseline namespaces declared once
+BASELINE_NAMESPACES=("bardi-family" "bardi-guests")
 
-# --- Namespace provisioning ---
-log "Ensuring baseline namespaces exist..."
-existing=$(sudo headscale namespaces list | awk '{print $2}' | tail -n +2)
-
-for ns in "${BASE_NAMESPACES[@]}"; do
-    if echo "$existing" | grep -q "^$ns$"; then
-        log "OK: Namespace $ns already exists"
+ensure_namespace() {
+    local ns="$1"
+    if headscale namespaces list | awk '{print $1}' | grep -qx "${ns}"; then
+        log "Namespace ${ns} already exists, skipping"
     else
-        log "NEW: Creating namespace $ns"
-        sudo headscale namespaces create "$ns"
-        log "HINT: Commit message -> feat(headscale): add namespace ${ns}"
+        log "NEW: Creating namespace ${ns}"
+        if headscale namespaces create "${ns}"; then
+            log "Namespace ${ns} created successfully"
+            log "HINT: Commit message -> feat(headscale): add namespace ${ns}"
+        else
+            log "ERROR: Failed to create namespace ${ns}"
+            exit 1
+        fi
     fi
+}
+
+log "Ensuring baseline namespaces exist..."
+for ns in "${BASELINE_NAMESPACES[@]}"; do
+    ensure_namespace "${ns}"
 done
 
-# --- Detect extras ---
-for ns in $existing; do
-    if [[ ! " ${BASE_NAMESPACES[*]} " =~ " $ns " ]]; then
-        log "WARN: Extra namespace detected: $ns"
-        log "HINT: Commit message -> chore(headscale): remove unused namespace ${ns}"
-    fi
-done
+# Detect extra namespaces not in baseline
+extras=$(headscale namespaces list | awk '{print $1}' | grep -vxF "${BASELINE_NAMESPACES[@]}" || true)
+
+if [ -n "${extras}" ]; then
+    log "WARN: Extra namespace(s) detected: ${extras}"
+    log "HINT: Commit message -> chore(headscale): remove unused namespace(s)"
+fi
 
 log "Namespace setup complete."
