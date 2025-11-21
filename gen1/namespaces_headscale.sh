@@ -4,6 +4,7 @@
 # ------------------------------------------------------------
 # Gen1 helper: ensure baseline namespaces exist
 # Idempotent: skips creation if namespace already exists
+# Cleans up extra namespaces automatically
 # ============================================================
 
 set -euo pipefail
@@ -24,13 +25,13 @@ existing_namespaces() {
 ensure_namespace() {
     local ns="$1"
     if existing_namespaces | grep -qx "${ns}"; then
-        log "Namespace ${ns} already exists, skipping"
+        log "Namespace '${ns}' already present"
     else
-        log "NEW: Creating namespace ${ns}"
+        log "Creating namespace '${ns}'"
         if headscale namespaces create "${ns}"; then
-            log "Namespace ${ns} created successfully"
+            log "Namespace '${ns}' created"
         else
-            log "ERROR: Failed to create namespace ${ns}"
+            log "ERROR: Failed to create namespace '${ns}'"
             exit 1
         fi
     fi
@@ -41,11 +42,14 @@ for ns in "${BASELINE_NAMESPACES[@]}"; do
     ensure_namespace "${ns}"
 done
 
-# Detect extra namespaces not in baseline
+# Detect and remove extra namespaces not in baseline
 extras=$(comm -23 <(existing_namespaces | sort) <(printf "%s\n" "${BASELINE_NAMESPACES[@]}" | sort))
 
 if [ -n "${extras}" ]; then
-    log "WARN: Extra namespace removed: ${extras}"
+    for ns in ${extras}; do
+        log "WARN: Extra namespace removed: '${ns}'"
+        headscale namespaces delete "${ns}" || log "ERROR: Failed to remove namespace '${ns}'"
+    done
 fi
 
 log "Namespace setup complete."
