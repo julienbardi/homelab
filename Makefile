@@ -36,7 +36,7 @@ audit:
 	@bash gen0/router_audit.sh
 
 # --- Gen1: helpers ---
-gen1: caddy tailnet rotate wg-baseline
+gen1: caddy tailnet rotate wg-baseline namespaces
 
 caddy:
 	@echo "[Makefile] Running caddy-reload.sh..."
@@ -53,6 +53,10 @@ rotate:
 wg-baseline:
 	@echo "[Makefile] Running wg_baseline.sh <client-name>..."
 	@bash gen1/wg_baseline.sh test-client
+
+namespaces:
+    @echo "[Makefile] Running namespaces_headscale.sh..."
+    @bash scripts/gen1/namespaces_headscale.sh
 
 # --- Gen2: site artifact ---
 gen2: site
