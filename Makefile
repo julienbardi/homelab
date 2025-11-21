@@ -28,7 +28,7 @@ update: gitcheck
 	@echo "[Makefile] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
 
 	
-.PHONY: all gen0 gen1 gen2 deps deps-go install-checkmake remove-checkmake headscale-build
+.PHONY: all gen0 gen1 gen2 deps install-go install-checkmake remove-checkmake headscale-build
 .PHONY: lint test clean
 
 test:
@@ -36,9 +36,9 @@ test:
 
 # --- Dependencies ---
 # checkmake requires pandoc for building and running its checks
-deps: deps-go deps-pandoc install-checkmake
+deps: install-go install-pandoc install-checkmake
 
-deps-go:
+install-go:
 	@if ! command -v go >/dev/null 2>&1; then \
 		echo "[Makefile] Installing Go runtime..."; \
 		apt-get update && apt-get install -y --no-install-recommends golang-go; \
@@ -46,7 +46,7 @@ deps-go:
 		echo "[Makefile] Go runtime already installed"; \
 		go version; \
 	fi
-deps-pandoc:
+install-pandoc:
 	@if ! command -v pandoc >/dev/null 2>&1; then \
 		echo "[Makefile] Installing pandoc..."; \
 		apt-get update && apt-get install -y --no-install-recommends pandoc; \
@@ -81,7 +81,7 @@ remove-checkmake:
 	@sudo rm -f /usr/local/bin/checkmake
 	@rm -rf ~/src/checkmake
 
-headscale-build: deps-go
+headscale-build: install-go
 	@echo "[Makefile] Building Headscale..."
 	@if ! command -v headscale >/dev/null 2>&1; then \
 		go install github.com/juanfont/headscale/cmd/headscale@v0.27.1; \
