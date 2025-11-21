@@ -7,7 +7,10 @@
 
 SHELL := /bin/bash
 
-.PHONY: all gen0 gen1 gen2 lint clean namespaces deps test lint-makefile
+.PHONY: all gen0 gen1 gen2
+.PHONY: namespaces
+.PHONY: lint lint-scripts lint-config lint-makefile lint-makefile-check
+.PHONY: deps deps-checkmake deps-checkmake-src deps-checkmake-build
 
 test:
 	@echo "[Makefile] No tests defined yet"
@@ -15,11 +18,41 @@ test:
 # --- Dependencies ---
 deps: deps-checkmake
 
-deps-checkmake:
+deps-checkmake: deps-checkmake-build deps-checkmake-installed
+
+deps-checkmake-build: deps-checkmake-src deps-checkmake-compile deps-checkmake-install
+
+deps-checkmake-src: deps-checkmake-src-clone
+
+deps-checkmake-src-clone: deps-checkmake-src-dir
+	@if ! command -v checkmake >/dev/null 2>&1; then \
+		echo "[Makefile] Cloning checkmake source..."; \
+		git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake; \
+	fi
+
+deps-checkmake-src-dir:
+	@if ! command -v checkmake >/dev/null 2>&1; then \
+		echo "[Makefile] Ensuring ~/src exists..."; \
+		mkdir -p ~/src; \
+		rm -rf ~/src/checkmake; \
+	fi
+
+deps-checkmake-compile:
+	@if ! command -v checkmake >/dev/null 2>&1; then \
+		echo "[Makefile] Compiling checkmake..."; \
+		cd ~/src/checkmake/cmd/checkmake && go build -o checkmake .; \
+	fi
+
+deps-checkmake-install:
+	@if ! command -v checkmake >/dev/null 2>&1; then \
+		echo "[Makefile] Installing checkmake..."; \
+		sudo install -m 0755 ~/src/checkmake/cmd/checkmake/checkmake /usr/local/bin/checkmake; \
+	fi
+
+deps-checkmake-installed:
 	@if command -v checkmake >/dev/null 2>&1; then \
 		echo "[Makefile] checkmake already installed"; \
-	else \
-		echo "[Makefile] checkmake not installed, please build manually"; \
+		checkmake --version; \
 	fi
 
 # --- Default target ---
@@ -93,10 +126,15 @@ lint-config:
 
 lint-makefile: lint-makefile-check lint-makefile-fallback
 
-lint-makefile-check:
+lint-makefile-check: lint-makefile-run lint-makefile-version
+
+lint-makefile-run:
 	@if command -v checkmake >/dev/null 2>&1; then \
 		checkmake Makefile; \
 	fi
+
+lint-makefile-version:
+	@checkmake --version
 
 lint-makefile-fallback:
 	@if ! command -v checkmake >/dev/null 2>&1; then \
@@ -111,4 +149,3 @@ clean:
 	@rm -f /etc/wireguard/*.conf
 	@rm -f /etc/wireguard/*.key
 	@rm -f /etc/wireguard/qr/*.qr
-
