@@ -10,10 +10,10 @@ private_key_path: /etc/headscale/private.key
 
 noise:
   private_key_path: /etc/headscale/noise_private.key
-  
+
 database:
   type: sqlite
-  sqlite_path: /etc/headscale/db.sqlite
+  path: /etc/headscale/db.sqlite
 
 prefixes:
   v4: 100.100.0.0/24       # VPN client subnet
