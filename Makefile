@@ -75,7 +75,7 @@ lint:
 	@echo "[Makefile] Validating Headscale config..."
 	@headscale configtest -c config/headscale.yaml || (echo "Headscale config invalid!" && exit 1)
 	@echo "[Makefile] Validating Makefile syntax..."
-    @checkmake Makefile || (echo "Makefile lint failed, run 'make -n' for dry-run check" && exit 1)
+	@checkmake Makefile || (echo "Makefile lint failed, run 'make -n' for dry-run check" && exit 1)
 
 # --- Clean target ---
 clean:
