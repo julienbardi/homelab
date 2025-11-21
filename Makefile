@@ -11,6 +11,11 @@ SHELL := /bin/bash
 HOMELAB_REPO := https://github.com/Jambo15/homelab.git
 HOMELAB_DIR  := ~/src/homelab
 
+BUILDER_NAME := $(shell git config --get user.name)
+BUILDER_EMAIL := $(shell git config --get user.email)
+export BUILDER_NAME
+export BUILDER_EMAIL
+
 .PHONY: gitcheck update
 gitcheck:
 	@if [ ! -d $(HOMELAB_DIR)/.git ]; then \
@@ -72,11 +77,9 @@ install-checkmake: install-pandoc install-go
 	@rm -rf ~/src/checkmake
 	@git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake
 	@cd ~/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
-	@BUILDER_NAME="$$(git config --get user.name)" \
-	BUILDER_EMAIL="$$(git config --get user.email)" \
 	cd ~/src/checkmake && make
 	@sudo install -m 0755 ~/src/checkmake/checkmake /usr/local/bin/checkmake
-	@echo "[Makefile] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
+	@echo "[Makefile] Installed checkmake built by $$BUILDER_NAME <$$BUILDER_EMAIL>"
 	@checkmake --version
 
 remove-checkmake:
