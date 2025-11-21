@@ -48,8 +48,13 @@ extras=$(comm -23 <(existing_namespaces | sort) <(printf "%s\n" "${BASELINE_NAME
 if [ -n "${extras}" ]; then
     for ns in ${extras}; do
         log "WARN: Extra namespace removed: '${ns}'"
-        headscale namespaces delete "${ns}" || log "ERROR: Failed to remove namespace '${ns}'"
+        if headscale users delete --name "${ns}"; then
+            log "Namespace '${ns}' deleted"
+        else
+            log "ERROR: Failed to delete namespace '${ns}'"
+        fi
     done
 fi
+
 
 log "Namespace setup complete."
