@@ -91,6 +91,46 @@ if [ -S /var/run/headscale/headscale.sock ]; then
     log "Removed stale socket file /var/run/headscale/headscale.sock"
 fi
 
+# --- DERPMap configuration ---
+log "Ensuring DERPMap file exists and is referenced in config..."
+
+DERP_FILE="/etc/headscale/derp.yaml"
+
+# Create DERPMap file if missing
+if [ ! -f "${DERP_FILE}" ]; then
+    cat > "${DERP_FILE}" <<EOF
+regions:
+  - region_id: 1
+    region_code: "global"
+    region_name: "Tailscale Global DERPs"
+    nodes:
+      - name: "derp1"
+        region_id: 1
+        host_name: "derp1.tailscale.com"
+        stun: true
+      - name: "derp2"
+        region_id: 1
+        host_name: "derp2.tailscale.com"
+        stun: true
+EOF
+    log "DERPMap file created at ${DERP_FILE}"
+else
+    log "DERPMap file already exists at ${DERP_FILE}, skipping creation"
+fi
+
+# Ensure headscale.yaml points to DERPMap file
+if ! grep -q "derp:" "${CONFIG_FILE}"; then
+    cat >> "${CONFIG_FILE}" <<EOF
+
+derp:
+  paths:
+    - ${DERP_FILE}
+EOF
+    log "Added DERPMap reference to ${CONFIG_FILE}"
+else
+    log "DERPMap reference already present in ${CONFIG_FILE}"
+fi
+
 # --- Systemd unit ---
 log "Creating systemd unit at ${SYSTEMD_UNIT}..."
 cat > "${SYSTEMD_UNIT}" <<EOF
