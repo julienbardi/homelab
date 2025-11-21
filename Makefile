@@ -10,6 +10,7 @@ SHELL := /bin/bash
 .PHONY: all gen0 gen1 gen2
 .PHONY: namespaces
 .PHONY: lint lint-scripts lint-config lint-makefile lint-makefile-check
+.PHONY: deps-go
 .PHONY: deps deps-checkmake deps-checkmake-src deps-checkmake-build
 .PHONY: test clean
 
@@ -17,7 +18,16 @@ test:
 	@echo "[Makefile] No tests defined yet"
 
 # --- Dependencies ---
-deps: deps-checkmake
+deps: deps-go deps-checkmake
+
+deps-go:
+	@if ! command -v go >/dev/null 2>&1; then \
+		echo "[Makefile] Installing Go runtime..."; \
+		apt-get update && apt-get install -y --no-install-recommends golang-go; \
+	else \
+		echo "[Makefile] Go runtime already installed"; \
+		go version; \
+	fi
 
 deps-checkmake: deps-checkmake-build deps-checkmake-installed
 

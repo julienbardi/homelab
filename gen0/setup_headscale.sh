@@ -33,8 +33,7 @@ log() {
 # --- Prerequisite checks ---
 log "Checking prerequisites..."
 if ! command -v go >/dev/null 2>&1; then
-    log "WARN: Go runtime not found, attempting install..."
-    apt-get update && apt-get install -y golang || log "ERROR: Go install failed, continuing degraded"
+    log "ERROR: Go runtime not found, continuing degraded"
 fi
 
 if ! modprobe wireguard >/dev/null 2>&1; then
