@@ -16,15 +16,10 @@ database:
   sqlite:
     path: /etc/headscale/db.sqlite
 
-# At least one prefix is required
-ip_prefixes:
-  - 100.64.0.0/10
-  - fd7a:115c:a1e0::/48
-
-#prefixes:
-#   v4: 100.100.0.0/24       # VPN client subnet
-#   v6: fd7a:115c:a1e0::/48  # Example IPv6 pool (required even if unused)
-#   allocation: sequential   # or "random"
+prefixes:
+  v4: 100.100.0.0/24       # VPN client subnet
+  v6: fd7a:115c:a1e0::/48  # Example IPv6 pool (required even if unused)
+  allocation: sequential   # or "random"
 
 dns:
   override_local_dns: true
