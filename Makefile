@@ -7,7 +7,7 @@
 
 SHELL := /bin/bash
 
-.PHONY: all gen0 gen1 gen2 lint clean
+.PHONY: all gen0 gen1 gen2 lint clean namespaces
 
 # --- Default target ---
 all: gen0 gen1 gen2
