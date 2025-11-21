@@ -29,7 +29,6 @@ ensure_namespace() {
         log "NEW: Creating namespace ${ns}"
         if headscale namespaces create "${ns}"; then
             log "Namespace ${ns} created successfully"
-            log "HINT: Commit message -> feat(headscale): add namespace ${ns}"
         else
             log "ERROR: Failed to create namespace ${ns}"
             exit 1
@@ -46,8 +45,7 @@ done
 extras=$(comm -23 <(existing_namespaces | sort) <(printf "%s\n" "${BASELINE_NAMESPACES[@]}" | sort))
 
 if [ -n "${extras}" ]; then
-    log "WARN: Extra namespace(s) detected: ${extras}"
-    log "HINT: Commit message -> chore(headscale): remove unused namespace(s)"
+    log "WARN: Extra namespace removed: ${extras}"
 fi
 
 log "Namespace setup complete."
