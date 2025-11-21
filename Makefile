@@ -19,47 +19,27 @@ test:
 	@echo "[Makefile] No tests defined yet"
 
 # --- Dependencies ---
+# --- Dependencies ---
 deps: deps-go deps-checkmake
 
 deps-go:
 	@if ! command -v go >/dev/null 2>&1; then \
+		echo "[Makefile] Installing Go runtime..."; \
 		apt-get update && apt-get install -y --no-install-recommends golang-go; \
 	else \
+		echo "[Makefile] Go runtime already installed"; \
 		go version; \
 	fi
 
-deps-checkmake: deps-checkmake-build deps-checkmake-installed
-
-deps-checkmake-build: deps-checkmake-src deps-checkmake-compile deps-checkmake-install
-
-deps-checkmake-src: deps-checkmake-src-clone
-
-deps-checkmake-src-clone: deps-checkmake-src-dir
-	@if ! command -v checkmake >/dev/null 2>&1; then \
-		git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake; \
-	fi
-
-deps-checkmake-src-dir:
-	@if ! command -v checkmake >/dev/null 2>&1; then \
-		echo "[Makefile] Ensuring ~/src exists..."; \
-		mkdir -p ~/src; \
-		rm -rf ~/src/checkmake; \
-	fi
-
-deps-checkmake-compile:
-	@if ! command -v checkmake >/dev/null 2>&1; then \
-		echo "[Makefile] Compiling checkmake..."; \
-		cd ~/src/checkmake/cmd/checkmake && go build -o checkmake .; \
-	fi
-
-deps-checkmake-install:
+deps-checkmake:
 	@if ! command -v checkmake >/dev/null 2>&1; then \
 		echo "[Makefile] Installing checkmake..."; \
+		mkdir -p ~/src; \
+		rm -rf ~/src/checkmake; \
+		git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake; \
+		cd ~/src/checkmake/cmd/checkmake && go build -o checkmake .; \
 		sudo install -m 0755 ~/src/checkmake/cmd/checkmake/checkmake /usr/local/bin/checkmake; \
-	fi
-
-deps-checkmake-installed:
-	@if command -v checkmake >/dev/null 2>&1; then \
+	else \
 		echo "[Makefile] checkmake already installed"; \
 		checkmake --version; \
 	fi
