@@ -8,6 +8,7 @@
 SHELL := /bin/bash
 
 .PHONY: all gen0 gen1 gen2
+.PHONY: headscale-build
 .PHONY: namespaces
 .PHONY: lint lint-scripts lint-config lint-makefile lint-makefile-check
 .PHONY: deps-go
@@ -64,6 +65,15 @@ deps-checkmake-installed:
 	@if command -v checkmake >/dev/null 2>&1; then \
 		echo "[Makefile] checkmake already installed"; \
 		checkmake --version; \
+	fi
+
+headscale-build: deps-go
+	@if ! command -v headscale >/dev/null 2>&1; then \
+		echo "[Makefile] Building Headscale from source..."; \
+		go install github.com/juanfont/headscale/cmd/headscale@latest; \
+	else \
+		echo "[Makefile] Headscale already installed"; \
+		headscale version; \
 	fi
 
 # --- Default target ---
