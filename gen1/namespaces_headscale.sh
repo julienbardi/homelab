@@ -47,7 +47,10 @@ extras=$(comm -23 <(existing_namespaces | sort) <(printf "%s\n" "${BASELINE_NAME
 
 if [ -n "${extras}" ]; then
     for ns in ${extras}; do
-        log "WARN: Extra namespace detected: '${ns}'"
+        # Each namespace is logged on its own line, wrapped in double quotes
+        # If the namespace itself contains a double quote, it will appear escaped as \" in the log
+        # Example: a namespace named foo"bar will log as "foo\"bar"
+        log "WARN: Extra namespace detected: \"${ns}\""
     done
 fi
 
