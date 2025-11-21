@@ -65,20 +65,31 @@ fi
 
 # --- Ensure database file exists with correct permissions ---
 log "Ensuring database file exists with correct ownership and permissions..."
-if [ ! -f /etc/headscale/db.sqlite ]; then
-    touch /etc/headscale/db.sqlite
+if [ ! -f /var/lib/headscale/db.sqlite ]; then
+    mkdir -p /var/lib/headscale
+    touch /var/lib/headscale/db.sqlite
 fi
 
 # Ownership
-chown headscale:headscale /etc/headscale/db.sqlite
-chown headscale:headscale /etc/headscale
+chown headscale:headscale /var/lib/headscale/db.sqlite
+chown headscale:headscale /var/lib/headscale
 
 # Permissions
-chmod 660 /etc/headscale/db.sqlite
-chmod 770 /etc/headscale
+chmod 660 /var/lib/headscale/db.sqlite
+chmod 770 /var/lib/headscale
 
 # Clean up stale SQLite lock/journal files
-rm -f /etc/headscale/db.sqlite-*
+rm -f /var/lib/headscale/db.sqlite-*
+
+# --- Runtime directory and socket cleanup ---
+log "Ensuring runtime directory and socket permissions..."
+mkdir -p /var/run/headscale
+chown headscale:headscale /var/run/headscale
+chmod 770 /var/run/headscale
+if [ -S /var/run/headscale/headscale.sock ]; then
+    rm -f /var/run/headscale/headscale.sock
+    log "Removed stale socket file /var/run/headscale/headscale.sock"
+fi
 
 # --- Systemd unit ---
 log "Creating systemd unit at ${SYSTEMD_UNIT}..."
@@ -92,6 +103,8 @@ ExecStart=$(which headscale) serve
 WorkingDirectory=${CONFIG_DIR}
 Restart=always
 Environment=HEADSCALE_CONFIG=${CONFIG_FILE}
+RuntimeDirectory=headscale
+RuntimeDirectoryMode=0770
 
 [Install]
 WantedBy=multi-user.target
