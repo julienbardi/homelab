@@ -82,8 +82,7 @@ install-checkmake: install-pandoc install-go
 		BUILDER_EMAIL="$$(git config --get user.email)" \
 		make
 	@sudo install -m 0755 ~/src/checkmake/checkmake /usr/local/bin/checkmake
-	@echo "[Makefile] Installed checkmake built by $$(git config --get user.name) <$$(
-git config --get user.email)>"
+	@echo "[Makefile] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
 	@checkmake --version
 
 remove-checkmake:
