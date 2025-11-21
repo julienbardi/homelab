@@ -7,13 +7,16 @@
 server_url: http://10.89.12.4:8080
 listen_addr: 0.0.0.0:8080
 private_key_path: /etc/headscale/private.key
+
 noise:
   private_key_path: /etc/headscale/noise_private.key
-db_type: sqlite
-db_path: /etc/headscale/db.sqlite
+  
+database:
+  type: sqlite
+  sqlite_path: /etc/headscale/db.sqlite
 
 prefixes:
-  v4: 10.4.0.0/24       # VPN client subnet
+  v4: 100.100.0.0/24       # VPN client subnet
   v6: fd7a:115c:a1e0::/48  # Example IPv6 pool (required even if unused)
   allocation: sequential   # or "random"
 
