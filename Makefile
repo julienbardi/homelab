@@ -15,7 +15,9 @@ all: gen0 gen1 gen2
 # --- Gen0: foundational services ---
 gen0: headscale coredns dns firewall audit
 
-headscale:
+CONFIG_FILES = config/headscale.yaml config/derp.yaml
+
+headscale: $(CONFIG_FILES)
 	@echo "[Makefile] Running setup_headscale.sh..."
 	@bash gen0/setup_headscale.sh
 

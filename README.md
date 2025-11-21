@@ -40,7 +40,8 @@ The design principle is **minimal, explicit, reproducible**. Every script logs d
 │       └── index.html
 │
 ├── config/                  # Static config templates
-│   ├── headscale.yaml
+│   ├── headscale.yaml       # main Headscale config (no inline derp_map)
+│   ├── derp.yaml            # external DERPMap file in map[int]*tailcfg.DERPRegion format
 │   ├── coredns/Corefile
 │   └── unbound/unbound.conf.template
 │
