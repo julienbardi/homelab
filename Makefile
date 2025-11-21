@@ -92,42 +92,42 @@ CONFIG_FILES = config/headscale.yaml config/derp.yaml
 
 headscale: $(CONFIG_FILES)
 	@echo "[Makefile] Running setup_headscale.sh..."
-	@bash gen0/setup_headscale.sh
+	$(call run_as_root,bash gen0/setup_headscale.sh)
 
 coredns:
 	@echo "[Makefile] Running setup_coredns.sh..."
-	@bash gen0/setup_coredns.sh
+	$(call run_as_root,bash gen0/setup_coredns.sh)
 
 dns:
 	@echo "[Makefile] Running dns_setup.sh..."
-	@bash gen0/dns_setup.sh
+	$(call run_as_root,bash gen0/dns_setup.sh)
 
 firewall:
 	@echo "[Makefile] Running wg_firewall_apply.sh..."
-	@bash gen0/wg_firewall_apply.sh
+	$(call run_as_root,bash gen0/wg_firewall_apply.sh)
 
 audit:
 	@echo "[Makefile] Running router_audit.sh..."
-	@bash gen0/router_audit.sh
+	$(call run_as_root,bash gen0/router_audit.sh)
 
 # --- Gen1: helpers ---
 gen1: caddy tailnet rotate wg-baseline namespaces
 
 caddy:
 	@echo "[Makefile] Running caddy-reload.sh..."
-	@bash gen1/caddy-reload.sh
+	$(call run_as_root,bash gen1/caddy-reload.sh)
 
 tailnet:
 	@echo "[Makefile] Running tailnet.sh <device-name>..."
-	@bash gen1/tailnet.sh test-device
+	$(call run_as_root,bash gen1/tailnet.sh test-device)
 
 rotate:
 	@echo "[Makefile] Running rotate-unbound-rootkeys.sh..."
-	@bash gen1/rotate-unbound-rootkeys.sh
+	$(call run_as_root,bash gen1/rotate-unbound-rootkeys.sh)
 
 wg-baseline:
 	@echo "[Makefile] Running wg_baseline.sh <client-name>..."
-	@bash gen1/wg_baseline.sh test-client
+	$(call run_as_root,bash gen1/wg_baseline.sh test-client)
 
 namespaces: headscale
 	@echo "[Makefile] Running namespaces_headscale.sh..."
