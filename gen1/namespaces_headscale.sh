@@ -16,9 +16,14 @@ log() {
 # Baseline namespaces declared once
 BASELINE_NAMESPACES=("bardi-family" "bardi-guests")
 
+# Get existing namespaces as JSON array
+existing_namespaces() {
+    headscale namespaces list --output json | jq -r '.[].name'
+}
+
 ensure_namespace() {
     local ns="$1"
-    if headscale namespaces list | awk '{print $1}' | grep -qx "${ns}"; then
+    if existing_namespaces | grep -qx "${ns}"; then
         log "Namespace ${ns} already exists, skipping"
     else
         log "NEW: Creating namespace ${ns}"
@@ -38,7 +43,7 @@ for ns in "${BASELINE_NAMESPACES[@]}"; do
 done
 
 # Detect extra namespaces not in baseline
-extras=$(headscale namespaces list | awk '{print $1}' | grep -vxF "${BASELINE_NAMESPACES[@]}" || true)
+extras=$(comm -23 <(existing_namespaces | sort) <(printf "%s\n" "${BASELINE_NAMESPACES[@]}" | sort))
 
 if [ -n "${extras}" ]; then
     log "WARN: Extra namespace(s) detected: ${extras}"
