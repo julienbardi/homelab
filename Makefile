@@ -23,10 +23,8 @@ deps: deps-go deps-checkmake
 
 deps-go:
 	@if ! command -v go >/dev/null 2>&1; then \
-		echo "[Makefile] Installing Go runtime..."; \
 		apt-get update && apt-get install -y --no-install-recommends golang-go; \
 	else \
-		echo "[Makefile] Go runtime already installed"; \
 		go version; \
 	fi
 
@@ -38,7 +36,6 @@ deps-checkmake-src: deps-checkmake-src-clone
 
 deps-checkmake-src-clone: deps-checkmake-src-dir
 	@if ! command -v checkmake >/dev/null 2>&1; then \
-		echo "[Makefile] Cloning checkmake source..."; \
 		git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake; \
 	fi
 
@@ -69,10 +66,8 @@ deps-checkmake-installed:
 
 headscale-build: deps-go
 	@if ! command -v headscale >/dev/null 2>&1; then \
-		echo "[Makefile] Building Headscale from source..."; \
 		go install github.com/juanfont/headscale/cmd/headscale@latest; \
 	else \
-		echo "[Makefile] Headscale already installed"; \
 		headscale version; \
 	fi
 
