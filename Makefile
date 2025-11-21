@@ -16,6 +16,17 @@ BUILDER_EMAIL := $(shell git config --get user.email)
 export BUILDER_NAME
 export BUILDER_EMAIL
 
+# --- Privilege guard ---
+IS_ROOT := $(shell id -u)
+
+define run_as_root
+	@if [ "$(IS_ROOT)" -eq 0 ]; then \
+		$(1); \
+	else \
+		sudo $(1); \
+	fi
+endef
+
 .PHONY: gitcheck update
 gitcheck:
 	@if [ ! -d $(HOMELAB_DIR)/.git ]; then \
@@ -32,7 +43,6 @@ update: gitcheck
 	@git -C $(HOMELAB_DIR) pull --rebase
 	@echo "[Makefile] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
 
-	
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
 .PHONY: lint test clean
 
@@ -40,13 +50,12 @@ test:
 	@echo "[Makefile] No tests defined yet"
 
 # --- Dependencies ---
-# checkmake requires pandoc for building and running its checks
 deps: install-go install-pandoc install-checkmake
 
 install-go:
 	@if ! command -v go >/dev/null 2>&1; then \
 		echo "[Makefile] Installing Go runtime..."; \
-		apt-get update && apt-get install -y --no-install-recommends golang-go; \
+		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends golang-go); \
 	else \
 		echo "[Makefile] Go runtime already installed"; \
 		go version; \
@@ -54,13 +63,13 @@ install-go:
 
 remove-go:
 	@echo "[Makefile] Removing Go runtime..."
-	@sudo apt-get remove -y golang-go || echo "[Makefile] Go runtime not installed"
+	$(call run_as_root,apt-get remove -y golang-go || echo "[Makefile] Go runtime not installed")
 	@$(MAKE) autoremove
 
 install-pandoc:
 	@if ! command -v pandoc >/dev/null 2>&1; then \
 		echo "[Makefile] Installing pandoc..."; \
-		apt-get update && apt-get install -y --no-install-recommends pandoc; \
+		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends pandoc); \
 	else \
 		echo "[Makefile] pandoc already installed"; \
 		pandoc --version | head -n1; \
@@ -68,7 +77,7 @@ install-pandoc:
 
 remove-pandoc:
 	@echo "[Makefile] Removing pandoc..."
-	@sudo apt-get remove -y pandoc || echo "[Makefile] pandoc not installed"
+	$(call run_as_root,apt-get remove -y pandoc || echo "[Makefile] pandoc not installed")
 	@$(MAKE) autoremove
 
 install-checkmake: install-pandoc install-go
@@ -81,13 +90,13 @@ install-checkmake: install-pandoc install-go
 		BUILDER_NAME="$$(git config --get user.name)" \
 		BUILDER_EMAIL="$$(git config --get user.email)" \
 		make
-	@sudo install -m 0755 ~/src/checkmake/checkmake /usr/local/bin/checkmake
+	$(call run_as_root,install -m 0755 ~/src/checkmake/checkmake /usr/local/bin/checkmake)
 	@echo "[Makefile] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
 	@checkmake --version
 
 remove-checkmake:
 	@echo "[Makefile] Removing checkmake..."
-	@sudo rm -f /usr/local/bin/checkmake
+	$(call run_as_root,rm -f /usr/local/bin/checkmake)
 	@rm -rf ~/src/checkmake
 	@$(MAKE) autoremove
 
@@ -155,10 +164,9 @@ gen2: site
 
 site:
 	@echo "[Makefile] Deploying site/index.html..."
-	@cp gen2/site/index.html /var/www/html/index.html
+	$(call run_as_root,cp gen2/site/index.html /var/www/html/index.html)
 
 # --- Lint target ---
-
 lint: lint-scripts lint-config lint-makefile
 
 lint-scripts:
@@ -181,12 +189,12 @@ lint-makefile:
 # --- Clean target ---
 clean:
 	@echo "[Makefile] Cleaning generated artifacts..."
-	@rm -f /etc/headscale/db.sqlite
-	@rm -f /etc/wireguard/*.conf.generated
-	@rm -f /etc/wireguard/*.key.generated
-	@rm -f /etc/wireguard/qr/*.qr
+	$(call run_as_root,rm -f /etc/headscale/db.sqlite)
+	$(call run_as_root,rm -f /etc/wireguard/*.conf.generated)
+	$(call run_as_root,rm -f /etc/wireguard/*.key.generated)
+	$(call run_as_root,rm -f /etc/wireguard/qr/*.qr)
 
 # --- Shared autoremove helper ---
 autoremove:
 	@echo "[Makefile] Cleaning up unused dependencies..."
-	@sudo apt-get autoremove -y
+	$(call run_as_root,apt-get autoremove -y)
