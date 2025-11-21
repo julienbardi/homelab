@@ -11,6 +11,7 @@ SHELL := /bin/bash
 .PHONY: namespaces
 .PHONY: lint lint-scripts lint-config lint-makefile lint-makefile-check
 .PHONY: deps deps-checkmake deps-checkmake-src deps-checkmake-build
+.PHONY: test clean
 
 test:
 	@echo "[Makefile] No tests defined yet"
