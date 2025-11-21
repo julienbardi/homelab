@@ -12,6 +12,10 @@ noise:
 db_type: sqlite
 db_path: /etc/headscale/db.sqlite
 
+prefixes:
+  - 10.4.0.0/24      # VPN client subnet
+  - 10.89.12.0/24    # LAN subnet advertised
+
 dns:
   override_local_dns: true
   base_domain: tailnet
