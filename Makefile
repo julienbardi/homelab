@@ -35,7 +35,8 @@ test:
 	@echo "[Makefile] No tests defined yet"
 
 # --- Dependencies ---
-deps: deps-go install-checkmake
+# checkmake requires pandoc for building and running its checks
+deps: deps-go deps-pandoc install-checkmake
 
 deps-go:
 	@if ! command -v go >/dev/null 2>&1; then \
@@ -45,6 +46,18 @@ deps-go:
 		echo "[Makefile] Go runtime already installed"; \
 		go version; \
 	fi
+deps-pandoc:
+	@if ! command -v pandoc >/dev/null 2>&1; then \
+		echo "[Makefile] Installing pandoc..."; \
+		apt-get update && apt-get install -y --no-install-recommends pandoc; \
+	else \
+		echo "[Makefile] pandoc already installed"; \
+		pandoc --version | head -n1; \
+	fi
+
+remove-pandoc:
+	@echo "[Makefile] Removing pandoc..."
+	@sudo apt-get remove -y pandoc || echo "[Makefile] pandoc not installed"
 
 install-checkmake:
 	@echo "[Makefile] Installing checkmake (v0.2.2)..."
