@@ -29,17 +29,6 @@ dns:
       - 10.89.12.4   # CoreDNS on NAS
       - 1.1.1.1      # Cloudflare DNS as fallback
 
-derp_map:
-  regions:
-    - region_id: 1
-      region_code: "global"
-      region_name: "Tailscale Global DERPs"
-      nodes:
-        - name: "derp1"
-          region_id: 1
-          host_name: "derp1.tailscale.com"
-          stun: true
-        - name: "derp2"
-          region_id: 1
-          host_name: "derp2.tailscale.com"
-          stun: true
+derp:
+  paths:
+    - /etc/headscale/derp.yaml
