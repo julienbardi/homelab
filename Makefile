@@ -28,7 +28,7 @@ update: gitcheck
 	@echo "[Makefile] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
 
 	
-.PHONY: all gen0 gen1 gen2 deps install-go install-checkmake remove-checkmake headscale-build
+.PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
 .PHONY: lint test clean
 
 test:
@@ -46,6 +46,11 @@ install-go:
 		echo "[Makefile] Go runtime already installed"; \
 		go version; \
 	fi
+
+remove-go:
+	@echo "[Makefile] Removing Go runtime..."
+	@sudo apt-get remove -y golang-go || echo "[Makefile] Go runtime not installed"
+
 install-pandoc:
 	@if ! command -v pandoc >/dev/null 2>&1; then \
 		echo "[Makefile] Installing pandoc..."; \
