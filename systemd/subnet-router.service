@@ -14,6 +14,10 @@ After=network.target dnsmasq.service
 
 [Service]
 Type=oneshot
+
+# Log homelab commit and timestamp before running the script
+ExecStartPre=/bin/bash -c 'echo "[subnet-router] homelab commit $$(git -C /home/julie/src/homelab rev-parse --short HEAD) at $$(date -Iseconds)"'
+
 ExecStart=/usr/local/bin/setup-subnet-router.sh
 RemainAfterExit=yes
 StandardOutput=journal
