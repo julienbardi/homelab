@@ -6,7 +6,7 @@
 # Host: 10.89.12.4 (NAS / VPN node)
 # Responsibilities:
 #   - Install prerequisites (Go, SQLite/Postgres, WireGuard kernel module)
-#   - Deploy headscale.yaml from repo (config/headscale.yaml)
+#   - Deploy headscale.yaml and derp.yaml from repo
 #   - Generate Noise private key if missing
 #   - Create systemd unit for Headscale
 #   - Log degraded mode if dependencies are unreachable
@@ -17,8 +17,10 @@ set -euo pipefail
 SERVICE_NAME="headscale"
 CONFIG_DIR="/etc/headscale"
 CONFIG_FILE="${CONFIG_DIR}/headscale.yaml"
+DERP_FILE="${CONFIG_DIR}/derp.yaml"
 SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
 REPO_CONFIG="/home/julie/src/homelab/config/headscale.yaml"
+REPO_DERP="/home/julie/src/homelab/config/derp.yaml"
 NAS_IP="10.89.12.4"
 ROUTER_IP="10.89.12.1"
 UNBOUND_IP="${NAS_IP}"   # Unbound runs locally on NAS
@@ -45,12 +47,15 @@ if ! command -v headscale >/dev/null 2>&1; then
     go install github.com/juanfont/headscale/cmd/headscale@latest || log "ERROR: Headscale install failed, continuing degraded"
 fi
 
-# --- Deploy config from repo ---
+# --- Deploy configs from repo ---
 log "Deploying Headscale config from ${REPO_CONFIG} to ${CONFIG_FILE}..."
 mkdir -p "${CONFIG_DIR}"
 cp "${REPO_CONFIG}" "${CONFIG_FILE}"
 
-# --- Noise private key generation (Headscale v0.27+ requirement) ---
+log "Deploying DERPMap config from ${REPO_DERP} to ${DERP_FILE}..."
+cp "${REPO_DERP}" "${DERP_FILE}"
+
+# --- Noise private key generation ---
 if [ ! -f "${CONFIG_DIR}/noise_private.key" ]; then
     log "Generating Noise private key..."
     headscale generate noise-key -o "${CONFIG_DIR}/noise_private.key"
@@ -69,12 +74,7 @@ if [ ! -f /var/lib/headscale/db.sqlite ]; then
     mkdir -p /var/lib/headscale
     touch /var/lib/headscale/db.sqlite
 fi
-
-# Ownership
-chown headscale:headscale /var/lib/headscale/db.sqlite
-chown headscale:headscale /var/lib/headscale
-
-# Permissions
+chown headscale:headscale /var/lib/headscale/db.sqlite /var/lib/headscale
 chmod 660 /var/lib/headscale/db.sqlite
 chmod 770 /var/lib/headscale
 
