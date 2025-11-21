@@ -50,6 +50,7 @@ install-go:
 remove-go:
 	@echo "[Makefile] Removing Go runtime..."
 	@sudo apt-get remove -y golang-go || echo "[Makefile] Go runtime not installed"
+	@$(MAKE) autoremove
 
 install-pandoc:
 	@if ! command -v pandoc >/dev/null 2>&1; then \
@@ -63,6 +64,7 @@ install-pandoc:
 remove-pandoc:
 	@echo "[Makefile] Removing pandoc..."
 	@sudo apt-get remove -y pandoc || echo "[Makefile] pandoc not installed"
+	@$(MAKE) autoremove
 
 install-checkmake:
 	@echo "[Makefile] Installing checkmake (v0.2.2)..."
@@ -85,6 +87,7 @@ remove-checkmake:
 	@echo "[Makefile] Removing checkmake..."
 	@sudo rm -f /usr/local/bin/checkmake
 	@rm -rf ~/src/checkmake
+	@$(MAKE) autoremove
 
 headscale-build: install-go
 	@echo "[Makefile] Building Headscale..."
@@ -180,3 +183,8 @@ clean:
 	@rm -f /etc/wireguard/*.conf.generated
 	@rm -f /etc/wireguard/*.key.generated
 	@rm -f /etc/wireguard/qr/*.qr
+
+# --- Shared autoremove helper ---
+autoremove:
+	@echo "[Makefile] Cleaning up unused dependencies..."
+	@sudo apt-get autoremove -y
