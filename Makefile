@@ -66,7 +66,7 @@ lint:
 	@echo "[Makefile] Linting scripts..."
 	@bash -n gen0/*.sh gen1/*.sh scripts/*.sh
 	@echo "[Makefile] Validating Headscale config..."
-	@headscale config validate -c config/headscale.yaml || (echo "Headscale config invalid!" && exit 1)
+	@headscale configtest -c config/headscale.yaml || (echo "Headscale config invalid!" && exit 1)
 
 # --- Clean target ---
 clean:
