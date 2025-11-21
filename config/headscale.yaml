@@ -13,7 +13,7 @@ noise:
 
 database:
   type: sqlite3
-  sqlite_path: /etc/headscale/db.sqlite
+  path: /etc/headscale/db.sqlite
 
 prefixes:
   v4: 100.100.0.0/24       # VPN client subnet
