@@ -18,14 +18,7 @@ export BUILDER_EMAIL
 
 # --- Privilege guard ---
 IS_ROOT := $(shell id -u)
-
-define run_as_root
-	@if [ "$(IS_ROOT)" -eq 0 ]; then \
-		$(1); \
-	else \
-		sudo $(1); \
-	fi
-endef
+run_as_root = if [ "$(IS_ROOT)" -eq 0 ]; then $(1); else sudo $(1); fi
 
 .PHONY: gitcheck update
 gitcheck:
