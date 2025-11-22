@@ -38,12 +38,18 @@ update: gitcheck
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
 .PHONY: setup-subnet-router
-.PHONY: lint test clean
+.PHONY: lint test logs clean
 .PHONY: install-unbound install-coredns install-wireguard-tools install-dnsutils \
 		remove-go remove-pandoc remove-checkmake clean clean-soft autoremove
 
-test:
-	@echo "[Makefile] No tests defined yet"
+logs:
+	@echo "Ensuring /var/log/homelab exists and is writable..."
+	@sudo mkdir -p /var/log/homelab
+	@sudo chown $(shell id -un):$(shell id -gn julie) /var/log/homelab
+
+test: logs
+	@echo "Running run_as_root harness..."
+	@bash $(HOME)/src/homelab/scripts/test_run_as_root.sh
 
 # --- Dependencies ---
 deps: install-go install-pandoc install-checkmake
