@@ -16,9 +16,8 @@ BUILDER_EMAIL := $(shell git config --get user.email)
 export BUILDER_NAME
 export BUILDER_EMAIL
 
-# --- Privilege guard ---
-IS_ROOT := $(shell id -u)
-run_as_root = if [ "$(IS_ROOT)" -eq 0 ]; then $(1); else sudo $(1); fi
+# --- Privilege guard with id -u (0 if root) evaluated at runtime not at parse time ---
+run_as_root = if [ "$$(id -u)" -eq 0 ]; then bash -c '$(1)'; else sudo bash -c '$(1)'; fi
 
 .PHONY: gitcheck update
 gitcheck:
@@ -102,7 +101,7 @@ install-dnsutils:
 	@$(call apt_install,dig,dnsutils)
 
 # --- Gen0: foundational services ---
-gen0: headscale coredns dns firewall
+gen0: headscale dns coredns firewall
 	@echo "[Makefile] Running gen0 foundational services..."
 
 CONFIG_FILES = config/headscale.yaml config/derp.yaml
@@ -110,7 +109,7 @@ CONFIG_FILES = config/headscale.yaml config/derp.yaml
 headscale: install-go $(CONFIG_FILES)
 	@$(call	 run_as_root,bash scripts/setup/setup_headscale.sh)
 
-coredns: install-coredns
+coredns: dns install-coredns
 	@$(call	 run_as_root,bash scripts/setup/setup_coredns.sh)
 
 dns: install-unbound install-dnsutils
@@ -189,11 +188,13 @@ autoremove:
 	@$(call run_as_root,apt-get autoremove -y)
 
 define apt_install
-	@if ! command -v $(1) >/dev/null 2>&1; then \
-		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends $(2)); \
-	else \
-		$(1) --version | head -n1; \
-	fi
+    @if ! command -v $(1) >/dev/null 2>&1; then \
+        $(call run_as_root,apt-get update && apt-get install -y --no-install-recommends $(2)); \
+    else \
+        if [ "$(1)" = "go" ]; then $(1) version; \
+        elif [ "$(1)" = "dig" ]; then $(1) -v; \
+        else $(1) --version | head -n1; fi; \
+    fi
 endef
 
 define apt_remove
