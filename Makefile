@@ -18,7 +18,7 @@ export BUILDER_NAME
 export BUILDER_EMAIL
 
 # --- Privilege guard with id -u (0 if root) evaluated at runtime not at parse time ---
-run_as_root = @bash -c 'if [ "$$(id -u)" -eq 0 ]; then $(1); else sudo bash -c "$(1)"; fi'
+run_as_root = bash -c 'if [ "$$(id -u)" -eq 0 ]; then $(1); else sudo bash -c "$(1)"; fi'
 
 .PHONY: gitcheck update
 gitcheck:
@@ -120,10 +120,10 @@ setup-subnet-router: update | $(SCRIPT_SRC)
 		echo "[Makefile] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
 	fi
 	COMMIT_HASH=$$(git -C "$(HOMELAB_DIR)" rev-parse --short HEAD); \
-	$(call run_as_root,cp "$(SCRIPT_SRC)" "$(SCRIPT_DST)")
-	$(call run_as_root,chown root:root "$(SCRIPT_DST)")
-	$(call run_as_root,chmod 0755 "$(SCRIPT_DST)")
-	$(call run_as_root,systemctl restart subnet-router.service)
+	@$(call run_as_root,cp "$(SCRIPT_SRC)" "$(SCRIPT_DST)")
+	@$(call run_as_root,chown root:root "$(SCRIPT_DST)")
+	@$(call run_as_root,chmod 0755 "$(SCRIPT_DST)")
+	@$(call run_as_root,systemctl restart subnet-router.service)
 	@echo "[Makefile] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
 	
 CONFIG_FILES = config/headscale.yaml config/derp.yaml
