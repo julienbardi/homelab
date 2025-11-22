@@ -2,46 +2,45 @@
 # ============================================================
 # caddy-reload.sh
 # ------------------------------------------------------------
-# Generation 1 helper: safely reload Caddy
+# Generation 2 helper: safely reload Caddy
 # Host: 10.89.12.4 (NAS / VPN node)
 # Responsibilities:
 #   - Validate Caddyfile syntax before reload
-#   - Reload Caddy service via systemd
+#   - Reload Caddy service directly via caddy reload
 #   - Log QUIC/HTTP/3 status
-#   - Log degraded mode if reload fails
+#   - Timeout guard to avoid hangs
+#   - Exit non-zero if reload fails
 # ============================================================
 
 set -euo pipefail
+source "/home/julie/src/homelab/scripts/common.sh"
 
 SERVICE_NAME="caddy"
 CADDYFILE="/etc/caddy/Caddyfile"
 
-log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [caddy-reload] $*" | tee -a /var/log/caddy-reload.log
-    logger -t caddy-reload "$*"
-}
-
 # --- Validate config ---
 log "Validating Caddyfile at ${CADDYFILE}..."
-if ! caddy validate --config ${CADDYFILE} >/dev/null 2>&1; then
-    log "ERROR: Invalid Caddyfile syntax, aborting reload"
-    exit 1
+if ! caddy validate --config "${CADDYFILE}" 2>&1 | tee -a "${LOG_FILE}"; then
+	log "ERROR: Invalid Caddyfile syntax, aborting reload"
+	exit 1
 fi
 
 # --- Reload service ---
 log "Reloading Caddy service..."
-if systemctl reload ${SERVICE_NAME}; then
-    log "OK: Caddy service reloaded successfully"
+if timeout 10 sudo caddy reload --config "${CADDYFILE}" --force; then
+	log "OK: Caddy reloaded successfully via caddy reload"
 else
-    log "ERROR: Failed to reload Caddy service, continuing degraded"
+	log "ERROR: Reload timed out or failed, continuing degraded"
+	exit 1
 fi
 
 # --- QUIC/HTTP3 status ---
 log "Checking QUIC/HTTP/3 support..."
-if caddy list-modules | grep -q "http.handlers.http3"; then
-    log "QUIC/HTTP/3 module present"
+if caddy list-modules | grep -Eq "http3|http.handlers.http3"; then
+	log "QUIC/HTTP/3 module present"
 else
-    log "WARN: QUIC/HTTP/3 module not present"
+	log "WARN: QUIC/HTTP/3 module not present"
 fi
 
+# --- Footer ---
 log "Caddy reload complete."
