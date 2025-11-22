@@ -16,13 +16,16 @@
 
 set -euo pipefail
 
-SCRIPT_NAME="setup-subnet-router.sh"
 LAN_IF="bridge0"
 LAN_SUBNET="10.89.12.0/24"
 
+SCRIPT_NAME=$(basename "$0" .sh)
+touch /var/log/${SCRIPT_NAME}.log
+chmod 644 /var/log/${SCRIPT_NAME}.log
+
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
-    logger -t ${SCRIPT_NAME} "$*"
+	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
+	logger -t ${SCRIPT_NAME} "$*"
 }
 
 # --- Interface guard ---

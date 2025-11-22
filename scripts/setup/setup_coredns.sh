@@ -22,9 +22,13 @@ NAS_IP="10.89.12.4"
 UNBOUND_IP="${NAS_IP}"   # Unbound runs locally on NAS
 TAILNET_DOMAIN="tailnet"
 
+SCRIPT_NAME=$(basename "$0" .sh)
+touch /var/log/${SCRIPT_NAME}.log
+chmod 644 /var/log/${SCRIPT_NAME}.log
+
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [setup_coredns] $*" | tee -a /var/log/setup_coredns.log
-    logger -t setup_coredns "$*"
+	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
+	logger -t ${SCRIPT_NAME} "$*"
 }
 
 # --- Prerequisite checks ---
