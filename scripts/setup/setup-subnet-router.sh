@@ -121,4 +121,5 @@ else
 fi
 
 # --- Footer logging ---
-log "Subnet router setup complete."
+COMMIT_HASH=$(git -C ~/src/homelab rev-parse --short HEAD 2>/dev/null || echo "unknown")
+log "Subnet router setup complete. Commit=${COMMIT_HASH}, Timestamp=$(date '+%Y-%m-%d %H:%M:%S')"
