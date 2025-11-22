@@ -12,5 +12,5 @@
 alias router-logs='journalctl -fu subnet-router.service'
 
 # --- Deploy updated script ---
-alias router-deploy="cp ~/setup-subnet-router.sh /usr/local/bin/setup-subnet-router.sh && systemctl restart subnet-router.service"
+alias router-deploy="cp ~/src/homelab/scripts/setup-subnet-router.sh /usr/local/bin/setup-subnet-router.sh && systemctl restart subnet-router.service"
 
