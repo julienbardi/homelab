@@ -74,10 +74,27 @@ log "Ensuring firewall INPUT rules for DNS/SSH/Web UI..."
 # DNS (Unbound)
 ensure_rule iptables-legacy -I INPUT -p udp --dport 53 -j ACCEPT
 ensure_rule iptables-legacy -I INPUT -p tcp --dport 53 -j ACCEPT
-# SSH (custom port)
+# SSH (custom port and standard port)
 ensure_rule iptables-legacy -I INPUT -p tcp --dport 2222 -j ACCEPT
-# NAS Web UI (nginx on 9999)
+ensure_rule iptables-legacy -I INPUT -p tcp --dport 22   -j ACCEPT
+# UGOS Pro Web UI (nginx)
 ensure_rule iptables-legacy -I INPUT -p tcp --dport 9999 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p tcp --dport 9443 -j ACCEPT
+# UPnP service
+ensure_rule iptables-legacy -I INPUT -p tcp --dport 49152 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p udp --dport 49152 -j ACCEPT
+# wsdd2 service (Web Services Discovery)
+ensure_rule iptables-legacy -I INPUT -p udp --dport 3702 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p udp --dport 5355 -j ACCEPT
+# SMB file sharing
+ensure_rule iptables-legacy -I INPUT -p tcp --dport 137 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p udp --dport 137 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p tcp --dport 138 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p udp --dport 138 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p tcp --dport 139 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p udp --dport 139 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p tcp --dport 445 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -p udp --dport 445 -j ACCEPT
 
 # --- GRO tuning ---
 log "Applying GRO tuning..."
