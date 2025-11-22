@@ -112,8 +112,10 @@ gen0: setup-subnet-router headscale dns coredns firewall
 SCRIPT_SRC := $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh
 SCRIPT_DST := /usr/local/bin/setup-subnet-router
 
-setup-subnet-router: update $(SCRIPT_SRC)
-	@echo "[Makefile] Deploying subnet router script from Git..."
+setup-subnet-router: update
+	@if [ ! -f $(SCRIPT_SRC) ]; then \
+        echo "[Makefile] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
+    fi
 	COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
 	$(call run_as_root,cp $(SCRIPT_SRC) $(SCRIPT_DST))
 	$(call run_as_root,chown root:root $(SCRIPT_DST))
