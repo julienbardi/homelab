@@ -36,9 +36,10 @@ update: gitcheck
 	@echo "[Makefile] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
+.PHONY: setup-subnet-router
 .PHONY: lint test clean
 .PHONY: install-unbound install-coredns install-wireguard-tools install-dnsutils \
-        remove-go remove-pandoc remove-checkmake clean clean-soft autoremove
+		remove-go remove-pandoc remove-checkmake clean clean-soft autoremove
 
 test:
 	@echo "[Makefile] No tests defined yet"
@@ -101,8 +102,24 @@ install-dnsutils:
 	@$(call apt_install,dig,dnsutils)
 
 # --- Gen0: foundational services ---
-gen0: headscale dns coredns firewall
+gen0: setup-subnet-router headscale dns coredns firewall
 	@echo "[Makefile] Running gen0 foundational services..."
+
+# --- Subnet router deployment ---
+# Source: $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh (tracked in Git)
+# Target: /usr/local/bin/setup-subnet-router (systemd service uses this)
+# To update: edit in repo, commit, then run `make setup-subnet-router`
+SCRIPT_SRC := $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh
+SCRIPT_DST := /usr/local/bin/setup-subnet-router
+
+setup-subnet-router: update $(SCRIPT_SRC)
+	@echo "[Makefile] Deploying subnet router script from Git..."
+	COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
+	$(call run_as_root,cp $(SCRIPT_SRC) $(SCRIPT_DST))
+	$(call run_as_root,chown root:root $(SCRIPT_DST))
+	$(call run_as_root,chmod 0755 $(SCRIPT_DST))
+	$(call run_as_root,systemctl restart subnet-router.service)
+	echo "[Makefile] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
 
 CONFIG_FILES = config/headscale.yaml config/derp.yaml
 
@@ -188,13 +205,13 @@ autoremove:
 	@$(call run_as_root,apt-get autoremove -y)
 
 define apt_install
-    @if ! command -v $(1) >/dev/null 2>&1; then \
-        $(call run_as_root,apt-get update && apt-get install -y --no-install-recommends $(2)); \
-    else \
-        if [ "$(1)" = "go" ]; then $(1) version; \
-        elif [ "$(1)" = "dig" ]; then $(1) -v; \
-        else $(1) --version | head -n1; fi; \
-    fi
+	@if ! command -v $(1) >/dev/null 2>&1; then \
+		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends $(2)); \
+	else \
+		if [ "$(1)" = "go" ]; then $(1) version; \
+		elif [ "$(1)" = "dig" ]; then $(1) -v; \
+		else $(1) --version | head -n1; fi; \
+	fi
 endef
 
 define apt_remove
