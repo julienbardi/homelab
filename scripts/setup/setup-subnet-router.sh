@@ -18,31 +18,11 @@
 
 set -euo pipefail
 
+# Source shared helpers (log, run_as_root, ensure_rule)
+source "${HOME}/src/homelab/scripts/common.sh"
+
 LAN_IF="bridge0"
 LAN_SUBNET="10.89.12.0/24"
-
-SCRIPT_NAME=$(basename "$0" .sh)
-LOG_FILE="/var/log/${SCRIPT_NAME}.log"
-touch "${LOG_FILE}"
-chmod 644 "${LOG_FILE}"
-
-log() {
-	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a "${LOG_FILE}"
-	logger -t "${SCRIPT_NAME}" "$*"
-}
-
-# Idempotent rule inserter: checks with -C first
-ensure_rule() {
-	# usage: ensure_rule iptables-legacy -I INPUT -p tcp --dport 2222 -j ACCEPT
-	local cmd="$1"; shift
-	local args=("$@")
-	if $cmd -C "${args[@]}" 2>/dev/null; then
-		log "Rule already present: $cmd ${args[*]}"
-	else
-		$cmd "${args[@]}"
-		log "Rule added: $cmd ${args[*]}"
-	fi
-}
 
 # --- Interface guard ---
 if ! ip link show "${LAN_IF}" | grep -q "state UP"; then
@@ -65,8 +45,8 @@ fi
 
 # --- NAT setup (idempotent) ---
 log "Ensuring NAT MASQUERADE for ${LAN_SUBNET} via ${LAN_IF}..."
-iptables-legacy -t nat -C POSTROUTING -s "${LAN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE 2>/dev/null || \
-iptables-legacy -t nat -A POSTROUTING -s "${LAN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE
+run_as_root iptables-legacy -t nat -C POSTROUTING -s "${LAN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE 2>/dev/null || \
+run_as_root iptables-legacy -t nat -A POSTROUTING -s "${LAN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE
 log "NAT MASQUERADE ensured."
 
 # --- Firewall rules for essential services (idempotent) ---
@@ -98,7 +78,7 @@ ensure_rule iptables-legacy -I INPUT -p udp --dport 445 -j ACCEPT
 
 # --- Firewall rules for HTTPS and UDP ports (idempotent) ---
 log "Ensuring firewall INPUT rules for HTTPS and VPN ports..."
-# 443 TCP for ALL
+# 443 TCP open to the world for HTTPS
 ensure_rule iptables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
 ensure_rule ip6tables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
 
@@ -144,7 +124,7 @@ fi
 
 # --- Persist firewall rules ---
 log "Persisting iptables rules to /etc/iptables/rules.v4 and /etc/iptables/rules.v6..."
-if iptables-legacy-save > /etc/iptables/rules.v4 && ip6tables-legacy-save > /etc/iptables/rules.v6; then
+if run_as_root iptables-legacy-save > /etc/iptables/rules.v4 && run_as_root ip6tables-legacy-save > /etc/iptables/rules.v6; then
 	log "Firewall rules persisted."
 else
 	log "ERROR: Failed to persist firewall rules!"
@@ -159,5 +139,5 @@ else
 fi
 
 # --- Footer logging ---
-COMMIT_HASH=$(git -C ~/src/homelab rev-parse --short HEAD 2>/dev/null || echo "unknown")
+COMMIT_HASH=$(git -C "${HOME}/src/homelab" rev-parse --short HEAD 2>/dev/null || echo "unknown")
 log "Subnet router setup complete. Commit=${COMMIT_HASH}, Timestamp=$(date '+%Y-%m-%d %H:%M:%S')"

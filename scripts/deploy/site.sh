@@ -11,42 +11,40 @@
 
 set -euo pipefail
 
-SCRIPT_NAME=$(basename "$0" .sh)
-touch /var/log/${SCRIPT_NAME}.log
-chmod 644 /var/log/${SCRIPT_NAME}.log
+# Source shared helpers (log, run_as_root, ensure_rule)
+source "${HOME}/src/homelab/scripts/common.sh"
 
-log() {
-	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
-	logger -t ${SCRIPT_NAME} "$*"
-}
-
-SRC_FILE="scripts/deploy/index.html"
+SRC_FILE="${HOME}/src/homelab/scripts/deploy/index.html"
 DEST_FILE="/var/www/html/index.html"
 
 log "Starting site deployment..."
+
 if [ -f "$SRC_FILE" ]; then
-	cp "$SRC_FILE" "$DEST_FILE"
+	run_as_root cp "${SRC_FILE}" "${DEST_FILE}"
 	log "Copied $SRC_FILE to $DEST_FILE"
 else
 	log "ERROR: Source file $SRC_FILE not found"
 	exit 1
 fi
 
-# Allow override via environment variable SERVICES
-# Default list if not provided
 : "${SERVICES:=caddy nginx apache2 lighttpd traefik}"
 
 reloaded=false
-for svc in $SERVICES; do
-    if systemctl is-active --quiet "$svc"; then
-        systemctl reload "$svc" || { log "ERROR: Failed to reload $svc"; exit 1; }
-        log "Reloaded $svc service"
-        reloaded=true
+for svc in ${SERVICES}; do
+    if systemctl is-active --quiet "${svc}"; then
+        if run_as_root systemctl reload "${svc}"; then
+            log "Reloaded ${svc} service"
+            reloaded=true
+        else
+            log "ERROR: Failed to reload ${svc}"
+            exit 1
+        fi
     fi
 done
 
-if [ "$reloaded" = false ]; then
-    log "No web service detected to reload"
+if [ "${reloaded}" = false ]; then
+    log "No active web service detected to reload"
 fi
 
-log "Site deployment complete."
+COMMIT_HASH=$(git -C "${HOME}/src/homelab" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+log "Site deployment complete. Commit=${COMMIT_HASH}, Timestamp=$(date '+%Y-%m-%d %H:%M:%S')"
