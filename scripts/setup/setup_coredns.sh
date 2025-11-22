@@ -2,7 +2,7 @@
 # ============================================================
 # setup_coredns.sh
 # ------------------------------------------------------------
-# Generation 0 script: install and configure CoreDNS
+# Install and configure CoreDNS with Headscale + Unbound
 # Host: 10.89.12.4 (NAS / VPN node)
 # Responsibilities:
 #   - Install CoreDNS binary
@@ -13,6 +13,9 @@
 # ============================================================
 
 set -euo pipefail
+source "/home/julie/src/homelab/scripts/common.sh"
+
+LOGFILE="/var/log/homelab/setup_coredns.log"
 
 SERVICE_NAME="coredns"
 CONFIG_DIR="/etc/coredns"
@@ -22,33 +25,24 @@ NAS_IP="10.89.12.4"
 UNBOUND_IP="${NAS_IP}"   # Unbound runs locally on NAS
 TAILNET_DOMAIN="tailnet"
 
-SCRIPT_NAME=$(basename "$0" .sh)
-touch /var/log/${SCRIPT_NAME}.log
-chmod 644 /var/log/${SCRIPT_NAME}.log
-
-log() {
-	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
-	logger -t ${SCRIPT_NAME} "$*"
-}
-
 # --- Prerequisite checks ---
 log "Checking prerequisites..."
 if ! command -v coredns >/dev/null 2>&1; then
     log "WARN: CoreDNS not found, attempting install..."
-    curl -L https://github.com/coredns/coredns/releases/latest/download/coredns_$(uname -s)_$(uname -m).tgz \
-        -o /tmp/coredns.tgz || log "ERROR: CoreDNS download failed, continuing degraded"
-    tar -xzf /tmp/coredns.tgz -C /usr/local/bin || log "ERROR: CoreDNS install failed, continuing degraded"
+    curl -L "https://github.com/coredns/coredns/releases/latest/download/coredns_$(uname -s)_$(uname -m).tgz" \
+        -o "/tmp/coredns.tgz" || log "ERROR: CoreDNS download failed, continuing degraded"
+    run_as_root tar -xzf "/tmp/coredns.tgz" -C "/usr/local/bin" || log "ERROR: CoreDNS install failed, continuing degraded"
 fi
 
 # --- Check Unbound reachability ---
-if ! nc -z ${UNBOUND_IP} 53 >/dev/null 2>&1; then
+if ! nc -z "${UNBOUND_IP}" 53 >/dev/null 2>&1; then
     log "WARN: Unbound (${UNBOUND_IP}:53) unreachable, CoreDNS will run in degraded mode"
 fi
 
 # --- Generate Corefile ---
 log "Generating CoreDNS Corefile at ${CONFIG_FILE}..."
-mkdir -p "${CONFIG_DIR}"
-cat > "${CONFIG_FILE}" <<EOF
+run_as_root mkdir -p "${CONFIG_DIR}"
+run_as_root tee "${CONFIG_FILE}" > /dev/null <<EOF
 .${TAILNET_DOMAIN}:53 {
     headscale {
         base_domain ${TAILNET_DOMAIN}
@@ -68,7 +62,7 @@ EOF
 
 # --- Systemd unit ---
 log "Creating systemd unit at ${SYSTEMD_UNIT}..."
-cat > "${SYSTEMD_UNIT}" <<EOF
+run_as_root tee "${SYSTEMD_UNIT}" > /dev/null <<EOF
 [Unit]
 Description=CoreDNS server for tailnet + Unbound forwarding
 After=network.target
@@ -82,8 +76,8 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable ${SERVICE_NAME}
-systemctl restart ${SERVICE_NAME} || log "ERROR: Failed to start CoreDNS, continuing degraded"
+run_as_root systemctl daemon-reload
+run_as_root systemctl enable "${SERVICE_NAME}"
+run_as_root systemctl restart "${SERVICE_NAME}" || log "ERROR: Failed to start CoreDNS, continuing degraded"
 
 log "CoreDNS setup complete (listening on ${NAS_IP}:53, forwarding to Unbound ${UNBOUND_IP}:53)."
