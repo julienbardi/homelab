@@ -25,9 +25,13 @@ NAS_IP="10.89.12.4"
 ROUTER_IP="10.89.12.1"
 UNBOUND_IP="${NAS_IP}"   # Unbound runs locally on NAS
 
+SCRIPT_NAME=$(basename "$0" .sh)
+touch /var/log/${SCRIPT_NAME}.log
+chmod 644 /var/log/${SCRIPT_NAME}.log
+
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [setup_headscale] $*" | tee -a /var/log/setup_headscale.log
-    logger -t setup_headscale "$*"
+	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
+	logger -t ${SCRIPT_NAME} "$*"
 }
 
 # --- Prerequisite checks ---

@@ -38,6 +38,8 @@ update: gitcheck
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
 .PHONY: lint test clean
+.PHONY: install-unbound install-coredns install-wireguard-tools install-dnsutils \
+        remove-go remove-pandoc remove-checkmake clean clean-soft autoremove
 
 test:
 	@echo "[Makefile] No tests defined yet"
@@ -84,6 +86,7 @@ headscale-build: install-go
 
 # --- Default target ---
 all: gitcheck gen0 gen1 gen2
+	@echo "[Makefile] Completed full orchestration (gen0 → gen1 → gen2)"
 
 # --- Dependencies for Gen0 services ---
 install-unbound:
@@ -100,55 +103,60 @@ install-dnsutils:
 
 # --- Gen0: foundational services ---
 gen0: headscale coredns dns firewall
+	@echo "[Makefile] Running gen0 foundational services..."
 
 CONFIG_FILES = config/headscale.yaml config/derp.yaml
 
 headscale: install-go $(CONFIG_FILES)
-	@$(call	 run_as_root,bash gen0/setup_headscale.sh)
+	@$(call	 run_as_root,bash scripts/setup/setup_headscale.sh)
 
 coredns: install-coredns
-	@$(call	 run_as_root,bash gen0/setup_coredns.sh)
+	@$(call	 run_as_root,bash scripts/setup/setup_coredns.sh)
 
 dns: install-unbound install-dnsutils
-	@$(call run_as_root,bash gen0/dns_setup.sh)
+	@$(call run_as_root,bash scripts/setup/dns_setup.sh)
 
 firewall: install-wireguard-tools
-	@$(call	 run_as_root,bash gen0/wg_firewall_apply.sh)
+	@$(call	 run_as_root,bash scripts/setup/wg_firewall_apply.sh)
 
 # --- Gen1: helpers ---
 gen1: caddy tailnet rotate wg-baseline namespaces audit
+	@echo "[Makefile] Running gen1 helper scripts..."
 
 audit: headscale coredns dns firewall
-	@$(call	 run_as_root,bash gen1/router_audit.sh)
+	@$(call	 run_as_root,bash scripts/audit/router_audit.sh)
 
 caddy:
-	@$(call	 run_as_root,bash gen1/caddy-reload.sh)
+	@$(call	 run_as_root,bash scripts/helpers/caddy-reload.sh)
 
 tailnet:
-	@$(call	 run_as_root,bash gen1/tailnet.sh test-device)
+	@$(call	 run_as_root,bash scripts/helpers/tailnet.sh test-device)
 
 rotate:
-	@$(call	 run_as_root,bash gen1/rotate-unbound-rootkeys.sh)
+	@$(call	 run_as_root,bash scripts/helpers/rotate-unbound-rootkeys.sh)
 
 wg-baseline:
-	@$(call	 run_as_root,bash gen1/wg_baseline.sh test-client)
+	@$(call	 run_as_root,bash scripts/helpers/wg_baseline.sh test-client)
 
 namespaces: headscale
-	@$(call	 run_as_root,bash gen1/namespaces_headscale.sh)
+	@$(call	 run_as_root,bash scripts/helpers/namespaces_headscale.sh)
 
 # --- Gen2: site artifact ---
 gen2: site
+	@echo "[Makefile] Running gen2 site deployment..."
 
+# By default site.sh reloads: caddy nginx apache2 lighttpd traefik
+# You can override at runtime, e.g.:
+#   make site SERVICES="caddy"
+#   make site SERVICES="caddy nginx"
 site: caddy audit
-	@echo "[Makefile] Deploying site/index.html..."
-	@$(call	 run_as_root,cp gen2/site/index.html /var/www/html/index.html)
+	@$(call run_as_root,SERVICES="$(SERVICES)" bash scripts/deploy/site.sh)
 
 # --- Lint target ---
 lint: lint-scripts lint-config lint-makefile
 
 lint-scripts:
-	@bash -n gen0/*.sh gen1/*.sh scripts/*.sh
-	@bash -n gen1/namespaces_headscale.sh
+	 @bash -n scripts/setup/*.sh scripts/helpers/*.sh scripts/audit/*.sh scripts/deploy/*.sh
 
 lint-config:
 	@$(call run_as_root,headscale configtest -c config/headscale.yaml) || \
@@ -165,13 +173,15 @@ lint-makefile:
 # --- Clean target ---
 WIREGUARD_DIR := /etc/wireguard
 
-# destructive clean
-clean:
-	$(call run_as_root,systemctl stop headscale || true)
-	@$(call run_as_root,rm -f /etc/headscale/db.sqlite \
+clean-soft:
+	@$(call run_as_root,rm -f \
 		$(WIREGUARD_DIR)/*.conf.generated \
 		$(WIREGUARD_DIR)/*.key.generated \
 		$(WIREGUARD_DIR)/qr/*.qr)
+
+clean: clean-soft
+	$(call run_as_root,systemctl stop headscale || true)
+	@$(call run_as_root,rm -f /etc/headscale/db.sqlite)
 
 # --- Shared helpers ---
 autoremove:

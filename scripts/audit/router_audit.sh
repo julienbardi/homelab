@@ -20,9 +20,13 @@ ROUTER_IP="10.89.12.1"
 VPN_SUBNET="10.4.0.0/24"
 WG_IF="wg0"
 
+SCRIPT_NAME=$(basename "$0" .sh)
+touch /var/log/${SCRIPT_NAME}.log
+chmod 644 /var/log/${SCRIPT_NAME}.log
+
 log() {
-	echo "$(date '+%Y-%m-%d %H:%M:%S') [router_audit] $*" | tee -a /var/log/router_audit.log
-	logger -t router_audit "$*"
+	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
+	logger -t ${SCRIPT_NAME} "$*"
 }
 
 # --- Headscale ---
