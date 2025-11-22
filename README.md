@@ -163,6 +163,20 @@ Add regression tests for DNSSEC rotation.
 Document rollback commands for each generation.
 
 
+## DNS Architecture
+
+- **Unbound**: Recursive resolver, DNSSEC validation, caching.
+- **CoreDNS**: Authoritative for `tailnet.` domain, forwards other queries upstream.
+
+### Flow
+Client → CoreDNS → Unbound → Internet root/authoritative servers
+
+### Notes
+- CoreDNS does not require Unbound to run, but in this homelab Unbound is the upstream.
+- Unbound listens on 10.89.12.4:53
+- CoreDNS forwards non-tailnet queries to Unbound at 10.89.12.4:53
+
+
 
 
 
