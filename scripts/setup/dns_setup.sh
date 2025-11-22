@@ -18,9 +18,13 @@ UNBOUND_CONF="/etc/unbound/unbound.conf"
 TRUST_ANCHORS="/var/lib/unbound/root.key"
 NAS_IP="10.89.12.4"
 
+SCRIPT_NAME=$(basename "$0" .sh)
+touch /var/log/${SCRIPT_NAME}.log
+chmod 644 /var/log/${SCRIPT_NAME}.log
+
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [dns_setup] $*" | tee -a /var/log/dns_setup.log
-    logger -t dns_setup "$*"
+	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
+	logger -t ${SCRIPT_NAME} "$*"
 }
 
 # --- Check Unbound service ---

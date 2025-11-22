@@ -19,9 +19,13 @@ VPN_SUBNET="10.4.0.0/24"
 LAN_SUBNET="10.89.12.0/24"
 LAN_IF="eth0"   # adjust if NAS uses different interface
 
+SCRIPT_NAME=$(basename "$0" .sh)
+touch /var/log/${SCRIPT_NAME}.log
+chmod 644 /var/log/${SCRIPT_NAME}.log
+
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [wg_firewall_apply] $*" | tee -a /var/log/wg_firewall_apply.log
-    logger -t wg_firewall_apply "$*"
+	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
+	logger -t ${SCRIPT_NAME} "$*"
 }
 
 # --- Check WireGuard interface ---
