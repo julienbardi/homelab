@@ -9,7 +9,7 @@ SHELL := /bin/bash
 
 # --- Git repo URL for homelab ---
 HOMELAB_REPO := https://github.com/Jambo15/homelab.git
-HOMELAB_DIR  := ~/src/homelab
+HOMELAB_DIR  := /home/julie/src/homelab # use absolute path
 
 BUILDER_NAME := $(shell git config --get user.name)
 BUILDER_EMAIL := $(shell git config --get user.email)
