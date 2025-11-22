@@ -2,13 +2,15 @@
 # ============================================================
 # setup-subnet-router.sh
 # ------------------------------------------------------------
-# Supporting script: configure subnet router
+# Supporting script: configure subnet router + WireGuard rules
 # Host: 10.89.12.4 (NAS / VPN node)
 # Responsibilities:
 #   - Detect conflicts against *all* current IPv4/IPv6 subnets
 #   - Configure NAT (idempotent)
 #   - Apply GRO tuning for performance
 #   - Define firewall rules for DNS/SSH/Web UI (idempotent)
+#   - Apply WireGuard firewall rules (wg0, VPN subnet bridging)
+#   - Apply global conntrack safety rules
 #   - Persist firewall rules safely
 #   - Echo footer for auditability
 # Note:
@@ -17,12 +19,12 @@
 # ============================================================
 
 set -euo pipefail
-
-# Source shared helpers (log, run_as_root, ensure_rule)
-source "${HOME}/src/homelab/scripts/common.sh"
+source "/home/julie/src/homelab/scripts/common.sh"
 
 LAN_IF="bridge0"
 LAN_SUBNET="10.89.12.0/24"
+WG_IF="wg0"
+VPN_SUBNET="10.4.0.0/24"
 
 # --- Interface guard ---
 if ! ip link show "${LAN_IF}" | grep -q "state UP"; then
@@ -114,6 +116,27 @@ ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s fd1
 ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -s 10.89.12.0/24 -j ACCEPT
 ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -s 2a01:8b81:4800:9c00::/64 -j ACCEPT
 
+# --- Connection tracking safety rules (global) ---
+log "Ensuring conntrack safety rules (ESTABLISHED,RELATED)..."
+ensure_rule iptables-legacy -A INPUT   -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ensure_rule iptables-legacy -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# --- WireGuard firewall rules (wg0 specific) ---
+log "Ensuring WireGuard firewall rules..."
+if ip link show "${WG_IF}" >/dev/null 2>&1; then
+	# Allow VPN subnet traffic on wg0
+	ensure_rule iptables-legacy -A INPUT   -i "${WG_IF}" -s "${VPN_SUBNET}" -j ACCEPT
+	ensure_rule iptables-legacy -A FORWARD -i "${WG_IF}" -s "${VPN_SUBNET}" -j ACCEPT
+	ensure_rule iptables-legacy -A FORWARD -o "${WG_IF}" -d "${VPN_SUBNET}" -j ACCEPT
+
+	# NAT VPN traffic to LAN
+	ensure_rule iptables-legacy -t nat -A POSTROUTING -s "${VPN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE
+
+	log "WireGuard firewall rules applied: VPN ${VPN_SUBNET} bridged to LAN ${LAN_SUBNET} via ${LAN_IF}."
+else
+	log "WARN: WireGuard interface ${WG_IF} not found, skipping WireGuard rules."
+fi
+
 # --- GRO tuning ---
 log "Applying GRO tuning..."
 if ethtool -K "${LAN_IF}" gro off 2>/dev/null; then
@@ -140,4 +163,4 @@ fi
 
 # --- Footer logging ---
 COMMIT_HASH=$(git -C "${HOME}/src/homelab" rev-parse --short HEAD 2>/dev/null || echo "unknown")
-log "Subnet router setup complete. Commit=${COMMIT_HASH}, Timestamp=$(date '+%Y-%m-%d %H:%M:%S')"
+log "Subnet router setup complete. Commit=${COMMIT_HASH}"

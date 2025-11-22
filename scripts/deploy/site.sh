@@ -10,11 +10,9 @@
 # ============================================================
 
 set -euo pipefail
+source "/home/julie/src/homelab/scripts/common.sh"
 
-# Source shared helpers (log, run_as_root, ensure_rule)
-source "${HOME}/src/homelab/scripts/common.sh"
-
-SRC_FILE="${HOME}/src/homelab/scripts/deploy/index.html"
+SRC_FILE="/home/julie/src/homelab/scripts/deploy/index.html"
 DEST_FILE="/var/www/html/index.html"
 
 log "Starting site deployment..."
@@ -31,20 +29,20 @@ fi
 
 reloaded=false
 for svc in ${SERVICES}; do
-    if systemctl is-active --quiet "${svc}"; then
-        if run_as_root systemctl reload "${svc}"; then
-            log "Reloaded ${svc} service"
-            reloaded=true
-        else
-            log "ERROR: Failed to reload ${svc}"
-            exit 1
-        fi
-    fi
+	if systemctl is-active --quiet "${svc}"; then
+		if run_as_root systemctl reload "${svc}"; then
+			log "Reloaded ${svc} service"
+			reloaded=true
+		else
+			log "ERROR: Failed to reload ${svc}"
+			exit 1
+		fi
+	fi
 done
 
 if [ "${reloaded}" = false ]; then
-    log "No active web service detected to reload"
+	log "No active web service detected to reload"
 fi
 
-COMMIT_HASH=$(git -C "${HOME}/src/homelab" rev-parse --short HEAD 2>/dev/null || echo "unknown")
-log "Site deployment complete. Commit=${COMMIT_HASH}, Timestamp=$(date '+%Y-%m-%d %H:%M:%S')"
+COMMIT_HASH=$(git -C "/home/julie/src/homelab" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+log "Site deployment complete. Commit=${COMMIT_HASH}"
