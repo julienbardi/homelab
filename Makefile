@@ -120,7 +120,7 @@ SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh
 SCRIPT_DST  := /usr/local/bin/setup-subnet-router
 
 # Order-only prerequisite: require file to exist, but don't try to build it
-setup-subnet-router: update | $(SCRIPT_SRC)
+setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC)
 	@echo "[Makefile] Deploying subnet router script from Git..."
 	@if [ ! -f "$(SCRIPT_SRC)" ]; then \
 		echo "[Makefile] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
@@ -142,9 +142,6 @@ coredns: dns install-coredns
 
 dns: install-unbound install-dnsutils
 	@$(call run_as_root,bash scripts/setup/dns_setup.sh)
-
-firewall: install-wireguard-tools
-	@$(call	 run_as_root,bash scripts/setup/wg_firewall_apply.sh)
 
 # --- Gen1: helpers ---
 gen1: caddy tailnet rotate wg-baseline namespaces audit
