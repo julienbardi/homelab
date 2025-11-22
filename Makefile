@@ -9,7 +9,8 @@ SHELL := /bin/bash
 
 # --- Git repo URL for homelab ---
 HOMELAB_REPO := https://github.com/Jambo15/homelab.git
-HOMELAB_DIR  := $(HOME)/src/homelab # do not use ~ in paths, use $(HOME) instead
+# Normalize to absolute paths derived from HOME (no ~, no accidental spaces)
+HOMELAB_DIR  := $(HOME)/src/homelab
 
 BUILDER_NAME := $(shell git config --get user.name)
 BUILDER_EMAIL := $(shell git config --get user.email)
@@ -109,20 +110,22 @@ gen0: setup-subnet-router headscale dns coredns firewall
 # Source: $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh (tracked in Git)
 # Target: /usr/local/bin/setup-subnet-router (systemd service uses this)
 # To update: edit in repo, commit, then run `make setup-subnet-router`
-SCRIPT_SRC := $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh
-SCRIPT_DST := /usr/local/bin/setup-subnet-router
+SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh
+SCRIPT_DST  := /usr/local/bin/setup-subnet-router
 
-setup-subnet-router: update
-	@if [ ! -f $(SCRIPT_SRC) ]; then \
-        echo "[Makefile] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
-    fi
-	COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
-	$(call run_as_root,cp $(SCRIPT_SRC) $(SCRIPT_DST))
-	$(call run_as_root,chown root:root $(SCRIPT_DST))
-	$(call run_as_root,chmod 0755 $(SCRIPT_DST))
+# Order-only prerequisite: require file to exist, but don't try to build it
+setup-subnet-router: update | $(SCRIPT_SRC)
+	@echo "[Makefile] Deploying subnet router script from Git..."
+	@if [ ! -f "$(SCRIPT_SRC)" ]; then \
+		echo "[Makefile] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
+	fi
+	COMMIT_HASH=$$(git -C "$(HOMELAB_DIR)" rev-parse --short HEAD); \
+	$(call run_as_root,cp "$(SCRIPT_SRC)" "$(SCRIPT_DST)")
+	$(call run_as_root,chown root:root "$(SCRIPT_DST)")
+	$(call run_as_root,chmod 0755 "$(SCRIPT_DST)")
 	$(call run_as_root,systemctl restart subnet-router.service)
-	echo "[Makefile] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
-
+	@echo "[Makefile] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
+	
 CONFIG_FILES = config/headscale.yaml config/derp.yaml
 
 headscale: install-go $(CONFIG_FILES)
