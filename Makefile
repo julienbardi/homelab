@@ -85,70 +85,73 @@ headscale-build: install-go
 # --- Default target ---
 all: gitcheck gen0 gen1 gen2
 
+# --- Dependencies for Gen0 services ---
+install-unbound:
+	@$(call apt_install,unbound,unbound)
+
+install-coredns:
+	@$(call apt_install,coredns,coredns)
+
+install-wireguard-tools:
+	@$(call apt_install,wg,wireguard-tools)
+
+install-dnsutils:
+	@$(call apt_install,dig,dnsutils)
+
 # --- Gen0: foundational services ---
-gen0: headscale coredns dns firewall audit
+gen0: headscale coredns dns firewall
 
 CONFIG_FILES = config/headscale.yaml config/derp.yaml
 
-headscale: $(CONFIG_FILES)
-	@echo "[Makefile] Running setup_headscale.sh..."
-	$(call run_as_root,bash gen0/setup_headscale.sh)
+headscale: install-go $(CONFIG_FILES)
+	@$(call	 run_as_root,bash gen0/setup_headscale.sh)
 
-coredns:
-	@echo "[Makefile] Running setup_coredns.sh..."
-	$(call run_as_root,bash gen0/setup_coredns.sh)
+coredns: install-coredns
+	@$(call	 run_as_root,bash gen0/setup_coredns.sh)
 
-dns:
-	@echo "[Makefile] Running dns_setup.sh..."
-	$(call run_as_root,bash gen0/dns_setup.sh)
+dns: install-unbound install-dnsutils
+	@$(call run_as_root,bash gen0/dns_setup.sh)
 
-firewall:
-	@echo "[Makefile] Running wg_firewall_apply.sh..."
-	$(call run_as_root,bash gen0/wg_firewall_apply.sh)
-
-audit:
-	@echo "[Makefile] Running router_audit.sh..."
-	$(call run_as_root,bash gen0/router_audit.sh)
+firewall: install-wireguard-tools
+	@$(call	 run_as_root,bash gen0/wg_firewall_apply.sh)
 
 # --- Gen1: helpers ---
-gen1: caddy tailnet rotate wg-baseline namespaces
+gen1: caddy tailnet rotate wg-baseline namespaces audit
+
+audit: headscale coredns dns firewall
+	@$(call	 run_as_root,bash gen1/router_audit.sh)
 
 caddy:
-	@echo "[Makefile] Running caddy-reload.sh..."
-	$(call run_as_root,bash gen1/caddy-reload.sh)
+	@$(call	 run_as_root,bash gen1/caddy-reload.sh)
 
 tailnet:
-	@echo "[Makefile] Running tailnet.sh <device-name>..."
-	$(call run_as_root,bash gen1/tailnet.sh test-device)
+	@$(call	 run_as_root,bash gen1/tailnet.sh test-device)
 
 rotate:
-	@echo "[Makefile] Running rotate-unbound-rootkeys.sh..."
-	$(call run_as_root,bash gen1/rotate-unbound-rootkeys.sh)
+	@$(call	 run_as_root,bash gen1/rotate-unbound-rootkeys.sh)
 
 wg-baseline:
-	@echo "[Makefile] Running wg_baseline.sh <client-name>..."
-	$(call run_as_root,bash gen1/wg_baseline.sh test-client)
+	@$(call	 run_as_root,bash gen1/wg_baseline.sh test-client)
 
 namespaces: headscale
-	@echo "[Makefile] Running namespaces_headscale.sh..."
-	$(call run_as_root,bash gen1/namespaces_headscale.sh)
+	@$(call	 run_as_root,bash gen1/namespaces_headscale.sh)
 
 # --- Gen2: site artifact ---
 gen2: site
 
-site:
+site: caddy audit
 	@echo "[Makefile] Deploying site/index.html..."
-	$(call run_as_root,cp gen2/site/index.html /var/www/html/index.html)
+	@$(call	 run_as_root,cp gen2/site/index.html /var/www/html/index.html)
 
 # --- Lint target ---
 lint: lint-scripts lint-config lint-makefile
 
 lint-scripts:
 	@bash -n gen0/*.sh gen1/*.sh scripts/*.sh
-	@sh -c '$(call run_as_root,bash -n gen1/namespaces_headscale.sh)'
+	@bash -n gen1/namespaces_headscale.sh
 
 lint-config:
-	@sh -c '$(call run_as_root,headscale configtest -c config/headscale.yaml)' || \
+	@$(call run_as_root,headscale configtest -c config/headscale.yaml) || \
 		(echo "Headscale config invalid!" && exit 1)
 
 lint-makefile:
@@ -162,8 +165,10 @@ lint-makefile:
 # --- Clean target ---
 WIREGUARD_DIR := /etc/wireguard
 
+# destructive clean
 clean:
-	$(call run_as_root,rm -f /etc/headscale/db.sqlite \
+	$(call run_as_root,systemctl stop headscale || true)
+	@$(call run_as_root,rm -f /etc/headscale/db.sqlite \
 		$(WIREGUARD_DIR)/*.conf.generated \
 		$(WIREGUARD_DIR)/*.key.generated \
 		$(WIREGUARD_DIR)/qr/*.qr)
@@ -171,7 +176,7 @@ clean:
 # --- Shared helpers ---
 autoremove:
 	@echo "[Makefile] Cleaning up unused dependencies..."
-	$(call run_as_root,apt-get autoremove -y)
+	@$(call run_as_root,apt-get autoremove -y)
 
 define apt_install
 	@if ! command -v $(1) >/dev/null 2>&1; then \
@@ -182,11 +187,11 @@ define apt_install
 endef
 
 define apt_remove
-	$(call remove_cmd,$(1),apt-get remove -y $(1) || echo "[Makefile] $(1) not installed")
+	@$(call remove_cmd,$(1),apt-get remove -y $(1) || echo "[Makefile] $(1) not installed")
 endef
 
 define remove_cmd
 	@echo "[Makefile] Removing $(1)..."
-	$(call run_as_root,$(2))
+	@$(call run_as_root,$(2))
 	@$(MAKE) autoremove
 endef
