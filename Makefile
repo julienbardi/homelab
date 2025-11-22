@@ -219,9 +219,12 @@ define apt_install
 	@if ! command -v $(1) >/dev/null 2>&1; then \
 		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends $(2)); \
 	else \
-		if [ "$(1)" = "go" ]; then $(1) version; \
-		elif [ "$(1)" = "dig" ]; then $(1) -v; \
-		else $(1) --version | head -n1; fi; \
+		VER_STR=$$( \
+			$(1) version 2>&1 | head -n1 || \
+			$(1) --version 2>&1 | head -n1 || \
+			$(1) -v 2>&1 | head -n1 \
+		); \
+		echo "$$(date '+%Y-%m-%d %H:%M:%S') [Makefile] $(1) version: $$VER_STR"; \
 	fi
 endef
 
