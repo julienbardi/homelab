@@ -109,7 +109,7 @@ install-dnsutils:
 	@$(call apt_install,dig,dnsutils)
 
 # --- Gen0: foundational services ---
-gen0: setup-subnet-router headscale dns coredns firewall
+gen0: setup-subnet-router headscale dns coredns
 	@echo "[Makefile] Running gen0 foundational services..."
 
 # --- Subnet router deployment ---
@@ -120,7 +120,7 @@ SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh
 SCRIPT_DST  := /usr/local/bin/setup-subnet-router
 
 # Order-only prerequisite: require file to exist, but don't try to build it
-setup-subnet-router: update | $(SCRIPT_SRC)
+setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC)
 	@echo "[Makefile] Deploying subnet router script from Git..."
 	@if [ ! -f "$(SCRIPT_SRC)" ]; then \
 		echo "[Makefile] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
@@ -143,14 +143,11 @@ coredns: dns install-coredns
 dns: install-unbound install-dnsutils
 	@$(call run_as_root,bash scripts/setup/dns_setup.sh)
 
-firewall: install-wireguard-tools
-	@$(call	 run_as_root,bash scripts/setup/wg_firewall_apply.sh)
-
 # --- Gen1: helpers ---
 gen1: caddy tailnet rotate wg-baseline namespaces audit
 	@echo "[Makefile] Running gen1 helper scripts..."
 
-audit: headscale coredns dns firewall
+audit: headscale coredns dns setup-subnet-router
 	@$(call	 run_as_root,bash scripts/audit/router_audit.sh)
 
 caddy:
