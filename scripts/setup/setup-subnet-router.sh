@@ -27,40 +27,40 @@ touch "${LOG_FILE}"
 chmod 644 "${LOG_FILE}"
 
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a "${LOG_FILE}"
-    logger -t "${SCRIPT_NAME}" "$*"
+	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a "${LOG_FILE}"
+	logger -t "${SCRIPT_NAME}" "$*"
 }
 
 # Idempotent rule inserter: checks with -C first
 ensure_rule() {
-    # usage: ensure_rule iptables-legacy -I INPUT -p tcp --dport 2222 -j ACCEPT
-    local cmd="$1"; shift
-    local args=("$@")
-    if $cmd -C "${args[@]}" 2>/dev/null; then
-        log "Rule already present: $cmd ${args[*]}"
-    else
-        $cmd "${args[@]}"
-        log "Rule added: $cmd ${args[*]}"
-    fi
+	# usage: ensure_rule iptables-legacy -I INPUT -p tcp --dport 2222 -j ACCEPT
+	local cmd="$1"; shift
+	local args=("$@")
+	if $cmd -C "${args[@]}" 2>/dev/null; then
+		log "Rule already present: $cmd ${args[*]}"
+	else
+		$cmd "${args[@]}"
+		log "Rule added: $cmd ${args[*]}"
+	fi
 }
 
 # --- Interface guard ---
 if ! ip link show "${LAN_IF}" | grep -q "state UP"; then
-    log "ERROR: Interface ${LAN_IF} not found or not UP, aborting."
-    exit 1
+	log "ERROR: Interface ${LAN_IF} not found or not UP, aborting."
+	exit 1
 fi
 
 # --- Conflict detection (audit only) ---
 log "Checking for subnet conflicts..."
 conflicts=""
 for route in $(ip -4 route show | awk '{print $1}'; ip -6 route show | awk '{print $1}'); do
-    conflicts="${conflicts}${route},"
+	conflicts="${conflicts}${route},"
 done
 if [ -n "${conflicts}" ]; then
-    conflicts="${conflicts%,}"  # trim trailing comma
-    log "WARN: Existing subnets detected: ${conflicts}"
+	conflicts="${conflicts%,}"  # trim trailing comma
+	log "WARN: Existing subnets detected: ${conflicts}"
 else
-    log "No existing subnets detected."
+	log "No existing subnets detected."
 fi
 
 # --- NAT setup (idempotent) ---
@@ -96,28 +96,66 @@ ensure_rule iptables-legacy -I INPUT -p udp --dport 139 -j ACCEPT
 ensure_rule iptables-legacy -I INPUT -p tcp --dport 445 -j ACCEPT
 ensure_rule iptables-legacy -I INPUT -p udp --dport 445 -j ACCEPT
 
+# --- Firewall rules for HTTPS and UDP ports (idempotent) ---
+log "Ensuring firewall INPUT rules for HTTPS and VPN ports..."
+# 443 TCP for ALL
+ensure_rule iptables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
+
+# UDP 51421 only for interface bridge0  for 10.1.0/24 and fd10:8912:0:11::/64
+ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51421 -s 10.1.0.0/24 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51421 -s fd10:8912:0:11::/64 -j ACCEPT
+
+# UDP 51422 only for interface bridge0  for 10.2.0/24 and fd10:8912:0:12::/64
+ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51422 -s 10.2.0.0/24 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51422 -s fd10:8912:0:12::/64 -j ACCEPT
+
+# UDP 51423 only for interface bridge0  for 10.3.0/24 and fd10:8912:0:13::/64
+ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51423 -s 10.3.0.0/24 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51423 -s fd10:8912:0:13::/64 -j ACCEPT
+
+# UDP 51424 only for interface bridge0  for 10.4.0/24 and fd10:8912:0:14::/64
+ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51424 -s 10.4.0.0/24 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51424 -s fd10:8912:0:14::/64 -j ACCEPT
+
+# UDP 51425 only for interface bridge0  for 10.5.0/24 and fd10:8912:0:15::/64
+ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51425 -s 10.5.0.0/24 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51425 -s fd10:8912:0:15::/64 -j ACCEPT
+
+# UDP 51426 only for interface bridge0  for 10.6.0/24 and fd10:8912:0:16::/64
+ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51426 -s 10.6.0.0/24 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51426 -s fd10:8912:0:16::/64 -j ACCEPT
+
+# UDP 51427 only for interface bridge0  for 10.7.0/24 and fd10:8912:0:17::/64
+ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s 10.7.0.0/24 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s fd10:8912:0:17::/64 -j ACCEPT
+
+# bridge0  all ports all protocols from 10.89.12.0/24 and 2a01:8b81:4800:9c00::/64
+ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -s 10.89.12.0/24 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -s 2a01:8b81:4800:9c00::/64 -j ACCEPT
+
 # --- GRO tuning ---
 log "Applying GRO tuning..."
 if ethtool -K "${LAN_IF}" gro off 2>/dev/null; then
-    log "GRO disabled on ${LAN_IF}"
+	log "GRO disabled on ${LAN_IF}"
 else
-    log "WARN: Failed to disable GRO on ${LAN_IF}"
+	log "WARN: Failed to disable GRO on ${LAN_IF}"
 fi
 
 # --- Persist firewall rules ---
 log "Persisting iptables rules to /etc/iptables/rules.v4 and /etc/iptables/rules.v6..."
 if iptables-legacy-save > /etc/iptables/rules.v4 && ip6tables-legacy-save > /etc/iptables/rules.v6; then
-    log "Firewall rules persisted."
+	log "Firewall rules persisted."
 else
-    log "ERROR: Failed to persist firewall rules!"
+	log "ERROR: Failed to persist firewall rules!"
 fi
 
 # Inform about netfilter-persistent status (for restore on reboot)
 if systemctl is-enabled netfilter-persistent >/dev/null 2>&1; then
-    log "netfilter-persistent is enabled; rules will restore on boot."
+	log "netfilter-persistent is enabled; rules will restore on boot."
 else
-    log "WARN: netfilter-persistent is NOT enabled."
-    log "Enable with: sudo apt-get install -y netfilter-persistent && sudo systemctl enable --now netfilter-persistent"
+	log "WARN: netfilter-persistent is NOT enabled."
+	log "Enable with: sudo apt-get install -y netfilter-persistent && sudo systemctl enable --now netfilter-persistent"
 fi
 
 # --- Footer logging ---
