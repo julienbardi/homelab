@@ -9,7 +9,7 @@ SHELL := /bin/bash
 
 # --- Git repo URL for homelab ---
 HOMELAB_REPO := https://github.com/Jambo15/homelab.git
-HOMELAB_DIR  := /home/julie/src/homelab # use absolute path
+HOMELAB_DIR  := $(HOME)/src/homelab # do not use ~ in paths, use $(HOME) instead
 
 BUILDER_NAME := $(shell git config --get user.name)
 BUILDER_EMAIL := $(shell git config --get user.email)
@@ -17,13 +17,13 @@ export BUILDER_NAME
 export BUILDER_EMAIL
 
 # --- Privilege guard with id -u (0 if root) evaluated at runtime not at parse time ---
-run_as_root = if [ "$$(id -u)" -eq 0 ]; then bash -c '$(1)'; else sudo bash -c '$(1)'; fi
+run_as_root = bash -c 'if [ "$$(id -u)" -eq 0 ]; then $(1); else sudo bash -c "$(1)"; fi'
 
 .PHONY: gitcheck update
 gitcheck:
 	@if [ ! -d $(HOMELAB_DIR)/.git ]; then \
 		echo "[Makefile] Cloning homelab repo..."; \
-		mkdir -p ~/src; \
+		mkdir -p $(HOME)/src; \
 		git clone $(HOMELAB_REPO) $(HOMELAB_DIR); \
 	else \
 		echo "[Makefile] homelab repo already present at $(HOMELAB_DIR)"; \
@@ -61,20 +61,20 @@ remove-pandoc:
 
 install-checkmake: install-pandoc install-go
 	@echo "[Makefile] Installing checkmake (v0.2.2) using upstream Makefile..."
-	@mkdir -p ~/src
-	@rm -rf ~/src/checkmake
-	@git clone https://github.com/mrtazz/checkmake.git ~/src/checkmake
-	@cd ~/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
-	@cd ~/src/checkmake && \
+	@mkdir -p $(HOME)/src
+	@rm -rf $(HOME)/src/checkmake
+	@git clone https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake
+	@cd $(HOME)/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
+	@cd $(HOME)/src/checkmake && \
 		BUILDER_NAME="$$(git config --get user.name)" \
 		BUILDER_EMAIL="$$(git config --get user.email)" \
 		make
-	$(call run_as_root,install -m 0755 ~/src/checkmake/checkmake /usr/local/bin/checkmake)
+	$(call run_as_root,install -m 0755 $(HOME)/src/checkmake/checkmake /usr/local/bin/checkmake)
 	@echo "[Makefile] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
 	@checkmake --version
 
 remove-checkmake:
-	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf ~/src/checkmake)
+	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake)
 
 headscale-build: install-go
 	@echo "[Makefile] Building Headscale..."
