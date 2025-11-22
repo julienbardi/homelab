@@ -18,7 +18,7 @@ export BUILDER_NAME
 export BUILDER_EMAIL
 
 # --- Privilege guard with id -u (0 if root) evaluated at runtime not at parse time ---
-run_as_root = bash -c 'if [ "$$(id -u)" -eq 0 ]; then $(1); else sudo bash -c "$(1)"; fi'
+run_as_root = @bash -c 'if [ "$$(id -u)" -eq 0 ]; then $(1); else sudo bash -c "$(1)"; fi'
 
 .PHONY: gitcheck update
 gitcheck:
