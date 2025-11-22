@@ -13,6 +13,7 @@
 # ============================================================
 
 set -euo pipefail
+source "/home/julie/src/homelab/scripts/common.sh"
 
 SERVICE_NAME="headscale"
 CONFIG_DIR="/etc/headscale"
@@ -24,15 +25,6 @@ REPO_DERP="/home/julie/src/homelab/config/derp.yaml"
 NAS_IP="10.89.12.4"
 ROUTER_IP="10.89.12.1"
 UNBOUND_IP="${NAS_IP}"   # Unbound runs locally on NAS
-
-SCRIPT_NAME=$(basename "$0" .sh)
-touch /var/log/${SCRIPT_NAME}.log
-chmod 644 /var/log/${SCRIPT_NAME}.log
-
-log() {
-	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
-	logger -t ${SCRIPT_NAME} "$*"
-}
 
 # --- Prerequisite checks ---
 log "Checking prerequisites..."
@@ -51,18 +43,15 @@ if ! command -v headscale >/dev/null 2>&1; then
 fi
 
 # --- Deploy configs from repo ---
-log "Deploying Headscale config from ${REPO_CONFIG} to ${CONFIG_FILE}..."
-mkdir -p "${CONFIG_DIR}"
-cp "${REPO_CONFIG}" "${CONFIG_FILE}"
-
-log "Deploying DERPMap config from ${REPO_DERP} to ${DERP_FILE}..."
-cp "${REPO_DERP}" "${DERP_FILE}"
+log "Deploying Headscale config..."
+run_as_root mkdir -p "${CONFIG_DIR}"
+run_as_root cp "${REPO_CONFIG}" "${CONFIG_FILE}"
+run_as_root cp "${REPO_DERP}" "${DERP_FILE}"
 
 # --- Noise private key generation ---
 if [ ! -f "${CONFIG_DIR}/noise_private.key" ]; then
     log "Generating Noise private key..."
-    headscale generate noise-key -o "${CONFIG_DIR}/noise_private.key"
-    if [ $? -eq 0 ]; then
+    if headscale generate noise-key -o "${CONFIG_DIR}/noise_private.key"; then
         log "Noise private key created at ${CONFIG_DIR}/noise_private.key"
     else
         log "ERROR: Failed to generate Noise private key"
@@ -74,32 +63,26 @@ fi
 # --- Ensure database file exists with correct permissions ---
 log "Ensuring database file exists with correct ownership and permissions..."
 if [ ! -f /var/lib/headscale/db.sqlite ]; then
-    mkdir -p /var/lib/headscale
-    touch /var/lib/headscale/db.sqlite
+    run_as_root mkdir -p /var/lib/headscale
+    run_as_root touch /var/lib/headscale/db.sqlite
 fi
-chown headscale:headscale /var/lib/headscale/db.sqlite /var/lib/headscale
-chmod 660 /var/lib/headscale/db.sqlite
-chmod 770 /var/lib/headscale
-
-# Clean up stale SQLite lock/journal files
-rm -f /var/lib/headscale/db.sqlite-*
+run_as_root chown headscale:headscale /var/lib/headscale/db.sqlite /var/lib/headscale
+run_as_root chmod 660 /var/lib/headscale/db.sqlite
+run_as_root chmod 770 /var/lib/headscale
+run_as_root rm -f /var/lib/headscale/db.sqlite-*
 
 # --- Runtime directory and socket cleanup ---
 log "Ensuring runtime directory and socket permissions..."
-mkdir -p /var/run/headscale
-chown headscale:headscale /var/run/headscale
-chmod 770 /var/run/headscale
+run_as_root mkdir -p /var/run/headscale
+run_as_root chown headscale:headscale /var/run/headscale
+run_as_root chmod 770 /var/run/headscale
 if [ -S /var/run/headscale/headscale.sock ]; then
-    rm -f /var/run/headscale/headscale.sock
+    run_as_root rm -f /var/run/headscale/headscale.sock
     log "Removed stale socket file /var/run/headscale/headscale.sock"
 fi
 
 # --- DERPMap configuration ---
 log "Ensuring DERPMap file exists and is referenced in config..."
-
-DERP_FILE="/etc/headscale/derp.yaml"
-
-# Create DERPMap file if missing
 if [ ! -f "${DERP_FILE}" ]; then
     cat > "${DERP_FILE}" <<EOF
 regions:
@@ -122,7 +105,6 @@ else
     log "DERPMap file already exists at ${DERP_FILE}, skipping creation"
 fi
 
-# Ensure headscale.yaml points to DERPMap file
 if ! grep -q "derp:" "${CONFIG_FILE}"; then
     cat >> "${CONFIG_FILE}" <<EOF
 
@@ -154,8 +136,8 @@ RuntimeDirectoryMode=0770
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable ${SERVICE_NAME}
-systemctl restart ${SERVICE_NAME} || log "ERROR: Failed to start Headscale, continuing degraded"
+run_as_root systemctl daemon-reload
+run_as_root systemctl enable ${SERVICE_NAME}
+run_as_root systemctl restart ${SERVICE_NAME} || log "ERROR: Failed to start Headscale, continuing degraded"
 
-log "Headscale setup complete (version $(headscale version 2>/dev/null || echo 'unknown'))."
+log "Headscale setup complete (version $(headscale version 2>/dev/null | tr '\n' ' '|| echo 'unknown'))."
