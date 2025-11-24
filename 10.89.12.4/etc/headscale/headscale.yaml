@@ -1,0 +1,108 @@
+---
+# /etc/headscale/headscale.yaml
+# sudo python3 -c "import yaml,sys; yaml.safe_load(open('/home/julie/src/homelab/10.89.12.4/etc/headscale/headscale.yaml')); print('YAML OK')"
+# sudo cp /home/julie/src/homelab/10.89.12.4/etc/headscale/headscale.yaml /etc/headscale/headscale.yaml;sudo chown headscale:headscale /etc/headscale/headscale.yaml;sudo chmod 640 /etc/headscale/headscale.yaml
+# sudo systemctl restart headscale;sudo systemctl status headscale;sudo journalctl -u headscale -f
+# 
+# 
+
+# sudo ss -tulnp | grep 8912
+
+# Public URL clients will use
+server_url: https://vpn.bardi.ch
+
+# Headscale API (internal only, proxied via Caddy)
+listen_addr: 127.0.0.1:8910
+# grpc_listen_addr: 0.0.0.0:5000
+# metrics_listen_addr: 127.0.0.1:9090
+
+# grpc_allow_insecure: true
+
+# tls:
+# i  disabled: true
+
+noise:
+  private_key_path: /etc/headscale/noise_private.key
+
+namespaces:
+  - name: default
+
+# Optional: add an IPv6 ULA if you want IPv6 addresses assigned
+
+#ipv4_prefixes:
+#  - 100.64.0.0/10
+
+#ipv6_prefixes:
+#  - fd7a:115c:a1e0::/48
+
+# List of IP prefixes to allocate tailaddresses from.
+# Each prefix consists of either an IPv4 or IPv6 address,
+# and the associated prefix length, delimited by a slash.
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+
+# Strategy used for allocation of IPs to nodes
+allocation: sequential
+
+derp:
+  urls:
+    - https://controlplane.tailscale.com/derpmap/default
+
+#derp:
+#  server:
+#    enabled: true
+##    region_id: 999
+##    region_code: "ch"
+##    region_name: "Switzerland"
+#    stun_listen_addr: "0.0.0.0:3478"
+#    listen_addr: "127.0.0.1:8912"
+#    private_key_path: /var/lib/headscale/derp_server_private.key
+##  urls:
+##    - https://derp.bardi.ch/derpmap
+
+disable_check_updates: false
+ephemeral_node_inactivity_timeout: 30m
+
+database:
+  type: sqlite3
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+    write_ahead_log: true
+    wal_autocheckpoint: 1000
+
+# acme_url: https://acme-v02.api.letsencrypt.org/directory
+# acme_email: ""
+# tls_letsencrypt_hostname: ""
+# tls_letsencrypt_cache_dir: /var/lib/headscale/cache
+# tls_letsencrypt_challenge_type: TLS-ALPN-01
+# tls_letsencrypt_listen: ":http"
+log:
+  level: info
+  format: text
+
+dns:
+  override_local_dns: true
+  nameservers:
+    global:
+      - 10.89.12.4
+      - 10.89.12.1
+  magic_dns: true
+  base_domain: tailnet.bardi.ch
+
+# unix_socket: /var/run/headscale/headscale.sock
+# unix_socket_permission: "0770"
+
+# logtail:
+#   enabled: false
+
+# randomize_client_port: false
+
+# yamllint /etc/headscale/headscale.yaml
+# Quick YAML sanity check: python3 -c "import yaml,sys; yaml.safe_load(open('/etc/headscale/headscale.yaml')); print('YAML OK')"
+# headscale version
+# Run headscale in foreground
+# headscale serve --config /etc/headscale/headscale.yaml --help
+# curl -vk https://vpn.bardi.ch/health
+# curl -vk https://derp.vpn.bardi.ch/derpmap
+# tailscale up --login-server=https://vpn.bardi.ch
