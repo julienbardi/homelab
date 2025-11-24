@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch coredns certs for changes
+
+[Path]
+PathExistsGlob=/etc/ssl/coredns/*.pem
+PathChanged=/etc/ssl/coredns/bardi.ch.fullchain.pem
+PathChanged=/etc/ssl/coredns/bardi.ch.key
+Unit=cert-reload@coredns.service
+
+[Install]
+WantedBy=multi-user.target
