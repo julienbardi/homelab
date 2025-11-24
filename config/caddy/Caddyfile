@@ -44,78 +44,96 @@ bardi.ch:8384 {
 
 # Consolidated HTTPS listener
 :443 {
-	tls /etc/headscale/certs/fullchain.pem /etc/headscale/certs/privkey.pem
+	tls /etc/ssl/caddy/fullchain.pem /etc/ssl/caddy/privkey.pem
 
 	# DiskStation main HTTPS site (WAN)
-	@bardi host bardi.ch
-	reverse_proxy @bardi 10.89.12.2:443 {
-		header_up bardi.ch
+	@bardi_internal {
+		host bardi.ch
+	}
+	reverse_proxy @bardi_internal 10.89.12.2:443 {
+		header_up Host bardi.ch
 	}
 
 	# DSM management (internal only)
-	@syno5001 host bardi.ch
-	@syno5001_lan4 remote_ip 10.89.12.0/24
-	@syno5001_lan6 remote_ip 2a01:8b81:4800:9c00::/64
-	reverse_proxy @syno5001 @syno5001_lan4 @syno5001_lan6 10.89.12.2:5001 {
-		header_up bardi.ch
+	@syno5001_internal {
+		host bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+	}
+	reverse_proxy @syno5001_internal 10.89.12.2:5001 {
+		header_up Host bardi.ch
 	}
 
 	# Synology service (internal only)
-	@syno5006 host bardi.ch
-	@syno5006_lan4 remote_ip 10.89.12.0/24
-	@syno5006_lan6 remote_ip 2a01:8b81:4800:9c00::/64
-	reverse_proxy @syno5006 @syno5006_lan4 @syno5006_lan6 10.89.12.2:5006 {
-		header_up bardi.ch
+	@syno5006_internal {
+		host bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+	}
+	reverse_proxy @syno5006_internal 10.89.12.2:5006 {
+		header_up Host bardi.ch
 	}
 
 	# Synology Drive (internal only)
-	@syno6690 host bardi.ch
-	@syno6690_lan4 remote_ip 10.89.12.0/24
-	@syno6690_lan6 remote_ip 2a01:8b81:4800:9c00::/64
-	reverse_proxy @syno6690 @syno6690_lan4 @syno6690_lan6 10.89.12.2:6690 {
-		header_up bardi.ch
+	@syno6690_internal {
+		host bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+	}
+	reverse_proxy @syno6690_internal 10.89.12.2:6690 {
+		header_up Host bardi.ch
 	}
 
 	# Router (internal only)
-	@router host router.bardi.ch
-	@router_lan4 remote_ip 10.89.12.0/24
-	@router_lan6 remote_ip 2a01:8b81:4800:9c00::/64
-	reverse_proxy @router @router_lan4 @router_lan6 10.89.12.1:8080
+	@router_internal {
+		host router.bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+	}
+	reverse_proxy @router_internal 10.89.12.1:8080
 
 	# DNS over HTTPS (internal only)
-	@dns host dns.bardi.ch
-	@dns_lan4 remote_ip 10.89.12.0/24
-	@dns_lan6 remote_ip 2a01:8b81:4800:9c00::/64
-	reverse_proxy @dns @dns_lan4 @dns_lan6 127.0.0.1:8053
+	@dns_internal {
+		host dns.bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+	}
+	reverse_proxy @dns_internal 127.0.0.1:8053
 
 	# Headscale control plane (internal only)
-	@vpn host vpn.bardi.ch
-	@vpn_lan4 remote_ip 10.89.12.0/24
-	@vpn_lan6 remote_ip 2a01:8b81:4800:9c00::/64
-	reverse_proxy @vpn @vpn_lan4 @vpn_lan6 127.0.0.1:8910 {
+	@vpn_internal {
+		host vpn.bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+	}
+	reverse_proxy @vpn_internal 127.0.0.1:8910 {
 		transport http {
 			versions h2c
 		}
 	}
 
 	# DERP relay (external)
-	@derp host derp.vpn.bardi.ch
+	@derp host derp.bardi.ch
 	reverse_proxy @derp 127.0.0.1:8912
 
 	# QNAP (internal only)
-	@qnap host qnap.bardi.ch
-	@qnap_lan4 remote_ip 10.89.12.0/24
-	@qnap_lan6 remote_ip 2a01:8b81:4800:9c00::/64
-	reverse_proxy @qnap @qnap_lan4 @qnap_lan6 10.89.12.3:8080
+	@qnap_internal {
+		host qnap.bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+	}
+	reverse_proxy @qnap_internal 10.89.12.3:8080
 
 	# NAS internal service (internal only)
-	@nas host nas.bardi.ch
-	@nas_lan4 remote_ip 10.89.12.0/24
-	@nas_lan6 remote_ip 2a01:8b81:4800:9c00::/64
-	reverse_proxy @nas @nas_lan4 @nas_lan6 127.0.0.1:9999
+	@nas_internal {
+		host nas.bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+	}
+	reverse_proxy @nas_internal 127.0.0.1:9999
 
 	# Unknown host fallback
-	@unknown not host bardi.ch router.bardi.ch dns.bardi.ch vpn.bardi.ch derp.vpn.bardi.ch qnap.bardi.ch nas.bardi.ch
+	@unknown not host bardi.ch router.bardi.ch dns.bardi.ch vpn.bardi.ch derp.bardi.ch qnap.bardi.ch nas.bardi.ch
 	respond @unknown "Not Found" 404
 
 	# log disabled to avoid disk spin

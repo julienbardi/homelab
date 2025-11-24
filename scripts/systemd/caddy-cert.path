@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch Caddy certs for changes
+
+[Path]
+PathExistsGlob=/etc/ssl/caddy/*.pem
+PathChanged=/etc/ssl/caddy/fullchain.pem
+PathChanged=/etc/ssl/caddy/privkey.key
+Unit=cert-reload@caddy.service
+
+[Install]
+WantedBy=multi-user.target

@@ -6,10 +6,7 @@
 # ============================================================
 
 SHELL := /bin/bash
-
-# --- Git repo URL for homelab ---
 HOMELAB_REPO := https://github.com/Jambo15/homelab.git
-# Normalize to absolute paths derived from HOME (no ~, no accidental spaces)
 HOMELAB_DIR  := $(HOME)/src/homelab
 
 BUILDER_NAME := $(shell git config --get user.name)
@@ -17,35 +14,73 @@ BUILDER_EMAIL := $(shell git config --get user.email)
 export BUILDER_NAME
 export BUILDER_EMAIL
 
+# --- Includes ---
+include mk/acme.mk
+include mk/certs.mk
+include mk/unbound.mk
+include mk/tailnet.mk
+include mk/lint.mk
+
+# ============================================================
+# Makefile — homelab certificate orchestration
+# ============================================================
+
+# Default target
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  make issue              # Issue new RSA+ECC certs"
+	@echo "  make renew              # Renew ECC (RSA fallback)"
+	@echo "  make prepare            # Prepare canonical store"
+	@echo "  make deploy-caddy       # Deploy certs to Caddy"
+	@echo "  make deploy-coredns     # Deploy certs to CoreDNS"
+	@echo "  make deploy-headscale   # Deploy certs to Headscale (optional)"
+	@echo "  make deploy-router      # Deploy certs to Asus router"
+	@echo "  make deploy-diskstation # Deploy certs to Synology DSM"
+	@echo "  make deploy-qnap        # Deploy certs to QNAP"
+	@echo "  make all-caddy          # Renew+prepare+deploy+validate Caddy"
+	@echo "  make all-router         # Renew+prepare+deploy+validate Router"
+	@echo "  make all-diskstation    # Renew+prepare+deploy+validate DiskStation"
+	@echo "  make all-qnap           # Renew+prepare+deploy+validate QNAP"
+	@echo ""
+	@echo "Provisioning targets (systemd watchers):"
+	@echo "  make setup-cert-watch-caddy     Install + enable path unit for Caddy reload"
+	@echo "  make setup-cert-watch-headscale Install + enable path unit for Headscale reload"
+	@echo "  make setup-cert-watch-coredns   Install + enable path unit for CoreDNS reload"
+	@echo ""
+	@echo "Bootstrap targets (one-shot setup + lifecycle):"
+	@echo "  make bootstrap-caddy       Run setup-cert-watch-caddy + all-caddy"
+	@echo "  make bootstrap-headscale   Run setup-cert-watch-headscale + all-headscale"
+	@echo "  make bootstrap-coredns     Run setup-cert-watch-coredns + all-coredns"
 # --- Privilege guard with id -u (0 if root) evaluated at runtime not at parse time ---
 run_as_root = bash -c 'if [ "$$(id -u)" -eq 0 ]; then $(1); else sudo bash -c "$(1)"; fi'
 
 .PHONY: gitcheck update
 gitcheck:
 	@if [ ! -d $(HOMELAB_DIR)/.git ]; then \
-		echo "[Makefile] Cloning homelab repo..."; \
+		echo "[make] Cloning homelab repo..."; \
 		mkdir -p $(HOME)/src; \
 		git clone $(HOMELAB_REPO) $(HOMELAB_DIR); \
 	else \
-		echo "[Makefile] homelab repo already present at $(HOMELAB_DIR)"; \
+		echo "[make] homelab repo already present at $(HOMELAB_DIR)"; \
 		git -C $(HOMELAB_DIR) rev-parse --short HEAD; \
 	fi
 
 update: gitcheck
-	@echo "[Makefile] Updating homelab repo..."
+	@echo "[make] Updating homelab repo..."
 	@git -C $(HOMELAB_DIR) pull --rebase
-	@echo "[Makefile] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
+	@echo "[make] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
 .PHONY: setup-subnet-router
-.PHONY: lint test logs clean
+.PHONY: test logs clean
 .PHONY: install-unbound install-coredns install-wireguard-tools install-dnsutils \
 		remove-go remove-pandoc remove-checkmake clean clean-soft autoremove
 
 logs:
 	@echo "Ensuring /var/log/homelab exists and is writable..."
 	@sudo mkdir -p /var/log/homelab
-	@sudo chown $(shell id -un):$(shell id -gn julie) /var/log/homelab
+	@sudo chown $(shell id -un):$(shell id -gn) /var/log/homelab
 
 test: logs
 	@echo "Running run_as_root harness..."
@@ -67,7 +102,7 @@ remove-pandoc:
 	$(call apt_remove,pandoc)
 
 install-checkmake: install-pandoc install-go
-	@echo "[Makefile] Installing checkmake (v0.2.2) using upstream Makefile..."
+	@echo "[make] Installing checkmake (v0.2.2) using upstream Makefile..."
 	@mkdir -p $(HOME)/src
 	@rm -rf $(HOME)/src/checkmake
 	@git clone https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake
@@ -77,14 +112,14 @@ install-checkmake: install-pandoc install-go
 		BUILDER_EMAIL="$$(git config --get user.email)" \
 		make
 	$(call run_as_root,install -m 0755 $(HOME)/src/checkmake/checkmake /usr/local/bin/checkmake)
-	@echo "[Makefile] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
+	@echo "[make] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
 	@checkmake --version
 
 remove-checkmake:
 	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake)
 
 headscale-build: install-go
-	@echo "[Makefile] Building Headscale..."
+	@echo "[make] Building Headscale..."
 	@if ! command -v headscale >/dev/null 2>&1; then \
 		go install github.com/juanfont/headscale/cmd/headscale@v0.27.1; \
 	else \
@@ -93,7 +128,7 @@ headscale-build: install-go
 
 # --- Default target ---
 all: gitcheck gen0 gen1 gen2
-	@echo "[Makefile] Completed full orchestration (gen0 → gen1 → gen2)"
+	@echo "[make] Completed full orchestration (gen0 → gen1 → gen2)"
 
 # --- Dependencies for Gen0 services ---
 install-unbound:
@@ -110,7 +145,7 @@ install-dnsutils:
 
 # --- Gen0: foundational services ---
 gen0: setup-subnet-router headscale dns coredns
-	@echo "[Makefile] Running gen0 foundational services..."
+	@echo "[make] Running gen0 foundational services..."
 
 # --- Subnet router deployment ---
 # Source: $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh (tracked in Git)
@@ -121,40 +156,64 @@ SCRIPT_DST  := /usr/local/bin/setup-subnet-router
 
 # Order-only prerequisite: require file to exist, but don't try to build it
 setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC)
-	@echo "[Makefile] Deploying subnet router script from Git..."
+	@echo "[make] Deploying subnet router script from Git..."
 	@if [ ! -f "$(SCRIPT_SRC)" ]; then \
-		echo "[Makefile] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
+		echo "[make] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
 	fi
 	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
 		$(call run_as_root,cp $(SCRIPT_SRC) $(SCRIPT_DST)); \
 		$(call run_as_root,chown root:root $(SCRIPT_DST)); \
 		$(call run_as_root,chmod 0755 $(SCRIPT_DST)); \
 		$(call run_as_root,systemctl restart subnet-router.service); \
-		echo "[Makefile] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
+		echo "[make] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
 	
 CONFIG_FILES = config/headscale.yaml config/derp.yaml
 
-headscale: install-go $(CONFIG_FILES)
+headscale: install-go $(CONFIG_FILES) deploy-headscale
 	@$(call	 run_as_root,bash scripts/setup/setup_headscale.sh)
 
-coredns: dns install-coredns
+coredns: dns install-coredns deploy-coredns
 	@$(call	 run_as_root,bash scripts/setup/setup_coredns.sh)
 
 dns: install-unbound install-dnsutils
 	@$(call run_as_root,bash scripts/setup/dns_setup.sh)
 
 # --- Gen1: helpers ---
-gen1: caddy tailnet rotate wg-baseline namespaces audit
-	@echo "[Makefile] Running gen1 helper scripts..."
+gen1: caddy deploy-headscale-yaml rotate wg-baseline namespaces audit
+	@echo "[make] Running gen1 helper scripts..."
 
 audit: headscale coredns dns setup-subnet-router
 	@$(call	 run_as_root,bash scripts/audit/router_audit.sh)
 
-caddy:
-	@$(call	 run_as_root,bash scripts/helpers/caddy-reload.sh)
+.PHONY: deploy-caddyfile
+deploy-caddyfile:
+	@echo "[make] Deploying Caddyfile from Git → /etc/caddy"
+	@sudo cp $(HOMELAB_DIR)/config/caddy/Caddyfile /etc/caddy/Caddyfile
+	@sudo chown root:root /etc/caddy/Caddyfile
+	@sudo chmod 644 /etc/caddy/Caddyfile
+	@echo "[make] ✅ Caddyfile deployed successfully"
 
-tailnet:
-	@$(call	 run_as_root,bash scripts/helpers/tailnet.sh test-device)
+caddy: deploy-caddy deploy-caddyfile
+	@echo "[make] Restarting caddy service (Restart flushes out stale matcher references and old routes)"
+	@$(call run_as_root,systemctl restart caddy)
+
+caddy-reload: deploy-caddy deploy-caddyfile
+	@echo "[make] Reloading caddy service (hot reload, fragile, only if you are confident, use 'make caddy' with restart otherwise)"
+	@$(call run_as_root,bash scripts/helpers/caddy-reload.sh)
+
+.PHONY: deploy-headscale-yaml
+HEADSCALE_SRC := /home/julie/src/homelab/10.89.12.4/etc/headscale/headscale.yaml
+HEADSCALE_DST := /etc/headscale/headscale.yaml
+deploy-headscale-yaml: deploy-headscale
+	@echo "[make] Deploying headscale.yaml..."
+	@# Validate YAML before deploying
+	@python3 -c "import yaml,sys; yaml.safe_load(open('$(HEADSCALE_SRC)')); print('YAML OK')"
+	@# Atomic copy with correct permissions
+	@sudo install -o headscale -g headscale -m 640 $(HEADSCALE_SRC) $(HEADSCALE_DST)
+	@echo "File copied to $(HEADSCALE_DST)"
+	@# Restart service only if running
+	@sudo systemctl restart headscale
+	@echo "[make] Headscale service restarted"
 
 rotate:
 	@$(call	 run_as_root,bash scripts/helpers/rotate-unbound-rootkeys.sh)
@@ -167,7 +226,7 @@ namespaces: headscale
 
 # --- Gen2: site artifact ---
 gen2: site
-	@echo "[Makefile] Running gen2 site deployment..."
+	@echo "[make] Running gen2 site deployment..."
 
 # By default site.sh reloads: caddy nginx apache2 lighttpd traefik
 # You can override at runtime, e.g.:
@@ -175,24 +234,6 @@ gen2: site
 #   make site SERVICES="caddy nginx"
 site: caddy audit
 	@$(call run_as_root,SERVICES="$(SERVICES)" bash scripts/deploy/site.sh)
-
-# --- Lint target ---
-lint: lint-scripts lint-config lint-makefile
-
-lint-scripts:
-	 @bash -n scripts/setup/*.sh scripts/helpers/*.sh scripts/audit/*.sh scripts/deploy/*.sh
-
-lint-config:
-	@$(call run_as_root,headscale configtest -c config/headscale.yaml) || \
-		(echo "Headscale config invalid!" && exit 1)
-
-lint-makefile:
-	@if command -v checkmake >/dev/null 2>&1; then \
-		$(call run_as_root,checkmake Makefile); \
-		$(call run_as_root,checkmake --version); \
-	else \
-		make -n all >/dev/null; \
-	fi
 
 # --- Clean target ---
 WIREGUARD_DIR := /etc/wireguard
@@ -209,7 +250,7 @@ clean: clean-soft
 
 # --- Shared helpers ---
 autoremove:
-	@echo "[Makefile] Cleaning up unused dependencies..."
+	@echo "[make] Cleaning up unused dependencies..."
 	@$(call run_as_root,apt-get autoremove -y)
 
 define apt_install
@@ -221,16 +262,16 @@ define apt_install
 			$(1) --version 2>&1 | head -n1 || \
 			$(1) -v 2>&1 | head -n1 \
 		); \
-		echo "$$(date '+%Y-%m-%d %H:%M:%S') [Makefile] $(1) version: $$VER_STR"; \
+		echo "$$(date '+%Y-%m-%d %H:%M:%S') [make] $(1) version: $$VER_STR"; \
 	fi
 endef
 
 define apt_remove
-	@$(call remove_cmd,$(1),apt-get remove -y $(1) || echo "[Makefile] $(1) not installed")
+	@$(call remove_cmd,$(1),apt-get remove -y $(1) || echo "[make] $(1) not installed")
 endef
 
 define remove_cmd
-	@echo "[Makefile] Removing $(1)..."
+	@echo "[make] Removing $(1)..."
 	@$(call run_as_root,$(2))
 	@$(MAKE) autoremove
 endef

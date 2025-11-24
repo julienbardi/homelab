@@ -1,0 +1,13 @@
+# headscale-cert.path
+[Unit]
+Description=Watch Headscale certs for changes
+
+[Path]
+PathExistsGlob=/etc/headscale/certs/*.pem
+PathChanged=/etc/headscale/certs/fullchain.pem
+PathChanged=/etc/headscale/certs/privkey.pem
+Unit=cert-reload@headscale.service
+
+[Install]
+WantedBy=multi-user.target
+
