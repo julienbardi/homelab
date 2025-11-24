@@ -1,0 +1,7 @@
+# /etc/systemd/system/cert-reload@.service
+[Unit]
+Description=Reload %i when certs change
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl reload %i.service
