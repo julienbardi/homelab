@@ -15,10 +15,14 @@ export BUILDER_NAME
 export BUILDER_EMAIL
 
 # --- Includes ---
+include mk/01_common.mk
+include mk/03_deps.mk
+include mk/generate.mk
 include mk/acme.mk
 include mk/certs.mk
 include mk/unbound.mk
 include mk/tailnet.mk
+include mk/dns-health.mk
 include mk/lint.mk
 
 # ============================================================
@@ -52,8 +56,6 @@ help:
 	@echo "  make bootstrap-caddy       Run setup-cert-watch-caddy + all-caddy"
 	@echo "  make bootstrap-headscale   Run setup-cert-watch-headscale + all-headscale"
 	@echo "  make bootstrap-coredns     Run setup-cert-watch-coredns + all-coredns"
-# --- Privilege guard with id -u (0 if root) evaluated at runtime not at parse time ---
-run_as_root = bash -c 'if [ "$$(id -u)" -eq 0 ]; then $(1); else sudo bash -c "$(1)"; fi'
 
 .PHONY: gitcheck update
 gitcheck:
@@ -74,8 +76,7 @@ update: gitcheck
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
 .PHONY: setup-subnet-router
 .PHONY: test logs clean
-.PHONY: install-unbound install-coredns install-wireguard-tools install-dnsutils \
-		remove-go remove-pandoc remove-checkmake clean clean-soft autoremove
+.PHONY: install-unbound install-coredns install-wireguard-tools install-dnsutils clean clean-soft
 
 logs:
 	@echo "Ensuring /var/log/homelab exists and is writable..."
@@ -85,46 +86,6 @@ logs:
 test: logs
 	@echo "Running run_as_root harness..."
 	@bash $(HOME)/src/homelab/scripts/test_run_as_root.sh
-
-# --- Dependencies ---
-deps: install-go install-pandoc install-checkmake
-
-install-go:
-	$(call apt_install,go,golang-go)
-
-remove-go:
-	$(call apt_remove,golang-go)
-
-install-pandoc:
-	$(call apt_install,pandoc,pandoc)
-
-remove-pandoc:
-	$(call apt_remove,pandoc)
-
-install-checkmake: install-pandoc install-go
-	@echo "[make] Installing checkmake (v0.2.2) using upstream Makefile..."
-	@mkdir -p $(HOME)/src
-	@rm -rf $(HOME)/src/checkmake
-	@git clone https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake
-	@cd $(HOME)/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
-	@cd $(HOME)/src/checkmake && \
-		BUILDER_NAME="$$(git config --get user.name)" \
-		BUILDER_EMAIL="$$(git config --get user.email)" \
-		make
-	$(call run_as_root,install -m 0755 $(HOME)/src/checkmake/checkmake /usr/local/bin/checkmake)
-	@echo "[make] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
-	@checkmake --version
-
-remove-checkmake:
-	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake)
-
-headscale-build: install-go
-	@echo "[make] Building Headscale..."
-	@if ! command -v headscale >/dev/null 2>&1; then \
-		go install github.com/juanfont/headscale/cmd/headscale@v0.27.1; \
-	else \
-		headscale version; \
-	fi
 
 # --- Default target ---
 all: gitcheck gen0 gen1 gen2
@@ -202,7 +163,7 @@ caddy-reload: deploy-caddy deploy-caddyfile
 	@$(call run_as_root,bash scripts/helpers/caddy-reload.sh)
 
 .PHONY: deploy-headscale-yaml
-HEADSCALE_SRC := /home/julie/src/homelab/10.89.12.4/etc/headscale/headscale.yaml
+HEADSCALE_SRC := /home/julie/src/homelab/config/headscale.yaml
 HEADSCALE_DST := /etc/headscale/headscale.yaml
 deploy-headscale-yaml: deploy-headscale
 	@echo "[make] Deploying headscale.yaml..."
@@ -248,30 +209,3 @@ clean: clean-soft
 	$(call run_as_root,systemctl stop headscale || true)
 	@$(call run_as_root,rm -f /etc/headscale/db.sqlite)
 
-# --- Shared helpers ---
-autoremove:
-	@echo "[make] Cleaning up unused dependencies..."
-	@$(call run_as_root,apt-get autoremove -y)
-
-define apt_install
-	@if ! command -v $(1) >/dev/null 2>&1; then \
-		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends $(2)); \
-	else \
-		VER_STR=$$( \
-			$(1) version 2>&1 | head -n1 || \
-			$(1) --version 2>&1 | head -n1 || \
-			$(1) -v 2>&1 | head -n1 \
-		); \
-		echo "$$(date '+%Y-%m-%d %H:%M:%S') [make] $(1) version: $$VER_STR"; \
-	fi
-endef
-
-define apt_remove
-	@$(call remove_cmd,$(1),apt-get remove -y $(1) || echo "[make] $(1) not installed")
-endef
-
-define remove_cmd
-	@echo "[make] Removing $(1)..."
-	@$(call run_as_root,$(2))
-	@$(MAKE) autoremove
-endef
