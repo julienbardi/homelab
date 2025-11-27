@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# bin/run-as-root
+# Execute the given command as root if needed, preserving argv boundaries.
+if [ "$(id -u)" -eq 0 ]; then
+  exec "$@"
+else
+  exec sudo -- "$@"
+fi
+
