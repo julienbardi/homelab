@@ -184,7 +184,7 @@ caddy-reload: deploy-caddy deploy-caddyfile
 
 .PHONY: deploy-headscale-yaml
 HEADSCALE_SRC := /home/julie/src/homelab/config/headscale.yaml
-HEADSCALE_DST := /etc/headscale/headscale.yaml
+HEADSCALE_DST := /etc/headscale/config.yaml
 deploy-headscale-yaml: deploy-headscale
 	@echo "[make] Deploying headscale.yaml..."
 	@# Validate YAML before deploying
