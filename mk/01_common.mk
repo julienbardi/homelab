@@ -21,14 +21,24 @@ endef
 
 #run_as_root = bash -c 'if [ "$$(id -u)" -eq 0 ]; then bash -c "$$1"; else sudo bash -c "$$1"; fi' -- '$(1)' #ok but noisy
 # run_as_root: execute command as root, log to journald
-run_as_root = bash -c '\
-	if [ "$$(id -u)" -eq 0 ]; then \
-		logger -t homelab-run_as_root "[root] $$1"; \
-		bash -c "$$1"; \
-	else \
-		logger -t homelab-run_as_root "[sudo] $$1"; \
-		sudo bash -c "$$1"; \
-	fi' -- '$(1)'
+#run_as_root = bash -c '\
+#	if [ "$$(id -u)" -eq 0 ]; then \
+#		logger -t homelab-run_as_root "[root] $$1"; \
+#		bash -c "$$1"; \
+#	else \
+#		logger -t homelab-run_as_root "[sudo] $$1"; \
+#		sudo bash -c "$$1"; \
+#	fi' -- '$(1)'
+#run_as_root = bash -c '\
+#	if [ "$$(id -u)" -eq 0 ]; then \
+#		logger -t homelab-run_as_root "[root] $*"; \
+#		"$$@"; \
+#	else \
+#		logger -t homelab-run_as_root "[sudo] $*"; \
+#		sudo "$$@"; \
+#	fi' run_as_root
+
+run_as_root = scripts/run_as_root.sh
 
 # install_script(src, name)
 define install_script
