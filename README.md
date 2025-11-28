@@ -445,3 +445,15 @@ sudo chown root:coredns /etc/coredns
 sudo chmod 750 /etc/coredns
 sudo chown root:coredns /etc/coredns/Corefile
 sudo chmod 640 /etc/coredns/Corefile
+
+
+## Editor settings
+
+This project requires **literal tabs** in Makefiles (`Makefile`, `.mk` includes).
+To enforce this, we provide a workspace settings file:
+
+- Copy `.vscode/settings.json` into your repo (already included).
+- When you open the repo in VS Code, these settings are applied automatically.
+- Do not override with spaces — GNU Make requires tabs in recipe lines.
+
+If you use another editor, configure it to insert tabs instead of spaces for Makefiles.

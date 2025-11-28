@@ -14,16 +14,18 @@ BUILDER_EMAIL := $(shell git config --get user.email)
 export BUILDER_NAME
 export BUILDER_EMAIL
 
-# --- Includes ---
-include mk/01_common.mk
-include mk/03_deps.mk
-include mk/generate.mk
-include mk/acme.mk
-include mk/certs.mk
-include mk/unbound.mk
-include mk/tailnet.mk
-include mk/dns-health.mk
-include mk/lint.mk
+# --- Includes (ordered by prefix) ---
+include mk/01_common.mk      # global macros, helpers, logging (must come first)
+include mk/10_groups.mk      # group membership enforcement (security bootstrap)
+include mk/20_deps.mk        # package dependencies (apt installs, base tools)
+include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
+include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
+include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
+include mk/60_unbound.mk     # Unbound DNS resolver setup
+include mk/70_coredns.mk     # CoreDNS setup and deployment
+include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
+include mk/90_dns-health.mk  # DNS health checks and monitoring
+include mk/99_lint.mk        # lint and safety checks (always last)
 
 # ============================================================
 # Makefile — homelab certificate orchestration
@@ -95,6 +97,7 @@ all: gitcheck gen0 gen1 gen2
 install-unbound:
 	@$(call apt_install,unbound,unbound)
 
+
 install-coredns:
 	@$(call apt_install,coredns,coredns)
 
@@ -127,14 +130,28 @@ setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC)
 		$(call run_as_root,chmod 0755 $(SCRIPT_DST)); \
 		$(call run_as_root,systemctl restart subnet-router.service); \
 		echo "[make] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
+
+# Top-level Makefile (snippet)
+# ensure prerequisites/config files are present before running the setup script
+headscale: install-go config/headscale.yaml config/derp.yaml deploy-headscale
+	@echo "Running Headscale setup script..."
+	@bash scripts/setup/setup_headscale.sh
+
+.PHONY: coredns
+
+/etc/coredns/Corefile:
+	run_as_root chmod 0755 /etc/coredns; \
+	sudo install -o coredns -g coredns -m 640 /home/julie/src/homelab/config/coredns/Corefile /etc/coredns/Corefile;
 	
-CONFIG_FILES = config/headscale.yaml config/derp.yaml
-
-headscale: install-go $(CONFIG_FILES) deploy-headscale
-	@$(call	 run_as_root,bash scripts/setup/setup_headscale.sh)
-
-coredns: dns install-coredns deploy-coredns
-	@$(call	 run_as_root,bash scripts/setup/setup_coredns.sh)
+coredns: dns headscale install-coredns deploy-coredns /etc/coredns/Corefile
+	@echo "[make] coredns";
+	@export SCRIPT_NAME="coredns"; . scripts/lib/run_as_root.sh && \
+	if ! getent passwd coredns >/dev/null; then \
+		sudo useradd --system --no-create-home --shell /usr/sbin/nologin coredns; \
+	fi; \
+	run_as_root mkdir -p /etc/coredns /var/lib/coredns; \
+	run_as_root chown -R coredns:coredns /etc/coredns /var/lib/coredns || true; \
+	run_as_root bash scripts/setup/setup_coredns.sh;
 
 dns: install-unbound install-dnsutils
 	@$(call run_as_root,bash scripts/setup/dns_setup.sh)
