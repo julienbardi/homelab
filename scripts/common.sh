@@ -12,16 +12,10 @@ set -euo pipefail
 HOME="/home/julie"
 
 SCRIPT_NAME="$(basename "$0" .sh)"
-LOG_FILE="${LOG_FILE:-/var/log/homelab/${SCRIPT_NAME}.log}"
-mkdir -p "$(dirname "${LOG_FILE}")"
-touch "${LOG_FILE}"
-chmod 644 "${LOG_FILE}"
 
 log() {
 	local msg="$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME:-${0##*/}}] $*"
-	# Print to stderr and append to file if defined
-	echo "$msg" | tee -a "${LOG_FILE:-/dev/null}" >&2
-	# Send the same formatted message to syslog
+	echo "$msg" >&2
 	logger -t "${SCRIPT_NAME:-${0##*/}}" "$msg"
 }
 
