@@ -20,7 +20,7 @@ source "/home/julie/src/homelab/scripts/common.sh"
 
 SERVICE_NAME="headscale"
 CONFIG_DIR="/etc/headscale"
-CONFIG_FILE="${CONFIG_DIR}/headscale.yaml"
+CONFIG_FILE="${CONFIG_DIR}/config.yaml"
 DERP_FILE="${CONFIG_DIR}/derp.yaml"
 SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
 REPO_CONFIG="/home/julie/src/homelab/config/headscale.yaml"
@@ -43,8 +43,8 @@ if ! command -v go >/dev/null 2>&1; then
 	log "WARNING: Go not found in PATH. The script will continue but headscale install may fail."
 fi
 
-if ! modprobe wireguard >/dev/null 2>&1; then
-	log "WARNING: WireGuard kernel module not available. Headscale may run in degraded mode for some features."
+if ! lsmod | grep -q '^wireguard'; then
+	log "⚠️ WireGuard kernel module not available; data-plane features may degrade"
 fi
 
 # --- Ensure runtime user exists ---
@@ -94,14 +94,14 @@ else
 		run_as_root tee "${DERP_FILE}" > /dev/null <<'EOF'
 regions:
   1:
-	region_id: 1
-	region_code: "global"
-	region_name: "Tailscale Global DERPs"
-	nodes:
-	  - name: "derp1"
-		region_id: 1
-		host_name: "derp1.tailscale.com"
-		stun: true
+    region_id: 1
+    region_code: "global"
+    region_name: "Tailscale Global DERPs"
+    nodes:
+      - name: "derp1"
+        region_id: 1
+        host_name: "derp1.tailscale.com"
+        stun: true
 EOF
 		log "Created minimal DERP file at ${DERP_FILE}"
 	fi
@@ -114,7 +114,7 @@ if [ -f "${CONFIG_FILE}" ] && ! grep -q "derp:" "${CONFIG_FILE}"; then
 
 derp:
   paths:
-	- ${DERP_FILE}
+    - ${DERP_FILE}
 EOF
 else
 	log "DERP reference already present in ${CONFIG_FILE} or config missing"
@@ -148,7 +148,7 @@ if command -v "${HEADSCALE_BIN}" >/dev/null 2>&1 || command -v headscale >/dev/n
 	HS_BIN="$(command -v headscale || echo "${HEADSCALE_BIN}")"
 	if [ ! -f "${CONFIG_DIR}/noise_private.key" ]; then
 		log "Generating Noise private key..."
-		if "${HS_BIN}" generate noise-key -o "${CONFIG_DIR}/noise_private.key"; then
+		if "${HS_BIN}" generate private-key -o "${CONFIG_DIR}/noise_private.key"; then
 			log "Noise private key created at ${CONFIG_DIR}/noise_private.key"
 			run_as_root chown "${HEADSCALE_USER}:${HEADSCALE_USER}" "${CONFIG_DIR}/noise_private.key" || true
 			run_as_root chmod 600 "${CONFIG_DIR}/noise_private.key" || true
@@ -170,7 +170,7 @@ Description=Headscale coordination server
 After=network.target
 
 [Service]
-ExecStart=${HEADSCALE_BIN} serve
+ExecStart=${HEADSCALE_BIN} serve --config ${CONFIG_FILE}
 WorkingDirectory=${CONFIG_DIR}
 User=${HEADSCALE_USER}
 Group=${HEADSCALE_USER}
