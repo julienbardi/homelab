@@ -80,7 +80,8 @@ update: gitcheck
 .PHONY: test logs clean
 .PHONY: install-unbound install-coredns install-wireguard-tools install-dnsutils clean clean-soft
 
-logs:
+# Ensure group membership before running logs
+logs: journal-access
 	@echo "Ensuring /var/log/homelab exists and is writable..."
 	@sudo mkdir -p /var/log/homelab
 	@sudo chown $(shell id -un):$(shell id -gn) /var/log/homelab
@@ -90,8 +91,9 @@ test: logs
 	@bash $(HOME)/src/homelab/scripts/test_run_as_root.sh
 
 # --- Default target ---
-all: gitcheck gen0 gen1 gen2
-	@echo "[make] Completed full orchestration (gen0 → gen1 → gen2)"
+# Ensure group membership is enforced before full orchestration
+all:harden-groups gitcheck gen0 gen1 gen2
+	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
 
 # --- Dependencies for Gen0 services ---
 install-unbound:
@@ -108,7 +110,8 @@ install-dnsutils:
 	@$(call apt_install,dig,dnsutils)
 
 # --- Gen0: foundational services ---
-gen0: setup-subnet-router headscale dns coredns
+# Ensure group membership is enforced before starting foundational services
+gen0: harden-groups setup-subnet-router headscale dns coredns
 	@echo "[make] Running gen0 foundational services..."
 
 # --- Subnet router deployment ---
