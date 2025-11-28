@@ -28,15 +28,15 @@ TAILNET_DOMAIN="tailnet"
 # --- Prerequisite checks ---
 log "Checking prerequisites..."
 if ! command -v coredns >/dev/null 2>&1; then
-    log "WARN: CoreDNS not found, attempting install..."
-    curl -L "https://github.com/coredns/coredns/releases/latest/download/coredns_$(uname -s)_$(uname -m).tgz" \
-        -o "/tmp/coredns.tgz" || log "ERROR: CoreDNS download failed, continuing degraded"
-    run_as_root tar -xzf "/tmp/coredns.tgz" -C "/usr/local/bin" || log "ERROR: CoreDNS install failed, continuing degraded"
+	log "WARN: CoreDNS not found, attempting install..."
+	curl -L "https://github.com/coredns/coredns/releases/latest/download/coredns_$(uname -s)_$(uname -m).tgz" \
+		-o "/tmp/coredns.tgz" || log "ERROR: CoreDNS download failed, continuing degraded"
+	run_as_root tar -xzf "/tmp/coredns.tgz" -C "/usr/local/bin" || log "ERROR: CoreDNS install failed, continuing degraded"
 fi
 
 # --- Check Unbound reachability ---
 if ! nc -z "${UNBOUND_IP}" 53 >/dev/null 2>&1; then
-    log "WARN: Unbound (${UNBOUND_IP}:53) unreachable, CoreDNS will run in degraded mode"
+	log "WARN: Unbound (${UNBOUND_IP}:53) unreachable, CoreDNS will run in degraded mode"
 fi
 
 # --- Generate Corefile ---
@@ -44,19 +44,19 @@ log "Generating CoreDNS Corefile at ${CONFIG_FILE}..."
 run_as_root mkdir -p "${CONFIG_DIR}"
 run_as_root tee "${CONFIG_FILE}" > /dev/null <<EOF
 .${TAILNET_DOMAIN}:53 {
-    headscale {
-        base_domain ${TAILNET_DOMAIN}
-        listen ${NAS_IP}:53
-    }
-    log
-    errors
+	headscale {
+		base_domain ${TAILNET_DOMAIN}
+		listen ${NAS_IP}:53
+	}
+	log
+	errors
 }
 
 .:53 {
-    forward . ${UNBOUND_IP}:53
-    cache 30
-    log
-    errors
+	forward . ${UNBOUND_IP}:53
+	cache 30
+	log
+	errors
 }
 EOF
 
@@ -80,4 +80,10 @@ run_as_root systemctl daemon-reload
 run_as_root systemctl enable "${SERVICE_NAME}"
 run_as_root systemctl restart "${SERVICE_NAME}" || log "ERROR: Failed to start CoreDNS, continuing degraded"
 
-log "CoreDNS setup complete (listening on ${NAS_IP}:53, forwarding to Unbound ${UNBOUND_IP}:53)."
+if systemctl is-active --quiet "${SERVICE_NAME}"; then
+	listeners=$(ss -ltnp 2>/dev/null | awk '/coredns/ {print $4}' | sort -u | paste -s -d',' -)
+	[ -z "$$listeners" ] && listeners="(no listening sockets detected)"
+	log "CoreDNS setup complete; listeners: $$listeners; forwarding non-tailnet queries to ${UNBOUND_IP}:53"
+else
+	log "CoreDNS setup finished but service is not active; check journalctl -u ${SERVICE_NAME}"
+fi
