@@ -13,32 +13,7 @@ define log
 echo "$1" >&2; command -v logger >/dev/null 2>&1 && logger -t homelab-make "$1"
 endef
 
-
-# run_as_root(command). Privilege guard with id -u (0 if root) evaluated at runtime not at parse time ---
-
-#run_as_root = bash -c "if [ \"\$(id -u)\" -eq 0 ]; then eval \"\$1\"; else sudo bash -c \"\$1\"; fi" -- $(1) #wrong
-#run_as_root = bash -c 'if [ "$$(id -u)" -eq 0 ]; then exec "$@"; else exec sudo bash -c '"'"'"$@"'"'"'; fi' -- $(1) #wrong
-
-#run_as_root = bash -c 'if [ "$$(id -u)" -eq 0 ]; then bash -c "$$1"; else sudo bash -c "$$1"; fi' -- '$(1)' #ok but noisy
-# run_as_root: execute command as root, log to journald
-#run_as_root = bash -c '\
-#	if [ "$$(id -u)" -eq 0 ]; then \
-#		logger -t homelab-run_as_root "[root] $$1"; \
-#		bash -c "$$1"; \
-#	else \
-#		logger -t homelab-run_as_root "[sudo] $$1"; \
-#		sudo bash -c "$$1"; \
-#	fi' -- '$(1)'
-#run_as_root = bash -c '\
-#	if [ "$$(id -u)" -eq 0 ]; then \
-#		logger -t homelab-run_as_root "[root] $*"; \
-#		"$$@"; \
-#	else \
-#		logger -t homelab-run_as_root "[sudo] $*"; \
-#		sudo "$$@"; \
-#	fi' run_as_root
-
-run_as_root = scripts/run_as_root.sh
+run_as_root = scripts/lib/run_as_root.sh
 
 # install_script(src, name)
 define install_script
@@ -56,7 +31,7 @@ endef
 define apt_install
 	@if ! command -v $(1) >/dev/null 2>&1; then \
 		echo "[make] $(1) not found, installing: $(2)"; \
-		$(call run_as_root,apt-get update && apt-get install -y --no-install-recommends $(2)); \
+		$(run_as_root) "apt-get update && apt-get install -y --no-install-recommends $(2)"; \
 	else \
 		VER_STR=$$( { $(1) --version 2>&1 || $(1) version 2>&1 || $(1) -v 2>&1; } | head -n1 ); \
 		echo "$$(date '+%Y-%m-%d %H:%M:%S') [make] $(1) version: $$VER_STR"; \
@@ -106,7 +81,8 @@ endef
 .PHONY: autoremove
 autoremove:
 	@echo "[make] Cleaning up unused dependencies..."
-	$(call run_as_root,apt-get autoremove -y)
+	$(run_as_root) "DEBIAN_FRONTEND=noninteractive apt-get remove -y -o Dpkg::Options::=--force-confold $(1)" || echo "[make] apt-get remove returned non-zero"; \
+	$(run_as_root) "DEBIAN_FRONTEND=noninteractive apt-get autoremove -y" || true; \
 
 # pattern rule: install scripts/<name>.sh -> $(INSTALL_PATH)/<name>
 $(INSTALL_PATH)/%: scripts/%.sh

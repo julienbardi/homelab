@@ -19,19 +19,7 @@ log() {
 	logger -t "${SCRIPT_NAME:-${0##*/}}" "$msg"
 }
 
-run_as_root() {
-	if [[ "${1:-}" == "--preserve" ]]; then
-		shift
-		log "Executing with sudo -E (preserve env): $*"
-		sudo -E "$@"
-	elif [[ "$*" =~ [\&\|\;] ]]; then
-		log "Executing with sudo (shell): $*"
-		sudo bash -c "$*"
-	else
-		log "Executing with sudo: $*"
-		sudo "$@"
-	fi
-}
+source "$HOME/src/homelab/scripts/lib/run_as_root.sh"
 
 # Idempotent rule inserter: checks with -C first
 ensure_rule() {
