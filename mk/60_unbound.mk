@@ -90,7 +90,7 @@ setup-unbound-control:
 	@echo "✅ [make] remote-control initialized"
 	@echo "🔎 [make] Testing connectivity..."
 	@sleep 2
-	@sudo -u unbound unbound-control status || { echo "❌ not responding"; exit 1; }
+	@$(run_as_root) -u unbound sh -c 'unbound-control status' || { echo "❌ not responding"; exit 1; }
 	@echo "✅ [make] unbound-control is responding"
 
 .PHONY: reset-unbound-control
@@ -123,8 +123,8 @@ dns-bench: install-dnsutils
 	@dnsperf -s 10.89.12.4 -d /tmp/opendns-top-domains.txt -l 30 -q 1000
 	@echo "✅ [make] DNS benchmark complete"
 
-# --- Full bootstrap ---
-dns-all: deploy-unbound setup-unbound-control dns
+# --- Full bootstrap: ensure systemd helper, then deploy and run DNS  ---
+dns-all: enable-systemd deploy-unbound setup-unbound-control dns
 	@echo "🚀 [make] Full Unbound bootstrap complete (deploy → control → runtime)"
 
 # --- Reset + bootstrap ---
@@ -143,7 +143,7 @@ dns-reset:
 # --- Health check ---
 dns-health:
 	@echo "🩺 [make] Checking Unbound health and cache stats..."
-	@sudo -u unbound unbound-control stats_noreset | awk '\
+	@$(run_as_root) -u unbound sh -c 'unbound-control stats_noreset' | awk '\
 		/^num.queries/       {print "📊 Total queries: " $$2} \
 		/^num.cachehits/     {print "⚡ Cache hits: " $$2} \
 		/^num.cachemiss/     {print "🐢 Cache misses: " $$2} \
