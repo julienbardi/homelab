@@ -1,4 +1,4 @@
-# mk/coredns.mk
+# mk/70_coredns.mk
 # Idempotent Makefile fragment to build CoreDNS with headscale + doh,
 # install binary and Corefile, create runtime user, systemd unit and enable service.
 # Depends on 'headscale' target which ensures the headscale source is present.

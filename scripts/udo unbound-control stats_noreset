@@ -1,0 +1,939 @@
+START_RRSET_CACHE
+;rrset 250 1 0 5 3
+google.ch.	250	IN	A	142.250.184.195
+;rrset 284 1 1 11 5
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com.	284	IN	NSEC3	1 1 0 - ck0q3udg8cekkae7rukpgct1dvssh8ll NS SOA RRSIG DNSKEY NSEC3PARAM ;{flags: optout}
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com.	284	IN	RRSIG	NSEC3 13 2 900 20251205002656 20251127231656 46539 com. EL9ZjfaRBWX3T6y/bGdhUsiWi3CmrRsld4trYupY7N5f3KrLk6VVk6/CGBj+hMccdsycd+sQ07vkqNAiANy52Q== ;{id = 46539}
+;rrset 91 2 0 5 3
+checkipv6.digitalocean.synology.com.	91	IN	AAAA	2604:a880:2:d0::984:9001
+checkipv6.digitalocean.synology.com.	91	IN	AAAA	2604:a880:2:d0::942:2001
+;rrset 1016 1 0 2 0
+digitalocean.synology.com.	1016	IN	SOA	ns1.digitalocean.com. hostmaster.digitalocean.synology.com. 1726739160 10800 3600 604800 1800
+;rrset 38 1 0 5 3
+on-de2-checkip.quickconnect.to.	38	IN	A	84.200.39.196
+;rrset 0 1 0 5 3
+eur.roaming1.live.com.akadns.net.	0	IN	CNAME	uks-azsc-000.roaming.officeapps.live.com.
+;rrset 3472 1 0 5 3
+srf.ch.	3472	IN	A	89.106.200.1
+;rrset 86273 5 0 5 3
+galaxus.ch.	86273	IN	NS	a8-65.akam.net.
+galaxus.ch.	86273	IN	NS	a26-66.akam.net.
+galaxus.ch.	86273	IN	NS	a7-64.akam.net.
+galaxus.ch.	86273	IN	NS	a9-66.akam.net.
+galaxus.ch.	86273	IN	NS	a4-67.akam.net.
+;rrset 52 1 0 5 3
+wikipedia.org.	52	IN	AAAA	2a02:ec80:600:ed1a::1
+;rrset 86272 5 0 5 3
+sbb.ch.	86272	IN	NS	ns-73.awsdns-09.com.
+sbb.ch.	86272	IN	NS	ns-1739.awsdns-25.co.uk.
+sbb.ch.	86272	IN	NS	ns-967.awsdns-56.net.
+sbb.ch.	86272	IN	NS	ns.sbb.ch.
+sbb.ch.	86272	IN	NS	ns-1254.awsdns-28.org.
+;rrset 3472 1 0 5 3
+srf.ch.	3472	IN	AAAA	2a12:5240::1
+;rrset 772 1 1 11 5
+rts.ch.	772	IN	NSEC	rts-ag.ch. NS RRSIG NSEC
+rts.ch.	772	IN	RRSIG	NSEC 13 2 900 20251224175814 20251124170159 44426 ch. 2bijzp5d+ScBfIAB20WFrdwaWqIcydb3EbRnNrXY//XYMzLmUT8xeYcVwdDGS2CgvC4125BtmuIJwSuXcfxT+Q== ;{id = 44426}
+;rrset 447 1 1 11 5
+h5aiv1bjhpef1r6u8p4td6bjrd9hikda.com.	447	IN	NSEC3	1 1 0 - h5aj5dqdtckm5f19la4ub4hgpfk6f6s4 NS DS RRSIG ;{flags: optout}
+h5aiv1bjhpef1r6u8p4td6bjrd9hikda.com.	447	IN	RRSIG	NSEC3 13 2 900 20251205001845 20251127230845 46539 com. Ri278DdiIk74ZlYt9aHbckO+ArvBJ0oFSbbR55SDMk+AyI4DAT3+/krGYDWbGykFehIOsrTKYj7KNwco+dT4zg== ;{id = 46539}
+;rrset 4450 4 2 5 0
+ch.	4450	IN	DNSKEY	256 3 13 bYr1xeERaO+Z6O/cpQEb2PCd+iKwM6JnRmDngsTk2hNoEeejWttNtBY0JaLwuIIIOQf9jQPb8dmBxQZC+eJSQw== ;{id = 44426 (zsk), size = 256b}
+ch.	4450	IN	DNSKEY	256 3 13 0sECiBThtT1Un9/Xig5etrr0gb42wH3VswwuFcnldMzkQtz2Fe1L3Z4XBodGZMcbnoMKVy+pjXtJ0AZlz0inqg== ;{id = 54297 (zsk), size = 256b}
+ch.	4450	IN	DNSKEY	257 3 13 af3VgrsVYa6Jm3d1lwsoCAEqQbeNpLUJ5kHjkUksCCPvubXuPEwTJGDUUbw9QRJtm6lBIAjbjtAccGemAgcyZQ== ;{id = 58745 (ksk), size = 256b}
+ch.	4450	IN	DNSKEY	257 3 13 z6UllGdnGdbzYkhjl1gHlJ9gm/cSid3z1J41nkpm2pzSexfPaugDCstdx4z/hVlRPv007RQOuD12qpOrKGfPog== ;{id = 14051 (ksk), size = 256b}
+ch.	4450	IN	RRSIG	DNSKEY 13 1 86400 20251230100909 20251114090909 14051 ch. m6vQGig6EHeXeOzK5ml1YDMsBNocdmPa9mgG4hhMg6Nf5qskPCTRp3XY/hGfaz66y0DE8NN0UvSjp6k8nL10FQ== ;{id = 14051}
+ch.	4450	IN	RRSIG	DNSKEY 13 1 86400 20251230100909 20251114090909 58745 ch. RJyVufmNt1cx+AunOMsJXsB/FRqZSd6265c8vd1YyGMQTwgtQWIViKfb7os6aDDPqPY3qRoXw7TxZkBbZxru/A== ;{id = 58745}
+;rrset 74742 1 1 11 5
+ch.	74742	IN	DS	58745 13 2 083ED7735A6AAD21D51CB0AF5C485055602B392435E92B2C13614A6BC8D46B92
+ch.	74742	IN	RRSIG	DS 8 1 86400 20251213170000 20251130160000 61809 . 3/lTSvWeJiNLpHMdeJyLkf6twjvnONevHOTNiwvSjalKOJkKVTYpS81edl3NZNgFe9PtkeZLDAOKfXgSx+y+t76PhyzxAnVt5tUdhskA5W1qLcz9gPUkuuLdCWd5aDVzogMwMwxufobvx5IafrW01T+nGGKexgQecZhNROcQ9bTrKALhetAkyFF5fmQ6R4sBVoLeyRURjfwOaLJdkmRSF29K4FE1WrsfnodGOiZNhCXfLgZKrOTta4UHAEmJz+k0HWRluhU/eZkHRfs56EK0qVHuvUGFMdAjwMdClZlmoivmy5NG8qE9YEi1tKd3OmKY91+NB153AY30bT1iy+jwvw== ;{id = 61809}
+;rrset 597 1 0 5 3
+google.com.	597	IN	A	142.250.179.78
+;rrset 3006 4 0 5 3
+d1gearr66p840f.cloudfront.net.	3006	IN	A	13.32.99.46
+d1gearr66p840f.cloudfront.net.	3006	IN	A	13.32.99.19
+d1gearr66p840f.cloudfront.net.	3006	IN	A	13.32.99.73
+d1gearr66p840f.cloudfront.net.	3006	IN	A	13.32.99.121
+;rrset 601 1 1 11 5
+n41c6ptdq3lkfmo102dt3v12rsopnal8.com.	601	IN	NSEC3	1 1 0 - n41caohfrso5pifficplg31rrb408581 NS DS RRSIG ;{flags: optout}
+n41c6ptdq3lkfmo102dt3v12rsopnal8.com.	601	IN	RRSIG	NSEC3 13 2 900 20251204021436 20251127010436 46539 com. njtIMe5gzOZOs9eh6t7V6WY+Rc+GzDWgEGaOh9vSSOIYbBn+G/Kup9+lpVJ4QbVnNgK2prtadHl3MqjTMjpGBg== ;{id = 46539}
+;rrset 107 1 0 5 3
+prod.roaming1.live.com.akadns.net.	107	IN	CNAME	eur.roaming1.live.com.akadns.net.
+;rrset 172 2 0 5 3
+tagesanzeiger.ch.	172	IN	A	104.18.16.120
+tagesanzeiger.ch.	172	IN	A	104.18.17.120
+;rrset 106 1 0 5 3
+sbb.ch.	106	IN	A	194.150.245.142
+;rrset 2572 1 1 11 5
+tpeahq77pcfqu9h00c3mh570ah1f4g65.org.	2572	IN	NSEC3	1 1 0 332539EE7F95C32A tpegnjf8a7b81f9a0uhnbffjots0k51a NS DS RRSIG ;{flags: optout}
+tpeahq77pcfqu9h00c3mh570ah1f4g65.org.	2572	IN	RRSIG	NSEC3 8 2 3600 20251216152413 20251125142413 37593 org. DHenAklWBvfeUDm9rRnzgzlYR/yo3l5Ww/R+89Flto60d+R2zuS8Go48ZHwxXMXjCvt+h19asxFwdoNoh6GpyOvgqvZZjp4LhbZ9Kl/rnZFiC6e1lT4KxqEVu0qqdwQzuJSkfKhGu6DRct4BuZTD0Ys6IuAOlAMWJT5zcbA6trM= ;{id = 37593}
+;rrset 86272 5 0 5 3
+digitec.ch.	86272	IN	NS	a7-64.akam.net.
+digitec.ch.	86272	IN	NS	a8-65.akam.net.
+digitec.ch.	86272	IN	NS	a4-67.akam.net.
+digitec.ch.	86272	IN	NS	a26-66.akam.net.
+digitec.ch.	86272	IN	NS	a9-66.akam.net.
+;rrset 172 1 0 1 3
+dns2.watson.ch.	172	IN	A	135.181.154.8
+;rrset 172 4 0 5 3
+watson.ch.	172	IN	NS	dns3.watson.ch.
+watson.ch.	172	IN	NS	dns2.watson.ch.
+watson.ch.	172	IN	NS	dns4.watson.ch.
+watson.ch.	172	IN	NS	dns1.watson.ch.
+;rrset 3436 1 0 1 3
+ins2.admin.ch.	3436	IN	A	162.23.23.32
+;rrset 772 1 1 11 5
+watson.ch.	772	IN	NSEC	watson-analytics.ch. NS RRSIG NSEC
+watson.ch.	772	IN	RRSIG	NSEC 13 2 900 20251226023426 20251126020206 44426 ch. G7ADKJ2ae7Et/lXNB0H35FD9HF8CpbUTAftO9MPvz+JwWmsia7OoxG9QxoNgTOTDX179pW/3x2Eux+6thtPnvA== ;{id = 44426}
+;rrset 3006 8 0 5 3
+d1gearr66p840f.cloudfront.net.	3006	IN	AAAA	2600:9000:2251:2600:3:cd1d:d3c0:93a1
+d1gearr66p840f.cloudfront.net.	3006	IN	AAAA	2600:9000:2251:5c00:3:cd1d:d3c0:93a1
+d1gearr66p840f.cloudfront.net.	3006	IN	AAAA	2600:9000:2251:c200:3:cd1d:d3c0:93a1
+d1gearr66p840f.cloudfront.net.	3006	IN	AAAA	2600:9000:2251:1c00:3:cd1d:d3c0:93a1
+d1gearr66p840f.cloudfront.net.	3006	IN	AAAA	2600:9000:2251:8c00:3:cd1d:d3c0:93a1
+d1gearr66p840f.cloudfront.net.	3006	IN	AAAA	2600:9000:2251:1000:3:cd1d:d3c0:93a1
+d1gearr66p840f.cloudfront.net.	3006	IN	AAAA	2600:9000:2251:e000:3:cd1d:d3c0:93a1
+d1gearr66p840f.cloudfront.net.	3006	IN	AAAA	2600:9000:2251:9800:3:cd1d:d3c0:93a1
+;rrset 145 1 0 5 3
+ak.privatelink.msidentity.com.	145	IN	CNAME	www.tm.a.prd.aadg.trafficmanager.net.
+;rrset 14245 1 0 5 3
+login.microsoftonline.com.	14245	IN	CNAME	login.mso.msidentity.com.
+;rrset 21423 1 0 5 3
+www.bing.com.edgekey.net.	21423	IN	CNAME	e86303.dscx.akamaiedge.net.
+;rrset 601 1 1 2 0
+com.	601	IN	SOA	a.gtld-servers.net. nstld.verisign-grs.com. 1764540770 1800 900 604800 900
+com.	601	IN	RRSIG	SOA 13 1 900 20251207221250 20251130210250 46539 com. dHV0zbSqams8sMcRcTbD/NPQp+b47eQl/MT6qiRHVwn9/tqHX5o7a9Rzzz6HTn+TOnQA7eRjK9PXR9PRCMGTxQ== ;{id = 46539}
+;rrset 579 1 0 2 0
+quickconnect.to.	579	IN	SOA	ns-55.awsdns-06.com. awsdns-hostmaster.amazon.com. 1 7200 900 1209600 86400
+;rrset 540 1 1 11 5
+roaming.svc.cloud.microsoft.	540	IN	CNAME	prod.roaming1.live.com.akadns.net.
+roaming.svc.cloud.microsoft.	540	IN	RRSIG	CNAME 13 4 600 20251201231609 20251129211609 59033 cloud.microsoft. kkWBlkBU2v0m5mafQlR6IQ6EYfUU7LyZb8O4R1vk+Z5C2d9wJMSR1Rv2Q0eGQezeXAHB55QAe+iF4ZYk6e8ILQ== ;{id = 59033}
+;rrset 234 1 0 2 0
+v.dropbox.com.	234	IN	SOA	ns-773.awsdns-32.net. awsdns-hostmaster.amazon.com. 1 7200 900 1209600 300
+;rrset 46363 8 0 5 3
+linkedin.com.	46363	IN	NS	dns1.p09.nsone.net.
+linkedin.com.	46363	IN	NS	dns2.p09.nsone.net.
+linkedin.com.	46363	IN	NS	dns3.p09.nsone.net.
+linkedin.com.	46363	IN	NS	dns4.p09.nsone.net.
+linkedin.com.	46363	IN	NS	ns1-42.azure-dns.com.
+linkedin.com.	46363	IN	NS	ns2-42.azure-dns.net.
+linkedin.com.	46363	IN	NS	ns3-42.azure-dns.org.
+linkedin.com.	46363	IN	NS	ns4-42.azure-dns.info.
+;rrset 86272 4 0 5 3
+facebook.com.	86272	IN	NS	d.ns.facebook.com.
+facebook.com.	86272	IN	NS	b.ns.facebook.com.
+facebook.com.	86272	IN	NS	c.ns.facebook.com.
+facebook.com.	86272	IN	NS	a.ns.facebook.com.
+;rrset 7072 8 0 5 3
+amazon.de.	7072	IN	NS	ns1.amzndns.co.uk.
+amazon.de.	7072	IN	NS	ns1.amzndns.com.
+amazon.de.	7072	IN	NS	ns1.amzndns.net.
+amazon.de.	7072	IN	NS	ns1.amzndns.org.
+amazon.de.	7072	IN	NS	ns2.amzndns.co.uk.
+amazon.de.	7072	IN	NS	ns2.amzndns.com.
+amazon.de.	7072	IN	NS	ns2.amzndns.net.
+amazon.de.	7072	IN	NS	ns2.amzndns.org.
+;rrset 24607 1 1 11 5
+org.	24607	IN	DS	26974 8 2 4FEDE294C53F438A158C41D39489CD78A86BEB0D8A0AEAFF14745C0D16E1DE32
+org.	24607	IN	RRSIG	DS 8 1 86400 20251212170000 20251129160000 61809 . 1K3wkMcgJk84AXbIejHsAdMsTUd6pmXZTr8JAaS5JS2WnnYjuYfvbq/sAjQFf+SR5oamS1lEn78YKI17RR27UIr8C3iKljSanMaR1hXqtzjRkDgpZztkMAyRQqtAfdDCRnzIZJP4vMFDq+i07IubGSQv2nSNyRAMurOAX79j18Fq/rGAZ64ppHl+l8+NFR1J9CVVlecEuPLDs0o5DGGMeJ2P2I6U9YJUm9ZKHV6LjKTcuMU6yN96XRyjjoByuJ0Jlly2KkywjcwgJLW9Q7VhdKPHw9nQW0ZsovpK3V9doJsnX9AiWgMHwlLHfNo0RViJfwRfWy9VPZRZuiQV031umQ== ;{id = 61809}
+;rrset 172 1 0 5 3
+spotify.com.	172	IN	AAAA	2600:1901:1:7c5::
+;rrset 172 1 0 1 3
+dns3.watson.ch.	172	IN	A	54.37.20.142
+;rrset 172 1 0 1 3
+dns4.watson.ch.	172	IN	AAAA	2a05:d014:e25:9110:c94b:b371:2d0f:16d
+;rrset 172 1 0 1 3
+dns3.watson.ch.	172	IN	AAAA	2001:41d0:302:1100::1e48
+;rrset 172 1 0 1 3
+dns2.watson.ch.	172	IN	AAAA	2a01:4f9:c011:791b::1
+;rrset 86272 2 0 5 3
+20min.ch.	86272	IN	NS	june.ns.cloudflare.com.
+20min.ch.	86272	IN	NS	jermaine.ns.cloudflare.com.
+;rrset 417 1 1 11 5
+I28G7SLCVH82G64QOMNDAMCP4Q9GHV5V.com.	417	IN	NSEC3	1 1 0 - i28givluhtkgskoevf9bcaglmjttvgco NS DS RRSIG ;{flags: optout}
+I28G7SLCVH82G64QOMNDAMCP4Q9GHV5V.com.	417	IN	RRSIG	NSEC3 13 2 900 20251205004250 20251127233250 46539 com. 3B3uJBcq5PICjI+pEsISnDc0W0lQq3woR2VEoZhxu8buwW5gX132chinNcvwYKuSlXYrmEftnJDvVEEesJ06ag== ;{id = 46539}
+;rrset 256 1 0 2 3
+digitec.ch.	256	IN	SOA	a9-66.akam.net. admin.digitecgalaxus.ch. 2019103099 43200 7200 1209600 600
+;rrset 472 1 0 2 3
+galaxus.ch.	472	IN	SOA	a9-66.akam.net. admin.digitecgalaxus.ch. 2017010510 43200 7200 1209600 600
+;rrset 66 1 0 5 3
+spotify.com.	66	IN	A	35.186.224.24
+;rrset 86272 8 0 5 3
+srf.ch.	86272	IN	NS	dns1.p07.nsone.net.
+srf.ch.	86272	IN	NS	dns2.p07.nsone.net.
+srf.ch.	86272	IN	NS	dns3.p07.nsone.net.
+srf.ch.	86272	IN	NS	dns4.p07.nsone.net.
+srf.ch.	86272	IN	NS	ns-1490.awsdns-58.org.
+srf.ch.	86272	IN	NS	ns-1660.awsdns-15.co.uk.
+srf.ch.	86272	IN	NS	ns-181.awsdns-22.com.
+srf.ch.	86272	IN	NS	ns-544.awsdns-04.net.
+;rrset 369 1 1 2 0
+ch.	369	IN	SOA	a.nic.ch. dns-operation.switch.ch. 2025113023 900 600 1209600 900
+ch.	369	IN	RRSIG	SOA 13 1 900 20251230213810 20251130210212 44426 ch. r9Zm1u9GRccc6hDoFufV83O/2/+RSLbvi0l02ajyBXweEIa1u+m6ev37I4Carlwe8ZSt0wH22su41dxkqZae6w== ;{id = 44426}
+;rrset 212 1 1 11 5
+tcq78v56rpb9m9co6k6fi9uogrt276qb.com.	212	IN	NSEC3	1 1 0 - tcq7ifr2t0dg2edtd9j3vptibg4uluoq NS DS RRSIG ;{flags: optout}
+tcq78v56rpb9m9co6k6fi9uogrt276qb.com.	212	IN	RRSIG	NSEC3 13 2 900 20251205014926 20251128003926 46539 com. 7rIfTlBAY6MoEg8KTBET+Lhmduac2QJJHHct2fpXTjyA5b9oKau5yCPbStld6A0iZ7wE3vS/EISB/9tfrbd/lQ== ;{id = 46539}
+;rrset 127 1 0 5 3
+th.bing.com.edgekey.net.	127	IN	CNAME	e86303.dscx.akamaiedge.net.
+;rrset 7451 1 0 5 3
+th.bing.com.	7451	IN	CNAME	p-th.bing.com.trafficmanager.net.
+;rrset 741 1 0 2 0
+dscr.akamai.net.	741	IN	SOA	n0dscr.akamai.net. hostmaster.akamai.com. 1764540832 1000 1000 1000 1800
+;rrset 86315 1 1 11 5
+clinique.	86315	IN	NSEC	clothing. NS DS RRSIG NSEC
+clinique.	86315	IN	RRSIG	NSEC 8 1 86400 20251213170000 20251130160000 61809 . aTKF6DECdzAmyBdRIU3DeN9td80Lu/77aAM2Or9lBSLjgq0QTwX+NdMAzMRXt6HWL0WIZZT7VxFKfet0Vv5I/eAVB5ST5n7wND9TlP0bAET+hd3WTDsNxyj9auTnctTLumD7DF2M3zXRIxiUbSPBk4JQEDjSbNuf/UObNTmGC1dos0oteCSSBM3n8UmUhGJW5p1UDp/K/KNvnS5Fp7O+j2kMxRSiUo46Sop4p7PZFMahplnEqJHVU900S57+/057kztT0evPk3mXkU2ylKqDwlLMYZOhK4Snre9fadAgVbbIaEI93D0Gd0GeJMGKy7DzNXPwm68ywtpmXtDBwzZIjg== ;{id = 61809}
+;rrset 4951 1 1 11 5
+checkipv6.synology.com.	4951	IN	CNAME	ddns-checkipv6.quickconnect.to.
+checkipv6.synology.com.	4951	IN	RRSIG	CNAME 13 3 6000 20251201004043 20251130210043 6079 synology.com. l9nifHakDkvt1di9rl359mqu8eULdfcx+LmbYNPd2j/YrhCFdByUzd7K2YhTrqt4dNmJAzuGX1Qn3iIDjvcCQg== ;{id = 6079}
+;rrset 86168 1 0 5 3
+ddns-checkip.quickconnect.to.	86168	IN	CNAME	on-de2-checkip.quickconnect.to.
+;rrset 186 1 1 11 5
+nd8167ub08rpmb470j9f8m7n6t35ek3g.com.	186	IN	NSEC3	1 1 0 - nd81c4v19vgf9h5hjnjt3it3gfjvv9kp NS DS RRSIG ;{flags: optout}
+nd8167ub08rpmb470j9f8m7n6t35ek3g.com.	186	IN	RRSIG	NSEC3 13 2 900 20251207021551 20251130010551 46539 com. sVFW/Ja3fnXe5Re+dl/420B+9ZuTOpvNsWA+IklfholcrxOXRVGV6ziO9xpr+V1U7B06IVdX263ysP5FyyWpKA== ;{id = 46539}
+;rrset 128 1 1 11 5
+O7VM23M4S7RVLAH68RVI8D0F1UQBK4GF.net.	128	IN	NSEC3	1 1 0 - o7vopa298lci0isuhupl1g86t99hdqji NS DS RRSIG ;{flags: optout}
+O7VM23M4S7RVLAH68RVI8D0F1UQBK4GF.net.	128	IN	RRSIG	NSEC3 13 2 900 20251206032443 20251129021443 17133 net. SKiS5Zk9DjY0804D/27PFZNhw1S5kD69uF7kOOXMm638QhyJUqNDjN+cB3hMyVxArI4bZi1L9C/IMJ5aYmI8jQ== ;{id = 17133}
+;rrset 3351 1 1 11 5
+.	3351	IN	SOA	a.root-servers.net. nstld.verisign-grs.com. 2025113001 1800 900 604800 86400
+.	72301	IN	RRSIG	SOA 8 0 86400 20251213170000 20251130160000 61809 . rKk4ecJ6gAaHAfuDKsV/1jmkCdMZ2xGTTaFGHps1IDvPjpf0fGrLlhcrisS00K3D7ev+JPJFPYY8P+PDM6fYL5s/4UnSnoTkLgO3emhRxcTXge4Cv3wkeu8tpkNgHo/CLwwccka/rNkHssymBKi/KeNwEoNmy0KKvJnLFJbjFZb53uo6D+pWLXt//g8dfpVCUyyFZPThKclfuT9T8+eJ6krGPsKYzw0q+JWbXANc5MUl+bu3Otg5AW4TS3yhMFVgRpdrz9d4iwAdXRP+9gLq8FR7bs5rZUvuhK0+zLkdzo7p2qT9gGIrqMgYtUGt5ZBiHJM8IxDRDxYuTr/7WppIqg== ;{id = 61809}
+;rrset 172 1 0 5 3
+migros.ch.	172	IN	A	146.67.160.233
+;rrset 3472 4 1 11 5
+post.ch.	3472	IN	NS	dns1.post.ch.
+post.ch.	3472	IN	NS	dns2.post.ch.
+post.ch.	3472	IN	NS	dns3.post.ch.
+post.ch.	3472	IN	NS	dns4.post.ch.
+post.ch.	3472	IN	RRSIG	NS 8 2 3600 20251214081729 20251128073454 51550 post.ch. uOZDj3/yZUvozQt2N4Do/pBOF20s315sZV5whUwdN7N/5QuQPlsTy3MxV7+dLZ6A6L6p0lg1MevnT0CQ7bC2p4Rs9Xm3wjSugEIi/WhFVxWTDz1LyDjJw1yvmQGDXbvAKWT5sDAs1Cvg652LBxz/N4xBWECriHn3bzZc7oFMeuwFAQcFiY3uJUThzxzHJu6r2IA23eL86IIDgap6nGFZGeRngPgNxQ4Lm1XsRQ8HCm1xtxOvpd6sJb/d55JrpI2Art+j9DebJOMteGXakxSGOnqrzkyYlkvyNbFqHKlmt/RO5gYUR+5mRZA+GX/q0SAjtzGXxyoY8A5kB7/yG4zKfg== ;{id = 51550}
+;rrset 86272 2 0 5 3
+tagesanzeiger.ch.	86272	IN	NS	becky.ns.cloudflare.com.
+tagesanzeiger.ch.	86272	IN	NS	porter.ns.cloudflare.com.
+;rrset 3472 1 0 1 3
+ins3.admin.ch.	3472	IN	AAAA	2a00:c38:2:28:0:ffff:d467:4855
+;rrset 3472 8 0 5 3
+github.com.	3472	IN	NS	dns3.p08.nsone.net.
+github.com.	3472	IN	NS	dns4.p08.nsone.net.
+github.com.	3472	IN	NS	ns-1283.awsdns-32.org.
+github.com.	3472	IN	NS	ns-1707.awsdns-21.co.uk.
+github.com.	3472	IN	NS	ns-421.awsdns-52.com.
+github.com.	3472	IN	NS	ns-520.awsdns-01.net.
+github.com.	3472	IN	NS	dns1.p08.nsone.net.
+github.com.	3472	IN	NS	dns2.p08.nsone.net.
+;rrset 1672 1 0 2 3
+ricardo.ch.	1672	IN	SOA	aida.ns.cloudflare.com. dns.cloudflare.com. 2389092461 10000 2400 604800 1800
+;rrset 772 1 0 2 3
+rts.ch.	772	IN	SOA	ns-1660.awsdns-15.co.uk. awsdns-hostmaster.amazon.com. 1 7200 900 1209600 86400
+;rrset 763 1 1 11 5
+galaxus.ch.	763	IN	NSEC	galaxus-babybody.ch. NS RRSIG NSEC
+galaxus.ch.	763	IN	RRSIG	NSEC 13 2 900 20251220144801 20251120140210 44426 ch. KlXOnTIK+zU+ZXPgDTJpEPEUdpjYFbkGxXX3GxxvYKjF2pnl7pIOIiRyzLietakDEBZqIJekpBStZR6RKjQNiQ== ;{id = 44426}
+;rrset 143 1 1 11 5
+blick.ch.	143	IN	NSEC	blick-am-abend.ch. NS RRSIG NSEC
+blick.ch.	143	IN	RRSIG	NSEC 13 2 900 20251230123045 20251130120225 44426 ch. zSm1LMgyLfJws8T3xow01YryBXxFCezkgy0kk422RNVXiiMF8HyKLiVXY+lLQ7stB6cTUQBP+2F8rRTog+2sTg== ;{id = 44426}
+;rrset 3472 2 0 5 3
+rts.ch.	3472	IN	A	3.72.196.197
+rts.ch.	3472	IN	A	3.71.161.232
+;rrset 418 1 1 11 5
+s84bor4dk28hnhplc218o483voood5d8.com.	418	IN	NSEC3	1 1 0 - s84br9cib2a20l3etr1m2415enpp99l8 NS DS RRSIG ;{flags: optout}
+s84bor4dk28hnhplc218o483voood5d8.com.	418	IN	RRSIG	NSEC3 13 2 900 20251206013026 20251129002026 46539 com. E7jeRt/NSnuGxNu5ZyI4VObT0v1CcsfuA88CtDjdqDvcXCiP2jGvWvT2ExetniDGe7huLCPtgm0VGxAG8IGMCA== ;{id = 46539}
+;rrset 771 1 1 11 5
+IJUFHABK2Q2DIH33K5GGNDOT94KU4DDR.com.	771	IN	NSEC3	1 1 0 - ijufmcncqggtln0i2ngptq7c3npsjaur NS DS RRSIG ;{flags: optout}
+IJUFHABK2Q2DIH33K5GGNDOT94KU4DDR.com.	771	IN	RRSIG	NSEC3 13 2 900 20251204020955 20251127005955 46539 com. eLBla81eW9chHetNNrEuiy18QNQ4uZ44evw8xitaJigH/3gRHw3EEkxkB64XrFZIxn3wrDlo6RqlbpkqwclGog== ;{id = 46539}
+;rrset 6686 1 0 5 3
+www.bing.com.	6686	IN	CNAME	www-www.bing.com.trafficmanager.net.
+;rrset 258 1 1 11 5
+GCRQED795V343AT1SHAJVTRUH2TP3NQV.net.	258	IN	NSEC3	1 1 0 - gcrtlvurj6lelqbdj72r6hlm15kttvsi NS DS RRSIG ;{flags: optout}
+GCRQED795V343AT1SHAJVTRUH2TP3NQV.net.	258	IN	RRSIG	NSEC3 13 2 900 20251204031721 20251127020721 17133 net. zJWpB1HsN9jGx7lb68qmQETkUzJoh+x6bWsrX76qe5c2f/+GfbxiAevhkBt/ZlUfQhFVOkoz2s/PtnPiAQPfDg== ;{id = 17133}
+;rrset 418 1 1 11 5
+2a09l90j5op53dj5m5o1fl8j39ghprti.net.	418	IN	NSEC3	1 1 0 - 2a0dd0dpd52r82hiivi678uqlmkqu1nf NS DS RRSIG ;{flags: optout}
+2a09l90j5op53dj5m5o1fl8j39ghprti.net.	418	IN	RRSIG	NSEC3 13 2 900 20251207032254 20251130021254 17133 net. m4dYh0o0AFEe2dG7RiKZ3d30/WNxq3V1QII0FVIqQ7X+bfk25TMFobnXd/fQrEqXHiPGW5e4o8OQ94XxOUxJJw== ;{id = 17133}
+;rrset 611 1 1 2 0
+synology.com.	611	IN	SOA	ns-498.awsdns-62.com. awsdns-hostmaster.amazon.com. 1 7200 900 1209600 86400
+synology.com.	611	IN	RRSIG	SOA 13 2 900 20251130232823 20251130211323 6079 synology.com. 4h1SMIcRPqG7OM4xMHQ9VVAlqE3dC5LQctevBghvmPqm9gPNzoYRy/JwSJn1OcSLfK/WnCUh/N0ZNshTS4DsTw== ;{id = 6079}
+;rrset 784 3 1 5 0
+synology.com.	784	IN	DNSKEY	256 3 13 ktEGG3bj0u3xLMCPgrZ0jynCTdc831PeD/8JLb9F5Ph3iHuoZUz3HRqRN+knVvoX1cJFPbkyKitNCx8/4VYN7w== ;{id = 29441 (zsk), size = 256b}
+synology.com.	784	IN	DNSKEY	256 3 13 8yU4GC+MdDxMfvn6OxkCuGRyxdhhERxOB5gVAnqAtOGkVK1KEZcNHIEaxAfo6FJBVghDCJRCzbPLppUHFk1qGA== ;{id = 6079 (zsk), size = 256b}
+synology.com.	784	IN	DNSKEY	257 3 13 POzCEEanWDmV/X1WQAne3cdBFd6eYFJFC+p2dGw3pABykByrc3oVn4wz1b1eXXuT45pNtPBfUTXKjrqFSYfapA== ;{id = 42207 (ksk), size = 256b}
+synology.com.	784	IN	RRSIG	DNSKEY 13 2 3600 20251201020000 20251130150000 42207 synology.com. xYVD97wd+PYbjQzBGYY1GimIgdHy9IrA02auW+LcFsMnOO6gdpD1reB0f7JkKYbq/3iIIcszS5jnvngz9nL+oA== ;{id = 42207}
+;rrset 28966 1 1 11 5
+synology.com.	28966	IN	DS	42207 13 2 D09F4397E840BDD802D5769435EAE70BFDBE05AFB0CD88A2C8EF5D0C72B4186C
+synology.com.	28966	IN	RRSIG	DS 13 2 86400 20251206020641 20251129005641 46539 com. Il/ZXL2vrldKZlqYdtB1jSPEVT25Qv31GZKO0+4UtNtI5OAWI1qONZ5f7Fm5Ld4KIzuvLLg6VcGUkrFiYY6Z6A== ;{id = 46539}
+;rrset 4418 2 1 5 0
+com.	4418	IN	DNSKEY	256 3 13 DlR2Hg7gaFa3QrV+6wv2miYtrBDVD6maxc/us4r02T1p/PCAGk+TPlmtiam1QvGYS1/g2IAi6UV0nZkLOb+OyA== ;{id = 46539 (zsk), size = 256b}
+com.	4418	IN	DNSKEY	257 3 13 tx8EZRAd2+K/DJRV0S+hbBzaRPS/G6JVNBitHzqpsGlz8huE61Ms9ANe6NSDLKJtiTBqfTJWDAywEp1FCsEINQ== ;{id = 19718 (ksk), size = 256b}
+com.	4418	IN	RRSIG	DNSKEY 13 1 86400 20251213150235 20251128145735 19718 com. +ZZyJIsTdrzgLuHJ5KMkQZXdix7eTSRVs6H6Fg7mmk04DYSd6sTv2q3IW3Z3LDzkBtshLgALjO0x2m5r1Eip2g== ;{id = 19718}
+;rrset 14273 8 0 5 3
+rts.ch.	14273	IN	NS	dns3.p07.nsone.net.
+rts.ch.	14273	IN	NS	dns4.p07.nsone.net.
+rts.ch.	14273	IN	NS	ns-1490.awsdns-58.org.
+rts.ch.	14273	IN	NS	ns-1660.awsdns-15.co.uk.
+rts.ch.	14273	IN	NS	ns-181.awsdns-22.com.
+rts.ch.	14273	IN	NS	ns-544.awsdns-04.net.
+rts.ch.	14273	IN	NS	dns1.p07.nsone.net.
+rts.ch.	14273	IN	NS	dns2.p07.nsone.net.
+;rrset 16920 3 0 5 3
+wikipedia.org.	16920	IN	NS	ns1.wikimedia.org.
+wikipedia.org.	16920	IN	NS	ns2.wikimedia.org.
+wikipedia.org.	16920	IN	NS	ns0.wikimedia.org.
+;rrset 172 1 0 5 3
+linkedin.com.	172	IN	AAAA	2620:1ec:50::12
+;rrset 172 1 0 1 3
+dns1.watson.ch.	172	IN	A	5.75.226.112
+;rrset 172 1 0 1 3
+dns1.watson.ch.	172	IN	AAAA	2a01:4f8:c012:293::1
+;rrset 289 1 1 11 5
+vb2htrvh2999nj7aoqjund0cn7u5dcu8.com.	289	IN	NSEC3	1 1 0 - vb2i3npjd0iebep21vrb9me74q5gsrja NS DS RRSIG ;{flags: optout}
+vb2htrvh2999nj7aoqjund0cn7u5dcu8.com.	289	IN	RRSIG	NSEC3 13 2 900 20251207020601 20251130005601 46539 com. CN2Hi+4O51zw5+MCogDCu88FOLx765bL/tkqzstPAO88srJOFQ6wGSo742725xRN7YX0DwzTKNdrNkjag1RSew== ;{id = 46539}
+;rrset 472 1 0 2 3
+admin.ch.	472	IN	SOA	ins1.admin.ch. dnsmaster.admin.ch. 20236673 10800 600 604800 600
+;rrset 29460 4 2 5 0
+post.ch.	29460	IN	DNSKEY	257 3 8 AwEAAdYlxEQWb1Qfjkp2Czbc7pNe/E1PArl4SiOrco8xV74KClyE8VnEjbdd4PGMGNT1F0OhPWz85meRPTtmQE2/hk0FaKSVHCf+WsD17GugAYBeK+MHqpCxAM8BB7GH1OQ0MkSJsEmoyxxynyFtFI1Ry6OShBsnxjUjJdwocOOD8c9+vaGYqjtM5pc202XZmIHzs1A/LfBpbAb8ZY1ZhUV3kGfFNd7lbzYowxetivSbqzu27Fosarrangs7YT9VeOsPypxiyQ3im6lLDS/1d5fMhRoCmzm862qFH/4000CTl25DA/+fhg42YoOLwvYJMAiJr6TBwHMLZlC02cXQ0465MyE= ;{id = 56327 (ksk), size = 2048b}
+post.ch.	29460	IN	DNSKEY	256 3 8 AwEAAYZYwHJyBQ4O2ofPGRZjC2IfJAVPP6lUw2v5LxI+56zZiRkmXrdGD2FIWIqxHKsHtriH+icv6G5YngbP8gp20fCFALjldR7nTgY4lSa03l1Bzb96zXr12nOScDrLbJzNDuNrd2HzAoIfak179ClIPdD2+WuEKlb3gOJQtCIwjY0pwNTpL6vF+O4K0aKWf2WsWDlQVo5KylM5uuMuE+qbCaN9QCJ2TPPbNJD7WrwwKpmd3dGjpcymP76ogCxJpdTzba8eNH3QRY5DmEI3eRNp5wYJHEhPqiNGddEGycv81IxuIgcwu0wgQGvXusmr4AfLzg9Odje1pSfo+hgj1t+pPIs= ;{id = 44221 (zsk), size = 2048b}
+post.ch.	29460	IN	DNSKEY	256 3 8 AwEAAciIYBiYnCc46lE6n9zMD5OQw4DwN0RYRF/hlcPR3rMdYWQ2HER9uegeDbZeNRa/yW09fRmoA1d4Gnb+KDy5oUwGgLJjH3n7y/gE2Jobm94rkAwyX2akUb3YRiIUwRIBdyy8GN7KWVwYCoo+jmM9zq3zWZe/n0nINMIYKTyabmJ4w72HTgo9/KeZ+8piU8U562hcSHb6cktunarx7Vq6qOAV1WQls/elSbAGjscLPVsIRD8SmPGsDzH+gYi8Y1fTq5ZYhU++g+Dm+M3JQUXXUCrumiW+HL3/QARCVtFD+Kl3SvYYIxEGKpjV8mh75JnxrODY8rKQLkmPrb+meQycKyc= ;{id = 51550 (zsk), size = 2048b}
+post.ch.	29460	IN	DNSKEY	256 3 8 AwEAAcJMZHEEbupH+y9npo2UiS7DD9KBy4jqzq1cvSfoSvKqCYl679JfOV3K22KDIRX1vylDcdDtIjPxm2YibojKVqsxbP8+tzU+RF0/t98Ht8Op7BHV8PS/PHp6yXTVUhc+XK5McQ6YC70HgJkgQ2iVc/2resLYFXmLAeg5TPfV0GBESAs8+MEkwC5yXzEFLx6kUjBTwF7Uk5eHvEVljkFsqQd30A5sek7tJsVPPlgoHShklLo1vohGP68DOqWzEhpNIH7BpqVCcxh0aU6cMyzccF2eOkVueZnSSdrmSyndnfUavvP51SuiHU1RGwednanE2qhJEpMscmNqjfAU+n0/flU= ;{id = 61311 (zsk), size = 2048b}
+post.ch.	29460	IN	RRSIG	DNSKEY 8 2 691200 20251214083420 20251128075628 51550 post.ch. tNOhNb7r9JZWED3uPr8O7GSk/IB2SJVmPYN0YONBru7OiLHiM9mKgrlArazQ3FG33282QtOLMAZngp5gBIUQ8p5PVg/usyjh82ki8CPSup71wDMa04hAudlg36hBaNEW6vGfMp+siNGPaxWMjVrGfN4SbVRvzUOFOe71Gvpsw927yBX8CvcfMXkng5ffbfej22Ky+7KWQgdvgsYqlFAEtNnt6ooESiFHP8CMJZDgssWbBiFckkKL11ex+/bl1wPrmri6OifffG7YG5qVjwdx4m8VkRkzwSqR/MTGXN3CjUzYiru00vznFu3fdUb34WAfPfEM3YemGXeHA5JiqR2Tkg== ;{id = 51550}
+post.ch.	29460	IN	RRSIG	DNSKEY 8 2 691200 20251214083420 20251128075628 56327 post.ch. f8kW3o0eISgKMOLEU0rTi/rcUiCMcniVm6dMVH4h8cH5O4q1hs3oKQ34IPq7p566hHfyzH7zm1x4lSP0UzhGazBSv4Ln25ocp9loiPZkt8DS4BfVcv4aLiHQSw29vv18PCOMmrnQFJKPcE3rPydbaKmrFlwK5dC9eZzM+Db0k6FGANYcXVU2f2GWybIIykh47xxLGtnUe/qd1tujJrzvuDadZdLEiiQwqfjj/5NpLQ5HxZVuHfQFZBQ6WZkAEH5MwgJEWokLY4oh09ukjnBmjZmrSYcvRxa7HTPQ8txagra1l18E6lTvCLbCx2K9VAVS34a5LmLS6G9n+J5MICTVAA== ;{id = 56327}
+;rrset 86272 4 0 5 3
+google.com.	86272	IN	NS	ns2.google.com.
+google.com.	86272	IN	NS	ns1.google.com.
+google.com.	86272	IN	NS	ns4.google.com.
+google.com.	86272	IN	NS	ns3.google.com.
+;rrset 772 1 1 11 5
+tagesanzeiger.ch.	772	IN	NSEC	tagesanzeiger-forum.ch. NS RRSIG NSEC
+tagesanzeiger.ch.	772	IN	RRSIG	NSEC 13 2 900 20251225001432 20251125000154 44426 ch. a6rhcJdwwZngsUlW7W9QsY6OQX/KxzzqMDI7gaGAog4vdt3ml6tQnPiMvSR/MmcqPxbIohd98tttzIrEaUwNow== ;{id = 44426}
+;rrset 13312 1 1 11 5
+de.	13312	IN	DS	26755 8 2 F341357809A5954311CCB82ADE114C6C1D724A75C0395137AA3978035425E78D
+de.	13312	IN	RRSIG	DS 8 1 86400 20251212170000 20251129160000 61809 . 0udyjoErKT3mjdsXehq7TrDrV31L+jEwBG2p/83BvUZipsG3ujagHKAc5lyG6ElfFVVHhffOqMBB4yugYksLEQ3F/+iCzz28xhjaKeWRy0swL/r5ByyICZZpCICksFK8zzoRyDi4c/8SjMCVWxUG2O5zpbROvWtw2l0aiDqYKQEqDAk7q9WTueeHjHNpnISTqNUaGZF2mlbC0nKjw7Tegn8XfEvjspR0ieppVk583HC6ehMTdgVlPlbzdhGn7y15CSWUdy3bU1N7LFJX1VavFGbssewsXqV1bhnj4r4LBpO/Y2VQnCNrZsIxp9+94j4W4YwpJXRWtgud73ue0jUi4g== ;{id = 61809}
+;rrset 787 1 0 5 3
+google.com.	787	IN	AAAA	2a00:1450:4007:80d::200e
+;rrset 145 8 0 5 3
+www.tm.a.prd.aadg.trafficmanager.net.	145	IN	AAAA	2603:1026:3000:108::3
+www.tm.a.prd.aadg.trafficmanager.net.	145	IN	AAAA	2603:1026:3000:118::1
+www.tm.a.prd.aadg.trafficmanager.net.	145	IN	AAAA	2603:1026:3000:108::5
+www.tm.a.prd.aadg.trafficmanager.net.	145	IN	AAAA	2603:1026:3000:108::7
+www.tm.a.prd.aadg.trafficmanager.net.	145	IN	AAAA	2603:1027:1:108::5
+www.tm.a.prd.aadg.trafficmanager.net.	145	IN	AAAA	2603:1026:3000:108::4
+www.tm.a.prd.aadg.trafficmanager.net.	145	IN	AAAA	2603:1027:1:108::b
+www.tm.a.prd.aadg.trafficmanager.net.	145	IN	AAAA	2603:1026:3000:110::2
+;rrset 106 1 1 11 5
+b5jjd28mfhk2qeo58rnoojnf8s5loi6t.net.	106	IN	NSEC3	1 1 0 - b5jlj08h2hp07depkrj85j6007rejmpe NS DS RRSIG ;{flags: optout}
+b5jjd28mfhk2qeo58rnoojnf8s5loi6t.net.	106	IN	RRSIG	NSEC3 13 2 900 20251205031713 20251128020713 17133 net. yaiXEWGjxK05oJtVOPKE7eG7Fw6Xd/vzephmILMeJpD7NKBbKpOqnJc+ZBDWqYhI3qsniAzrRDH8gsM7WWExIQ== ;{id = 17133}
+;rrset 73319 1 1 11 5
+to.	73319	IN	NSEC	today. NS RRSIG NSEC
+to.	73319	IN	RRSIG	NSEC 8 1 86400 20251213170000 20251130160000 61809 . 0FQ3kQsk/k382uPWepM3fH3dChN1sEKbvQCm1OZjQz5GHSRmRLztnFEmOFCTnPeuY7XsT+4TC6SQDLqnJl/YpF4S1Andy7c1bdjYRAlzphvRHN8dyMi1XrNQ80c8HxoQvq5ckKNOMEk71PWX7xdgsgY4ljxXDH/4htkLtCj/zLAcjpYchdByAJaFGOnaxeYewvuLXa/lHWJF/NMN84PumbCo8P35p0E9VEVbk49ovi+qkoQV9B41M5w7REIY+ax2Wpc1qGPOMKme2vvH3aSD4eP8IpUjf2m6UdRNI3qfmg2SxXfqdcLQekHo3ssW4oRt+4YzWQsnRwBUzHEh4iwRCw== ;{id = 61809}
+;rrset 915 1 1 11 5
+cloud.microsoft.	915	IN	DS	61899 13 2 3669D6E0BA4221859F38E90C598CD669A834BD99EE6478C2217C90D2C509D3ED
+cloud.microsoft.	915	IN	RRSIG	DS 8 2 3600 20260102051447 20251128043221 26161 microsoft. WtGnCwp7Y0rPHIp+Id+miHeQKnDmdhRDiVa2WAET/D5eSc/64XInESD58rOD7Y/UDnssHo0bPKtZ91XA2b7xO5ikH+XWfWI7+XydP0zFd28HfBcE5eHbWIBOFi4lywKVWhxv34k2KmSQlsGAo1uipM6xFkEPZem+M4b1fqWmNjHg1In7U/7HM/q+g5515zGWO4St4qUbBpa55SDpjzEl7apxPWwyK7cA8dF9R1hZb1ddHBFf6XotbDw8tnSgmXy52AUuiuXJxCu2840FxHYUNlkSBC9pLdn9Py/wQAORhcJH7wIvJ5Y/8YhOHOVPMrmmzwmRhDOYephoFpXgX2u/Og== ;{id = 26161}
+;rrset 385 1 0 5 3
+wireguard.com.	385	IN	AAAA	2604:1380:45f1:e200::1
+;rrset 1579 1 0 5 3
+download.wireguard.com.	1579	IN	CNAME	wireguard.com.
+;rrset 332 1 0 5 3
+ddns-checkipv6.quickconnect.to.	332	IN	CNAME	checkipv6.digitalocean.synology.com.
+;rrset 284 1 1 11 5
+2VPER9CB2TJM9FDH5HI1KB72BTKLF6T3.com.	284	IN	NSEC3	1 1 0 - 2vpeuel3boaf78babeg23c474itpfcln NS DS RRSIG ;{flags: optout}
+2VPER9CB2TJM9FDH5HI1KB72BTKLF6T3.com.	284	IN	RRSIG	NSEC3 13 2 900 20251206010249 20251128235249 46539 com. n8xglCaMjtDJqx3HQNVzY/BwLSE9bMO7s/+jmLDKUsBUksoCZl3u2/Qs61QJzYoTv0w522PGhmF167lfsCEUgA== ;{id = 46539}
+;rrset 128 1 1 2 0
+net.	128	IN	SOA	a.gtld-servers.net. nstld.verisign-grs.com. 1764540285 1800 900 604800 900
+net.	128	IN	RRSIG	SOA 13 1 900 20251207220445 20251130205445 17133 net. S/TbgZORUPj5TtPtBSl04D/TZ2dAbi+kz/escDuwCfIf+To8IG7CQJBk6KJJ5zsa97V/Yd8UPRWTE6K7/ob3TQ== ;{id = 17133}
+;rrset 234 1 0 5 3
+notify.dropboxapi.com.	234	IN	CNAME	bolt.v.dropbox.com.
+;rrset 3345 1 1 11 5
+gdtpongmpok61u9lvnipqor8lra9l4t0.org.	3345	IN	NSEC3	1 1 0 332539EE7F95C32A gdtrea8kmj2rneqen4m2ogj26kfsukj7 NS SOA RRSIG DNSKEY NSEC3PARAM ;{flags: optout}
+gdtpongmpok61u9lvnipqor8lra9l4t0.org.	3345	IN	RRSIG	NSEC3 8 2 3600 20251221221312 20251130211312 37593 org. OKyrYXPf1/Fhzwssdk5gmBGM+mYVd3zncVN2ZEq9lwrJ1LMJOVUitDbVkhZRSX5C32UXhxhX5fzZRySTR+XiEojSAm1AkYBLootVFtTDf6lksTFdHgkSgrKImnUnhkeVrxJCRpGrT2iV9c5rOdv1SHzJSCfyfEdCoarsyRVM13k= ;{id = 37593}
+;rrset 172 1 0 1 3
+dns4.watson.ch.	172	IN	A	18.156.136.68
+;rrset 86272 2 0 5 3
+ricardo.ch.	86272	IN	NS	aida.ns.cloudflare.com.
+ricardo.ch.	86272	IN	NS	dean.ns.cloudflare.com.
+;rrset 86272 4 0 5 3
+youtube.com.	86272	IN	NS	ns2.google.com.
+youtube.com.	86272	IN	NS	ns1.google.com.
+youtube.com.	86272	IN	NS	ns4.google.com.
+youtube.com.	86272	IN	NS	ns3.google.com.
+;rrset 722 1 0 1 3
+ns3.migros.ch.	722	IN	A	51.103.159.242
+;rrset 722 1 0 1 3
+migze104.migros.ch.	722	IN	A	193.8.177.201
+;rrset 3436 1 0 1 3
+ins5.admin.ch.	3436	IN	A	162.23.23.34
+;rrset 3436 1 0 1 3
+ins1.admin.ch.	3436	IN	A	162.23.22.32
+;rrset 172 4 0 5 3
+watson.ch.	172	IN	AAAA	2a01:4f8:2b01:70d::2
+watson.ch.	172	IN	AAAA	2001:41d0:72b:4600::
+watson.ch.	172	IN	AAAA	2a01:4f8:2b02:eaf::2
+watson.ch.	172	IN	AAAA	2a01:4f8:2b02:24b::2
+;rrset 2170 1 1 11 5
+rt0kh2tembcjme5r0mmgh7hnale3fl8l.de.	2170	IN	NSEC3	1 1 15 CA12B74ADB90591A rt0mmeoqu3fgulhnp6l7rd2s24q1si0j NS DS RRSIG ;{flags: optout}
+rt0kh2tembcjme5r0mmgh7hnale3fl8l.de.	2170	IN	RRSIG	NSEC3 8 2 7200 20251208071938 20251124054938 50538 de. RL3mW6PTaXvlQICMtW+FcoqPNtE+5vKB1og6iuMh91zvugU83DaUsYOMktsKzGvxy8VN4VvvyZ3LZ8DAd5jpsrcvj/ImlBffMhY2T+JLAI9vMgYltve+z9olAkBI2F+6Azl8aZe+V99NB1FCmCRQzxl4eNiCWqZUHLtNFggC7LE= ;{id = 50538}
+;rrset 3144 1 0 2 3
+github.com.	3144	IN	SOA	dns1.p08.nsone.net. hostmaster.nsone.net. 1656468023 43200 7200 1209600 3600
+;rrset 648 1 1 11 5
+JE0TTHBINB52M7705R0CLNL4G7HHFF0F.com.	648	IN	NSEC3	1 1 0 - je0u3hgfs79ebi40445elsfu0jtkk4pp NS DS RRSIG ;{flags: optout}
+JE0TTHBINB52M7705R0CLNL4G7HHFF0F.com.	648	IN	RRSIG	NSEC3 13 2 900 20251204025845 20251127014845 46539 com. mmN1A6+IbN+00hKiXMoIGnKTN3EdBkh/3ljqkIIbRECErwnJT50Jt3w2WGh3E/t+pYVCu9zJPSHhkiVRRixinQ== ;{id = 46539}
+;rrset 469 1 1 11 5
+QJSNB64U3PSQNCNQAV089O5SD0K6PUQV.com.	469	IN	NSEC3	1 1 0 - qjso8jpaiguno6pe429fa78b40cg3vgu NS DS RRSIG ;{flags: optout}
+QJSNB64U3PSQNCNQAV089O5SD0K6PUQV.com.	469	IN	RRSIG	NSEC3 13 2 900 20251205020059 20251128005059 46539 com. 1z7NffRLgBxt3QKq0Uy0VTkaNYE5OlhII9NTZrjoq9K9jskMB++nqA6jHSNUWjLCialV41TgyO4bilCt/gmdqw== ;{id = 46539}
+;rrset 385 1 1 11 5
+fa763kdsuq0i5b94oid0ksleo7uogets.net.	385	IN	NSEC3	1 1 0 - fa781tlgr08gcs7n94lbdrb309gnnrpb NS DS RRSIG ;{flags: optout}
+fa763kdsuq0i5b94oid0ksleo7uogets.net.	385	IN	RRSIG	NSEC3 13 2 900 20251207031808 20251130020808 17133 net. 30w4VObPeX38Vxp78tW3zOtqbXZWDAtJBwiB9AtWaQcU9VL8GTU3cnuqvKkAdNRCTdhyf+lZz97OFoHVv76fdA== ;{id = 17133}
+;rrset 775 1 0 2 0
+dscg2.akamai.net.	775	IN	SOA	n0dscg2.akamai.net. hostmaster.akamai.com. 1764540867 1000 1000 1000 1800
+;rrset 119 1 0 5 3
+assets.msn.com-ion.edgesuite.net.	119	IN	CNAME	a1666.dscr.akamai.net.
+;rrset 214 2 1 5 0
+microsoft.	214	IN	DNSKEY	256 3 8 AwEAAavSdZQ+fp9O0dXjr+Cgbq0kTkJtbdXW4txKy8LpcAlnM6bDKAyqJe/xgTe8kkjtaj+Z3co63iBn3JhKRAmNQSeF017GPLS6fNOuMZopxsZGQBvQ27BRCSCfbgfFNJIdLoq9o8M/XFuC0ognnZPmytWdzu2ec0+0osEUReTQC1cWuobKbX5FqNLwXiYZFykzh/qLfvrlZSWngTjOtdsLEkah+3E99kd2vst68gWj4YG+iKm87TGF0J6cMQ7ldQauI5by5cZX0JSoL2Qg0HU8tdJNoBtrMMnBwjZ8o9yoxiff8ZNBTAn9SWnJOrS/gdvvG53bsaI9B3lo4Vu0MBhtY2U= ;{id = 26161 (zsk), size = 2048b}
+microsoft.	214	IN	DNSKEY	257 3 8 AwEAAdxIYaQf+nHYCxgGnxImugGWFBYqigabtGPtC+N60cFOJ3IgbOtzzURh8ilOkcKsnzhHoC2VKDgVJNXtuCNBbd/fasyJeNZ0hJaZCvWPnWXvWNoPoSjjjIEycuegOu59BDbGKGsKUurzW63VbVy7yt4Iuvrr0MdqnxCVK3aqPMWWIYyr7DmRLfiR6YRH3ypzz1mB8JJEYzbi9Y6HGtwLauPHQgc7s3nRLyL3o16olutPMjvrqclIPo/Ficbo3TU1qzJ0QydEo6R1E4C2GlJhcVwfJc8SfwVCRckR/2XTLjt+KaiG2sgfs4kAfJndYDYMOlyVa2GyNuC0iHaNZF0By00= ;{id = 55012 (ksk), size = 2048b}
+microsoft.	214	IN	RRSIG	DNSKEY 8 1 7200 20260102070312 20251128062745 55012 microsoft. N88UVI+5yK/8U7hhTtAmy/ulMnr52o2TT3XjWYRQGX6FVOou8GAjwJJ7E3XNvHr7nxAgrSwXQDpdUNsV2WoFfEYGI/9rUiff2On+lONeOx5F4nD3wzj5YMv9c8a4r5TD4zIW9xOFHsYGvLX+sUqUXdGqKrwJvKlR7dIDsg45DBz/2liRLzMfBkz7bD9yA/AIfUeeYZLHO+7Fgsrk12yBNENHnNENKXi6VcWft1asJYPwF26TEwK1KRNeNz23YVjcEOJ4dl5TBjLTHYkUKO8XRLL3KabS1Dp9hB36+Nzczygjjs/qP+gw2jLqB29h5Nfy8xCN3RnVy6WFShmjqWtIig== ;{id = 55012}
+;rrset 604 1 0 2 3
+syncthing.net.	604	IN	SOA	ns1.digitalocean.com. hostmaster.syncthing.net. 1764302915 10800 3600 604800 1800
+;rrset 5679 1 1 11 5
+checkip.synology.com.	5679	IN	CNAME	ddns-checkip.quickconnect.to.
+checkip.synology.com.	5679	IN	RRSIG	CNAME 13 3 6000 20251201005233 20251130211233 6079 synology.com. 45X5T9F/FPeVJz4iMU47Yx+Qhc0WEYIMFkP/0SlA9nmkh7BnxqCvEFIryBBfdpkM5KcVZN9IH7DVYH/U8pD6HQ== ;{id = 6079}
+;rrset 1165 1 0 5 3
+uks-azsc-000.roaming.officeapps.live.com.	1165	IN	CNAME	osiprod-uks-buff-azsc-000.uksouth.cloudapp.azure.com.
+;rrset 222 1 1 11 5
+A1RT98BS5QGC9NFI51S9HCI47ULJG6JH.net.	222	IN	NSEC3	1 1 0 - a1rtlnpgulogn7b9a62shje1u3ttp8dr NS SOA RRSIG DNSKEY NSEC3PARAM ;{flags: optout}
+A1RT98BS5QGC9NFI51S9HCI47ULJG6JH.net.	222	IN	RRSIG	NSEC3 13 2 900 20251205032520 20251128021520 17133 net. jEL+OuFL+rWTE4EN6QwXfi3A9nNJISJsO4b7FppiCXXjywQQ6YtnzpE/YG4IQtleRVTM/ibgOrtFCPpob6G2Gw== ;{id = 17133}
+;rrset 163 1 1 11 5
+2STN3ODFVUPGH1E8GCT7LT6TI3SBAIL0.com.	163	IN	NSEC3	1 1 0 - 2stn649c5u3blvmmvin7tjm6ut2qnj9u NS DS RRSIG ;{flags: optout}
+2STN3ODFVUPGH1E8GCT7LT6TI3SBAIL0.com.	163	IN	RRSIG	NSEC3 13 2 900 20251206024941 20251129013941 46539 com. 7v1O0x++RC/NJzfK4eYi43HJoe5H9j6S7MKiGhrzS/WORFOrNbjBJYuOoloriE5wbMuMVb3Aalkh6wmHCDoMWA== ;{id = 46539}
+;rrset 164 5 0 5 3
+spotify.com.	164	IN	NS	ns-cloud-a4.googledomains.com.
+spotify.com.	164	IN	NS	dns1.p07.nsone.net.
+spotify.com.	164	IN	NS	ns-cloud-a1.googledomains.com.
+spotify.com.	164	IN	NS	ns-cloud-a2.googledomains.com.
+spotify.com.	164	IN	NS	ns-cloud-a3.googledomains.com.
+;rrset 172 4 0 5 3
+blick.ch.	172	IN	NS	ns-1092.awsdns-08.org.
+blick.ch.	172	IN	NS	ns-2036.awsdns-62.co.uk.
+blick.ch.	172	IN	NS	ns-324.awsdns-40.com.
+blick.ch.	172	IN	NS	ns-665.awsdns-19.net.
+;rrset 722 1 0 1 3
+migze100.migros.ch.	722	IN	A	146.67.146.20
+;rrset 3436 1 0 1 3
+ins4.admin.ch.	3436	IN	A	162.23.22.34
+;rrset 3472 1 0 1 3
+ins3.admin.ch.	3472	IN	A	212.103.72.85
+;rrset 3472 5 0 5 3
+admin.ch.	3472	IN	NS	ins5.admin.ch.
+admin.ch.	3472	IN	NS	ins1.admin.ch.
+admin.ch.	3472	IN	NS	ins2.admin.ch.
+admin.ch.	3472	IN	NS	ins3.admin.ch.
+admin.ch.	3472	IN	NS	ins4.admin.ch.
+;rrset 5820 4 0 5 3
+netflix.com.	5820	IN	NS	ns-1372.awsdns-43.org.
+netflix.com.	5820	IN	NS	ns-1984.awsdns-56.co.uk.
+netflix.com.	5820	IN	NS	ns-659.awsdns-18.net.
+netflix.com.	5820	IN	NS	ns-81.awsdns-10.com.
+;rrset 722 1 0 2 3
+migros.ch.	722	IN	SOA	migze104.migros.ch. noc.mgb.ch. 2025112647 1200 180 1209600 3600
+;rrset 772 1 0 2 3
+blick.ch.	772	IN	SOA	ns-324.awsdns-40.com. awsdns-hostmaster.amazon.com. 1 7200 900 1209600 86400
+;rrset 724 1 1 11 5
+digitec.ch.	724	IN	NSEC	digitec-promotions.ch. NS RRSIG NSEC
+digitec.ch.	724	IN	RRSIG	NSEC 13 2 900 20251217111346 20251117110205 44426 ch. +xeKzfZixVBg61iDfY3278Wm0H/AdSYr0t3axVwxnDib1pcqAanPyNSZSgSDXQRxCtgticFTvY5UPRPDTYnDgA== ;{id = 44426}
+;rrset 172 2 0 5 3
+tagesanzeiger.ch.	172	IN	AAAA	2606:4700::6812:1078
+tagesanzeiger.ch.	172	IN	AAAA	2606:4700::6812:1178
+;rrset 408 1 1 11 5
+post.ch.	408	IN	A	194.41.184.148
+post.ch.	408	IN	RRSIG	A 8 2 600 20251214074904 20251128072039 51550 post.ch. lAPnR4QQz5fj6H147lBtvD1+EzB1InRBn3ek0MRhlJrk28ufNcSEQdBawV296WXS8YXZHeTtkCKFLvP4f3DVAnUT0X/zTQ4FNDr1j2m5LAYl8q80cuEH8FHY1mksSg4IZP61C9pB9wfY2fvTPGyyEXrPJlG2oSoh8jxOl41yBFnTWwB9exZ9abcn2A5uDoRt3IBtifNxiPXvXWkOXBAlJKfqhjnqU8OWqoJDPasLhvyFE0kt+y0PDbgROh01rQpmGbsJYrC3s65fQfFovL5H5cJ9G0EDZcU3rhKiQW8ihacKe+JmmYs4RDvMuF0GTARYVXvcmkp4I5xmwaW9h7BpiA== ;{id = 51550}
+;rrset 574 1 1 11 5
+tjlb7qbojvmlf1s6gdriru7vsms1lg16.de.	574	IN	NSEC3	1 1 15 CA12B74ADB90591A tjlcsjat4ljtvo0tjncrrdf6kf6onefb NS SOA RRSIG DNSKEY NSEC3PARAM ;{flags: optout}
+tjlb7qbojvmlf1s6gdriru7vsms1lg16.de.	574	IN	RRSIG	NSEC3 8 2 7200 20251208071938 20251124054938 50538 de. oPglUsvA5aRIzFVTGQmenDC+Q7HHZUP4AoABGFCIBhvT2tdfdlbOB5ueeIq9qyk0B3rKQ2bTCpcPW1vQaTIYMbMoQEVufVYQodJeQV3MidhVD3r7cTgjD3egtxQdbE7CqjXaT5BpQnoD0lgktwy2vzqM1K9xrWeJQplgIyEh4OQ= ;{id = 50538}
+;rrset 3408 1 1 2 0
+de.	3408	IN	SOA	f.nic.de. dns-operations.denic.de. 1764540828 7200 7200 3600000 7200
+de.	7008	IN	RRSIG	SOA 8 1 86400 20251214221344 20251130204344 50538 de. aXMFCjSv3eBeOmPZwdwN48ioAcCf5MHLyFthc7Z/srGtpX5EY7owiMsntsX/IYQPS/FPsWQlTOboTCs6HF/B3IQXBiTu3wbEYNp3lYV0R+kRymrqrCocPd/jEFr0yFzg4dYswUe9zwQpnvL1S/as2vvrFihYHfUr6IIi39uawVQ= ;{id = 50538}
+;rrset 5511 2 1 5 0
+de.	5511	IN	DNSKEY	256 3 8 AwEAAcNzNynHnctKFWacQ3HtV8mFCBvWezH8+jekf6ao/YjudkRGjKQStP97sKwM2JDari/XlH/JFTSDQHYoNmB/RPxlICrLzr7c6nPDFIfuCn/5OJold7+9NAwv6e5E0isBkd3h7ZLKpmZyizsfMETX23YeCbOgZ/BrYFMQidpz57+B ;{id = 50538 (zsk), size = 1024b}
+de.	5511	IN	DNSKEY	257 3 8 AwEAAbWUSd/QN9Ae543xzdiacY6qbjwtZ21QfmdgxRdm4Z7bjjHWy249uqxCyjjjoS4LDoRDKmj7ElffMKvTWKE1qFKu0p8TUy4wyhX0M+m5FUjvQ3CiZMi+qY7GSHA5B+Zd73cidmnTeb3e8lso6jEsXg05/VZ2AyAqWF6FexEIFxIqiwwLk4UP0BwZ17Ur3q1qx9VSbPMyHgQ9d6nHUN1EEJsTDA2v0vKumsUyp74ZanRZ/bB/6IzpaaZyr5BLF5pSCNdbRNjVmkwYD0993vm79LueyOeibsoHRc16jhALrIJou1PFjdq7YQsYN0KtqRiJtaAfPprDBREpeamPuW/MnW0= ;{id = 26755 (ksk), size = 2048b}
+de.	5511	IN	RRSIG	DNSKEY 8 1 86400 20251214000653 20251129223653 26755 de. bfAaEZyb7/Xr9BMaPK/yqwaW1StRHajpCL+KZd2FFjkhdvfJcXoFo3dSYikxt9AYvdKgo/MpdSfE+cXT2ok4UdnROC2oWywv0qx8JbNiWXlIijwS8iQtjZEoE3ZHamSyesq+ybTnm0AQXH+1+haC+QOmH3XyZ5UdbFCJyqofGWhLW4PV1Mpy7RCpolMi71H85HhAhY0GNW/MNNgQvd8Z+iFxjbeRE5xABDjwYvo8x9XXcOkIH33F94FXQcKcKrgMM/daLtPqXNI1V9MynMB6JbFJF/V/CW1tCqWEfLNzmLtT4t4294wMDKp+SKu83tY/JnXILMDfuh/EmoAhlxValw== ;{id = 26755}
+;rrset 18 1 1 11 5
+ricardo.ch.	18	IN	NSEC	ricardo-alves.ch. NS RRSIG NSEC
+ricardo.ch.	18	IN	RRSIG	NSEC 13 2 900 20251229204255 20251129200157 44426 ch. kwvcq2bC1lVRzmh+2kgvdNuxtsZ7CbQZ3FkrkJl8qnodEAQbO5818CkzYa7RdJsPj3Fi3JhfUyEi8ixuxrpVqQ== ;{id = 44426}
+;rrset 199 1 1 11 5
+google.ch.	199	IN	NSEC	google-activity.ch. NS RRSIG NSEC
+google.ch.	199	IN	RRSIG	NSEC 13 2 900 20251218042318 20251118040155 44426 ch. s/oN5h8tkqCAuja3p/xoRGGYMCwNZ5LKWaIZHk2jLQ5BCwGLpzCfwE0XyoHJP4XmEpYX6ZrfbeiupNkc3gIbIg== ;{id = 44426}
+;rrset 427 1 1 11 5
+srf.ch.	427	IN	NSEC	srf-1.ch. NS RRSIG NSEC
+srf.ch.	427	IN	RRSIG	NSEC 13 2 900 20251222172450 20251122170155 44426 ch. cIUrP0Tc7xO1AriBkMZvwP8Ju4Qq4C/Q5EC2cvaOSkYqZEpDwwOLyLuRIRUjZKbifnuzBSY3vSwliyFUkbvawA== ;{id = 44426}
+;rrset 3005 1 0 5 3
+www.similarweb.com.	3005	IN	CNAME	d1gearr66p840f.cloudfront.net.
+;rrset 2809 1 0 5 3
+settings-win.data.microsoft.com.	2809	IN	CNAME	atm-settingsfe-prod-geo2.trafficmanager.net.
+;rrset 137 1 1 11 5
+CS42OOH5F7FGOEG6PC3EBJAJFVGO0KTM.net.	137	IN	NSEC3	1 1 0 - cs43j8er2rvi7vcjp5ihj68hhme2q6gl NS DS RRSIG ;{flags: optout}
+CS42OOH5F7FGOEG6PC3EBJAJFVGO0KTM.net.	137	IN	RRSIG	NSEC3 13 2 900 20251205032209 20251128021209 17133 net. qDUlG9Bgk6mdmra7rZBTk82aQVaEGlCU91O14HzNHgyMWuwnvUsfR3Ki1a4KH74eNtMgHxeOkQh8Qi9Cs2pPRA== ;{id = 17133}
+;rrset 814 1 0 2 0
+dscx.akamaiedge.net.	814	IN	SOA	n0dscx.akamaiedge.net. hostmaster.akamai.com. 1764540905 1000 1000 1000 1800
+;rrset 386 1 1 11 5
+5UI7CV5HJHQLPAI73U56DMAO7830VJGD.com.	386	IN	NSEC3	1 1 0 - 5ui7j9dfpqcgnh0fv6ff1sjg3l006g4l NS DS RRSIG ;{flags: optout}
+5UI7CV5HJHQLPAI73U56DMAO7830VJGD.com.	386	IN	RRSIG	NSEC3 13 2 900 20251204025614 20251127014614 46539 com. YRxZDGoguB9XMjZF2r4ItkIcpIW6HgpRLPaNZuqyStom6rMWAgSfXgar14CuGarSqLrN4H+qmsAejvZV8o/wpA== ;{id = 46539}
+;rrset 21421 1 0 5 3
+assets.msn.com.	21421	IN	CNAME	assets-msn-com-world-atm-default.trafficmanager.net.
+;rrset 86111 1 1 11 5
+digitalocean.synology.com.	86111	IN	NSEC	digitalocean\000.synology.com. NS RRSIG NSEC
+digitalocean.synology.com.	86111	IN	RRSIG	NSEC 13 3 86400 20251201231323 20251130211323 6079 synology.com. snXGP68iEndTYoaRuGjemq7ZPkDpWdZX8QId7GbomUJZAZdderG3xNIafYXa1/oUs1nC8BjyKRyTpUzbk7YQOQ== ;{id = 6079}
+;rrset 78793 2 1 11 5
+microsoft.	78793	IN	DS	35775 8 2 75B42B6862AC3B32FC471D044DE968DF0D3E9A2B6D4EAD5ADDBA4ED42FEF185A
+microsoft.	78793	IN	DS	55012 8 2 6124FC6575FD96E99E526B792F5637653C25DC4E1E2C034C7A23FE2E2DA94ACF
+microsoft.	78793	IN	RRSIG	DS 8 1 86400 20251213170000 20251130160000 61809 . qgZyHQ0+xCfAiRJn5+mDWx5X0IonAOhFmgLbZ2BwkitxpWLf5fqEdWV1kz5fBqzZVaTGNO+FbQcxXwYJi8ImZrHJwsyGXsRty+nmjzr0lCGw2N37tRhjUrkR7Zrl5/SexKJFItKwAQ9aMnykerZX+mumpCWsszhe/2Q/WNNfZBrD8eeX15bwLPH/x+OzkD0WGNILfwMkmBS/BrXNkYiKGPJo3o/8eJNY5qsPxVdxDiN/wXc8PEWjnt7V0r4sVnbpMfqet5yfvsZLPAZqXJmmQH7UxGYQrYQ5zMceAeyPwt+1J5fEJRYjIundJgW0Z1YwwWwiU+I5fRZqWuqhmTCylw== ;{id = 61809}
+;rrset 2566 1 0 5 3
+wireguard.com.	2566	IN	A	136.144.57.121
+;rrset 445 1 1 11 5
+D2AK06CHKHVA7I11C8SK0VH3MDSIGQP2.com.	445	IN	NSEC3	1 1 0 - d2aki2j7aishguia06g7kv1f37dc59ta NS DS RRSIG ;{flags: optout}
+D2AK06CHKHVA7I11C8SK0VH3MDSIGQP2.com.	445	IN	RRSIG	NSEC3 13 2 900 20251206011043 20251129000043 46539 com. PpTvHh46HMMxpdE2Brw4VAuq0aEvl1L1kfCiU9jzv+hdnSF90eyV94Z+LUBePhg1At3Bpz8yGGMjsWc+h7aPfg== ;{id = 46539}
+;rrset 834 1 1 11 5
+72mg0i6cmeqrivroi5iffmtqotfjr46t.com.	834	IN	NSEC3	1 1 0 - 72mgep2pknflms2fj1mlegmn3gj7fqfo NS DS RRSIG ;{flags: optout}
+72mg0i6cmeqrivroi5iffmtqotfjr46t.com.	834	IN	RRSIG	NSEC3 13 2 900 20251206003757 20251128232757 46539 com. asy83XwdJB+lm6cX+CXyPDcikKgjdu/QodoslSAdrSHE3Us9Gqst9mebVOcUwOBbVPWWCdJgOGzAQS5+IMK1EA== ;{id = 46539}
+;rrset nsec_apex 72301 1 1 11 5
+.	72301	IN	NSEC	aaa. NS SOA RRSIG NSEC DNSKEY ZONEMD
+.	72301	IN	RRSIG	NSEC 8 0 86400 20251213170000 20251130160000 61809 . geOjpGlFStUJ0Gm6DSl8nZxU9hXCkb8YvqT2mRe4rqCvnF57oxtsd/kdANzww2ZTPCFf+R16anfl25iHrMZUpAeUTBiWSUqRege3HFLGMhyeZc2sOyQoOdiLsMkd3ehNDXCd40mAxE+jHjVBcWjn61bXYr2ifLge6YpNGb9VrSZFw973COajXvqz/TsV83vz3FzTzs6vHqH6Hd1Qhij4gSHLMRoXLHWcEL/488iywa5qpNiGWKJg+BWgJ5shZ91x5/NJpAGwzE1+2/Cg1b1GFuQyJom9G0Hu6YSDrX38X+EZ5tsgHk0I/BuGc8DRalZ69g+iP9AofZWa2ZoZCXpqvw== ;{id = 61809}
+;rrset 172 4 0 5 3
+watson.ch.	172	IN	A	116.202.35.169
+watson.ch.	172	IN	A	157.90.69.199
+watson.ch.	172	IN	A	116.202.163.141
+watson.ch.	172	IN	A	51.89.11.70
+;rrset 3472 1 0 5 3
+admin.ch.	3472	IN	A	162.23.130.190
+;rrset 172 2 0 5 3
+ricardo.ch.	172	IN	A	104.18.42.46
+ricardo.ch.	172	IN	A	172.64.145.210
+;rrset 3345 1 1 2 0
+org.	3345	IN	SOA	a0.org.afilias-nst.info. hostmaster.donuts.email. 1764540441 7200 900 1209600 3600
+org.	3345	IN	RRSIG	SOA 8 1 3600 20251221221312 20251130211312 37593 org. Ui6FPLA19mGgdwaHN8lAz7pcfLz3DgjOWiJxpaIkzcKncQhfvO501zmGHawbLP0509TQEdEFJLR8fhVp6qem2Q3Fj9WUcxtKJn8VFjR+Z2rzO2ATIruy6s9QWTkYJVy0N7R4fIPeWDC0S1PNHiHb9p6NzEp5eFXYs/r//9x+NGg= ;{id = 37593}
+;rrset 772 1 0 2 3
+amazon.de.	772	IN	SOA	dns-external-master.amazon.com. root.amazon.com. 2010112041 600 300 3024000 900
+;rrset 3472 3 0 5 3
+migros.ch.	3472	IN	NS	migze104.migros.ch.
+migros.ch.	3472	IN	NS	migze100.migros.ch.
+migros.ch.	3472	IN	NS	ns3.migros.ch.
+;rrset 86272 4 0 5 3
+google.ch.	86272	IN	NS	ns3.google.com.
+google.ch.	86272	IN	NS	ns1.google.com.
+google.ch.	86272	IN	NS	ns2.google.com.
+google.ch.	86272	IN	NS	ns4.google.com.
+;rrset 4549 1 0 5 3
+sbb.ch.	4549	IN	AAAA	2a00:4bc0:ffff:9::c296:f58e
+;rrset 772 3 0 5 3
+amazon.de.	772	IN	A	3.253.168.19
+amazon.de.	772	IN	A	3.253.177.16
+amazon.de.	772	IN	A	3.253.171.165
+;rrset 369 1 1 11 5
+20min.ch.	369	IN	NSEC	20min-blog.ch. NS RRSIG NSEC
+20min.ch.	369	IN	RRSIG	NSEC 13 2 900 20251222142923 20251122140207 44426 ch. zxQJ+jUYTZTOBZLB6UVi5x4YrzAeku2MiY0++83PgnfMibtqgudoiCSBU6nVGzkAaueGNjFUGeA7D1RGut4MnQ== ;{id = 44426}
+;rrset 629 1 1 11 5
+post.ch.	629	IN	DS	56327 8 2 E8DD3B6E95951766DA08A6A8E75C0813F7F18576A5642DCB83CCBFD4BE337306
+post.ch.	629	IN	RRSIG	DS 13 2 3600 20251222155854 20251122150206 44426 ch. 0QYXVexN3HrKWob9BVarFCo8/QMs59U0+2/Qc1LJ4yrav7tPCYXafOX/g1/2HKYvDoSXPJ03AZ02bzuDou1brw== ;{id = 44426}
+;rrset 145 1 0 5 3
+login.mso.msidentity.com.	145	IN	CNAME	ak.privatelink.msidentity.com.
+;rrset 223 1 1 11 5
+i5n9jov3353gnvsc1qbcp4f2af46lok5.com.	223	IN	NSEC3	1 1 0 - i5na1l2mje4ukteehn59cgjkibm5gdgm NS DS RRSIG ;{flags: optout}
+i5n9jov3353gnvsc1qbcp4f2af46lok5.com.	223	IN	RRSIG	NSEC3 13 2 900 20251204030300 20251127015300 46539 com. Q7EnJuFcmSALzQhdLfMZoMDAFvOlJ1TFgqJF6Ru3lqGQbKamaa05+09tlP4VdFSus/1vAHAqJqxuyPZFpY27JQ== ;{id = 46539}
+;rrset 210 1 0 5 3
+img-s-msn-com.akamaized.net.	210	IN	CNAME	a1834.dscg2.akamai.net.
+;rrset 454 1 1 11 5
+68QLSPI82QRB5GINBRSV14PEMKQ8067P.com.	454	IN	NSEC3	1 1 0 - 68qm2oshmt11gsefqo864janqsdoo3m5 NS DS RRSIG ;{flags: optout}
+68QLSPI82QRB5GINBRSV14PEMKQ8067P.com.	454	IN	RRSIG	NSEC3 13 2 900 20251204024518 20251127013518 46539 com. ryPjNxJAFZbQ8GgVeRspWadshTSJH3xyKcHQrC12+E0bswwoV4/R0OL94t4ll8cN+55bSIwiPf/sVvs8+tE8BQ== ;{id = 46539}
+;rrset 897 2 1 5 0
+cloud.microsoft.	897	IN	DNSKEY	257 3 13 pLnS1aWzBcj0Z4EGnWoypF3697WSfgvPW0jOS6hCf0mRIx4i5DIbGIMHQRs0uMhwCDWTmt7R0vysTpeS8Y1NLQ== ;{id = 61899 (ksk), size = 256b}
+cloud.microsoft.	897	IN	DNSKEY	256 3 13 5jyphv0/u9luBQDbrk/cTqtNIjkCi8OmyalCLB8WmWvocuzX+A4VC2TqHAgz9P8sWGl150UBMIjrWTQTSLwFpA== ;{id = 59033 (zsk), size = 256b}
+cloud.microsoft.	897	IN	RRSIG	DNSKEY 13 2 3600 20260121030014 20251122030014 61899 cloud.microsoft. WAfRLCi/WCl9KW4tHyCc2D/ViN/PlaMSM2ij9Wm4sMW/veRTtWem60WbQ8tUoSZ5i4Pel5shQusUJINAC5OTbg== ;{id = 61899}
+;rrset 754 3 0 5 3
+discovery-announce-v6.syncthing.net.	754	IN	AAAA	2a01:4f8:13b:1643::2
+discovery-announce-v6.syncthing.net.	754	IN	AAAA	2a01:4f8:13b:27e3::2
+discovery-announce-v6.syncthing.net.	754	IN	AAAA	2a01:4f8:251:1e10::2
+;rrset 389 1 1 11 5
+4930O397O7RCM04N1A179EK1MMKM6L0E.net.	389	IN	NSEC3	1 1 0 - 4932esp30tvpp5uuk4h8s2c6ig3mtg6c NS DS RRSIG ;{flags: optout}
+4930O397O7RCM04N1A179EK1MMKM6L0E.net.	389	IN	RRSIG	NSEC3 13 2 900 20251207031812 20251130020812 17133 net. jxRvOD4st8Ob5PsteIlVvti3PYEcx01oM6EjFp7Cb6WYE+l1s01QUCW44bWTXJpdbcMcbHJOoddUdjzLQnAfBg== ;{id = 17133}
+;rrset 14018 2 1 5 0
+net.	14018	IN	DNSKEY	257 3 13 HiBoGpzDRAgrDmUXXTSnl7jCX6Hx5bzkU2jSxMbVI01yS+13EyOghnCidBXU0bH2gi2w9GhYGacpU6CrtwoFNg== ;{id = 37331 (ksk), size = 256b}
+net.	14018	IN	DNSKEY	256 3 13 n1/xo9dFf3KM3jYGnOXOzhVK5LsgTqM4BnTeyBLml4GNNYgs/Wmr3YA8pvodMthc1wD4nH7wL5vYTag4cROQJg== ;{id = 17133 (zsk), size = 256b}
+net.	14018	IN	RRSIG	DNSKEY 13 1 86400 20251213151035 20251128150535 37331 net. yBxKpLHPUIO0cDlOiuLf5s/15zHmsxwXeqQ/kY7O6/9x6Gnq/JMlnxDvjPJSC/kLXhS6jiHL6Or8ca2UkNkgeg== ;{id = 37331}
+;rrset 16337 1 1 11 5
+net.	16337	IN	DS	37331 13 2 2F0BEC2D6F79DFBD1D08FD21A3AF92D0E39A4B9EF1E3F4111FFF282490DA453B
+net.	16337	IN	RRSIG	DS 8 1 86400 20251212170000 20251129160000 61809 . XC6zdJiFJmbZqdmCu8Lr1ckTKnZKeKySJQwBZwi6K+aNdNG0UTazAvF8try+C+ant4h0dDUxtlt7ofTaA54fLqtHUP5GeWsumWosnZYsM2lRkbZcr76dZ6MqkmkSRB50ldCxC0t4uuniAke9ffFDI/yR/nITYu+ti5vwdDG48dwe4yiVIb/h26RqRqQqPOi8UOWwZrLThU8DGuqs7dKoLPcoTt/GHp5xpnFiZ0Dra0Z0T0Qn1sop3LySJhE5LK7iOP6HbQSe/wxjpflizkw/yMFXDRLLM9AFmUcVouJVHsLaExB4/NPp87MMylyqc++wW+/+TuaZ/QhF3aMr0xQq5A== ;{id = 61809}
+;rrset 71458 1 1 11 5
+com.	71458	IN	DS	19718 13 2 8ACBB0CD28F41250A80A491389424D341522D946B0DA0C0291F2D3D771D7805A
+com.	71458	IN	RRSIG	DS 8 1 86400 20251213050000 20251130040000 61809 . xx8zPa1K5jQPowSN1VNoPktHvoHYVYuHlr2LNxqy0SJoyl1dePXH9ZY5yc0FrHLA+RMvOuwxnLikWdgX5CBSASCAozwdYqLsrp33B5ft2ZNlCD0PwoVCw39iXYPBAzBcARckwic6BBR0QwoadUBiIaAAkKdFdiPuNGbxY9Sa+Ap1kBEiIvDhjrg2szHFfNdi5rwJibcBtokUsYglkul3oOSYaRvs2bbmXsckgup563uI/Ctb5AJiwTxZhqfnUfdsYqNFTbqnkrdNo5J6S+hOVMJ8xQY74y9tdLmR4uw+aEAqTB2xtwGN6G443fXDit9MwvvWzQL1oinSwgQNfhbM/w== ;{id = 61809}
+;rrset 81860 3 1 5 0
+.	81860	IN	DNSKEY	257 3 8 AwEAAa96jeuknZlaeSrvyAJj6ZHv28hhOKkx3rLGXVaC6rXTsDc449/cidltpkyGwCJNnOAlFNKF2jBosZBU5eeHspaQWOmOElZsjICMQMC3aeHbGiShvZsx4wMYSjH8e7Vrhbu6irwCzVBApESjbUdpWWmEnhathWu1jo+siFUiRAAxm9qyJNg/wOZqqzL/dL/q8PkcRU5oUKEpUge71M3ej2/7CPqpdVwuMoTvoB+ZOT4YeGyxMvHmbrxlFzGOHOijtzN+u1TQNatX2XBuzZNQ1K+s2CXkPIZo7s6JgZyvaBevYtxPvYLw4z9mR7K2vaF18UYH9Z9GNUUeayffKC73PYc= ;{id = 38696 (ksk), size = 2048b}
+.	81860	IN	DNSKEY	256 3 8 AwEAAeuS7hMRZ7muj1c/ew2DoavxkBw3jUG5R79pKVDI39fxvlD1HfJYGJERnXuV4SrQfUPzWw/lt5Axb0EqXL/sQ2ZyntVmwQwoSXi2l9smlIKh2UrkTmmozRCPe7GS4fZTE4Ew7AV4YprTLgVmxiGP4unRuXkYOgQJXCIBpVCmEdUli6X2sm0i5ZilU/Q+rX3RDw+eYPP7K0cJnJ+ZnvQDy14+BFtreWl9enNQljgGpBp26lEp1z7AbvUfzkQNVCVGaM8jEaCSALXiROlwCQMOdj+tpLXFf99kdJnTQw2cpEr1uGs/yENAJpoGhbjZAoIkXzDUBSlfFeYz7FWzH6gIe7M= ;{id = 61809 (zsk), size = 2048b}
+.	81860	IN	DNSKEY	257 3 8 AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN7SWXgnLh4+B5xQlNVz8Og8kvArMtNROxVQuCaSnIDdD5LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8efS3rCj/EWgvIWgb9tarpVUDK/b58Da+sqqls3eNbuv7pr+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLYA4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws9555KrUB5qihylGa8subX2Nn6UwNR1AkUTV74bU= ;{id = 20326 (ksk), size = 2048b}
+.	81860	IN	RRSIG	DNSKEY 8 0 172800 20251211000000 20251120000000 20326 . d3kxIMpv2xgXK5TUmYg5AHnIBKNrbirqilN7AIl5DBkp6OxN6mqumEPeFhFyoujpaKs3/NgL6lOJ3ckBhf15guUOWEilrJPJZMvfOnxn6YWlGgPaD6w7GtighSQFDMq0JWr3wnn9d0m4CIK7yheMEzwT0niB7vmBsTHnAhBD5eRF/ummLg1PiY2XDpulzaf/OwMItVPQEsQsgwM/ssx4w/bucsp1sZYPPnE6it09IxMkXVf0w2+5GXHACmbpO0wdZFNkFgMbVXAiHMKMiKs7ItZkCC/uUm+c3bDvL+3GQNSzUdet+AB0siHqUHU/frX6dkwz1qjYykHWjaGd5VJmqA== ;{id = 20326}
+END_RRSET_CACHE
+START_MSG_CACHE
+msg azure.com. IN DS 33152 1 284 0 0 3 0
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+com. IN SOA 4
+2VPER9CB2TJM9FDH5HI1KB72BTKLF6T3.com. IN NSEC3 0
+msg admin.ch. IN A 33152 1 3472 3 1 0 0
+admin.ch. IN A 0
+msg galaxus.ch. IN AAAA 33152 1 472 3 0 1 0
+galaxus.ch. IN SOA 4
+msg youtube.com. IN NS 33152 1 86272 3 1 0 0
+youtube.com. IN NS 0
+msg admin.ch. IN AAAA 33152 1 472 3 0 1 0
+admin.ch. IN SOA 4
+msg rts.ch. IN AAAA 33152 1 772 3 0 1 0
+rts.ch. IN SOA 4
+msg srf.ch. IN AAAA 33152 1 3472 3 1 0 0
+srf.ch. IN AAAA 0
+msg rts.ch. IN A 33152 1 3472 3 1 0 0
+rts.ch. IN A 0
+msg microsoft.com. IN DS 33152 1 212 0 0 3 0
+com. IN SOA 4
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+tcq78v56rpb9m9co6k6fi9uogrt276qb.com. IN NSEC3 0
+msg e86303.dscx.akamaiedge.net. IN HTTPS 33152 1 259 0 0 1 0
+dscx.akamaiedge.net. IN SOA 4
+msg akamaiedge.net. IN DS 33152 1 222 0 0 3 0
+A1RT98BS5QGC9NFI51S9HCI47ULJG6JH.net. IN NSEC3 0
+net. IN SOA 4
+GCRQED795V343AT1SHAJVTRUH2TP3NQV.net. IN NSEC3 0
+msg edgesuite.net. IN DS 33152 1 106 0 0 3 0
+net. IN SOA 4
+A1RT98BS5QGC9NFI51S9HCI47ULJG6JH.net. IN NSEC3 0
+b5jjd28mfhk2qeo58rnoojnf8s5loi6t.net. IN NSEC3 0
+msg to. IN DS 33152 1 3368 0 0 2 0
+. IN SOA 4
+to. IN NSEC 0
+msg com. IN DNSKEY 33152 1 4418 0 1 0 0
+com. IN DNSKEY 0
+msg download.wireguard.com. IN A 33152 1 1579 3 2 0 0
+download.wireguard.com. IN CNAME 0
+wireguard.com. IN A 0
+msg dropbox.com. IN DS 33152 1 445 0 0 3 0
+com. IN SOA 4
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+D2AK06CHKHVA7I11C8SK0VH3MDSIGQP2.com. IN NSEC3 0
+msg digitec.ch. IN NS 33152 1 86272 3 1 0 0
+digitec.ch. IN NS 0
+msg spotify.com. IN AAAA 33152 1 172 3 1 0 0
+spotify.com. IN AAAA 0
+msg sbb.ch. IN NS 33152 1 86272 3 1 0 0
+sbb.ch. IN NS 0
+msg digitec.ch. IN DS 33152 1 724 0 0 2 0
+ch. IN SOA 4
+digitec.ch. IN NSEC 0
+msg ricardo.ch. IN DS 33152 1 18 0 0 2 0
+ch. IN SOA 4
+ricardo.ch. IN NSEC 0
+msg www.similarweb.com. IN AAAA 33152 1 3005 3 2 0 0
+www.similarweb.com. IN CNAME 0
+d1gearr66p840f.cloudfront.net. IN AAAA 0
+msg trafficmanager.net. IN DS 33152 1 137 0 0 3 0
+A1RT98BS5QGC9NFI51S9HCI47ULJG6JH.net. IN NSEC3 0
+net. IN SOA 4
+CS42OOH5F7FGOEG6PC3EBJAJFVGO0KTM.net. IN NSEC3 0
+msg login.microsoftonline.com. IN AAAA 33152 1 145 3 4 0 0
+login.microsoftonline.com. IN CNAME 0
+login.mso.msidentity.com. IN CNAME 0
+ak.privatelink.msidentity.com. IN CNAME 0
+www.tm.a.prd.aadg.trafficmanager.net. IN AAAA 0
+msg msidentity.com. IN DS 33152 1 223 0 0 3 0
+com. IN SOA 4
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+i5n9jov3353gnvsc1qbcp4f2af46lok5.com. IN NSEC3 0
+msg cloud.microsoft. IN DS 33152 1 915 0 1 0 0
+cloud.microsoft. IN DS 0
+msg syncthing.net. IN DS 33152 1 222 0 0 3 0
+A1RT98BS5QGC9NFI51S9HCI47ULJG6JH.net. IN NSEC3 0
+net. IN SOA 4
+4930O397O7RCM04N1A179EK1MMKM6L0E.net. IN NSEC3 0
+msg checkip.synology.com. IN A 33152 1 38 3 3 0 0
+checkip.synology.com. IN CNAME 0
+ddns-checkip.quickconnect.to. IN CNAME 0
+on-de2-checkip.quickconnect.to. IN A 0
+msg dropboxapi.com. IN DS 33152 1 834 0 0 3 0
+com. IN SOA 4
+72mg0i6cmeqrivroi5iffmtqotfjr46t.com. IN NSEC3 0
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+msg tagesanzeiger.ch. IN A 33152 1 172 3 1 0 0
+tagesanzeiger.ch. IN A 0
+msg org. IN DS 33152 1 24607 0 1 0 0
+org. IN DS 0
+msg digitec.ch. IN AAAA 33152 1 256 3 0 1 0
+digitec.ch. IN SOA 4
+msg tagesanzeiger.ch. IN NS 33152 1 86272 3 1 0 0
+tagesanzeiger.ch. IN NS 0
+msg admin.ch. IN NS 33152 1 3436 3 1 0 6
+admin.ch. IN NS 0
+ins3.admin.ch. IN AAAA 0
+ins1.admin.ch. IN A 0
+ins2.admin.ch. IN A 0
+ins3.admin.ch. IN A 0
+ins4.admin.ch. IN A 0
+ins5.admin.ch. IN A 0
+msg github.com. IN NS 33152 1 3472 3 1 0 0
+github.com. IN NS 0
+msg google.ch. IN NS 33152 1 86272 3 1 0 0
+google.ch. IN NS 0
+msg watson.ch. IN DS 33152 1 772 0 0 2 0
+ch. IN SOA 4
+watson.ch. IN NSEC 0
+msg de. IN DNSKEY 33152 1 5511 0 1 0 0
+de. IN DNSKEY 0
+msg ch. IN DNSKEY 33152 1 4450 0 1 0 0
+ch. IN DNSKEY 0
+msg rts.ch. IN DS 33152 1 772 0 0 2 0
+ch. IN SOA 4
+rts.ch. IN NSEC 0
+msg google.com. IN A 33152 1 597 3 1 0 0
+google.com. IN A 0
+msg www.similarweb.com. IN A 33152 1 3005 3 2 0 0
+www.similarweb.com. IN CNAME 0
+d1gearr66p840f.cloudfront.net. IN A 0
+msg www.tm.a.prd.aadg.trafficmanager.net. IN AAAA 33152 1 145 0 1 0 0
+www.tm.a.prd.aadg.trafficmanager.net. IN AAAA 0
+msg a1666.dscr.akamai.net. IN HTTPS 33152 1 741 0 0 1 0
+dscr.akamai.net. IN SOA 4
+msg checkipv6.digitalocean.synology.com. IN AAAA 33152 1 91 0 1 0 0
+checkipv6.digitalocean.synology.com. IN AAAA 0
+msg google.ch. IN A 33152 1 250 3 1 0 0
+google.ch. IN A 0
+msg checkipv6.synology.com. IN AAAA 33152 1 91 3 3 0 0
+checkipv6.synology.com. IN CNAME 0
+ddns-checkipv6.quickconnect.to. IN CNAME 0
+checkipv6.digitalocean.synology.com. IN AAAA 0
+msg checkip.synology.com. IN AAAA 33152 1 273 3 2 1 0
+checkip.synology.com. IN CNAME 0
+ddns-checkip.quickconnect.to. IN CNAME 0
+quickconnect.to. IN SOA 4
+msg bolt.v.dropbox.com. IN AAAA 33152 1 234 0 0 1 0
+v.dropbox.com. IN SOA 4
+msg migros.ch. IN A 33152 1 172 3 1 0 0
+migros.ch. IN A 0
+msg ricardo.ch. IN A 33152 1 172 3 1 0 0
+ricardo.ch. IN A 0
+msg srf.ch. IN A 33152 1 3472 3 1 0 0
+srf.ch. IN A 0
+msg wikipedia.org. IN NS 33152 1 16920 3 1 0 0
+wikipedia.org. IN NS 0
+msg spotify.com. IN NS 33152 1 164 3 1 0 0
+spotify.com. IN NS 0
+msg ricardo.ch. IN NS 33152 1 86272 3 1 0 0
+ricardo.ch. IN NS 0
+msg migros.ch. IN NS 33152 1 722 3 1 0 3
+migros.ch. IN NS 0
+migze104.migros.ch. IN A 0
+migze100.migros.ch. IN A 0
+ns3.migros.ch. IN A 0
+msg srf.ch. IN NS 33152 1 86272 3 1 0 0
+srf.ch. IN NS 0
+msg netflix.com. IN NS 33152 1 5820 3 1 0 0
+netflix.com. IN NS 0
+msg migros.ch. IN AAAA 33152 1 722 3 0 1 0
+migros.ch. IN SOA 4
+msg post.ch. IN A 33152 1 408 5 1 0 0
+post.ch. IN A 0
+msg google.com. IN NS 33152 1 86272 3 1 0 0
+google.com. IN NS 0
+msg tagesanzeiger.ch. IN DS 33152 1 772 0 0 2 0
+ch. IN SOA 4
+tagesanzeiger.ch. IN NSEC 0
+msg google.com. IN AAAA 33152 1 787 3 1 0 0
+google.com. IN AAAA 0
+msg google.com. IN DS 33152 1 418 0 0 3 0
+com. IN SOA 4
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+s84bor4dk28hnhplc218o483voood5d8.com. IN NSEC3 0
+msg d1gearr66p840f.cloudfront.net. IN A 33152 1 3006 0 1 0 0
+d1gearr66p840f.cloudfront.net. IN A 0
+msg bing.com. IN DS 33152 1 284 0 0 3 0
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+com. IN SOA 4
+5UI7CV5HJHQLPAI73U56DMAO7830VJGD.com. IN NSEC3 0
+msg on-de2-checkip.quickconnect.to. IN AAAA 33152 1 273 0 0 1 0
+quickconnect.to. IN SOA 4
+msg microsoft. IN DNSKEY 33152 1 214 0 1 0 0
+microsoft. IN DNSKEY 0
+msg net. IN DS 33152 1 16337 0 1 0 0
+net. IN DS 0
+msg watson.ch. IN A 33152 1 172 3 1 0 0
+watson.ch. IN A 0
+msg linkedin.com. IN NS 33152 1 46363 3 1 0 0
+linkedin.com. IN NS 0
+msg linkedin.com. IN AAAA 33152 1 172 3 1 0 0
+linkedin.com. IN AAAA 0
+msg 20min.ch. IN NS 33152 1 86272 3 1 0 0
+20min.ch. IN NS 0
+msg watson.ch. IN AAAA 33152 1 172 3 1 0 0
+watson.ch. IN AAAA 0
+msg 20min.ch. IN DS 33152 1 369 0 0 2 0
+ch. IN SOA 4
+20min.ch. IN NSEC 0
+msg de. IN DS 33152 1 13312 0 1 0 0
+de. IN DS 0
+msg youtube.com. IN DS 33152 1 447 0 0 3 0
+com. IN SOA 4
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+h5aiv1bjhpef1r6u8p4td6bjrd9hikda.com. IN NSEC3 0
+msg srf.ch. IN DS 33152 1 259 0 0 2 0
+ch. IN SOA 4
+srf.ch. IN NSEC 0
+msg d1gearr66p840f.cloudfront.net. IN AAAA 33152 1 3006 0 1 0 0
+d1gearr66p840f.cloudfront.net. IN AAAA 0
+msg a1834.dscg2.akamai.net. IN HTTPS 33152 1 775 0 0 1 0
+dscg2.akamai.net. IN SOA 4
+msg checkipv6.digitalocean.synology.com. IN A 33152 1 1016 0 0 1 0
+digitalocean.synology.com. IN SOA 4
+msg on-de2-checkip.quickconnect.to. IN A 33152 1 38 0 1 0 0
+on-de2-checkip.quickconnect.to. IN A 0
+msg discovery-announce-v6.syncthing.net. IN A 33152 1 604 3 0 1 0
+syncthing.net. IN SOA 4
+msg _ta-4f66. IN NULL 33155 1 3351 0 0 2 0
+. IN SOA 4
+. IN NSEC 1
+msg wireguard.com. IN DS 33152 1 601 0 0 3 0
+com. IN SOA 4
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+n41c6ptdq3lkfmo102dt3v12rsopnal8.com. IN NSEC3 0
+msg com. IN DS 33152 1 71458 0 1 0 0
+com. IN DS 0
+msg sbb.ch. IN A 33152 1 106 3 1 0 0
+sbb.ch. IN A 0
+msg galaxus.ch. IN NS 33152 1 86273 3 1 0 0
+galaxus.ch. IN NS 0
+msg rts.ch. IN NS 33152 1 14273 3 1 0 0
+rts.ch. IN NS 0
+msg wikipedia.org. IN AAAA 33152 1 52 3 1 0 0
+wikipedia.org. IN AAAA 0
+msg facebook.com. IN NS 33152 1 86272 3 1 0 0
+facebook.com. IN NS 0
+msg blick.ch. IN AAAA 33152 1 772 3 0 1 0
+blick.ch. IN SOA 4
+msg amazon.de. IN DS 33152 1 574 0 0 3 0
+de. IN SOA 4
+tjlb7qbojvmlf1s6gdriru7vsms1lg16.de. IN NSEC3 0
+rt0kh2tembcjme5r0mmgh7hnale3fl8l.de. IN NSEC3 0
+msg github.com. IN AAAA 33152 1 3144 3 0 1 0
+github.com. IN SOA 4
+msg blick.ch. IN DS 33152 1 143 0 0 2 0
+ch. IN SOA 4
+blick.ch. IN NSEC 0
+msg post.ch. IN DS 33152 1 629 0 1 0 0
+post.ch. IN DS 0
+msg msn.com. IN DS 33152 1 284 0 0 3 0
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+com. IN SOA 4
+68QLSPI82QRB5GINBRSV14PEMKQ8067P.com. IN NSEC3 0
+msg net. IN DNSKEY 33152 1 14018 0 1 0 0
+net. IN DNSKEY 0
+msg download.wireguard.com. IN AAAA 33152 1 385 3 2 0 0
+download.wireguard.com. IN CNAME 0
+wireguard.com. IN AAAA 0
+msg wireguard.com. IN AAAA 33152 1 385 0 1 0 0
+wireguard.com. IN AAAA 0
+msg checkipv6.synology.com. IN A 33152 1 332 3 2 1 0
+checkipv6.synology.com. IN CNAME 0
+ddns-checkipv6.quickconnect.to. IN CNAME 0
+digitalocean.synology.com. IN SOA 4
+msg akadns.net. IN DS 33152 1 128 0 0 3 0
+net. IN SOA 4
+A1RT98BS5QGC9NFI51S9HCI47ULJG6JH.net. IN NSEC3 0
+O7VM23M4S7RVLAH68RVI8D0F1UQBK4GF.net. IN NSEC3 0
+msg time.google.clm. IN A 33155 1 3515 5 0 3 0
+. IN SOA 4
+clinique. IN NSEC 0
+. IN NSEC 1
+msg wikipedia.org. IN DS 33152 1 2572 0 0 3 0
+gdtpongmpok61u9lvnipqor8lra9l4t0.org. IN NSEC3 0
+org. IN SOA 4
+tpeahq77pcfqu9h00c3mh570ah1f4g65.org. IN NSEC3 0
+msg linkedin.com. IN DS 33152 1 163 0 0 3 0
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+com. IN SOA 4
+2STN3ODFVUPGH1E8GCT7LT6TI3SBAIL0.com. IN NSEC3 0
+msg amazon.de. IN NS 33152 1 7072 3 1 0 0
+amazon.de. IN NS 0
+msg post.ch. IN NS 33152 1 3472 5 1 0 0
+post.ch. IN NS 0
+msg facebook.com. IN DS 33152 1 284 0 0 3 0
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+com. IN SOA 4
+I28G7SLCVH82G64QOMNDAMCP4Q9GHV5V.com. IN NSEC3 0
+msg amazon.de. IN AAAA 33152 1 772 3 0 1 0
+amazon.de. IN SOA 4
+msg blick.ch. IN NS 33152 1 172 3 1 0 0
+blick.ch. IN NS 0
+msg ch. IN DS 33152 1 74742 0 1 0 0
+ch. IN DS 0
+msg galaxus.ch. IN DS 33152 1 259 0 0 2 0
+ch. IN SOA 4
+galaxus.ch. IN NSEC 0
+msg google.ch. IN DS 33152 1 199 0 0 2 0
+ch. IN SOA 4
+google.ch. IN NSEC 0
+msg netflix.com. IN DS 33152 1 284 0 0 3 0
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+com. IN SOA 4
+JE0TTHBINB52M7705R0CLNL4G7HHFF0F.com. IN NSEC3 0
+msg similarweb.com. IN DS 33152 1 284 0 0 3 0
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+com. IN SOA 4
+IJUFHABK2Q2DIH33K5GGNDOT94KU4DDR.com. IN NSEC3 0
+msg akamai.net. IN DS 33152 1 385 0 0 3 0
+net. IN SOA 4
+A1RT98BS5QGC9NFI51S9HCI47ULJG6JH.net. IN NSEC3 0
+fa763kdsuq0i5b94oid0ksleo7uogets.net. IN NSEC3 0
+msg img-s-msn-com.akamaized.net. IN HTTPS 33152 1 210 3 1 1 0
+img-s-msn-com.akamaized.net. IN CNAME 0
+dscg2.akamai.net. IN SOA 4
+msg edgekey.net. IN DS 33152 1 418 0 0 3 0
+net. IN SOA 4
+2a09l90j5op53dj5m5o1fl8j39ghprti.net. IN NSEC3 0
+A1RT98BS5QGC9NFI51S9HCI47ULJG6JH.net. IN NSEC3 0
+msg synology.com. IN DS 33152 1 28966 0 1 0 0
+synology.com. IN DS 0
+msg synology.com. IN DNSKEY 33152 1 784 0 1 0 0
+synology.com. IN DNSKEY 0
+msg cloud.microsoft. IN DNSKEY 33152 1 897 0 1 0 0
+cloud.microsoft. IN DNSKEY 0
+msg discovery-announce-v6.syncthing.net. IN AAAA 33152 1 754 3 1 0 0
+discovery-announce-v6.syncthing.net. IN AAAA 0
+msg wireguard.com. IN A 33152 1 2566 0 1 0 0
+wireguard.com. IN A 0
+msg live.com. IN DS 33152 1 186 0 0 3 0
+com. IN SOA 4
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+nd8167ub08rpmb470j9f8m7n6t35ek3g.com. IN NSEC3 0
+msg . IN DNSKEY 33152 1 81860 0 1 0 0
+. IN DNSKEY 0
+msg watson.ch. IN NS 33152 1 172 3 1 0 8
+watson.ch. IN NS 0
+dns1.watson.ch. IN AAAA 0
+dns2.watson.ch. IN AAAA 0
+dns3.watson.ch. IN AAAA 0
+dns4.watson.ch. IN AAAA 0
+dns1.watson.ch. IN A 0
+dns2.watson.ch. IN A 0
+dns3.watson.ch. IN A 0
+dns4.watson.ch. IN A 0
+msg spotify.com. IN A 33152 1 66 3 1 0 0
+spotify.com. IN A 0
+msg spotify.com. IN DS 33152 1 289 0 0 3 0
+com. IN SOA 4
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+vb2htrvh2999nj7aoqjund0cn7u5dcu8.com. IN NSEC3 0
+msg sbb.ch. IN AAAA 33152 1 4549 3 1 0 0
+sbb.ch. IN AAAA 0
+msg ricardo.ch. IN AAAA 33152 1 1672 3 0 1 0
+ricardo.ch. IN SOA 4
+msg tagesanzeiger.ch. IN AAAA 33152 1 172 3 1 0 0
+tagesanzeiger.ch. IN AAAA 0
+msg post.ch. IN DNSKEY 33152 1 29460 0 1 0 0
+post.ch. IN DNSKEY 0
+msg amazon.de. IN A 33152 1 772 3 1 0 0
+amazon.de. IN A 0
+msg microsoftonline.com. IN DS 33152 1 284 0 0 3 0
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. IN NSEC3 0
+com. IN SOA 4
+QJSNB64U3PSQNCNQAV089O5SD0K6PUQV.com. IN NSEC3 0
+msg digitalocean.synology.com. IN DS 33152 1 611 0 0 2 0
+synology.com. IN SOA 4
+digitalocean.synology.com. IN NSEC 0
+msg microsoft. IN DS 33152 1 78793 0 1 0 0
+microsoft. IN DS 0
+END_MSG_CACHE
+EOF
