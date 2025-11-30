@@ -133,7 +133,9 @@ headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deplo
 
 coredns: dns headscale install-coredns deploy-coredns /etc/coredns/Corefile
 	@echo "[make] coredns"
-	@$(run_as_root) bash -c 'export SCRIPT_NAME="coredns"; $(HOMELAB_DIR)/scripts/lib/run_as_root.sh && run_as_root'
+	@$(run_as_root) env SCRIPT_NAME=coredns bash $(HOMELAB_DIR)/scripts/setup/deploy_certificates.sh renew FORCE=$(FORCE) || { echo "[make] ❌ renew failed"; exit 1; }
+
+	#@$(run_as_root) bash -c 'export SCRIPT_NAME="coredns"; $(HOMELAB_DIR)/scripts/lib/run_as_root.sh && run_as_root'
 
 SYSTEMD_DIR = /etc/systemd/system
 REPO_SYSTEMD = config/systemd

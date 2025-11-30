@@ -1,6 +1,11 @@
 #!/bin/bash
-# deploy_certificates.sh — ECC-first certificate deploy with RSA fallback
+# scripts/setup/deploy_certificates.sh — ECC-first certificate deploy with RSA fallback
 # v1.0 — Julien homelab
+
+# If not running as root, re-exec this script under sudo so subcommands are preserved
+if [ "$(id -u)" -ne 0 ]; then
+  exec sudo -- "$0" "$@"
+fi
 set -euo pipefail
 
 source "/home/julie/src/homelab/config/homelab.env"
