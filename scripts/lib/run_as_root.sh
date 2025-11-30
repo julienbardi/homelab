@@ -45,7 +45,7 @@ run_as_root_OLD() {
 	fi
 }
 
-run_as_root() {
+run_as_root_OLD2() {
 	local preserve=false
 	if [[ "${1:-}" == "--preserve" ]]; then
 		preserve=true
@@ -63,6 +63,29 @@ run_as_root() {
 			exec sudo -E -- "$@"
 		else
 			exec sudo -- "$@"
+		fi
+	fi
+}
+
+run_as_root ()
+{
+	local preserve=false
+	if [[ "${1:-}" == "--preserve" ]]; then
+		preserve=true
+		shift
+	fi
+
+	if [ "$(id -u)" -eq 0 ]; then
+		if $preserve; then
+			env -i "$@"
+		else
+			"$@"
+		fi
+	else
+		if $preserve; then
+			sudo -E -- "$@"
+		else
+			sudo -- "$@"
 		fi
 	fi
 }

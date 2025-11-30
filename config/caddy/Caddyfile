@@ -107,6 +107,8 @@ bardi.ch:8384 {
 		remote_ip 2a01:8b81:4800:9c00::/64
 	}
 	reverse_proxy @vpn_internal 127.0.0.1:8910 {
+		header_up Host {host}
+		header_up X-Real-IP {remote}
 		transport http {
 			versions h2c
 		}
