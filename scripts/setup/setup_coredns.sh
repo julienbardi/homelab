@@ -13,6 +13,7 @@
 # ============================================================
 
 set -euo pipefail
+source "/home/julie/src/homelab/config/homelab.env"
 source "/home/julie/src/homelab/scripts/common.sh"
 
 LOGFILE="/var/log/homelab/setup_coredns.log"
