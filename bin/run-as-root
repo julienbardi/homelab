@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
+# --------------------------------------------------------------------
 # bin/run-as-root
-# Execute the given command as root if needed, preserving argv boundaries.
-if [ "$(id -u)" -eq 0 ]; then
-  exec "$@"
-else
-  exec sudo -- "$@"
-fi
+# --------------------------------------------------------------------
+# CONTRACT:
+# - Accepts argv tokens, not a single quoted string.
+# - Preserves argument boundaries exactly.
+# - If already root: exec "$@".
+# - If not root: exec sudo -- "$@".
+# - This allows commands with arguments, quotes, >, |, &&, ||.
+# - In Makefiles, escape operators (\>, \|, \&\&) so they survive parsing.
+# --------------------------------------------------------------------
 
+set -euo pipefail
+
+if [ "$(id -u)" -eq 0 ]; then
+	exec "$@"
+else
+	exec sudo -- "$@"
+fi

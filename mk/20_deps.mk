@@ -26,7 +26,7 @@ install-pkg-checkmake: install-pkg-pandoc install-pkg-go
 	BUILDER_NAME="$$(git config --get user.name)" \
 	BUILDER_EMAIL="$$(git config --get user.email)" \
 	make
-	$(call run_as_root,install -m 0755 $(HOME)/src/checkmake/checkmake /usr/local/bin/checkmake)
+	$(s*run_as_roots*) install -m 0755 $(HOME/src/checkmake/checkmake /usr/local/bin/checkmake)
 	@echo "[make] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
 	@checkmake --version
 

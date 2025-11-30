@@ -1,9 +1,13 @@
-# ============================================================
-# Homelab Makefile
-# ------------------------------------------------------------
-# Orchestration: Gen0 → Gen1 → Gen2
-# Includes lint target for safety
-# ============================================================
+# --------------------------------------------------------------------
+# Makefile (root)
+# --------------------------------------------------------------------
+# CONTRACT:
+# - Includes mk/01_common.mk to set run_as_root.
+# - Recipes call $(run_as_root) with argv tokens.
+# - Escape operators (\>, \|, \&\&, \|\|).
+# --------------------------------------------------------------------
+
+include mk/01_common.mk
 
 SHELL := /bin/bash
 HOMELAB_REPO := https://github.com/Jambo15/homelab.git
@@ -14,8 +18,10 @@ BUILDER_EMAIL := $(shell git config --get user.email)
 export BUILDER_NAME
 export BUILDER_EMAIL
 
+HEADSCALE_CONFIG := /etc/headscale/config.yaml
+export HEADSCALE_CONFIG
+
 # --- Includes (ordered by prefix) ---
-include mk/01_common.mk      # global macros, helpers, logging (must come first)
 include mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
@@ -24,6 +30,7 @@ include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/60_unbound.mk     # Unbound DNS resolver setup
 include mk/70_coredns.mk     # CoreDNS setup and deployment
 include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
+include mk/81_headscale.mk   # Headscale-specific targets (Noise key rotation, etc.)
 include mk/90_dns-health.mk  # DNS health checks and monitoring
 include mk/99_lint.mk        # lint and safety checks (always last)
 
@@ -83,22 +90,21 @@ update: gitcheck
 # Ensure group membership before running logs
 logs: journal-access
 	@echo "Ensuring /var/log/homelab exists and is writable..."
-	@sudo mkdir -p /var/log/homelab
-	@sudo chown $(shell id -un):$(shell id -gn) /var/log/homelab
+	@$(run_as_root) mkdir -p /var/log/homelab
+	@$(run_as_root) chown $(shell id -un):$(shell id -gn) /var/log/homelab
 
 test: logs
 	@echo "Running run_as_root harness..."
-	@bash $(HOME)/src/homelab/scripts/test_run_as_root.sh
+	@$(run_as_root) bash $(HOME)/src/homelab/scripts/test_run_as_root.sh
 
 # --- Default target ---
 # Ensure group membership is enforced before full orchestration
-all:harden-groups gitcheck gen0 gen1 gen2
+all: harden-groups gitcheck gen0 gen1 gen2
 	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
 
 # --- Dependencies for Gen0 services ---
 install-unbound:
 	@$(call apt_install,unbound,unbound)
-
 
 install-coredns:
 	@$(call apt_install,coredns,coredns)
@@ -128,82 +134,76 @@ setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC)
 		echo "[make] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
 	fi
 	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
-		$(call run_as_root,cp $(SCRIPT_SRC) $(SCRIPT_DST)); \
-		$(call run_as_root,chown root:root $(SCRIPT_DST)); \
-		$(call run_as_root,chmod 0755 $(SCRIPT_DST)); \
-		$(call run_as_root,systemctl restart subnet-router.service); \
+		$(run_as_root) cp $(SCRIPT_SRC) $(SCRIPT_DST); \
+		$(run_as_root) chown root:root $(SCRIPT_DST); \
+		$(run_as_root) chmod 0755 $(SCRIPT_DST); \
+		$(run_as_root) systemctl restart subnet-router.service; \
 		echo "[make] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
 
 # Top-level Makefile (snippet)
 # ensure prerequisites/config files are present before running the setup script
-headscale: install-go config/headscale.yaml config/derp.yaml deploy-headscale
+headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deploy-headscale
 	@echo "Running Headscale setup script..."
-	@bash scripts/setup/setup_headscale.sh
+	@$(run_as_root) bash scripts/setup/setup_headscale.sh
 
 .PHONY: coredns
 
 /etc/coredns/Corefile:
-	run_as_root chmod 0755 /etc/coredns; \
-	sudo install -o coredns -g coredns -m 640 /home/julie/src/homelab/config/coredns/Corefile /etc/coredns/Corefile;
-	
+	@$(run_as_root) chmod 0755 /etc/coredns; \
+	$(run_as_root) install -o coredns -g coredns -m 640 $(HOMELAB_DIR)/config/coredns/Corefile /etc/coredns/Corefile
+
 coredns: dns headscale install-coredns deploy-coredns /etc/coredns/Corefile
-	@echo "[make] coredns";
-	@export SCRIPT_NAME="coredns"; . scripts/lib/run_as_root.sh && \
-	if ! getent passwd coredns >/dev/null; then \
-		sudo useradd --system --no-create-home --shell /usr/sbin/nologin coredns; \
-	fi; \
-	run_as_root mkdir -p /etc/coredns /var/lib/coredns; \
-	run_as_root chown -R coredns:coredns /etc/coredns /var/lib/coredns || true; \
-	run_as_root bash scripts/setup/setup_coredns.sh;
+	@echo "[make] coredns"
+	@$(run_as_root) bash -c 'export SCRIPT_NAME="coredns"; $(HOMELAB_DIR)/scripts/lib/run_as_root.sh && run_as_root mkdir -p /etc/coredns /var/lib/coredns && run_as_root chown -R coredns:coredns /etc/coredns /var/lib/coredns || true && run_as_root bash $(HOMELAB_DIR)/scripts/setup/setup_coredns.sh'
 
 dns: install-unbound install-dnsutils
-	@$(call run_as_root,bash scripts/setup/dns_setup.sh)
+	@$(run_as_root) bash scripts/setup/dns_setup.sh
 
 # --- Gen1: helpers ---
 gen1: caddy deploy-headscale-yaml rotate wg-baseline namespaces audit
 	@echo "[make] Running gen1 helper scripts..."
 
 audit: headscale coredns dns setup-subnet-router
-	@$(call	 run_as_root,bash scripts/audit/router_audit.sh)
+	@$(run_as_root) bash scripts/audit/router_audit.sh
 
 .PHONY: deploy-caddyfile
 deploy-caddyfile:
 	@echo "[make] Deploying Caddyfile from Git → /etc/caddy"
-	@sudo cp $(HOMELAB_DIR)/config/caddy/Caddyfile /etc/caddy/Caddyfile
-	@sudo chown root:root /etc/caddy/Caddyfile
-	@sudo chmod 644 /etc/caddy/Caddyfile
+	@$(run_as_root) cp $(HOMELAB_DIR)/config/caddy/Caddyfile /etc/caddy/Caddyfile
+	@$(run_as_root) chown root:root /etc/caddy/Caddyfile
+	@$(run_as_root) chmod 644 /etc/caddy/Caddyfile
 	@echo "[make] ✅ Caddyfile deployed successfully"
 
 caddy: deploy-caddy deploy-caddyfile
 	@echo "[make] Restarting caddy service (Restart flushes out stale matcher references and old routes)"
-	@$(call run_as_root,systemctl restart caddy)
+	@$(run_as_root) systemctl restart caddy
 
 caddy-reload: deploy-caddy deploy-caddyfile
 	@echo "[make] Reloading caddy service (hot reload, fragile, only if you are confident, use 'make caddy' with restart otherwise)"
-	@$(call run_as_root,bash scripts/helpers/caddy-reload.sh)
+	@$(run_as_root) bash scripts/helpers/caddy-reload.sh
 
 .PHONY: deploy-headscale-yaml
-HEADSCALE_SRC := /home/julie/src/homelab/config/headscale.yaml
+HEADSCALE_SRC := $(HOMELAB_DIR)/config/headscale.yaml
 HEADSCALE_DST := /etc/headscale/config.yaml
 deploy-headscale-yaml: deploy-headscale
 	@echo "[make] Deploying headscale.yaml..."
 	@# Validate YAML before deploying
 	@python3 -c "import yaml,sys; yaml.safe_load(open('$(HEADSCALE_SRC)')); print('YAML OK')"
 	@# Atomic copy with correct permissions
-	@sudo install -o headscale -g headscale -m 640 $(HEADSCALE_SRC) $(HEADSCALE_DST)
+	@$(run_as_root) install -o headscale -g headscale -m 640 $(HEADSCALE_SRC) $(HEADSCALE_DST)
 	@echo "File copied to $(HEADSCALE_DST)"
 	@# Restart service only if running
-	@sudo systemctl restart headscale
+	@$(run_as_root) systemctl restart headscale
 	@echo "[make] Headscale service restarted"
 
 rotate:
-	@$(call	 run_as_root,bash scripts/helpers/rotate-unbound-rootkeys.sh)
+	@$(run_as_root) bash scripts/helpers/rotate-unbound-rootkeys.sh
 
 wg-baseline:
-	@$(call	 run_as_root,bash scripts/helpers/wg_baseline.sh test-client)
+	@$(run_as_root) bash scripts/helpers/wg_baseline.sh test-client
 
 namespaces: headscale
-	@$(call	 run_as_root,bash scripts/helpers/namespaces_headscale.sh)
+	@$(run_as_root) bash scripts/helpers/namespaces_headscale.sh
 
 # --- Gen2: site artifact ---
 gen2: site
@@ -214,18 +214,17 @@ gen2: site
 #   make site SERVICES="caddy"
 #   make site SERVICES="caddy nginx"
 site: caddy audit
-	@$(call run_as_root,SERVICES="$(SERVICES)" bash scripts/deploy/site.sh)
+	@$(run_as_root) env SERVICES="$(SERVICES)" bash scripts/deploy/site.sh
 
 # --- Clean target ---
 WIREGUARD_DIR := /etc/wireguard
 
 clean-soft:
-	@$(call run_as_root,rm -f \
+	@$(run_as_root) rm -f \
 		$(WIREGUARD_DIR)/*.conf.generated \
 		$(WIREGUARD_DIR)/*.key.generated \
-		$(WIREGUARD_DIR)/qr/*.qr)
+		$(WIREGUARD_DIR)/qr/*.qr
 
 clean: clean-soft
-	$(call run_as_root,systemctl stop headscale || true)
-	@$(call run_as_root,rm -f /etc/headscale/db.sqlite)
-
+	@$(run_as_root) systemctl stop headscale \|\| true
+	@$(run_as_root) rm -f /etc/headscale/db.sqlite
