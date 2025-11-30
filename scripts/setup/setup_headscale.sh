@@ -16,7 +16,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # load helper functions (log, run_as_root, etc.)
-source "/home/julie/src/homelab/scripts/common.sh"
+source "$HOME/src/homelab/scripts/common.sh"
 type run_as_root
 declare -f run_as_root
 
@@ -118,12 +118,30 @@ derp:
 EOF
 fi
 
+# --- Fix Headscale config permissions ---
+run_as_root "chown root:${HEADSCALE_USER} ${CONFIG_DIR}"
+run_as_root "chmod 750 ${CONFIG_DIR}"
+
+log "Fixing Headscale config file permissions"
+run_as_root "chown ${HEADSCALE_USER}:${HEADSCALE_USER} ${CONFIG_FILE}"
+run_as_root "chmod 640 ${CONFIG_FILE}"
+
+if [ -f "${DERP_FILE}" ]; then
+	run_as_root "chown ${HEADSCALE_USER}:${HEADSCALE_USER} ${DERP_FILE}"
+	run_as_root "chmod 640 ${DERP_FILE}"
+fi
+
+if ! headscale version >/dev/null 2>&1; then
+	log "ERROR: Headscale cannot read config file"
+	exit 1
+fi
+
 # --- Ensure DB directory and file ---
 log "Ensuring DB directory ${DB_DIR} and file ${DB_FILE}"
 run_as_root "mkdir -p ${DB_DIR}"
 if [ ! -f "${DB_FILE}" ]; then
-    run_as_root "touch ${DB_FILE}"
-    log "Created DB file ${DB_FILE}"
+	run_as_root "touch ${DB_FILE}"
+	log "Created DB file ${DB_FILE}"
 fi
 run_as_root "chown -R ${HEADSCALE_USER}:${HEADSCALE_USER} ${DB_DIR}"
 run_as_root "chmod 660 ${DB_FILE}" || true
@@ -136,20 +154,23 @@ run_as_root "mkdir -p ${RUNTIME_DIR}"
 run_as_root "chown ${HEADSCALE_USER}:${HEADSCALE_USER} ${RUNTIME_DIR}"
 run_as_root "chmod 770 ${RUNTIME_DIR}"
 if [ -S "${RUNTIME_DIR}/headscale.sock" ]; then
-    run_as_root "rm -f ${RUNTIME_DIR}/headscale.sock"
-    log "Removed stale socket ${RUNTIME_DIR}/headscale.sock"
+	run_as_root "rm -f ${RUNTIME_DIR}/headscale.sock"
+	log "Removed stale socket ${RUNTIME_DIR}/headscale.sock"
 fi
 
 # --- Noise private key generation ---
 if command -v "${HEADSCALE_BIN}" >/dev/null 2>&1 || command -v headscale >/dev/null 2>&1; then
-    HS_BIN="$(command -v headscale || echo "${HEADSCALE_BIN}")"
-    if [ ! -f "${CONFIG_DIR}/noise_private.key" ]; then
-        if "${HS_BIN}" generate private-key --output "${CONFIG_DIR}/noise_private.key"; then
-            log "Noise private key created at ${CONFIG_DIR}/noise_private.key"
-            run_as_root "chown ${HEADSCALE_USER}:${HEADSCALE_USER} ${CONFIG_DIR}/noise_private.key" || true
-            run_as_root "chmod 600 ${CONFIG_DIR}/noise_private.key" || true
-        fi
-    fi
+	HS_BIN="$(command -v headscale || echo "${HEADSCALE_BIN}")"
+	if [ ! -f "${CONFIG_DIR}/noise_private.key" ]; then
+		# Generate the key only if missing, capture stdout into the file
+		if run_as_root --preserve "${HS_BIN} generate private-key > ${CONFIG_DIR}/noise_private.key"; then
+			log "Noise private key created at ${CONFIG_DIR}/noise_private.key"
+			run_as_root "chown ${HEADSCALE_USER}:${HEADSCALE_USER} ${CONFIG_DIR}/noise_private.key"
+			run_as_root "chmod 600 ${CONFIG_DIR}/noise_private.key"
+		else
+			log "ERROR: failed to generate Noise private key"
+		fi
+	fi
 fi
 
 # --- Systemd unit ---
@@ -187,8 +208,8 @@ fi
 
 # --- Final checks ---
 if command -v "${HEADSCALE_BIN}" >/dev/null 2>&1 || command -v headscale >/dev/null 2>&1; then
-    HS_BIN="$(command -v headscale || echo "${HEADSCALE_BIN}")"
-    log "Headscale version: $(${HS_BIN} version 2>/dev/null || echo 'unknown')"
+	HS_BIN="$(command -v headscale || echo "${HEADSCALE_BIN}")"
+	log "Headscale version: $(${HS_BIN} version 2>/dev/null || echo 'unknown')"
 fi
 
-log "Headscale setup complete. Verify with: sudo systemctl status ${SERVICE_NAME} and sudo journalctl -u ${SERVICE_NAME} -n 200"
+log "Headscale setup complete. Verify with: sudo systemctl status ${SERVICE_NAME}; sudo journalctl -u ${SERVICE_NAME} -n 200"

@@ -12,13 +12,13 @@ lint-scripts:
 	 @bash -n scripts/setup/*.sh scripts/helpers/*.sh scripts/audit/*.sh scripts/deploy/*.sh
 
 lint-config:
-	@$(call run_as_root,headscale configtest --config /etc/headscale/headscale.yaml) || \
+	@$(s*run_as_roots*) headscale configtest --config /etc/headscale/headscale.yaml || \
 		(echo "Headscale config invalid!" && exit 1)
 
 lint-makefile:
 	@if command -v checkmake >/dev/null 2>&1; then \
-		$(call run_as_root,checkmake Makefile); \
-		$(call run_as_root,checkmake --version); \
+		$(s*run_as_roots*) checkmake Makefile; \
+		$(s*run_as_roots*) checkmake --version; \
 	else \
 		make -n all >/dev/null; \
 	fi
