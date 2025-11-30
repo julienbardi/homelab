@@ -1,0 +1,11 @@
+[Unit]
+Description=Fix ownership and permissions of Unbound control socket
+After=unbound.service
+Wants=unbound.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'for i in 1 2 3 4 5; do [ -e /run/unbound.ctl ] && /bin/chown root:unbound /run/unbound.ctl && /bin/chmod 660 /run/unbound.ctl && exit 0 || sleep 0.1; done; exit 0'
+
+[Install]
+WantedBy=multi-user.target
