@@ -19,25 +19,25 @@ DEPLOY     := $(SCRIPT_DIR)/setup/deploy_certificates.sh
 
 # Base actions
 issue:
-	@$(run_as_root) bash $(DEPLOY) issue || { echo "[make] ❌ issue failed"; exit 1; }
+	@$(run_as_root) $(DEPLOY) issue || { echo "[make] ❌ issue failed"; exit 1; }
 
 renew:
-	@$(run_as_root) bash $(DEPLOY) renew FORCE=$(FORCE) || { echo "[make] ❌ renew failed"; exit 1; }
+	@$(run_as_root) $(DEPLOY) renew FORCE=$(FORCE) || { echo "[make] ❌ renew failed"; exit 1; }
 
 prepare: renew fix-acme-perms
-	@$(run_as_root) bash $(DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
+	@$(run_as_root) $(DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
 
 # Deploy targets (pattern rule)
 deploy-%: prepare
-	@$(run_as_root) bash $(DEPLOY) deploy $* || { echo "[make] ❌ deploy-$* failed"; exit 1; }
+	@$(run_as_root) $(DEPLOY) deploy $* || { echo "[make] ❌ deploy-$* failed"; exit 1; }
 
 # Validate targets (pattern rule)
 validate-%:
-	@$(run_as_root) bash $(DEPLOY) validate $* || { echo "[make] ❌ validate-$* failed"; exit 1; }
+	@$(run_as_root) $(DEPLOY) validate $* || { echo "[make] ❌ validate-$* failed"; exit 1; }
 
 # All-in-one targets (pattern rule: renew + prepare + deploy + validate)
 all-%: renew prepare deploy-% validate-%
-	@$(run_as_root) bash $(DEPLOY) all $* || { echo "[make] ❌ all-$* failed"; exit 1; }
+	@$(run_as_root) $(DEPLOY) all $* || { echo "[make] ❌ all-$* failed"; exit 1; }
 
 # Cert watch setup targets
 setup-cert-watch-%:
