@@ -86,12 +86,6 @@ update: gitcheck
 .PHONY: setup-subnet-router
 .PHONY: test logs clean clean-soft
 
-# Ensure group membership before running logs
-logs: journal-access
-	@echo "Ensuring /var/log/homelab exists and is writable..."
-	@$(run_as_root) mkdir -p /var/log/homelab
-	@$(run_as_root) chown $(shell id -un):$(shell id -gn) /var/log/homelab
-
 test: logs
 	@echo "Running run_as_root harness..."
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
