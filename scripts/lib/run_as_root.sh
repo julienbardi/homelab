@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# run_as_root.sh
-log() {
-	# Print timestamp + script name in same format as common.sh
-	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME:-${0##*/}}] $*"
-}
+# Execute one command as root, optionally preserving environment.
+# Usage:
+#   run_as_root.sh "command ..."
+#   run_as_root.sh --preserve "command ..."
 
+set -euo pipefail
+
+log() {
+	echo "$(date '+%Y-%m-%d %H:%M:%S') [${0##*/}] $*"
+}
 
 run_as_root() {
 	local preserve=false
@@ -14,8 +18,8 @@ run_as_root() {
 	fi
 
 	if [[ $# -ne 1 ]]; then
-		log "ERROR: run_as_root expects a single quoted command string (or --preserve + command)"
-		return 1
+		log "ERROR: expects a single quoted command string"
+		exit 1
 	fi
 
 	local cmd="$1"
@@ -28,3 +32,4 @@ run_as_root() {
 	fi
 }
 
+run_as_root "$@"
