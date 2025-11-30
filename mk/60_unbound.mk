@@ -77,8 +77,7 @@ setup-unbound-control:
 	@$(run_as_root) chmod 0640 /etc/unbound/unbound_control.{key,pem}
 	@echo "📝 [make] Writing client config → /etc/unbound/unbound-control.conf"
 	@$(run_as_root) sh -c 'printf "%s\n" \
-		"control-interface: 127.0.0.1" \
-		"control-port: 8953" \
+		"control-interface: /run/unbound.ctl" \
 		"server-key-file: /etc/unbound/unbound_server.key" \
 		"server-cert-file: /etc/unbound/unbound_server.pem" \
 		"control-key-file: /etc/unbound/unbound_control.key" \
@@ -90,7 +89,20 @@ setup-unbound-control:
 	@echo "✅ [make] remote-control initialized"
 	@echo "🔎 [make] Testing connectivity..."
 	@sleep 2
-	@$(run_as_root) -u unbound sh -c 'unbound-control status' || { echo "❌ not responding"; exit 1; }
+	@if [ -e /run/unbound.ctl ] && ! ss -lxpn | grep -q '/run/unbound.ctl'; then \
+		echo "Removing stale /run/unbound.ctl and restarting unbound"; \
+		$(run_as_root) rm -f /run/unbound.ctl; \
+		$(run_as_root) systemctl restart unbound; \
+		sleep 1; \
+	fi
+	@if [ -e /run/unbound.ctl ]; then \
+		echo "→ using unix socket /run/unbound.ctl"; \
+		$(run_as_root) /usr/sbin/unbound-control -c /etc/unbound/unbound.conf -s /run/unbound.ctl status || { echo "❌ unbound-control (socket) not responding"; exit 1; }; \
+	else \
+		echo "❌ unix socket /run/unbound.ctl not present; please ensure Unbound is configured to use the socket and restart"; \
+		journalctl -u unbound -n 200 --no-pager | grep -i -E 'control|socket|error|refused' -n -C2 | sed -n '1,200p'; \
+		exit 1; \
+	fi
 	@echo "✅ [make] unbound-control is responding"
 
 .PHONY: reset-unbound-control
@@ -126,9 +138,9 @@ dns-bench: install-dnsutils
 .PHONY: install-unbound-tmpfiles
 
 install-unbound-tmpfiles:
-	@echo "Ensuring setup script is executable"
+	@echo "🔧 [make] Ensuring unbound tmpfiles entry is installed"
 	@test -x scripts/setup/setup-unbound-tmpfiles.sh || chmod +x scripts/setup/setup-unbound-tmpfiles.sh
-	@./scripts/setup/setup-unbound-tmpfiles.sh
+	@$(run_as_root) ./scripts/setup/setup-unbound-tmpfiles.sh
 
 # --- Full bootstrap: ensure systemd helper, then deploy and run DNS  ---
 dns-all: install-unbound-tmpfiles enable-systemd deploy-unbound setup-unbound-control dns
