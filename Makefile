@@ -133,10 +133,10 @@ headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deplo
 
 coredns: dns headscale install-coredns deploy-coredns /etc/coredns/Corefile
 	@echo "[make] coredns"
-	@$(run_as_root) bash -c 'export SCRIPT_NAME="coredns"; $(HOMELAB_DIR)/scripts/lib/run_as_root.sh && run_as_root'
+	@$(run_as_root) bash -c 'export SCRIPT_NAME="coredns"; $(HOMELAB_DIR)/scripts/lib/run_as_root.sh && run_as_root''
 
 SYSTEMD_DIR = /etc/systemd/system
-REPO_SYSTEMD = config/systemd
+REPO_SYSTEMD = config/config/systemd
 
 .PHONY: install-systemd enable-systemd uninstall-systemd verify-systemd
 
@@ -156,8 +156,17 @@ install-systemd: ## Install systemd units and reload systemd (idempotent)
 	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf
 	# Install a drop-in for unbound.service so chown/chmod runs in same service context
 	@$(run_as_root) sh -c "printf '%s\n' '[Service]' 'ExecStartPost=/bin/sh -c '\''if [ -e /run/unbound.ctl ]; then /bin/chown root:unbound /run/unbound.ctl || true; /bin/chmod 660 /run/unbound.ctl || true; fi'\'' ' > /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.conf"
+	# Install a drop-in for unbound.service so chown/chmod runs in same service context
+	@$(run_as_root) tee /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.conf >/dev/null <<'EOF'
+[Service]
+# Ensure the control socket is owned and mode set immediately after unbound starts.
+ExecStartPost=/bin/sh -c 'if [ -e /run/unbound.ctl ]; then /bin/chown root:unbound /run/unbound.ctl || true; /bin/chmod 660 /run/unbound.ctl || true; fi'
+EOF
 	@$(run_as_root) systemctl daemon-reload
 
+enable-systemd: install-systemd ## Enable and start the watcher and ensure Unbound drop-in is active
+	@echo "[make] Enabling and starting path watcher and ensuring unbound drop-in is active..."
+	@$(run_as_root) systemctl enable --now unbound-ctl-fix.path || true
 enable-systemd: install-systemd ## Enable and start the watcher and ensure Unbound drop-in is active
 	@echo "[make] Enabling and starting path watcher and ensuring unbound drop-in is active..."
 	@$(run_as_root) systemctl enable --now unbound-ctl-fix.path || true
