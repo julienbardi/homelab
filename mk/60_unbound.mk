@@ -56,6 +56,20 @@ deploy-unbound-service:
 	@$(run_as_root) systemctl daemon-reload
 	@echo "✅ [make] unbound.service deployed"
 
+# --- Systemd drop-in for fixing /run/unbound.ctl ownership ---
+UNBOUND_DROPIN_SRC := $(HOMELAB_DIR)/config/systemd/unbound.service.d/99-fix-unbound-ctl.conf
+UNBOUND_DROPIN_DST := /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.conf
+
+.PHONY: install-unbound-systemd-dropin
+install-unbound-systemd-dropin:
+	@echo "🔧 [make] Installing unbound systemd drop-in"
+	@$(run_as_root) install -d /etc/systemd/system/unbound.service.d
+	@$(run_as_root) install -m 0644 $(UNBOUND_DROPIN_SRC) $(UNBOUND_DROPIN_DST)
+	@$(run_as_root) chown root:root $(UNBOUND_DROPIN_DST)
+	@$(run_as_root) systemctl daemon-reload
+	@$(run_as_root) systemctl restart unbound || true
+	@echo "✅ [make] unbound systemd drop-in installed"
+
 deploy-unbound: deploy-unbound-config deploy-unbound-service
 	@echo "🔄 [make] Restarting unbound service"
 	@$(run_as_root) systemctl enable --now unbound || { echo "❌ failed to enable"; exit 1; }
@@ -143,7 +157,8 @@ install-unbound-tmpfiles:
 	@$(run_as_root) ./scripts/setup/setup-unbound-tmpfiles.sh
 
 # --- Full bootstrap: ensure systemd helper, then deploy and run DNS  ---
-dns-all: install-unbound-tmpfiles enable-systemd deploy-unbound setup-unbound-control dns
+dns-all: install-unbound-tmpfiles enable-systemd deploy-unbound install-unbound-systemd-dropin setup-unbound-control dns
+
 	@echo "🚀 [make] Full Unbound bootstrap complete (deploy → control → runtime)"
 
 # --- Reset + bootstrap ---
