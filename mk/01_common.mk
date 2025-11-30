@@ -67,7 +67,7 @@ endef
 
 define remove_cmd
 	@echo "[make] Removing $(1)..."
-	@$(s*run_as_roots*) $(2)
+	@$(run_as_root) sh -c '$(2)'
 endef
 
 .PHONY: homelab-cleanup‑deps
