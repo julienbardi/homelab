@@ -16,8 +16,8 @@ RestartSec=5s
 LimitNOFILE=400000
 
 # Capabilities: allow binding to privileged ports; do not block setuid/setgid
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_SETUID CAP_SETGID
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_CHOWN
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_SETUID CAP_SETGID CAP_CHOWN
 
 # Optional: reference environment file if you want flexibility
 # EnvironmentFile=/etc/homelab.env
