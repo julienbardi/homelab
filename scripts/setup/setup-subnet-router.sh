@@ -16,6 +16,13 @@
 # Note:
 #   LAN_IF must be set to bridge0 (bridge interface) for correct routing.
 #   DNS resolver reload (Unbound) is not handled here.
+#
+# CONTRACT:
+# - Calls run_as_root with argv tokens (not quoted strings).
+# - Operators (> | && ||) must be escaped when invoked from Make.
+# - Script itself runs as root when called via systemd, but uses run_as_root
+#   for commands that must persist or require elevated privileges.
+# - ensure_rule() must be defined in scripts/common.sh and handle idempotency.
 # ============================================================
 
 set -euo pipefail
@@ -139,7 +146,7 @@ fi
 
 # --- GRO tuning ---
 log "Applying GRO tuning..."
-if ethtool -K "${LAN_IF}" gro off 2>/dev/null; then
+if run_as_root ethtool -K "${LAN_IF}" gro off 2>/dev/null; then
 	log "GRO disabled on ${LAN_IF}"
 else
 	log "WARN: Failed to disable GRO on ${LAN_IF}"
@@ -147,7 +154,8 @@ fi
 
 # --- Persist firewall rules ---
 log "Persisting iptables rules to /etc/iptables/rules.v4 and /etc/iptables/rules.v6..."
-if run_as_root iptables-legacy-save > /etc/iptables/rules.v4 && run_as_root ip6tables-legacy-save > /etc/iptables/rules.v6; then
+if run_as_root iptables-legacy-save \> /etc/iptables/rules.v4 && \
+	run_as_root ip6tables-legacy-save \> /etc/iptables/rules.v6; then
 	log "Firewall rules persisted."
 else
 	log "ERROR: Failed to persist firewall rules!"
