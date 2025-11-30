@@ -123,8 +123,15 @@ dns-bench: install-dnsutils
 	@dnsperf -s 10.89.12.4 -d /tmp/opendns-top-domains.txt -l 30 -q 1000
 	@echo "✅ [make] DNS benchmark complete"
 
+.PHONY: install-unbound-tmpfiles
+
+install-unbound-tmpfiles:
+	@echo "Ensuring setup script is executable"
+	@test -x scripts/setup/setup-unbound-tmpfiles.sh || chmod +x scripts/setup/setup-unbound-tmpfiles.sh
+	@./scripts/setup/setup-unbound-tmpfiles.sh
+
 # --- Full bootstrap: ensure systemd helper, then deploy and run DNS  ---
-dns-all: enable-systemd deploy-unbound setup-unbound-control dns
+dns-all: install-unbound-tmpfiles enable-systemd deploy-unbound setup-unbound-control dns
 	@echo "🚀 [make] Full Unbound bootstrap complete (deploy → control → runtime)"
 
 # --- Reset + bootstrap ---
