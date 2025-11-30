@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch for Unbound control socket and trigger fix
+
+[Path]
+PathExists=/run/unbound.ctl
+
+[Install]
+WantedBy=multi-user.target
