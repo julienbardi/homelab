@@ -84,8 +84,7 @@ update: gitcheck
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
 .PHONY: setup-subnet-router
-.PHONY: test logs clean
-.PHONY: install-unbound install-coredns install-wireguard-tools install-dnsutils clean clean-soft
+.PHONY: test logs clean clean-soft
 
 # Ensure group membership before running logs
 logs: journal-access
@@ -95,39 +94,20 @@ logs: journal-access
 
 test: logs
 	@echo "Running run_as_root harness..."
-	@$(run_as_root) bash $(HOME)/src/homelab/scripts/test_run_as_root.sh
+	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
 
 # --- Default target ---
-# Ensure group membership is enforced before full orchestration
 all: harden-groups gitcheck gen0 gen1 gen2
 	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
 
-# --- Dependencies for Gen0 services ---
-install-unbound:
-	@$(call apt_install,unbound,unbound)
-
-install-coredns:
-	@$(call apt_install,coredns,coredns)
-
-install-wireguard-tools:
-	@$(call apt_install,wg,wireguard-tools)
-
-install-dnsutils:
-	@$(call apt_install,dig,dnsutils)
-
 # --- Gen0: foundational services ---
-# Ensure group membership is enforced before starting foundational services
 gen0: harden-groups setup-subnet-router headscale dns coredns
 	@echo "[make] Running gen0 foundational services..."
 
 # --- Subnet router deployment ---
-# Source: $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh (tracked in Git)
-# Target: /usr/local/bin/setup-subnet-router (systemd service uses this)
-# To update: edit in repo, commit, then run `make setup-subnet-router`
 SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh
 SCRIPT_DST  := /usr/local/bin/setup-subnet-router
 
-# Order-only prerequisite: require file to exist, but don't try to build it
 setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC)
 	@echo "[make] Deploying subnet router script from Git..."
 	@if [ ! -f "$(SCRIPT_SRC)" ]; then \
@@ -140,8 +120,7 @@ setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC)
 		$(run_as_root) systemctl restart subnet-router.service; \
 		echo "[make] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
 
-# Top-level Makefile (snippet)
-# ensure prerequisites/config files are present before running the setup script
+# --- Headscale orchestration ---
 headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deploy-headscale
 	@echo "Running Headscale setup script..."
 	@$(run_as_root) bash scripts/setup/setup_headscale.sh
@@ -154,77 +133,47 @@ headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deplo
 
 coredns: dns headscale install-coredns deploy-coredns /etc/coredns/Corefile
 	@echo "[make] coredns"
-	@$(run_as_root) bash -c 'export SCRIPT_NAME="coredns"; $(HOMELAB_DIR)/scripts/lib/run_as_root.sh && run_as_root mkdir -p /etc/coredns /var/lib/coredns && run_as_root chown -R coredns:coredns /etc/coredns /var/lib/coredns || true && run_as_root bash $(HOMELAB_DIR)/scripts/setup/setup_coredns.sh'
+	@$(run_as_root) bash -c 'export SCRIPT_NAME="coredns"; $(HOMELAB_DIR)/scripts/lib/run_as_root.sh && run_as_root
 
-dns: install-unbound install-dnsutils
-	@$(run_as_root) bash scripts/setup/dns_setup.sh
+SYSTEMD_DIR = /etc/systemd/system
+REPO_SYSTEMD = systemd
 
-# --- Gen1: helpers ---
-gen1: caddy deploy-headscale-yaml rotate wg-baseline namespaces audit
-	@echo "[make] Running gen1 helper scripts..."
+.PHONY: install-systemd enable-systemd uninstall-systemd verify-systemd
 
-audit: headscale coredns dns setup-subnet-router
-	@$(run_as_root) bash scripts/audit/router_audit.sh
+install-systemd: ## Install systemd units and reload systemd
+	@echo "[make] Installing systemd units..."
+	@if [ ! -d "$(HOMELAB_DIR)/$(REPO_SYSTEMD)" ]; then \
+		echo "[make] ERROR: $(HOMELAB_DIR)/$(REPO_SYSTEMD) not found"; exit 1; \
+	fi
+	# ensure target dirs
+	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
+	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)/unbound-ctl-fix.service.d
+	# install unit files with safe perms
+	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service
+	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path
+	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf
+	@$(run_as_root) systemctl daemon-reload
 
-.PHONY: deploy-caddyfile
-deploy-caddyfile:
-	@echo "[make] Deploying Caddyfile from Git → /etc/caddy"
-	@$(run_as_root) cp $(HOMELAB_DIR)/config/caddy/Caddyfile /etc/caddy/Caddyfile
-	@$(run_as_root) chown root:root /etc/caddy/Caddyfile
-	@$(run_as_root) chmod 644 /etc/caddy/Caddyfile
-	@echo "[make] ✅ Caddyfile deployed successfully"
+enable-systemd: install-systemd ## Enable and start the watcher and run the fix once
+	@echo "[make] Enabling and starting path watcher and running fix once..."
+	@$(run_as_root) systemctl enable --now unbound-ctl-fix.path
+	@$(run_as_root) systemctl reset-failed unbound-ctl-fix.service unbound-ctl-fix.path || true
+	@$(run_as_root) systemctl start unbound-ctl-fix.service || true
+	@$(run_as_root) systemctl restart unbound || true
 
-caddy: deploy-caddy deploy-caddyfile
-	@echo "[make] Restarting caddy service (Restart flushes out stale matcher references and old routes)"
-	@$(run_as_root) systemctl restart caddy
+verify-systemd: ## Show status and socket ownership
+	@echo "[make] Status and socket ownership:"
+	@$(run_as_root) systemctl status unbound --no-pager || true
+	@$(run_as_root) systemctl status unbound-ctl-fix.path unbound-ctl-fix.service --no-pager || true
+	@$(run_as_root) ls -l /run/unbound.ctl /var/run/unbound.ctl || true
+	@$(run_as_root) -u unbound sh -c 'unbound-control status' || true
 
-caddy-reload: deploy-caddy deploy-caddyfile
-	@echo "[make] Reloading caddy service (hot reload, fragile, only if you are confident, use 'make caddy' with restart otherwise)"
-	@$(run_as_root) bash scripts/helpers/caddy-reload.sh
-
-.PHONY: deploy-headscale-yaml
-HEADSCALE_SRC := $(HOMELAB_DIR)/config/headscale.yaml
-HEADSCALE_DST := /etc/headscale/config.yaml
-deploy-headscale-yaml: deploy-headscale
-	@echo "[make] Deploying headscale.yaml..."
-	@# Validate YAML before deploying
-	@python3 -c "import yaml,sys; yaml.safe_load(open('$(HEADSCALE_SRC)')); print('YAML OK')"
-	@# Atomic copy with correct permissions
-	@$(run_as_root) install -o headscale -g headscale -m 640 $(HEADSCALE_SRC) $(HEADSCALE_DST)
-	@echo "File copied to $(HEADSCALE_DST)"
-	@# Restart service only if running
-	@$(run_as_root) systemctl restart headscale
-	@echo "[make] Headscale service restarted"
-
-rotate:
-	@$(run_as_root) bash scripts/helpers/rotate-unbound-rootkeys.sh
-
-wg-baseline:
-	@$(run_as_root) bash scripts/helpers/wg_baseline.sh test-client
-
-namespaces: headscale
-	@$(run_as_root) bash scripts/helpers/namespaces_headscale.sh
-
-# --- Gen2: site artifact ---
-gen2: site
-	@echo "[make] Running gen2 site deployment..."
-
-# By default site.sh reloads: caddy nginx apache2 lighttpd traefik
-# You can override at runtime, e.g.:
-#   make site SERVICES="caddy"
-#   make site SERVICES="caddy nginx"
-site: caddy audit
-	@$(run_as_root) env SERVICES="$(SERVICES)" bash scripts/deploy/site.sh
-
-# --- Clean target ---
-WIREGUARD_DIR := /etc/wireguard
-
-clean-soft:
-	@$(run_as_root) rm -f \
-		$(WIREGUARD_DIR)/*.conf.generated \
-		$(WIREGUARD_DIR)/*.key.generated \
-		$(WIREGUARD_DIR)/qr/*.qr
-
-clean: clean-soft
-	@$(run_as_root) systemctl stop headscale \|\| true
-	@$(run_as_root) rm -f /etc/headscale/db.sqlite
+uninstall-systemd: ## Remove units and reload systemd
+	@echo "[make] Removing systemd units..."
+	@$(run_as_root) systemctl stop --now unbound-ctl-fix.path unbound-ctl-fix.service || true
+	@$(run_as_root) systemctl disable unbound-ctl-fix.path || true
+	@$(run_as_root) rm -f $(SYSTEMD_DIR)/unbound-ctl-fix.path \
+			  $(SYSTEMD_DIR)/unbound-ctl-fix.service \
+			  $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf || true
+	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound-ctl-fix.service.d || true
+	@$(run_as_root) systemctl daemon-reload
