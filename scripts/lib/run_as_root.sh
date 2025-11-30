@@ -67,5 +67,7 @@ run_as_root() {
 	fi
 }
 
-
-run_as_root "$@"
+# Only run when the file is executed directly, not when sourced
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  run_as_root "$@"
+fi
