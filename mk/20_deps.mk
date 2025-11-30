@@ -1,12 +1,13 @@
-# mk/03_deps.mk
+# mk/20_deps.mk
 # Package installation and build helpers
 
 .PHONY: deps install-pkg-go remove-pkg-go \
 	install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc \
-	install-checkmake remove-checkmake \
+	install-pkg-checkmake remove-pkg-checkmake \
+	install-pkg-strace remove-pkg-strace \
 	headscale-build
 
-deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake
+deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace
 
 # Use apt_install macro from mk/01_common.mk
 install-pkg-go:
@@ -26,15 +27,22 @@ install-pkg-checkmake: install-pkg-pandoc install-pkg-go
 	BUILDER_NAME="$$(git config --get user.name)" \
 	BUILDER_EMAIL="$$(git config --get user.email)" \
 	make
-	$(s*run_as_roots*) install -m 0755 $(HOME/src/checkmake/checkmake /usr/local/bin/checkmake)
+	@sudo install -m 0755 $(HOME)/src/checkmake/checkmake /usr/local/bin/checkmake
 	@echo "[make] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
 	@checkmake --version
 
 remove-pkg-checkmake:
 	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake)
 
+# strace (used for debugging)
+install-pkg-strace:
+	$(call apt_install,strace,strace)
+
+remove-pkg-strace:
+	$(call apt_remove,strace)
+
 # Headscale build (remote install fallback to upstream release)
-headscale-build: install-go
+headscale-build: install-pkg-go
 	@echo "[make] Building Headscale..."
 	@if ! command -v headscale >/dev/null 2>&1; then \
 	GOBIN=$(INSTALL_PATH) go install github.com/juanfont/headscale/cmd/headscale@v0.27.1; \

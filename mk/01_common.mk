@@ -38,7 +38,16 @@ define apt_install
 		$(run_as_root) apt-get update; \
 		$(run_as_root) apt-get install -y --no-install-recommends $(2); \
 	else \
-		VER_STR=$$( { $(1) --version 2>&1 || $(1) version 2>&1 || $(1) -v 2>&1; } | head -n1 ); \
+		VER_STR=$$( \
+		if $(1) -v >/dev/null 2>&1; then \
+			$(1) -v 2>&1 | head -n1; \
+		elif $(1) --version >/dev/null 2>&1; then \
+			$(1) --version 2>&1 | head -n1; \
+		elif $(1) version >/dev/null 2>&1; then \
+			$(1) version 2>&1 | head -n1; \
+		else \
+			echo "unknown"; \
+		fi ); \
 		echo "$$(date '+%Y-%m-%d %H:%M:%S') [make] $(1) version: $$VER_STR"; \
 	fi
 endef
