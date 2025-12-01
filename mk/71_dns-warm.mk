@@ -234,7 +234,7 @@ status:
 
 test:
 	@echo "Running one-off warm (test) as $(USER)..."
-	su -s /bin/sh -c '$(SCRIPT_PATH) $(RESOLVER)' $(USER)
+	su -s /bin/bash -c '$(SCRIPT_PATH) $(RESOLVER)' $(USER)
 
 disable:
 	@echo "Disabling and stopping timer/service..."
