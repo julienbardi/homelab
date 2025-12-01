@@ -100,17 +100,15 @@ bardi.ch:8384 {
 	}
 	reverse_proxy @dns_internal 127.0.0.1:8053
 
-	# Headscale control plane (internal only)
-	@vpn_internal {
-		host vpn.bardi.ch
-		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
-	}
-	reverse_proxy @vpn_internal 127.0.0.1:8910 {
-		header_up Host {host}
-		header_up X-Real-IP {remote}
-		transport http {
-			versions h2c
+	# Headscale control plane (external clients allowed)
+	vpn.bardi.ch {
+		reverse_proxy 127.0.0.1:8910 {
+			header_up Host {host}
+			header_up X-Real-IP {remote}
+			header_up X-Forwarded-For {remote}
+			transport http {
+				versions h2c
+			}
 		}
 	}
 
