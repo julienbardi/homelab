@@ -32,11 +32,11 @@ install: install-deps create-user dirs install-script install-domains install-sy
 	@echo "Installed dns-warm components. Run 'sudo make -f mk/71_dns-warm.mk enable USER=$(USER)' to enable timer."
 
 install-deps:
-	@echo "Installing optional dependencies (pup or python bs4/requests)..."
+	@echo "Installing optional dependencies (pup, python bs4/requests, dnsutils)..."
 	@if command -v apt-get >/dev/null 2>&1; then \
-		apt-get update && apt-get install -y pup python3-requests python3-bs4 || true; \
+		apt-get update && apt-get install -y pup python3-requests python3-bs4 dnsutils || true; \
 	else \
-		echo "Please install 'pup' or 'python3-requests' and 'python3-bs4' manually for Similarweb fetch support."; \
+		echo "Please install 'pup', 'python3-requests', 'python3-bs4', and 'dnsutils' manually for full support."; \
 	fi
 
 create-user:
@@ -71,14 +71,14 @@ install-script:
 'DOMAINS_FILE="/etc/dns-warm/domains.txt"' \
 'STATE_FILE="/var/lib/dns-warm/state.csv"' \
 'WORKERS=10' \
-'PER_RUN=30' \
+'PER_RUN=100' \
 'DIG_TIMEOUT=2' \
 'DIG_TRIES=1' \
 'LOCKFILE="/var/lock/dns-warm-rotate.lock"' \
 '' \
 'mkdir -p "$(dirname "$STATE_FILE")"' \
 '' \
-'log() { printf '\''%s %s\n'\'' "$(date '\''+%Y-%m-%d %H:%M:%S'\'')" "$*"; }' \
+'log() { printf "%s %s\n" "$(date +%Y-%m-%d\ %H:%M:%S)" "$*"; }' \
 '' \
 '# Create default domains file if missing' \
 'if [ ! -f "$DOMAINS_FILE" ]; then' \
@@ -109,11 +109,16 @@ install-script:
 '' \
 '# Update state for warmed domains (set last_epoch to now)' \
 'update_state() {' \
-'  local now tmp warmed' \
-'  warmed="$1"' \
+'  local now tmp' \
 '  now="$(date +%s)"' \
 '  tmp="$(mktemp)"' \
-'  awk -F, -v now="$now" -v warmed="$warmed" '\''BEGIN { split(warmed, a, " "); for (i in a) warmed_map[a[i]] = 1 } { if ($$1 in warmed_map) { print $$1","now } else { print $$0 } }'\'' "$STATE_FILE" > "$tmp"' \
+'  while IFS=, read -r dom last; do' \
+'    if echo "$1" | grep -qw "$dom"; then' \
+'      echo "$dom,$now"' \
+'    else' \
+'      echo "$dom,$last"' \
+'    fi' \
+'  done < "$STATE_FILE" > "$tmp"' \
 '  mv "$tmp" "$STATE_FILE"' \
 '}' \
 '' \
@@ -190,7 +195,7 @@ install-systemd:
 'Type=oneshot' \
 'User=$(USER)' \
 'Group=$(GROUP)' \
-'ExecStart=/bin/bash $(SCRIPT_PATH) $(RESOLVER)' \
+'ExecStart=/usr/bin/env bash $(SCRIPT_PATH) $(RESOLVER)' \
 'Nice=10' \
 'Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
 '' \
@@ -234,7 +239,7 @@ status:
 
 test:
 	@echo "Running one-off warm (test) as $(USER)..."
-	su -s /bin/bash -c '$(SCRIPT_PATH) $(RESOLVER)' $(USER)
+	sudo -u $(USER) /usr/bin/env bash $(SCRIPT_PATH) $(RESOLVER)
 
 disable:
 	@echo "Disabling and stopping timer/service..."
@@ -249,3 +254,4 @@ uninstall: disable
 	-@rm -rf $(STATE_DIR) $(DOMAINS_DIR) 2>/dev/null || true
 	@systemctl daemon-reload
 	@echo "Uninstalled."
+#last line
