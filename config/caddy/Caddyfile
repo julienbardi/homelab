@@ -106,12 +106,9 @@ bardi.ch:8384 {
 	}
 	reverse_proxy @vpn 127.0.0.1:8910 {
 		header_up Host {host}
-		header_up X-Real-IP {remote}
-		header_up Connection {>Connection}
-		header_up Upgrade {>Upgrade}
 		transport http {
 			versions h1
-			keepalive 2s
+			keepalive 0s
 		}
 	}
 
