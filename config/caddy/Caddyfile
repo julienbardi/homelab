@@ -102,12 +102,18 @@ bardi.ch:8384 {
 
 	# Headscale control plane (external clients allowed)
 	vpn.bardi.ch {
+		tls /etc/ssl/caddy/fullchain.pem /etc/ssl/caddy/privkey.pem
+
 		reverse_proxy 127.0.0.1:8910 {
 			header_up Host {host}
 			header_up X-Real-IP {remote}
 			header_up X-Forwarded-For {remote}
+			header_up X-Forwarded-Proto {scheme}
+			header_up Connection {>Connection}
+			header_up Upgrade {>Upgrade}
 			transport http {
-				versions h2c
+				versions h1
+				keepalive 2
 			}
 		}
 	}
