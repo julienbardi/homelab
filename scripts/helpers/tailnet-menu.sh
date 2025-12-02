@@ -7,7 +7,7 @@
 
 set -euo pipefail
 SCRIPT_NAME="tailnet-menu"
-. "$(dirname "$0")/common.sh"
+source "/home/julie/src/homelab/scripts/common.sh"
 
 HEADSCALE_BIN="/usr/local/bin/headscale"
 NAMESPACES=("bardi-family" "bardi-guest")
