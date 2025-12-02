@@ -7,7 +7,7 @@
 
 set -euo pipefail
 SCRIPT_NAME="tailnet"
-. "$(dirname "$0")/../common.sh"
+source "/home/julie/src/homelab/scripts/common.sh"
 
 HEADSCALE_BIN="/usr/local/bin/headscale"
 NAMESPACE="family"
@@ -31,7 +31,7 @@ if [[ -z "${DEVICE_NAME}" ]]; then
 fi
 
 log "Registering device '${DEVICE_NAME}' in namespace '${NAMESPACE}'..."
-if ! ${HEADSCALE_BIN} nodes register --namespace ${NAMESPACE} --name ${DEVICE_NAME}; then
+if ! ${HEADSCALE_BIN} nodes register --user ${NAMESPACE} --name ${DEVICE_NAME}; then
 	log "ERROR: Failed to register device ${DEVICE_NAME}, continuing degraded"
 else
 	log "Device ${DEVICE_NAME} registered successfully"
