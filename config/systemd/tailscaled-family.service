@@ -1,0 +1,17 @@
+# tailscaled-family.service
+[Unit]
+Description=Tailscale family role (exit node + LAN route)
+After=network.target tailscaled.service
+Requires=tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/tailscale up --reset \
+  --advertise-exit-node \
+  --advertise-routes=10.89.12.0/24 \
+  --accept-dns=true \
+  --accept-routes=true
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

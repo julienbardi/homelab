@@ -5,9 +5,10 @@
 	install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc \
 	install-pkg-checkmake remove-pkg-checkmake \
 	install-pkg-strace remove-pkg-strace \
+	install-pkg-vnstat remove-pkg-vnstat \
 	headscale-build
 
-deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace
+deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat
 
 # Use apt_install macro from mk/01_common.mk
 install-pkg-go:
@@ -15,6 +16,17 @@ install-pkg-go:
 
 remove-pkg-go:
 	$(call apt_remove,golang-go)
+
+# vnstat (network traffic monitor)
+install-pkg-vnstat:
+	$(call apt_install,vnstat,vnstat)
+	@echo "[make] Initializing vnstat database for tailscale0..."
+	@$(run_as_root) vnstat -u -i tailscale0 || true
+	@$(run_as_root) systemctl enable --now vnstat || true
+	@echo "[make] vnstat installed and initialized for tailscale0"
+
+remove-pkg-vnstat:
+	$(call apt_remove,vnstat)
 
 # checkmake (build from upstream Makefile)
 install-pkg-checkmake: install-pkg-pandoc install-pkg-go
