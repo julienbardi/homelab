@@ -90,6 +90,11 @@ test: logs
 	@echo "Running run_as_root harness..."
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
 
+.PHONY: caddy deploy-caddy
+caddy: gitcheck
+	@echo "[make] Deploying Caddyfile and reloading Caddy"
+	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/helpers/caddy-reload.sh
+
 # --- Default target ---
 all: harden-groups gitcheck gen0 gen1 gen2
 	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
