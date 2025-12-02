@@ -31,6 +31,7 @@ include mk/60_unbound.mk     # Unbound DNS resolver setup
 include mk/70_coredns.mk     # CoreDNS setup and deployment
 include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
 include mk/81_headscale.mk   # Headscale-specific targets (Noise key rotation, etc.)
+include mk/82_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
 include mk/90_dns-health.mk  # DNS health checks and monitoring
 include mk/99_lint.mk        # lint and safety checks (always last)
 
@@ -84,7 +85,25 @@ update: gitcheck
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
 .PHONY: setup-subnet-router
-.PHONY: test logs clean clean-soft
+.PHONY: test logs clean-soft
+
+.PHONY: clean
+clean:
+	@echo "[make] Removing tailscaled role units..."
+	@$(run_as_root) systemctl disable tailscaled-family.service tailscaled-guest.service tailscaled || true
+	@$(run_as_root) rm -f /etc/systemd/system/tailscaled-family.service /etc/systemd/system/tailscaled-guest.service || true
+	@$(run_as_root) systemctl daemon-reload
+	@echo "[make] ✅ Cleaned tailscaled units and disabled services"
+
+.PHONY: reload
+reload:
+	@$(run_as_root) systemctl daemon-reload
+	@echo "[make] 🔄 systemd reloaded"
+
+.PHONY: restart
+restart:
+	@$(run_as_root) systemctl restart tailscaled tailscaled-family.service tailscaled-guest.service
+	@echo "[make] 🔁 Restarted tailscaled + family + guest services"
 
 test: logs
 	@echo "Running run_as_root harness..."
@@ -100,7 +119,7 @@ all: harden-groups gitcheck gen0 gen1 gen2
 	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
 
 # --- Gen0: foundational services ---
-gen0: harden-groups setup-subnet-router headscale dns coredns
+gen0: harden-groups setup-subnet-router headscale tailscaled dns coredns
 	@echo "[make] Running gen0 foundational services..."
 
 # --- Subnet router deployment ---
@@ -123,6 +142,11 @@ setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC)
 headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deploy-headscale
 	@echo "Running Headscale setup script..."
 	@$(run_as_root) bash scripts/setup/setup_headscale.sh
+
+.PHONY: tailscaled
+tailscaled: headscale tailscaled-family tailscaled-guest enable-tailscaled start-tailscaled tailscaled-status
+	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
+		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
 .PHONY: coredns
 
