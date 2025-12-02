@@ -1,0 +1,15 @@
+{
+  "acls": [
+    {
+      "users": ["bardi-family"],
+      "ports": ["*:*"]
+    },
+    {
+      "users": ["bardi-guests"],
+      "ports": []
+    }
+  ],
+  "tagOwners": {
+    "exit-node": ["bardi-family"]
+  }
+}
