@@ -7,6 +7,10 @@
     {
       "users": ["bardi-guests"],
       "ports": []
+    },
+    {
+      "users": ["*"],
+      "ports": ["0.0.0.0/0:*", "::/0:*"]
     }
   ],
   "tagOwners": {

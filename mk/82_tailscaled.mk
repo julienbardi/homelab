@@ -85,7 +85,7 @@ tailscaled-status: install-pkg-vnstat
 	@echo "👨‍👩‍👧 family service:"; sudo systemctl is-enabled tailscaled-family.service || echo "❌ not enabled"
 	@echo "🧑‍🤝‍🧑 guest service:"; sudo systemctl is-enabled tailscaled-guest.service || echo "❌ not enabled"
 	@echo "📡 Connected nodes:"; sudo $(TS_BIN) status | awk '{print $$1, $$2, $$3}'
-	@echo "📊 Monthly traffic on tailscale0:"; vnstat -i tailscale0 --month || echo "vnstat not installed"
+	@echo "📊 Monthly traffic on tailscale0:"; vnstat -i tailscale0 -m || echo "vnstat not installed or no data yet"
 	@echo "⚡ Connection events (last hour):"; sudo journalctl -u tailscaled --since "1 hour ago" | grep -i "connection" | wc -l | xargs echo "events"
 
 # Consolidated logs view
