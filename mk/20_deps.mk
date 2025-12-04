@@ -24,10 +24,11 @@ TS_REPO_LIST    := /etc/apt/sources.list.d/tailscale.list
 tailscale-repo:
 	@echo "📦 Adding Tailscale apt repository (Debian $(DEBIAN_CODENAME))"
 	@sudo mkdir -p --mode=0755 /usr/share/keyrings
-	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg | sudo tee $(TS_REPO_KEYRING) >/dev/null
-	@sudo chmod 0644 $(TS_REPO_KEYRING)
-	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).tailscale-keyring.list | sudo tee $(TS_REPO_LIST) >/dev/null
-	@sudo chmod 0644 $(TS_REPO_LIST)
+	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg \
+		| sudo install -m 0644 -o root -g root /dev/stdin $(TS_REPO_KEYRING)
+	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).tailscale-keyring.list \
+		| sudo install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
+
 	@sudo apt-get update
 	@echo "✅ Tailscale repository configured"
 

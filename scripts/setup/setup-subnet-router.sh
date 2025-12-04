@@ -128,21 +128,74 @@ log "Ensuring conntrack safety rules (ESTABLISHED,RELATED)..."
 ensure_rule iptables-legacy -A INPUT   -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ensure_rule iptables-legacy -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-# --- WireGuard firewall rules (wg0 specific) ---
-log "Ensuring WireGuard firewall rules..."
-if ip link show "${WG_IF}" >/dev/null 2>&1; then
-	# Allow VPN subnet traffic on wg0
-	ensure_rule iptables-legacy -A INPUT   -i "${WG_IF}" -s "${VPN_SUBNET}" -j ACCEPT
-	ensure_rule iptables-legacy -A FORWARD -i "${WG_IF}" -s "${VPN_SUBNET}" -j ACCEPT
-	ensure_rule iptables-legacy -A FORWARD -o "${WG_IF}" -d "${VPN_SUBNET}" -j ACCEPT
+# --- WireGuard firewall rules (wg0–wg7 profiles) ---
+log "Applying WireGuard firewall rules for wg0–wg7..."
 
-	# NAT VPN traffic to LAN
-	ensure_rule iptables-legacy -t nat -A POSTROUTING -s "${VPN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE
+for i in {0..7}; do
+	WG_IF="wg${i}"
+	IPV4_SUBNET="10.${i}.0.0/24"
+	IPV6_SUBNET="fd10:8912:0:1${i}::/64"
+	PORT=$((51420 + i))
+	PROFILE="null"
 
-	log "WireGuard firewall rules applied: VPN ${VPN_SUBNET} bridged to LAN ${LAN_SUBNET} via ${LAN_IF}."
-else
-	log "WARN: WireGuard interface ${WG_IF} not found, skipping WireGuard rules."
-fi
+	if ip link show "${WG_IF}" >/dev/null 2>&1; then
+		log "Configuring ${WG_IF} (${IPV4_SUBNET}, ${IPV6_SUBNET}, port ${PORT})..."
+
+		# Special case: wg4 is IPv6-only
+		if [[ "${i}" == "4" ]]; then
+			PROFILE="IPv6-only"
+			ensure_rule ip6tables-legacy -A INPUT   -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
+			ensure_rule ip6tables-legacy -A FORWARD -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
+			ensure_rule ip6tables-legacy -A FORWARD -o "${WG_IF}" -d "${IPV6_SUBNET}" -j ACCEPT
+			ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport "${PORT}" -s "${IPV6_SUBNET}" -j ACCEPT
+			log "✅ IPv6-only rules applied for wg4."
+			log "Profile summary: ${WG_IF} → ${PROFILE}"
+			continue
+		fi
+
+		# IPv4 baseline
+		ensure_rule iptables-legacy -A INPUT   -i "${WG_IF}" -s "${IPV4_SUBNET}" -j ACCEPT
+		ensure_rule iptables-legacy -A FORWARD -i "${WG_IF}" -s "${IPV4_SUBNET}" -j ACCEPT
+		ensure_rule iptables-legacy -A FORWARD -o "${WG_IF}" -d "${IPV4_SUBNET}" -j ACCEPT
+
+		# IPv6 baseline
+		ensure_rule ip6tables-legacy -A INPUT   -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
+		ensure_rule ip6tables-legacy -A FORWARD -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
+		ensure_rule ip6tables-legacy -A FORWARD -o "${WG_IF}" -d "${IPV6_SUBNET}" -j ACCEPT
+
+		# Accept UDP port for this interface
+		ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport "${PORT}" -s "${IPV4_SUBNET}" -j ACCEPT
+		ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport "${PORT}" -s "${IPV6_SUBNET}" -j ACCEPT
+
+		# LAN access only for wg1, wg3, wg5, wg7
+		if [[ "${i}" =~ ^(1|3|5|7)$ ]]; then
+			PROFILE="${PROFILE}+LAN"
+			ensure_rule iptables-legacy -A FORWARD -i "${WG_IF}" -d "${LAN_SUBNET}" -j ACCEPT
+			ensure_rule iptables-legacy -A FORWARD -o "${WG_IF}" -s "${LAN_SUBNET}" -j ACCEPT
+			ensure_rule ip6tables-legacy -A FORWARD -i "${WG_IF}" -d "${LAN_SUBNET_V6}" -j ACCEPT
+			ensure_rule ip6tables-legacy -A FORWARD -o "${WG_IF}" -s "${LAN_SUBNET_V6}" -j ACCEPT
+		fi
+
+		# Internet access only for wg2, wg3, wg6, wg7
+		if [[ "${i}" =~ ^(2|3|6|7)$ ]]; then
+			PROFILE="${PROFILE}+Internet"
+			ensure_rule iptables-legacy -t nat -A POSTROUTING -s "${IPV4_SUBNET}" -o "${LAN_IF}" -j MASQUERADE
+			ensure_rule ip6tables-legacy -A FORWARD -i "${WG_IF}" -j ACCEPT
+			ensure_rule ip6tables-legacy -A FORWARD -o "${WG_IF}" -j ACCEPT
+		fi
+
+		# IPv6 access for wg5, wg6, wg7 (wg4 handled separately)
+		if [[ "${i}" =~ ^(5|6|7)$ ]]; then
+			PROFILE="${PROFILE}+IPv6"
+		fi
+
+		log "✅ ${WG_IF} rules applied."
+		log "Profile summary: ${WG_IF} → ${PROFILE}"
+	else
+		log "⚠️ ${WG_IF} not found, skipping."
+	fi
+done
+
 
 # --- Tailscale firewall rules (tailscale0 specific) ---
 TS_IF="tailscale0"
