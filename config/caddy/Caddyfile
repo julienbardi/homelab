@@ -105,11 +105,12 @@ bardi.ch:8384 {
 		host vpn.bardi.ch
 	}
 	reverse_proxy @vpn 127.0.0.1:8910 {
-		header_up Host {host}
+		header_up Host vpn.bardi.ch
 		transport http {
 			versions h1
-			keepalive 0s
+			keepalive 5s
 		}
+		flush_interval 1s
 	}
 
 	# DERP relay (external)
