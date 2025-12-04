@@ -6,9 +6,66 @@
 	install-pkg-checkmake remove-pkg-checkmake \
 	install-pkg-strace remove-pkg-strace \
 	install-pkg-vnstat remove-pkg-vnstat \
+	install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale \
 	headscale-build
 
-deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat
+# Aggregate deps target
+deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
+	install-pkg-tailscale
+
+# Tailscale (client + daemon) via apt repository
+
+DEBIAN_CODENAME ?= bookworm
+TS_REPO_KEYRING := /usr/share/keyrings/tailscale-archive-keyring.gpg
+TS_REPO_LIST    := /etc/apt/sources.list.d/tailscale.list
+
+.PHONY: tailscale-repo install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale verify-pkg-tailscale
+
+tailscale-repo:
+	@echo "📦 Adding Tailscale apt repository (Debian $(DEBIAN_CODENAME))"
+	@sudo mkdir -p --mode=0755 /usr/share/keyrings
+	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg | sudo tee $(TS_REPO_KEYRING) >/dev/null
+	@sudo chmod 0644 $(TS_REPO_KEYRING)
+	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).tailscale-keyring.list | sudo tee $(TS_REPO_LIST) >/dev/null
+	@sudo chmod 0644 $(TS_REPO_LIST)
+	@sudo apt-get update
+	@echo "✅ Tailscale repository configured"
+
+install-pkg-tailscale: tailscale-repo
+	@echo "📦 Installing Tailscale (client + daemon)"
+	@sudo apt-get install -y tailscale
+	@sudo systemctl enable tailscaled
+	@sudo systemctl start tailscaled
+	@$(MAKE) verify-pkg-tailscale
+	@echo "✅ Tailscale installed and running"
+
+upgrade-pkg-tailscale: tailscale-repo
+	@echo "⬆️ Upgrading Tailscale to latest stable"
+	@sudo apt-get update
+	@sudo apt-get install -y --only-upgrade tailscale
+	@sudo systemctl restart tailscaled
+	@$(MAKE) verify-pkg-tailscale
+	@echo "✅ Tailscale upgraded"
+
+remove-pkg-tailscale:
+	@echo "🗑️ Removing Tailscale"
+	@sudo systemctl stop tailscaled || true
+	@sudo systemctl disable tailscaled || true
+	@sudo apt-get remove --purge -y tailscale || true
+	@echo "✅ Tailscale removed"
+
+verify-pkg-tailscale:
+	@echo "🔎 Verifying Tailscale installation"
+	@bash -c 'set -e; \
+		CLI_VER=$$(tailscale version | head -n1); \
+		DS_VER=$$(sudo tailscaled --version | head -n1); \
+		echo "CLI: $$CLI_VER"; echo "DAEMON: $$DS_VER"; \
+		if [ "$${CLI_VER}" != "$${DS_VER}" ]; then \
+			echo "❌ Version mismatch"; exit 1; \
+		fi; \
+		echo "✔ Versions aligned" \
+	'
+
 
 # Use apt_install macro from mk/01_common.mk
 install-pkg-go:
@@ -19,9 +76,12 @@ remove-pkg-go:
 
 # vnstat (network traffic monitor)
 install-pkg-vnstat:
+	@echo "📦 Installing vnstat (network traffic monitor)"
 	$(call apt_install,vnstat,vnstat)
 	@echo "[make] Initializing vnstat database for tailscale0..."
-	@$(run_as_root) vnstat -u -i tailscale0 || true
+	@if ! $(run_as_root) vnstat --iflist | grep -q tailscale0; then \
+		$(run_as_root) vnstat --add -i tailscale0; \
+	fi
 	@$(run_as_root) systemctl enable --now vnstat || true
 	@echo "[make] vnstat installed and initialized for tailscale0"
 
@@ -54,12 +114,20 @@ remove-pkg-strace:
 	$(call apt_remove,strace)
 
 # Headscale build (remote install fallback to upstream release)
+
+HEADSCALE_VERSION ?= v0.27.1
+
 headscale-build: install-pkg-go
-	@echo "[make] Building Headscale..."
+	@echo "[make] Building Headscale $(HEADSCALE_VERSION)..."
 	@if ! command -v headscale >/dev/null 2>&1; then \
-	GOBIN=$(INSTALL_PATH) go install github.com/juanfont/headscale/cmd/headscale@v0.27.1; \
+		GOBIN=$(INSTALL_PATH) go install github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION); \
 	else \
-	headscale version; \
+		CURRENT_VER=$$(headscale version | awk '{print $$3}'); \
+		if [ "$$CURRENT_VER" != "$(HEADSCALE_VERSION)" ]; then \
+			echo "⚠️  A new version has been detected: $$CURRENT_VER"; \
+			echo "👉 See https://github.com/juanfont/headscale/releases"; \
+		fi; \
+		headscale version; \
 	fi
 
 # ---------------------------------------------------------------------

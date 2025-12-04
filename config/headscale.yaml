@@ -45,6 +45,10 @@ prefixes:
 # Strategy used for allocation of IPs to nodes
 allocation: sequential
 
+# Enable exit nodes and subnet routes
+enable_exit_nodes: true
+enable_subnet_routes: true
+
 derp:
   urls:
     - https://controlplane.tailscale.com/derpmap/default
