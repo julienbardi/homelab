@@ -78,7 +78,6 @@ install-pkg-coredns: headscale
 	sudo useradd --system --no-create-home --shell /usr/sbin/nologin $(RUN_USER) || true; \
 	fi
 	sudo install -d -m 0755 -o $(RUN_USER) -g $(RUN_USER) /etc/coredns /var/lib/coredns || true
-	sudo chown -R $(RUN_USER):$(RUN_USER) /etc/coredns /var/lib/coredns || true
 
 	# install Corefile: prefer source Corefile if present, otherwise write a safe default
 	if [ -f "$(COREFILE_SRC)" ]; then \
@@ -105,13 +104,12 @@ install-pkg-coredns: headscale
 	EOF
 	fi
 	# ensure ownership and permissions for Corefile
-	sudo chown $(RUN_USER):$(RUN_USER) "$(COREFILE_DEST)" || true
-	sudo chmod 0644 "$(COREFILE_DEST)" || true
+	sudo install -m 0644 -o $(RUN_USER) -g $(RUN_USER) "$(COREFILE_DEST)" "$(COREFILE_DEST)"
 	
 	# atomic install of binary with backup
 	mkdir -p "$(COREDNS_OUT)"
 	if [ -f "$(COREDNS_BIN)" ]; then sudo cp "$(COREDNS_BIN)" "$(COREDNS_BIN).bak" || true; fi
-	sudo install -m 0755 "$(COREDNS_SRC)/coredns" "$(COREDNS_BIN)"
+	sudo install -m 0755 -o root -g root "$(COREDNS_SRC)/coredns" "$(COREDNS_BIN)"
 	
 	# create or optionally overwrite systemd unit
 	if [ ! -f "$(SYSTEMD_UNIT)" ] || [ "$(OVERWRITE_UNIT)" = "1" ]; then \

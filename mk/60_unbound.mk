@@ -20,9 +20,8 @@ UNBOUND_CONF_DST := /etc/unbound/unbound.conf
 update-root-hints:
 	@echo "🌐 [make] Updating root hints → /var/lib/unbound/root.hints"
 	@$(run_as_root) mkdir -p /var/lib/unbound
-	@$(run_as_root) curl -s -o /var/lib/unbound/root.hints https://www.internic.net/domain/named.root
-	@$(run_as_root) chown root:unbound /var/lib/unbound/root.hints
-	@$(run_as_root) chmod 0644 /var/lib/unbound/root.hints
+	@curl -s https://www.internic.net/domain/named.root \
+		| $(run_as_root) install -m 0644 -o root -g unbound /dev/stdin /var/lib/unbound/root.hints
 	@echo "✅ [make] root hints updated"
 
 # --- Trust anchor ---
@@ -30,17 +29,15 @@ ensure-root-key:
 	@echo "🔑 [make] Ensuring DNSSEC trust anchor → /var/lib/unbound/root.key"
 	@$(run_as_root) mkdir -p /var/lib/unbound
 	@if [ ! -f /var/lib/unbound/root.key ]; then \
-		$(run_as_root) unbound-anchor -a /var/lib/unbound/root.key || true; \
-		$(run_as_root) chown root:unbound /var/lib/unbound/root.key || true; \
-		$(run_as_root) chmod 0644 /var/lib/unbound/root.key || true; \
+		$(run_as_root) unbound-anchor -a /tmp/root.key || true; \
+		$(run_as_root) install -m 0644 -o root -g unbound /tmp/root.key /var/lib/unbound/root.key || true; \
 	fi
 	@echo "✅ [make] root key present"
 
 deploy-unbound-config: update-root-hints ensure-root-key
 	@echo "📄 [make] Deploying unbound.conf → /etc/unbound"
 	@$(run_as_root) install -d -m 0755 /etc/unbound
-	@$(run_as_root) install -m 0644 $(UNBOUND_CONF_SRC) $(UNBOUND_CONF_DST)
-	@$(run_as_root) chown root:root $(UNBOUND_CONF_DST)
+	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_CONF_SRC) $(UNBOUND_CONF_DST)
 	@$(run_as_root) mkdir -p /run/unbound/unbound
 	@$(run_as_root) chown unbound:unbound /run/unbound/unbound
 	@$(run_as_root) unbound-checkconf $(UNBOUND_CONF_DST) || { echo "❌ invalid config"; exit 1; }
@@ -51,8 +48,7 @@ UNBOUND_SERVICE_DST := /etc/systemd/system/unbound.service
 
 deploy-unbound-service:
 	@echo "⚙️ [make] Deploying unbound.service → /etc/systemd/system"
-	@$(run_as_root) install -m 0644 $(UNBOUND_SERVICE_SRC) $(UNBOUND_SERVICE_DST)
-	@$(run_as_root) chown root:root $(UNBOUND_SERVICE_DST)
+	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_SERVICE_SRC) $(UNBOUND_SERVICE_DST)
 	@$(run_as_root) systemctl daemon-reload
 	@echo "✅ [make] unbound.service deployed"
 
@@ -64,8 +60,7 @@ UNBOUND_DROPIN_DST := /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.c
 install-unbound-systemd-dropin:
 	@echo "🔧 [make] Installing unbound systemd drop-in"
 	@$(run_as_root) install -d /etc/systemd/system/unbound.service.d
-	@$(run_as_root) install -m 0644 $(UNBOUND_DROPIN_SRC) $(UNBOUND_DROPIN_DST)
-	@$(run_as_root) chown root:root $(UNBOUND_DROPIN_DST)
+	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_DROPIN_SRC) $(UNBOUND_DROPIN_DST)
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl restart unbound || true
 	@echo "✅ [make] unbound systemd drop-in installed"
@@ -85,10 +80,7 @@ setup-unbound-control:
 		$(run_as_root) unbound-control-setup; \
 	fi
 	# Fix ownership: both server and control certs root:unbound
-	@$(run_as_root) chown root:unbound /etc/unbound/unbound_server.{key,pem}
-	@$(run_as_root) chmod 0640 /etc/unbound/unbound_server.{key,pem}
-	@$(run_as_root) chown root:unbound /etc/unbound/unbound_control.{key,pem}
-	@$(run_as_root) chmod 0640 /etc/unbound/unbound_control.{key,pem}
+	@$(run_as_root) install -m 0640 -o root -g unbound /etc/unbound/unbound_{server,control}.{key,pem} /etc/unbound/
 	@echo "📝 [make] Writing client config → /etc/unbound/unbound-control.conf"
 	@$(run_as_root) sh -c 'printf "%s\n" \
 		"control-interface: /run/unbound.ctl" \
@@ -97,8 +89,7 @@ setup-unbound-control:
 		"control-key-file: /etc/unbound/unbound_control.key" \
 		"control-cert-file: /etc/unbound/unbound_control.pem" \
 		> /etc/unbound/unbound-control.conf'
-	@$(run_as_root) chown root:root /etc/unbound/unbound-control.conf
-	@$(run_as_root) chmod 0644 /etc/unbound/unbound-control.conf
+	@$(run_as_root) install -m 0644 -o root -g root /etc/unbound/unbound-control.conf /etc/unbound/unbound-control.conf
 	@$(run_as_root) systemctl restart unbound || { echo "❌ restart failed"; exit 1; }
 	@echo "✅ [make] remote-control initialized"
 	@echo "🔎 [make] Testing connectivity..."
@@ -124,8 +115,7 @@ reset-unbound-control:
 	@echo "♻️ Forcing regeneration of Unbound control certificates"
 	@$(run_as_root) rm -f /etc/unbound/unbound_{server,control}.{key,pem}
 	@$(run_as_root) unbound-control-setup
-	@$(run_as_root) chown root:unbound /etc/unbound/unbound_{server,control}.{key,pem}
-	@$(run_as_root) chmod 0640 /etc/unbound/unbound_{server,control}.{key,pem}
+	@$(run_as_root) install -m 0640 -o root -g unbound /etc/unbound/unbound_{server,control}.{key,pem} /etc/unbound/
 
 # --- Runtime / Benchmark ---
 .PHONY: dns rotate dns-bench dns-all dns-reset dns-health dns-watch
