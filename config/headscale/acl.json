@@ -6,14 +6,10 @@
     },
     {
       "users": ["bardi-guests"],
-      "ports": []
-    },
-    {
-      "users": ["*"],
       "ports": ["0.0.0.0/0:*", "::/0:*"]
     }
   ],
   "tagOwners": {
-    "exit-node": ["bardi-family"]
+    "tag:exit-node": ["bardi-family", "bardi-guests"]
   }
 }

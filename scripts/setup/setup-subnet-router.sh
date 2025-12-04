@@ -144,6 +144,30 @@ else
 	log "WARN: WireGuard interface ${WG_IF} not found, skipping WireGuard rules."
 fi
 
+# --- Tailscale firewall rules (tailscale0 specific) ---
+TS_IF="tailscale0"
+TS_SUBNET_V4="100.64.0.0/10"
+TS_SUBNET_V6="fd7a:115c:a1e0::/48"
+
+log "Ensuring Tailscale firewall rules..."
+if ip link show "${TS_IF}" >/dev/null 2>&1; then
+	# IPv4
+	ensure_rule iptables-legacy -A INPUT   -i "${TS_IF}" -s "${TS_SUBNET_V4}" -j ACCEPT
+	ensure_rule iptables-legacy -A FORWARD -i "${TS_IF}" -s "${TS_SUBNET_V4}" -j ACCEPT
+	ensure_rule iptables-legacy -A FORWARD -o "${TS_IF}" -d "${TS_SUBNET_V4}" -j ACCEPT
+	ensure_rule iptables-legacy -t nat -A POSTROUTING -s "${TS_SUBNET_V4}" -o "${LAN_IF}" -j MASQUERADE
+
+	# IPv6
+	ensure_rule ip6tables-legacy -A INPUT   -i "${TS_IF}" -s "${TS_SUBNET_V6}" -j ACCEPT
+	ensure_rule ip6tables-legacy -A FORWARD -i "${TS_IF}" -s "${TS_SUBNET_V6}" -j ACCEPT
+	ensure_rule ip6tables-legacy -A FORWARD -o "${TS_IF}" -d "${TS_SUBNET_V6}" -j ACCEPT
+	ensure_rule ip6tables-legacy -t nat -A POSTROUTING -s "${TS_SUBNET_V6}" -o "${LAN_IF}" -j MASQUERADE
+
+	log "Tailscale firewall rules applied: VPN ${TS_SUBNET_V4}, ${TS_SUBNET_V6} bridged to LAN ${LAN_SUBNET} via ${LAN_IF}."
+else
+	log "WARN: Tailscale interface ${TS_IF} not found, skipping Tailscale rules."
+fi
+
 # --- GRO tuning ---
 log "Applying GRO tuning..."
 if run_as_root ethtool -K "${LAN_IF}" gro off 2>/dev/null; then
@@ -154,8 +178,8 @@ fi
 
 # --- Persist firewall rules ---
 log "Persisting iptables rules to /etc/iptables/rules.v4 and /etc/iptables/rules.v6..."
-if run_as_root iptables-legacy-save \> /etc/iptables/rules.v4 && \
-	run_as_root ip6tables-legacy-save \> /etc/iptables/rules.v6; then
+if run_as_root iptables-legacy-save > /etc/iptables/rules.v4 && \
+	run_as_root ip6tables-legacy-save > /etc/iptables/rules.v6; then
 	log "Firewall rules persisted."
 else
 	log "ERROR: Failed to persist firewall rules!"

@@ -90,8 +90,8 @@ update: gitcheck
 .PHONY: clean
 clean:
 	@echo "[make] Removing tailscaled role units..."
-	@$(run_as_root) systemctl disable tailscaled-family.service tailscaled-guest.service tailscaled || true
-	@$(run_as_root) rm -f /etc/systemd/system/tailscaled-family.service /etc/systemd/system/tailscaled-guest.service || true
+	@$(run_as_root) systemctl disable tailscaled-family.service tailscaled || true
+	@$(run_as_root) rm -f /etc/systemd/system/tailscaled-family.service || true
 	@$(run_as_root) systemctl daemon-reload
 	@echo "[make] ✅ Cleaned tailscaled units and disabled services"
 
@@ -102,7 +102,7 @@ reload:
 
 .PHONY: restart
 restart:
-	@$(run_as_root) systemctl restart tailscaled tailscaled-family.service tailscaled-guest.service
+	@$(run_as_root) systemctl restart tailscaled tailscaled-family.service
 	@echo "[make] 🔁 Restarted tailscaled + family + guest services"
 
 test: logs
@@ -144,7 +144,7 @@ headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deplo
 	@$(run_as_root) bash scripts/setup/setup_headscale.sh
 
 .PHONY: tailscaled
-tailscaled: headscale tailscaled-family tailscaled-guest enable-tailscaled start-tailscaled tailscaled-status
+tailscaled: headscale tailscaled-family enable-tailscaled start-tailscaled tailscaled-status
 	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
 		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
