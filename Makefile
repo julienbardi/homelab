@@ -42,7 +42,7 @@ include mk/99_lint.mk        # lint and safety checks (always last)
 # Default target
 .PHONY: help
 help:
-	@echo "Available targets:"
+	@echo "[make] Available targets:"
 	@echo "  make issue              # Issue new RSA+ECC certs"
 	@echo "  make renew              # Renew ECC (RSA fallback)"
 	@echo "  make prepare            # Prepare canonical store"
@@ -57,12 +57,12 @@ help:
 	@echo "  make all-diskstation    # Renew+prepare+deploy+validate DiskStation"
 	@echo "  make all-qnap           # Renew+prepare+deploy+validate QNAP"
 	@echo ""
-	@echo "Provisioning targets (systemd watchers):"
+	@echo "[make] Provisioning targets (systemd watchers):"
 	@echo "  make setup-cert-watch-caddy     Install + enable path unit for Caddy reload"
 	@echo "  make setup-cert-watch-headscale Install + enable path unit for Headscale reload"
 	@echo "  make setup-cert-watch-coredns   Install + enable path unit for CoreDNS reload"
 	@echo ""
-	@echo "Bootstrap targets (one-shot setup + lifecycle):"
+	@echo "[make] Bootstrap targets (one-shot setup + lifecycle):"
 	@echo "  make bootstrap-caddy       Run setup-cert-watch-caddy + all-caddy"
 	@echo "  make bootstrap-headscale   Run setup-cert-watch-headscale + all-headscale"
 	@echo "  make bootstrap-coredns     Run setup-cert-watch-coredns + all-coredns"
@@ -106,7 +106,7 @@ restart:
 	@echo "[make] 🔁 Restarted tailscaled + family + guest services"
 
 test: logs
-	@echo "Running run_as_root harness..."
+	@echo "[make] Running run_as_root harness..."
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
 
 .PHONY: caddy deploy-caddy
@@ -123,24 +123,33 @@ gen0: harden-groups setup-subnet-router headscale tailscaled dns coredns
 	@echo "[make] Running gen0 foundational services..."
 
 # --- Subnet router deployment ---
-SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup/setup-subnet-router.sh
+SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup-subnet-router.sh
 SCRIPT_DST  := /usr/local/bin/setup-subnet-router
+UNIT_SRC    := $(HOMELAB_DIR)/config/systemd/subnet-router.service
+UNIT_DST    := /etc/systemd/system/subnet-router.service
 
-setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC)
-	@echo "[make] Deploying subnet router script from Git..."
+setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC) $(UNIT_SRC)
+	@echo "[make] Deploying subnet router script + service..."
 	@if [ ! -f "$(SCRIPT_SRC)" ]; then \
 		echo "[make] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
 	fi
+	@if [ ! -f "$(UNIT_SRC)" ]; then \
+		echo "[make] ERROR: $(UNIT_SRC) not found"; exit 1; \
+	fi
 	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
-		$(run_as_root) cp $(SCRIPT_SRC) $(SCRIPT_DST); \
-		$(run_as_root) chown root:root $(SCRIPT_DST); \
-		$(run_as_root) chmod 0755 $(SCRIPT_DST); \
-		$(run_as_root) systemctl restart subnet-router.service; \
-		echo "[make] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and restarted subnet-router.service"
+		$(run_as_root) install -m 0755 -o root -g root $(SCRIPT_SRC) $(SCRIPT_DST); \
+		$(run_as_root) install -m 0644 -o root -g root $(UNIT_SRC) $(UNIT_DST); \
+		$(run_as_root) systemctl daemon-reload; \
+		$(run_as_root) systemctl enable --now subnet-router.service; \
+		echo "[make] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and installed subnet-router.service"
+
+.PHONY: router-logs
+router-logs:
+	@$(run_as_root) journalctl -fu subnet-router.service
 
 # --- Headscale orchestration ---
 headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deploy-headscale
-	@echo "Running Headscale setup script..."
+	@echo "[make] Running Headscale setup script..."
 	@$(run_as_root) bash scripts/setup/setup_headscale.sh
 
 .PHONY: tailscaled
@@ -181,7 +190,7 @@ install-systemd: ## Install systemd units and reload systemd (idempotent)
 	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf
 	@$(run_as_root) systemctl daemon-reload
 
-enable-systemd: install-systemd ## Enable and start the watcher and ensure Unbound drop-in is active
+enable-systemd: install-systemd
 	@echo "[make] Enabling and starting path watcher and ensuring unbound drop-in is active..."
 	@$(run_as_root) systemctl enable --now unbound-ctl-fix.path || true
 	@$(run_as_root) systemctl reset-failed unbound-ctl-fix.service unbound-ctl-fix.path || true
@@ -190,14 +199,14 @@ enable-systemd: install-systemd ## Enable and start the watcher and ensure Unbou
 	@$(run_as_root) systemctl restart unbound || true
 	@$(run_as_root) systemctl status unbound --no-pager || true
 
-verify-systemd: ## Show status and socket ownership
+verify-systemd:
 	@echo "[make] Status and socket ownership:"
 	@$(run_as_root) systemctl status unbound --no-pager || true
 	@$(run_as_root) systemctl status unbound-ctl-fix.path unbound-ctl-fix.service --no-pager || true
 	@$(run_as_root) ls -l /run/unbound.ctl /var/run/unbound.ctl || true
 	@$(run_as_root) -u unbound sh -c 'unbound-control status' || true
 
-uninstall-systemd: ## Remove units and reload systemd
+uninstall-systemd:
 	@echo "[make] Removing systemd units..."
 	@$(run_as_root) systemctl stop --now unbound-ctl-fix.path unbound-ctl-fix.service || true
 	@$(run_as_root) systemctl disable unbound-ctl-fix.path || true
