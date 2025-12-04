@@ -1,12 +1,15 @@
 # tailscaled-family.service
 [Unit]
 Description=Tailscale family role (exit node + LAN route)
-After=network.target tailscaled.service
+After=network-online.target tailscaled.service
+Wants=network-online.target
 Requires=tailscaled.service
+PartOf=tailscaled.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/tailscale up --reset \
+  --login-server=https://vpn.bardi.ch \
   --advertise-exit-node \
   --advertise-routes=10.89.12.0/24 \
   --accept-dns=true \
