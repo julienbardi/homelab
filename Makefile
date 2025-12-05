@@ -25,7 +25,9 @@ export HEADSCALE_CONFIG
 include mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
+include mk/31_setup-subnet-router.mk # Subnet router orchestration
 include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
+include mk/40_wireguard.mk   # Wireguard orchestration
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/60_unbound.mk     # Unbound DNS resolver setup
 include mk/70_coredns.mk     # CoreDNS setup and deployment
@@ -121,31 +123,6 @@ all: harden-groups gitcheck gen0 gen1 gen2
 # --- Gen0: foundational services ---
 gen0: harden-groups setup-subnet-router headscale tailscaled dns coredns
 	@echo "[make] Running gen0 foundational services..."
-
-# --- Subnet router deployment ---
-SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup-subnet-router.sh
-SCRIPT_DST  := /usr/local/bin/setup-subnet-router
-UNIT_SRC    := $(HOMELAB_DIR)/config/systemd/subnet-router.service
-UNIT_DST    := /etc/systemd/system/subnet-router.service
-
-setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC) $(UNIT_SRC)
-	@echo "[make] Deploying subnet router script + service..."
-	@if [ ! -f "$(SCRIPT_SRC)" ]; then \
-		echo "[make] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
-	fi
-	@if [ ! -f "$(UNIT_SRC)" ]; then \
-		echo "[make] ERROR: $(UNIT_SRC) not found"; exit 1; \
-	fi
-	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
-		$(run_as_root) install -m 0755 -o root -g root $(SCRIPT_SRC) $(SCRIPT_DST); \
-		$(run_as_root) install -m 0644 -o root -g root $(UNIT_SRC) $(UNIT_DST); \
-		$(run_as_root) systemctl daemon-reload; \
-		$(run_as_root) systemctl enable --now subnet-router.service; \
-		echo "[make] Deployed commit $$COMMIT_HASH to $(SCRIPT_DST) and installed subnet-router.service"
-
-.PHONY: router-logs
-router-logs:
-	@$(run_as_root) journalctl -fu subnet-router.service
 
 # --- Headscale orchestration ---
 headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deploy-headscale
