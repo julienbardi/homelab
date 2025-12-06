@@ -28,16 +28,30 @@
 set -euo pipefail
 source "/home/julie/src/homelab/scripts/common.sh"
 
+# --- Environment / topology (adjust if needed) ---
 LAN_IF="bridge0"
 LAN_SUBNET="10.89.12.0/24"
+LAN_SUBNET_V6="2a01:8b81:4800:9c00::/64"
 WG_IF="wg0"
 VPN_SUBNET="10.4.0.0/24"
+
+# Global IPv6 prefix routed/advertised for LAN (no trailing ::/64 in variable)
+GLOBAL_IPV6_PREFIX="2a01:8b81:4800:9c00"
+GLOBAL_PREFIX_LEN=64
 
 # --- Interface guard ---
 if ! ip link show "${LAN_IF}" | grep -q "state UP"; then
 	log "ERROR: Interface ${LAN_IF} not found or not UP, aborting."
 	exit 1
 fi
+
+# --- Enable IPv6 forwarding and related kernel settings ---
+log "Enabling IPv6 forwarding and related kernel settings..."
+run_as_root sysctl -w net.ipv6.conf.all.forwarding=1
+run_as_root sysctl -w net.ipv6.conf.default.forwarding=1
+run_as_root sysctl -w net.ipv6.conf."${LAN_IF}".forwarding=1
+run_as_root sysctl -w net.ipv6.conf."${WG_IF}".forwarding=1
+log "IPv6 forwarding enabled."
 
 # --- Conflict detection (audit only) ---
 log "Checking for subnet conflicts..."
@@ -91,37 +105,37 @@ log "Ensuring firewall INPUT rules for HTTPS and VPN ports..."
 ensure_rule iptables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
 ensure_rule ip6tables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
 
-# UDP 51421 only for interface bridge0  for 10.1.0/24 and fd10:8912:0:11::/64
+# UDP 51421 only for interface bridge0  for 10.1.0/24 and 2a01:...:11::/64
 ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51421 -s 10.1.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51421 -s fd10:8912:0:11::/64 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51421 -s ${GLOBAL_IPV6_PREFIX}:11::/64 -j ACCEPT
 
-# UDP 51422 only for interface bridge0  for 10.2.0/24 and fd10:8912:0:12::/64
+# UDP 51422 only for interface bridge0  for 10.2.0/24 and 2a01:...:12::/64
 ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51422 -s 10.2.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51422 -s fd10:8912:0:12::/64 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51422 -s ${GLOBAL_IPV6_PREFIX}:12::/64 -j ACCEPT
 
-# UDP 51423 only for interface bridge0  for 10.3.0/24 and fd10:8912:0:13::/64
+# UDP 51423 only for interface bridge0  for 10.3.0/24 and 2a01:...:13::/64
 ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51423 -s 10.3.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51423 -s fd10:8912:0:13::/64 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51423 -s ${GLOBAL_IPV6_PREFIX}:13::/64 -j ACCEPT
 
-# UDP 51424 only for interface bridge0  for 10.4.0/24 and fd10:8912:0:14::/64
+# UDP 51424 only for interface bridge0  for 10.4.0/24 and 2a01:...:14::/64
 ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51424 -s 10.4.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51424 -s fd10:8912:0:14::/64 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51424 -s ${GLOBAL_IPV6_PREFIX}:14::/64 -j ACCEPT
 
-# UDP 51425 only for interface bridge0  for 10.5.0/24 and fd10:8912:0:15::/64
+# UDP 51425 only for interface bridge0  for 10.5.0/24 and 2a01:...:15::/64
 ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51425 -s 10.5.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51425 -s fd10:8912:0:15::/64 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51425 -s ${GLOBAL_IPV6_PREFIX}:15::/64 -j ACCEPT
 
-# UDP 51426 only for interface bridge0  for 10.6.0/24 and fd10:8912:0:16::/64
+# UDP 51426 only for interface bridge0  for 10.6.0/24 and 2a01:...:16::/64
 ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51426 -s 10.6.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51426 -s fd10:8912:0:16::/64 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51426 -s ${GLOBAL_IPV6_PREFIX}:16::/64 -j ACCEPT
 
-# UDP 51427 only for interface bridge0  for 10.7.0/24 and fd10:8912:0:17::/64
+# UDP 51427 only for interface bridge0  for 10.7.0/24 and 2a01:...:17::/64
 ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s 10.7.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s fd10:8912:0:17::/64 -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s ${GLOBAL_IPV6_PREFIX}:17::/64 -j ACCEPT
 
 # bridge0  all ports all protocols from 10.89.12.0/24 and 2a01:8b81:4800:9c00::/64
-ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -s 10.89.12.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -s 2a01:8b81:4800:9c00::/64 -j ACCEPT
+ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -s "${LAN_SUBNET}" -j ACCEPT
+ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -s "${LAN_SUBNET_V6}" -j ACCEPT
 
 # --- Connection tracking safety rules (global) ---
 log "Ensuring conntrack safety rules (ESTABLISHED,RELATED)..."
@@ -134,7 +148,8 @@ log "Applying WireGuard firewall rules for wg0–wg7..."
 for i in {0..7}; do
 	WG_IF="wg${i}"
 	IPV4_SUBNET="10.${i}.0.0/24"
-	IPV6_SUBNET="fd10:8912:0:1${i}::/64"
+	# map per-interface IPv6 subnet to global prefix fragment 1${i}
+	IPV6_SUBNET="${GLOBAL_IPV6_PREFIX}:1${i}::/64"
 	PORT=$((51420 + i))
 	PROFILE="null"
 
@@ -228,6 +243,70 @@ if run_as_root ethtool -K "${LAN_IF}" gro off 2>/dev/null; then
 else
 	log "WARN: Failed to disable GRO on ${LAN_IF}"
 fi
+
+# --- Configure NDP proxying for global IPv6 prefix (ndppd preferred) ---
+log "Configuring NDP proxying for ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN}..."
+
+if command -v ndppd >/dev/null 2>&1; then
+	log "ndppd found; writing configuration and restarting service..."
+	cat > /etc/ndppd.conf <<EOF
+route-ttl 300
+proxy ${LAN_IF} {
+	router yes
+	timeout 500
+	ttl 300
+	rule ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} {
+	}
+}
+EOF
+	run_as_root systemctl enable --now ndppd.service || true
+	run_as_root systemctl restart ndppd.service || true
+	log "ndppd configured to proxy ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} on ${LAN_IF}"
+else
+	log "ndppd not installed; attempting to install via apt..."
+	if run_as_root apt-get update && run_as_root apt-get install -y ndppd; then
+		log "ndppd installed; configuring..."
+		cat > /etc/ndppd.conf <<EOF
+route-ttl 300
+proxy ${LAN_IF} {
+	router yes
+	timeout 500
+	ttl 300
+	rule ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} {
+	}
+}
+EOF
+		run_as_root systemctl enable --now ndppd.service || true
+		run_as_root systemctl restart ndppd.service || true
+		log "ndppd configured to proxy ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} on ${LAN_IF}"
+	else
+		log "WARN: Could not install ndppd; falling back to ip -6 neigh proxy entries for known client addresses."
+		# Fallback: add explicit proxy entries for expected client addresses (idempotent)
+		# This list should be extended to match actual client host addresses
+		CLIENT_ADDRS=(
+		  "${GLOBAL_IPV6_PREFIX}:10::2"
+		  "${GLOBAL_IPV6_PREFIX}:11::2"
+		  "${GLOBAL_IPV6_PREFIX}:12::2"
+		  "${GLOBAL_IPV6_PREFIX}:13::2"
+		  "${GLOBAL_IPV6_PREFIX}:14::2"
+		  "${GLOBAL_IPV6_PREFIX}:15::2"
+		  "${GLOBAL_IPV6_PREFIX}:16::2"
+		  "${GLOBAL_IPV6_PREFIX}:17::2"
+		)
+		for addr in "${CLIENT_ADDRS[@]}"; do
+			if ! ip -6 neigh show proxy | grep -q "${addr}"; then
+				run_as_root ip -6 neigh add proxy "${addr}" dev "${LAN_IF}" || true
+				log "Added proxy NDP for ${addr} on ${LAN_IF}"
+			else
+				log "Proxy NDP already present for ${addr}"
+			fi
+		done
+	fi
+fi
+
+# Ensure kernel route for the /64 is present on the server (safe idempotent)
+run_as_root ip -6 route replace ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} dev "${WG_IF}" || true
+log "Local route for ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} -> ${WG_IF} ensured."
 
 # --- Persist firewall rules ---
 log "Persisting iptables rules to /etc/iptables/rules.v4 and /etc/iptables/rules.v6..."
