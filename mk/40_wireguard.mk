@@ -102,6 +102,7 @@ wg0: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg0.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg0.conf; \
 		echo "[make] wg0.conf written → $(WG_DIR)/wg0.conf"; \
+		$(run_as_root) $(MAKE) regen-clients IFACE=wg0 || echo "[make] ❌ regen-clients failed for wg0"; 
 	else \
 		echo "[make] wg0.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -128,6 +129,7 @@ wg1: ensure-wg-dir
 		echo "[make] wg1.conf written → $(WG_DIR)/wg1.conf"; \
 	else \
 		echo "[make] wg1.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
+		$(run_as_root) $(MAKE) regen-clients IFACE=wg1 || echo "[make] ❌ regen-clients failed for wg1"; 
 	fi
 
 wg2: ensure-wg-dir
@@ -150,6 +152,7 @@ wg2: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg2.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg2.conf; \
 		echo "[make] wg2.conf written → $(WG_DIR)/wg2.conf"; \
+		$(run_as_root) $(MAKE) regen-clients IFACE=wg2 || echo "[make] ❌ regen-clients failed for wg2"; 
 	else \
 		echo "[make] wg2.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -174,6 +177,7 @@ wg3: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg3.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg3.conf; \
 		echo "[make] wg3.conf written → $(WG_DIR)/wg3.conf"; \
+		$(run_as_root) $(MAKE) regen-clients IFACE=wg3 || echo "[make] ❌ regen-clients failed for wg3"; 
 	else \
 		echo "[make] wg3.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -198,6 +202,7 @@ wg4: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg4.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg4.conf; \
 		echo "[make] wg4.conf written → $(WG_DIR)/wg4.conf"; \
+		$(run_as_root) $(MAKE) regen-clients IFACE=wg4 || echo "[make] ❌ regen-clients failed for wg4"; 
 	else \
 		echo "[make] wg4.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -222,6 +227,7 @@ wg5: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg5.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg5.conf; \
 		echo "[make] wg5.conf written → $(WG_DIR)/wg5.conf"; \
+		$(run_as_root) $(MAKE) regen-clients IFACE=wg5 || echo "[make] ❌ regen-clients failed for wg5"; 
 	else \
 		echo "[make] wg5.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -246,6 +252,7 @@ wg6: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg6.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg6.conf; \
 		echo "[make] wg6.conf written → $(WG_DIR)/wg6.conf"; \
+		$(run_as_root) $(MAKE) regen-clients IFACE=wg6 || echo "[make] ❌ regen-clients failed for wg6"; 
 	else \
 		echo "[make] wg6.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -270,6 +277,7 @@ wg7: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg7.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg7.conf; \
 		echo "[make] wg7.conf written → $(WG_DIR)/wg7.conf"; \
+		$(run_as_root) $(MAKE) regen-clients IFACE=wg7 || echo "[make] ❌ regen-clients failed for wg7"; 
 	else \
 		echo "[make] wg7.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -537,6 +545,22 @@ wg-add-peers:
 	done; \
 	echo "[make] wg-add-peers complete."
 
+.PHONY: regen-clients
+# Regenerate client configs for the interface named in $(IFACE)
+regen-clients:
+	@if [ -z "$(IFACE)" ]; then \
+		echo "[make] ❌ regen-clients requires IFACE=wgN"; exit 1; \
+	fi; \
+	echo "[make] Regenerating client configs for $(IFACE) (FORCE=1)"; \
+	for entry in $(CLIENTS); do \
+		base=$$(echo $$entry | sed 's/:.*//'); \
+		iface=$$(echo $$entry | sed 's/.*://'); \
+		if [ "$$iface" = "$(IFACE)" ]; then \
+			echo "[make] Regenerating client $$base for $(IFACE)"; \
+			$(run_as_root) $(MAKE) client-$$base IFACE=$(IFACE) FORCE=1 || echo "[make] ❌ failed to regenerate $$base"; \
+		fi; \
+	done; \
+	echo "[make] regen-clients complete for $(IFACE)";
 
 
 # Full start: create servers, bring them up, create clients, add peers, and show dashboard
