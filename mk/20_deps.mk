@@ -37,7 +37,7 @@ install-pkg-tailscale: tailscale-repo
 	@sudo apt-get install -y tailscale
 	@sudo systemctl enable tailscaled
 	@sudo systemctl start tailscaled
-	@$(MAKE) verify-pkg-tailscale
+	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) verify-pkg-tailscale
 	@echo "✅ Tailscale installed and running"
 
 upgrade-pkg-tailscale: tailscale-repo

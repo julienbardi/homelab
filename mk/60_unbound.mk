@@ -157,11 +157,11 @@ dns-reset:
 	@$(run_as_root) systemctl stop unbound || true
 	@$(run_as_root) rm -rf /run/unbound /var/lib/unbound/* || true
 	@echo "🔄 [make] Redeploying Unbound configs and service..."
-	@$(MAKE) deploy-unbound
+	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) deploy-unbound
 	@echo "🔑 [make] Re-initializing remote-control..."
-	@$(MAKE) setup-unbound-control
+	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) setup-unbound-control
 	@echo "🔍 [make] Running dns_setup.sh..."
-	@$(MAKE) dns
+	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) dns
 	@echo "✅ [make] DNS reset + bootstrap complete"
 
 # --- Health check ---
