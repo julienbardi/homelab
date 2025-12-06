@@ -353,9 +353,9 @@ client-%: ensure-wg-dir
 			> "$(WG_DIR)/$$CONFNAME.conf"; \
 		# write Endpoint and only write AllowedIPs if non-empty \
 		if [ -n "$$ALLOWED" ]; then \
-			printf "%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "AllowedIPs = $$ALLOWED" >> "$(WG_DIR)/$$CONFNAME.conf"; \
+			printf "%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "PersistentKeepalive = 25" "AllowedIPs = $$ALLOWED" >> "$(WG_DIR)/$$CONFNAME.conf"; \
 		else \
-			printf "%s\n" "Endpoint = vpn.bardi.ch:$$PORT" >> "$(WG_DIR)/$$CONFNAME.conf"; \
+			printf "%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "PersistentKeepalive = 25" >> "$(WG_DIR)/$$CONFNAME.conf"; \
 		fi; \
 		chmod 600 "$(WG_DIR)/$$CONFNAME.conf"; \
 		echo "✅ $$CONFNAME.conf written → $(WG_DIR)/$$CONFNAME.conf"; \
@@ -591,3 +591,29 @@ client-dashboard-status:
 
 # Backwards-compatible client-dashboard (human readable) calls the status target
 client-dashboard: client-dashboard-status
+
+.PHONY: regen-all-keys
+regen-all-keys:
+	@echo "== regen-all-keys: backup /etc/wireguard and rotate keys =="
+	@echo "Backing up /etc/wireguard to /root/wg-backup-$(shell date +%Y%m%d-%H%M%S)"
+	@$(run_as_root) bash -c 'bk="/root/wg-backup-$(shell date +%Y%m%d-%H%M%S)"; mkdir -p "$$bk"; cp -a /etc/wireguard/*.key /etc/wireguard/*.pub /etc/wireguard/*.conf "$$bk"/ || true'
+	@echo "Regenerating server keys and configs (FORCE=1 CONF_FORCE=1)..."
+	@for i in 0 1 2 3 4 5 6 7; do \
+	  echo " -> make wg$$i"; \
+	  $(run_as_root) $(MAKE) wg$$i FORCE=1 CONF_FORCE=1 || { echo "ERROR: wg$$i failed"; exit 1; }; \
+	done
+	@echo "Regenerating client configs (regen-clients IFACE=wgN)..."
+	@for i in 0 1 2 3 4 5 6 7; do \
+	  echo " -> regen-clients IFACE=wg$$i"; \
+	  $(run_as_root) $(MAKE) regen-clients IFACE=wg$$i || { echo "WARN: regen-clients for wg$$i failed"; }; \
+	done
+	@echo "Ensuring peers and reloading runtime (wg-add-peers)..."
+	@$(run_as_root) $(MAKE) wg-add-peers
+	@echo "Restarting interfaces..."
+	@for i in 0 1 2 3 4 5 6 7; do \
+	  echo " -> restart wg$$i"; \
+	  $(run_as_root) wg-quick down wg$$i || true; \
+	  $(run_as_root) wg-quick up wg$$i || echo "WARNING: wg$$i failed to start"; \
+	done
+	@echo "Final runtime status:"
+	@$(run_as_root) wg show
