@@ -537,42 +537,29 @@ wg-add-peers:
 		for entry in $$CLIENTS; do \
 			base=$$(echo $$entry | sed "s/:.*//"); \
 			iface=$$(echo $$entry | sed "s/.*://"); \
-			if [ -z "$$base" ] || [ -z "$$iface" ]; then \
-				echo "❌ skipping $$entry — invalid format"; continue; \
-			fi; \
 			CONFNAME="$$base-$$iface"; \
 			CLIENT_PUB="$(WG_DIR)/$$CONFNAME.pub"; \
 			SERVER_CONF="$(WG_DIR)/$$iface.conf"; \
-			# ensure client pub exists: if key exists but pub missing, generate pub (all as root) \
 			if [ ! -f "$$CLIENT_PUB" ] && [ -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
-				echo "ℹ️  Found key for $$CONFNAME but missing pub — generating..."; \
-				$(WG_BIN) pubkey < "$(WG_DIR)/$$CONFNAME.key" > "$$CLIENT_PUB" || { echo "❌ failed to generate pub for $$CONFNAME"; continue; }; \
-				chmod 600 "$$CLIENT_PUB" || true; \
+				echo "ℹ️  Generating pub for $$CONFNAME"; \
+				$(WG_BIN) pubkey < "$(WG_DIR)/$$CONFNAME.key" > "$$CLIENT_PUB"; \
+				chmod 600 "$$CLIENT_PUB"; \
 			fi; \
-			# verify required files exist (root context) \
-			if [ ! -f "$$CLIENT_PUB" ]; then echo "❌ missing $$CLIENT_PUB, skipping"; continue; fi; \
-			if [ ! -f "$$SERVER_CONF" ]; then echo "❌ missing $$SERVER_CONF, skipping"; continue; fi; \
-			# read public key as root and skip if already present in server conf \
+			[ -f "$$CLIENT_PUB" ] || { echo "❌ missing $$CLIENT_PUB, skipping"; continue; }; \
+			[ -f "$$SERVER_CONF" ] || { echo "❌ missing $$SERVER_CONF, skipping"; continue; }; \
 			PUB=$$(cat "$$CLIENT_PUB"); \
-			grep -qF "$$PUB" "$$SERVER_CONF" 2>/dev/null && { echo "✅ $$CONFNAME already present in $$SERVER_CONF, skipping"; continue; }; \
+			grep -qF "$$PUB" "$$SERVER_CONF" && { echo "✅ $$CONFNAME already present, skipping"; continue; }; \
+			# extract client addresses (Address lines) to use as AllowedIPs on server side \
+			ALLOWED_IPS=$$(grep -E "^Address" "$(WG_DIR)/$$CONFNAME.conf" | sed "s/Address = //"); \
 			echo "➕ Adding peer $$CONFNAME to $$SERVER_CONF"; \
-			# compute Allowed IPs (extract all addresses from client config, preserve order, comma-separated) \
-			ALLOWED_IPS=$$(grep -E '^Address' "$(WG_DIR)/$$CONFNAME.conf" 2>/dev/null | sed -n "s/Address = //p" | awk -F, '\''{out=""; for(i=1;i<=NF;i++){gsub(/^[[:space:]]+|[[:space:]]+$$/,"",$i); if(i==1) out=$i; else out=out","$i} print out}'\''); \
-			[ -z "$$ALLOWED_IPS" ] && ALLOWED_IPS="0.0.0.0/0"; \
-			# add peer to running interface (best-effort) with both IPv4 and IPv6 allowed-ips \
 			$(WG_BIN) set $$iface peer "$$PUB" allowed-ips "$$ALLOWED_IPS" || true; \
-			# append a clean peer block to the server config (as root) \
-			if [ -n "$$ALLOWED_IPS" ]; then \
-				printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IPS" | tee -a "$$SERVER_CONF" > /dev/null; \
-			else \
-				printf "\n[Peer]\n# %s\nPublicKey = %s\n" "$$CONFNAME" "$$PUB" | tee -a "$$SERVER_CONF" > /dev/null; \
-			fi; \
-			# reload interface to ensure runtime matches file \
+			printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IPS" | tee -a "$$SERVER_CONF" > /dev/null; \
 			echo "🔁 Reloading $$iface"; \
 			$(WG_QUICK) down $$iface || true; \
 			$(WG_QUICK) up $$iface || true; \
 		done; \
 		echo "✅ wg-add-peers complete."'
+
 
 
 .PHONY: regen-clients
