@@ -113,8 +113,8 @@ certs-rotate:
 	logger -t "$$TAG" -p user.info "Old CA files moved to $$BACKUP_DIR"; \
 	# create and deploy new CA via existing make targets
 	logger -t "$$TAG" -p user.info "Creating new CA"; \
-	$(MAKE) certs-create || { logger -t "$$TAG" -p user.err "certs-create failed"; exit 1; }; \
-	$(MAKE) certs-deploy || { logger -t "$$TAG" -p user.err "certs-deploy failed"; exit 1; }; \
+	$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) certs-create || { logger -t "$$TAG" -p user.err "certs-create failed"; exit 1; }; \
+	$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) certs-deploy || { logger -t "$$TAG" -p user.err "certs-deploy failed"; exit 1; }; \
 	logger -t "$$TAG" -p user.info "New CA created and deployed"; \
 	# list affected clients
 	clients=$$(ls -1 "$$CLIENT_DIR"/*.p12 2>/dev/null | xargs -n1 basename 2>/dev/null | sed "s/\.p12$$//") || true; \

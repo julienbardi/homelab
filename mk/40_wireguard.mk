@@ -59,6 +59,16 @@ DNS_SERVER := 10.89.12.4
 # Avoid recursive-make "Entering directory" messages
 MAKEFLAGS += --no-print-directory
 
+# export FORCE and CONF_FORCE so recursive make inherits them
+export FORCE CONF_FORCE
+
+# NOTE: Some recipes invoke a root-owned make via $(run_as_root) $(MAKE) ...
+# To guarantee that FORCE and CONF_FORCE are visible to the recursive root
+# make process we explicitly prefix recursive invocations with
+# FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) when calling $(MAKE) under run-as-root.
+# This ensures consistent behavior whether the recursive make runs as the
+# invoking user or via the run-as-root helper.
+
 # -------------------------
 # Embedded clients inventory
 # -------------------------
@@ -105,7 +115,7 @@ wg0: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg0.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg0.conf; \
 		echo "📄 wg0.conf written → $(WG_DIR)/wg0.conf"; \
-		$(run_as_root) $(MAKE) regen-clients IFACE=wg0 || echo "⚠️  regen-clients failed for wg0"; \
+		$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg0 || echo "⚠️  regen-clients failed for wg0"; \
 	else \
 		echo "⏭ wg0.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -130,7 +140,7 @@ wg1: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg1.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg1.conf; \
 		echo "📄 wg1.conf written → $(WG_DIR)/wg1.conf"; \
-		$(run_as_root) $(MAKE) regen-clients IFACE=wg1 || echo "⚠️  regen-clients failed for wg1"; \
+		$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg1 || echo "⚠️  regen-clients failed for wg1"; \
 	else \
 		echo "⏭ wg1.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -155,7 +165,7 @@ wg2: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg2.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg2.conf; \
 		echo "📄 wg2.conf written → $(WG_DIR)/wg2.conf"; \
-		$(run_as_root) $(MAKE) regen-clients IFACE=wg2 || echo "⚠️  regen-clients failed for wg2"; \
+		$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg2 || echo "⚠️  regen-clients failed for wg2"; \
 	else \
 		echo "⏭ wg2.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -180,7 +190,7 @@ wg3: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg3.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg3.conf; \
 		echo "📄 wg3.conf written → $(WG_DIR)/wg3.conf"; \
-		$(run_as_root) $(MAKE) regen-clients IFACE=wg3 || echo "⚠️  regen-clients failed for wg3"; \
+		$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg3 || echo "⚠️  regen-clients failed for wg3"; \
 	else \
 		echo "⏭ wg3.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -205,7 +215,7 @@ wg4: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg4.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg4.conf; \
 		echo "📄 wg4.conf written → $(WG_DIR)/wg4.conf"; \
-		$(run_as_root) $(MAKE) regen-clients IFACE=wg4 || echo "⚠️  regen-clients failed for wg4"; \
+		$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg4 || echo "⚠️  regen-clients failed for wg4"; \
 	else \
 		echo "⏭ wg4.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -230,7 +240,7 @@ wg5: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg5.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg5.conf; \
 		echo "📄 wg5.conf written → $(WG_DIR)/wg5.conf"; \
-		$(run_as_root) $(MAKE) regen-clients IFACE=wg5 || echo "⚠️  regen-clients failed for wg5"; \
+		$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg5 || echo "⚠️  regen-clients failed for wg5"; \
 	else \
 		echo "⏭ wg5.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -255,7 +265,7 @@ wg6: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg6.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg6.conf; \
 		echo "📄 wg6.conf written → $(WG_DIR)/wg6.conf"; \
-		$(run_as_root) $(MAKE) regen-clients IFACE=wg6 || echo "⚠️  regen-clients failed for wg6"; \
+		$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg6 || echo "⚠️  regen-clients failed for wg6"; \
 	else \
 		echo "⏭ wg6.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -280,7 +290,7 @@ wg7: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg7.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg7.conf; \
 		echo "📄 wg7.conf written → $(WG_DIR)/wg7.conf"; \
-		$(run_as_root) $(MAKE) regen-clients IFACE=wg7 || echo "⚠️  regen-clients failed for wg7"; \
+		$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg7 || echo "⚠️  regen-clients failed for wg7"; \
 	else \
 		echo "⏭ wg7.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
 	fi
@@ -316,7 +326,13 @@ client-%: ensure-wg-dir
 		fi; \
 		# generate client keypair (skip if exists unless FORCE=1) \
 		if [ -f "$(WG_DIR)/$$CONFNAME.key" ] && [ "$(FORCE)" != "1" ]; then \
-			echo "🔒 Client key for $$CONFNAME already exists, skipping key generation (use FORCE=1 to regenerate)"; \
+		echo "🔒 Client key for $$CONFNAME already exists, skipping key generation (use FORCE=1 to regenerate)"; \
+		# ensure pub exists when key already present
+		if [ ! -f "$(WG_DIR)/$$CONFNAME.pub" ]; then \
+			echo "ℹ️  Client pub for $$CONFNAME missing — generating from key"; \
+			wg pubkey < "$(WG_DIR)/$$CONFNAME.key" > "$(WG_DIR)/$$CONFNAME.pub" || true; \
+			chmod 600 "$(WG_DIR)/$$CONFNAME.pub" || true; \
+		fi; \
 		else \
 			wg genkey | tee "$(WG_DIR)/$$CONFNAME.key" | wg pubkey > "$(WG_DIR)/$$CONFNAME.pub"; \
 			chmod 600 "$(WG_DIR)/$$CONFNAME.key" "$(WG_DIR)/$$CONFNAME.pub"; \
@@ -387,7 +403,7 @@ client-showqr-%:
 	CONFNAME="$$BASE-$$IFACE"; \
 	echo "ℹ️  Config for $* not found — generating client $$CONFNAME with IFACE=$$IFACE..."; \
 	# create client as root (client-% writes the config but does not print QR) \
-	$(run_as_root) $(MAKE) client-$$BASE IFACE=$$IFACE || { echo "❌ Failed to generate client $$CONFNAME"; exit 1; }; \
+	$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) client-$$base IFACE=$$iface || { echo "❌ Failed to generate client $$CONFNAME"; exit 1; }; \
 	# now check existence and display QR as root (same context that created the file) \
 	$(run_as_root) sh -c '\
 		if [ -f "$(WG_DIR)/'"$$CONFNAME"'.conf" ]; then \
@@ -503,7 +519,7 @@ all-clients-generate:
 		CONFNAME="$$base-$$iface"; \
 		if [ ! -f "$(WG_DIR)/$$CONFNAME.conf" ] || [ ! -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
 			echo "➕ Creating $$CONFNAME (IFACE=$$iface)"; \
-			$(run_as_root) $(MAKE) client-$$base IFACE=$$iface || { echo "❌ failed to create $$CONFNAME"; exit 1; }; \
+			$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) client-$$base IFACE=$$iface || { echo "❌ failed to create $$CONFNAME"; exit 1; }; \
 		else \
 			echo "✅ $$CONFNAME already exists, skipping"; \
 		fi; \
@@ -522,6 +538,12 @@ wg-add-peers:
 		CONFNAME="$$base-$$iface"; \
 		CLIENT_PUB="$(WG_DIR)/$$CONFNAME.pub"; \
 		SERVER_CONF="$(WG_DIR)/$$iface.conf"; \
+		# ensure client pub exists: if key exists but pub missing, generate pub
+		if [ ! -f "$$CLIENT_PUB" ] && [ -f "$(WG_DIR)/$$CONFNAME.key" ]; then
+		  echo "ℹ️  Found key for $$CONFNAME but missing pub — generating..."
+		  $(run_as_root) sh -c 'wg pubkey < "$(WG_DIR)/'"$$CONFNAME"'.key" > "$(WG_DIR)/'"$$CONFNAME"'.pub"' || { echo "❌ failed to generate pub for $$CONFNAME"; continue; }
+		  $(run_as_root) chmod 600 "$(WG_DIR)/$$CONFNAME.pub" || true
+		fi
 		if [ ! -f "$$CLIENT_PUB" ]; then echo "❌ missing $$CLIENT_PUB, skipping"; continue; fi; \
 		if [ ! -f "$$SERVER_CONF" ]; then echo "❌ missing $$SERVER_CONF, skipping"; continue; fi; \
 		PUB=$$(cat "$$CLIENT_PUB"); \
@@ -547,20 +569,19 @@ wg-add-peers:
 	done; \
 	echo "✅ wg-add-peers complete."
 
-
 .PHONY: regen-clients
 # Regenerate client configs for the interface named in $(IFACE)
 regen-clients:
 	@if [ -z "$(IFACE)" ]; then \
 		echo "❌ regen-clients requires IFACE=wgN"; exit 1; \
 	fi; \
-	echo "♻️  Regenerating client configs for $(IFACE) (FORCE=1)"; \
+	echo "♻️  Regenerating client configs for $(IFACE) (FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE))"; \
 	for entry in $(CLIENTS); do \
 		base=$$(echo $$entry | sed 's/:.*//'); \
 		iface=$$(echo $$entry | sed 's/.*://'); \
 		if [ "$$iface" = "$(IFACE)" ]; then \
 			echo "🔁 Regenerating client $$base for $(IFACE)"; \
-			$(run_as_root) $(MAKE) client-$$base IFACE=$(IFACE) FORCE=1 || echo "⚠️  failed to regenerate $$base"; \
+			$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) client-$$base IFACE=$(IFACE) || echo "⚠️  failed to regenerate $$base"; \
 		fi; \
 	done; \
 	echo "✅ regen-clients complete for $(IFACE)";
@@ -589,7 +610,6 @@ client-dashboard-status:
 		fi; \
 	done
 
-
 # Backwards-compatible client-dashboard (human readable) calls the status target
 client-dashboard: client-dashboard-status
 
@@ -601,15 +621,15 @@ regen-all-keys:
 	@echo "Regenerating server keys and configs (FORCE=1 CONF_FORCE=1)..."
 	@for i in 0 1 2 3 4 5 6 7; do \
 	  echo " -> make wg$$i"; \
-	  $(run_as_root) $(MAKE) wg$$i FORCE=1 CONF_FORCE=1 || { echo "ERROR: wg$$i failed"; exit 1; }; \
+	  $(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) wg$$i FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) || { echo "ERROR: wg$$i failed"; exit 1; }; \
 	done
 	@echo "Regenerating client configs (regen-clients IFACE=wgN)..."
 	@for i in 0 1 2 3 4 5 6 7; do \
 	  echo " -> regen-clients IFACE=wg$$i"; \
-	  $(run_as_root) $(MAKE) regen-clients IFACE=wg$$i || { echo "WARN: regen-clients for wg$$i failed"; }; \
+	  $(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg$$i FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE); \
 	done
 	@echo "Ensuring peers and reloading runtime (wg-add-peers)..."
-	@$(run_as_root) $(MAKE) wg-add-peers
+	@$(run_as_root) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) wg-add-peers
 	@echo "Restarting interfaces..."
 	@for i in 0 1 2 3 4 5 6 7; do \
 	  echo " -> restart wg$$i"; \
