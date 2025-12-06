@@ -340,7 +340,13 @@ client-%: ensure-wg-dir
 			"[Peer]" \
 			"PublicKey = $$SERVERPUB" \
 			> "$(WG_DIR)/$$CONFNAME.conf"; \
-		printf "%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "AllowedIPs = $$ALLOWED" >> "$(WG_DIR)/$$CONFNAME.conf"; \
+		# write Endpoint and only write AllowedIPs if non-empty
+		if [ -n "$$ALLOWED" ]; then \
+			printf "%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "AllowedIPs = $$ALLOWED" >> "$(WG_DIR)/$$CONFNAME.conf"; \
+		else \
+			printf "%s\n" "Endpoint = vpn.bardi.ch:$$PORT" >> "$(WG_DIR)/$$CONFNAME.conf"; \
+		fi; \
+
 		chmod 600 "$(WG_DIR)/$$CONFNAME.conf"; \
 		echo "[make] $$CONFNAME.conf written → $(WG_DIR)/$$CONFNAME.conf"; \
 	'
@@ -518,7 +524,12 @@ wg-add-peers:
 		# add peer to running interface (best-effort)
 		$(run_as_root) wg set $$iface peer "$$PUB" allowed-ips "$$ALLOWED_IP" || true; \
 		# append a clean peer block to the server config as root
-		printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IP" | $(run_as_root) tee -a "$$SERVER_CONF" > /dev/null; \
+		# append peer block; omit AllowedIPs line when ALLOWED_IP is empty
+		if [ -n "$$ALLOWED_IP" ]; then \
+			printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IP" | $(run_as_root) tee -a "$$SERVER_CONF" > /dev/null; \
+		else \
+			printf "\n[Peer]\n# %s\nPublicKey = %s\n" "$$CONFNAME" "$$PUB" | $(run_as_root) tee -a "$$SERVER_CONF" > /dev/null; \
+		fi; \
 		# reload interface to ensure runtime matches file
 		echo "[make] Reloading $$iface"; \
 		$(run_as_root) wg-quick down $$iface || true; \
