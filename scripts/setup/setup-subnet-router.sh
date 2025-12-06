@@ -256,11 +256,14 @@ proxy ${LAN_IF} {
 	timeout 500
 	ttl 300
 	rule ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} {
+		auto
 	}
 }
 EOF
+	run_as_root systemctl daemon-reload || true
 	run_as_root systemctl enable --now ndppd.service || true
 	run_as_root systemctl restart ndppd.service || true
+	run_as_root systemctl status ndppd.service --no-pager
 	log "ndppd configured to proxy ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} on ${LAN_IF}"
 else
 	log "ndppd not installed; attempting to install via apt..."
