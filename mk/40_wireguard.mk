@@ -64,9 +64,9 @@ export FORCE CONF_FORCE
 
 # NOTE: Some recipes invoke a root-owned make via $(run_as_root) $(MAKE) ...
 # To guarantee that FORCE and CONF_FORCE are visible to the recursive root
-# make process we explicitly invoke the recursive make under a root shell
-# that sets the environment variables. This avoids issues where run-as-root
-# treats "FORCE=1" as a command token (e.g., "sudo: FORCE=1: command not found").
+# make process we explicitly wrap recursive invocations in a shell under
+# run-as-root so environment assignments are evaluated by the shell and
+# not interpreted as separate commands by sudo-like helpers.
 
 # -------------------------
 # Embedded clients inventory
@@ -114,7 +114,6 @@ wg0: ensure-wg-dir
 		| $(run_as_root) tee $(WG_DIR)/wg0.conf > /dev/null; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg0.conf; \
 		echo "📄 wg0.conf written → $(WG_DIR)/wg0.conf"; \
-		# run regen-clients as root with environment preserved
 		$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg0' || echo "⚠️  regen-clients failed for wg0"; \
 	else \
 		echo "⏭ wg0.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
@@ -402,8 +401,7 @@ client-showqr-%:
 	fi; \
 	CONFNAME="$$BASE-$$IFACE"; \
 	echo "ℹ️  Config for $* not found — generating client $$CONFNAME with IFACE=$$IFACE..."; \
-	# create client as root (client-% writes the config but does not print QR)
-	# Use sh -c under run_as_root so environment variables are passed correctly
+	# create client as root (client-% writes the config but does not print QR) \
 	$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$BASE"' IFACE='"$$IFACE"'' || { echo "❌ Failed to generate client $$CONFNAME"; exit 1; }; \
 	# now check existence and display QR as root (same context that created the file) \
 	$(run_as_root) sh -c '\
@@ -520,7 +518,6 @@ all-clients-generate:
 		CONFNAME="$$base-$$iface"; \
 		if [ ! -f "$(WG_DIR)/$$CONFNAME.conf" ] || [ ! -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
 			echo "➕ Creating $$CONFNAME (IFACE=$$iface)"; \
-			# invoke client creation as root and ensure environment variables are set for the recursive make
 			$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$$iface"'' || { echo "❌ failed to create $$CONFNAME"; exit 1; }; \
 		else \
 			echo "✅ $$CONFNAME already exists, skipping"; \
@@ -540,10 +537,10 @@ wg-add-peers:
 		CONFNAME="$$base-$$iface"; \
 		CLIENT_PUB="$(WG_DIR)/$$CONFNAME.pub"; \
 		SERVER_CONF="$(WG_DIR)/$$iface.conf"; \
-		# ensure client pub exists: if key exists but pub missing, generate pub
+		# ensure client pub exists: if key exists but pub missing, generate pub \
 		if [ ! -f "$$CLIENT_PUB" ] && [ -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
 		  echo "ℹ️  Found key for $$CONFNAME but missing pub — generating..."; \
-		  $(run_as_root) sh -c 'wg pubkey < "$(WG_DIR)/'"$$CONFNAME"'.key" > "$(WG_DIR)/'"$$CONFNAME"'.pub"' || { echo "❌ failed to generate pub for $$CONFNAME"; continue; } ; \
+		  $(run_as_root) sh -c 'wg pubkey < "$(WG_DIR)/'"$$CONFNAME"'.key" > "$(WG_DIR)/'"$$CONFNAME"'.pub"' || { echo "❌ failed to generate pub for $$CONFNAME"; continue; }; \
 		  $(run_as_root) chmod 600 "$(WG_DIR)/$$CONFNAME.pub" || true; \
 		fi; \
 		if [ ! -f "$$CLIENT_PUB" ]; then echo "❌ missing $$CLIENT_PUB, skipping"; continue; fi; \
@@ -583,8 +580,7 @@ regen-clients:
 		iface=$$(echo $$entry | sed 's/.*://'); \
 		if [ "$$iface" = "$(IFACE)" ]; then \
 			echo "🔁 Regenerating client $$base for $(IFACE)"; \
-			# run client creation as root and ensure environment variables are passed
-			$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE=$(IFACE)' || echo "⚠️  failed to regenerate $$base"; \
+			$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$(IFACE)"'' || echo "⚠️  failed to regenerate $$base"; \
 		fi; \
 	done; \
 	echo "✅ regen-clients complete for $(IFACE)";
@@ -629,10 +625,10 @@ regen-all-keys:
 	@echo "Regenerating client configs (regen-clients IFACE=wgN)..."
 	@for i in 0 1 2 3 4 5 6 7; do \
 	  echo " -> regen-clients IFACE=wg$$i"; \
-	  $(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg'"$$i"'' || echo "WARN: regen-clients for wg$$i failed"; \
+	  $(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg'"$$i"''; \
 	done
 	@echo "Ensuring peers and reloading runtime (wg-add-peers)..."
-	@$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) wg-add-peers' || true
+	@$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) wg-add-peers'
 	@echo "Restarting interfaces..."
 	@for i in 0 1 2 3 4 5 6 7; do \
 	  echo " -> restart wg$$i"; \
