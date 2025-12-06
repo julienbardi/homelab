@@ -573,20 +573,21 @@ client-dashboard-status:
 	@echo "| Interface | Status | ListenPort | Peers (online/total) |"; \
 	echo "|-----------|--------|------------|----------------------|"; \
 	for i in 0 1 2 3 4 5 6 7; do \
-		if [ -f "$(WG_DIR)/wg$$i.conf" ]; then \
-			if ip link show wg$$i >/dev/null 2>&1; then STATUS="up"; else STATUS="down"; fi; \
-			LPORT=$$(grep -E '^ListenPort' $(WG_DIR)/wg$$i.conf 2>/dev/null | sed -n 's/ListenPort = //p' || echo "-"); \
-			TOTAL=$$(awk '$$1=="[Peer]"{c++}END{print (c+0)}' $(WG_DIR)/wg$$i.conf 2>/dev/null | tr -d ' '); \
+		if $(run_as_root) test -f $(WG_DIR)/wg$$i.conf; then \
+			if $(run_as_root) ip link show wg$$i >/dev/null 2>&1; then STATUS="up"; else STATUS="down"; fi; \
+			LPORT=$$($(run_as_root) awk -F' = ' '/^ListenPort/ {print $$2; exit}' $(WG_DIR)/wg$$i.conf 2>/dev/null || echo "-"); \
+			TOTAL=$$($(run_as_root) awk '$$1=="[Peer]"{c++}END{print (c+0)}' $(WG_DIR)/wg$$i.conf 2>/dev/null | tr -d ' '); \
 			ONLINE=0; \
-			if ip link show wg$$i >/dev/null 2>&1; then \
-				HANDSHAKES=$$(wg show wg$$i 2>/dev/null | awk '/latest handshake/ && $$0 !~ /0s/ {count++} END {print (count+0)}'); \
-				if [ "$$HANDSHAKES" -gt 0 ]; then ONLINE="$$HANDSHAKES"; else ONLINE=$$(wg show wg$$i peers 2>/dev/null | wc -l | tr -d ' '); fi; \
+			if $(run_as_root) ip link show wg$$i >/dev/null 2>&1; then \
+				HANDSHAKES=$$($(run_as_root) wg show wg$$i 2>/dev/null | awk '/latest handshake/ && $$0 !~ /0s/ {count++} END {print (count+0)}'); \
+				if [ "$$HANDSHAKES" -gt 0 ]; then ONLINE="$$HANDSHAKES"; else ONLINE=$$($(run_as_root) wg show wg$$i peers 2>/dev/null | wc -l | tr -d ' '); fi; \
 			fi; \
 			printf "| %-9s | %-6s | %-10s | %3s/%-3s |\n" "wg$$i" "$$STATUS" "$$LPORT" "$$ONLINE" "$$TOTAL"; \
 		else \
 			printf "| %-9s | %-6s | %-10s | %3s/%-3s |\n" "wg$$i" "missing" "-" "0" "0"; \
 		fi; \
 	done
+
 
 # Backwards-compatible client-dashboard (human readable) calls the status target
 client-dashboard: client-dashboard-status
