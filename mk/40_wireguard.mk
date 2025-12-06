@@ -94,7 +94,7 @@ wg0: ensure-wg-dir
 		$(run_as_root) chmod 600 $(WG_DIR)/wg0.key $(WG_DIR)/wg0.pub; \
 		echo "✅ Server key for wg0 generated"; \
 	fi; \
-	PORT=51420; IPV4="10.0.0.1/24"; IPV6="fd10:8912:0:10::1/64"; \
+	PORT=51420; IPV4="10.0.0.1/24"; IPV6="2a01:8b81:4800:9c00:10::1/64"; \
 	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg0.key); \
 	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg0.conf" ]; then \
 		printf "%s\n%s\n%s\n%s\n" \
@@ -119,7 +119,7 @@ wg1: ensure-wg-dir
 		$(run_as_root) chmod 600 $(WG_DIR)/wg1.key $(WG_DIR)/wg1.pub; \
 		echo "✅ Server key for wg1 generated"; \
 	fi; \
-	PORT=51421; IPV4="10.1.0.1/24"; IPV6="fd10:8912:0:11::1/64"; \
+	PORT=51421; IPV4="10.1.0.1/24"; IPV6="2a01:8b81:4800:9c00:11::1/64"; \
 	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg1.key); \
 	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg1.conf" ]; then \
 		printf "%s\n%s\n%s\n%s\n" \
@@ -144,7 +144,7 @@ wg2: ensure-wg-dir
 		$(run_as_root) chmod 600 $(WG_DIR)/wg2.key $(WG_DIR)/wg2.pub; \
 		echo "✅ Server key for wg2 generated"; \
 	fi; \
-	PORT=51422; IPV4="10.2.0.1/24"; IPV6="fd10:8912:0:12::1/64"; \
+	PORT=51422; IPV4="10.2.0.1/24"; IPV6="2a01:8b81:4800:9c00:12::1/64"; \
 	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg2.key); \
 	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg2.conf" ]; then \
 		printf "%s\n%s\n%s\n%s\n" \
@@ -169,7 +169,7 @@ wg3: ensure-wg-dir
 		$(run_as_root) chmod 600 $(WG_DIR)/wg3.key $(WG_DIR)/wg3.pub; \
 		echo "✅ Server key for wg3 generated"; \
 	fi; \
-	PORT=51423; IPV4="10.3.0.1/24"; IPV6="fd10:8912:0:13::1/64"; \
+	PORT=51423; IPV4="10.3.0.1/24"; IPV6="2a01:8b81:4800:9c00:13::1/64"; \
 	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg3.key); \
 	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg3.conf" ]; then \
 		printf "%s\n%s\n%s\n%s\n" \
@@ -194,7 +194,7 @@ wg4: ensure-wg-dir
 		$(run_as_root) chmod 600 $(WG_DIR)/wg4.key $(WG_DIR)/wg4.pub; \
 		echo "✅ Server key for wg4 generated"; \
 	fi; \
-	PORT=51424; IPV4="10.4.0.1/24"; IPV6="fd10:8912:0:14::1/64"; \
+	PORT=51424; IPV4="10.4.0.1/24"; IPV6="2a01:8b81:4800:9c00:14::1/64"; \
 	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg4.key); \
 	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg4.conf" ]; then \
 		printf "%s\n%s\n%s\n%s\n" \
@@ -219,7 +219,7 @@ wg5: ensure-wg-dir
 		$(run_as_root) chmod 600 $(WG_DIR)/wg5.key $(WG_DIR)/wg5.pub; \
 		echo "✅ Server key for wg5 generated"; \
 	fi; \
-	PORT=51425; IPV4="10.5.0.1/24"; IPV6="fd10:8912:0:15::1/64"; \
+	PORT=51425; IPV4="10.5.0.1/24"; IPV6="2a01:8b81:4800:9c00:15::1/64"; \
 	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg5.key); \
 	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg5.conf" ]; then \
 		printf "%s\n%s\n%s\n%s\n" \
@@ -244,7 +244,7 @@ wg6: ensure-wg-dir
 		$(run_as_root) chmod 600 $(WG_DIR)/wg6.key $(WG_DIR)/wg6.pub; \
 		echo "✅ Server key for wg6 generated"; \
 	fi; \
-	PORT=51426; IPV4="10.6.0.1/24"; IPV6="fd10:8912:0:16::1/64"; \
+	PORT=51426; IPV4="10.6.0.1/24"; IPV6="2a01:8b81:4800:9c00:16::1/64"; \
 	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg6.key); \
 	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg6.conf" ]; then \
 		printf "%s\n%s\n%s\n%s\n" \
@@ -269,7 +269,7 @@ wg7: ensure-wg-dir
 		$(run_as_root) chmod 600 $(WG_DIR)/wg7.key $(WG_DIR)/wg7.pub; \
 		echo "✅ Server key for wg7 generated"; \
 	fi; \
-	PORT=51427; IPV4="10.7.0.1/24"; IPV6="fd10:8912:0:17::1/64"; \
+	PORT=51427; IPV4="10.7.0.1/24"; IPV6="2a01:8b81:4800:9c00:17::1/64"; \
 	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg7.key); \
 	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg7.conf" ]; then \
 		printf "%s\n%s\n%s\n%s\n" \
@@ -326,7 +326,7 @@ client-%: ensure-wg-dir
 		SERVERPUB=$$(cat "$(WG_DIR)/$$IFACE.pub"); \
 		PORT=$$(expr 51420 + $$IDX); \
 		IPV4="10.$$IDX.0.2/32"; \
-		IPV6="fd10:8912:0:1$$IDX::2/128"; \
+		IPV6="2a01:8b81:4800:9c00:1$$IDX::2/128"; \
 		# build ALLOWED as a comma-separated list (portable, no leading spaces) \
 		ALLOWED_LIST=""; \
 		case "$$IDX" in \
@@ -340,7 +340,7 @@ client-%: ensure-wg-dir
 			5|6|7) \
 				if [ -z "$$ALLOWED_LIST" ]; then ALLOWED_LIST="::/0"; else ALLOWED_LIST="$$ALLOWED_LIST, ::/0"; fi;; \
 		esac; \
-		if [ "$$IDX" = "4" ]; then ALLOWED_LIST="fd10:8912:0:14::/64"; fi; \
+		if [ "$$IDX" = "4" ]; then ALLOWED_LIST="2a01:8b81:4800:9c00:14::/64"; fi; \
 		ALLOWED="$$ALLOWED_LIST"; \
 		printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n" \
 			"[Interface]" \
