@@ -528,15 +528,15 @@ wg-add-peers:
 		# skip if public key already present in server config \
 		grep -qF "$$PUB" "$$SERVER_CONF" 2>/dev/null && { echo "✅ $$CONFNAME already present in $$SERVER_CONF, skipping"; continue; }; \
 		echo "➕ Adding peer $$CONFNAME to $$SERVER_CONF"; \
-		# compute Allowed IP (first address from client config) \
-		ALLOWED_IP=$$(grep -E '^Address' $(WG_DIR)/$$CONFNAME.conf 2>/dev/null | sed -n 's/Address = //p' | awk -F, '{print $$1}' | sed -n 's/^[[:space:]]*//;s/[[:space:]]*$$//p'); \
-		[ -z "$$ALLOWED_IP" ] && ALLOWED_IP="0.0.0.0/0"; \
-		# add peer to running interface (best-effort) \
-		$(run_as_root) wg set $$iface peer "$$PUB" allowed-ips "$$ALLOWED_IP" || true; \
+		# compute Allowed IPs (extract all addresses from client config, preserve order, comma-separated) \
+		ALLOWED_IPS=$$(grep -E '^Address' $(WG_DIR)/$$CONFNAME.conf 2>/dev/null | sed -n 's/Address = //p' | awk -F, '{out=""; for(i=1;i<=NF;i++){gsub(/^[[:space:]]+|[[:space:]]+$$/,"",$i); if(i==1) out=$i; else out=out","$i} print out}'); \
+		[ -z "$$ALLOWED_IPS" ] && ALLOWED_IPS="0.0.0.0/0"; \
+		# add peer to running interface (best-effort) with both IPv4 and IPv6 allowed-ips \
+		$(run_as_root) wg set $$iface peer "$$PUB" allowed-ips "$$ALLOWED_IPS" || true; \
 		# append a clean peer block to the server config as root \
-		# append peer block; omit AllowedIPs line when ALLOWED_IP is empty \
-		if [ -n "$$ALLOWED_IP" ]; then \
-			printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IP" | $(run_as_root) tee -a "$$SERVER_CONF" > /dev/null; \
+		# append peer block; include AllowedIPs line when ALLOWED_IPS is non-empty \
+		if [ -n "$$ALLOWED_IPS" ]; then \
+			printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IPS" | $(run_as_root) tee -a "$$SERVER_CONF" > /dev/null; \
 		else \
 			printf "\n[Peer]\n# %s\nPublicKey = %s\n" "$$CONFNAME" "$$PUB" | $(run_as_root) tee -a "$$SERVER_CONF" > /dev/null; \
 		fi; \
@@ -546,6 +546,7 @@ wg-add-peers:
 		$(run_as_root) wg-quick up $$iface || true; \
 	done; \
 	echo "✅ wg-add-peers complete."
+
 
 .PHONY: regen-clients
 # Regenerate client configs for the interface named in $(IFACE)
