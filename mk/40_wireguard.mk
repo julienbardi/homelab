@@ -56,6 +56,10 @@ run_as_root := ./bin/run-as-root
 WG_DIR := /etc/wireguard
 DNS_SERVER := 10.89.12.4
 
+# Absolute paths to WireGuard binaries to avoid PATH issues under sudo/run-as-root
+WG_BIN := /usr/bin/wg
+WG_QUICK := /usr/bin/wg-quick
+
 # Avoid recursive-make "Entering directory" messages
 MAKEFLAGS += --no-print-directory
 
@@ -99,7 +103,7 @@ wg0: ensure-wg-dir
 	@if [ -f "$(WG_DIR)/wg0.key" ] && [ "$(FORCE)" != "1" ]; then \
 		echo "🔒 Server key for wg0 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
 	else \
-		$(run_as_root) bash -c 'wg genkey | tee $(WG_DIR)/wg0.key | wg pubkey > $(WG_DIR)/wg0.pub'; \
+		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg0.key | $(WG_BIN) pubkey > $(WG_DIR)/wg0.pub'; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg0.key $(WG_DIR)/wg0.pub; \
 		echo "✅ Server key for wg0 generated"; \
 	fi; \
@@ -124,7 +128,7 @@ wg1: ensure-wg-dir
 	@if [ -f "$(WG_DIR)/wg1.key" ] && [ "$(FORCE)" != "1" ]; then \
 		echo "🔒 Server key for wg1 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
 	else \
-		$(run_as_root) bash -c 'wg genkey | tee $(WG_DIR)/wg1.key | wg pubkey > $(WG_DIR)/wg1.pub'; \
+		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg1.key | $(WG_BIN) pubkey > $(WG_DIR)/wg1.pub'; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg1.key $(WG_DIR)/wg1.pub; \
 		echo "✅ Server key for wg1 generated"; \
 	fi; \
@@ -149,7 +153,7 @@ wg2: ensure-wg-dir
 	@if [ -f "$(WG_DIR)/wg2.key" ] && [ "$(FORCE)" != "1" ]; then \
 		echo "🔒 Server key for wg2 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
 	else \
-		$(run_as_root) bash -c 'wg genkey | tee $(WG_DIR)/wg2.key | wg pubkey > $(WG_DIR)/wg2.pub'; \
+		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg2.key | $(WG_BIN) pubkey > $(WG_DIR)/wg2.pub'; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg2.key $(WG_DIR)/wg2.pub; \
 		echo "✅ Server key for wg2 generated"; \
 	fi; \
@@ -174,7 +178,7 @@ wg3: ensure-wg-dir
 	@if [ -f "$(WG_DIR)/wg3.key" ] && [ "$(FORCE)" != "1" ]; then \
 		echo "🔒 Server key for wg3 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
 	else \
-		$(run_as_root) bash -c 'wg genkey | tee $(WG_DIR)/wg3.key | wg pubkey > $(WG_DIR)/wg3.pub'; \
+		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg3.key | $(WG_BIN) pubkey > $(WG_DIR)/wg3.pub'; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg3.key $(WG_DIR)/wg3.pub; \
 		echo "✅ Server key for wg3 generated"; \
 	fi; \
@@ -199,7 +203,7 @@ wg4: ensure-wg-dir
 	@if [ -f "$(WG_DIR)/wg4.key" ] && [ "$(FORCE)" != "1" ]; then \
 		echo "🔒 Server key for wg4 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
 	else \
-		$(run_as_root) bash -c 'wg genkey | tee $(WG_DIR)/wg4.key | wg pubkey > $(WG_DIR)/wg4.pub'; \
+		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg4.key | $(WG_BIN) pubkey > $(WG_DIR)/wg4.pub'; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg4.key $(WG_DIR)/wg4.pub; \
 		echo "✅ Server key for wg4 generated"; \
 	fi; \
@@ -224,7 +228,7 @@ wg5: ensure-wg-dir
 	@if [ -f "$(WG_DIR)/wg5.key" ] && [ "$(FORCE)" != "1" ]; then \
 		echo "🔒 Server key for wg5 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
 	else \
-		$(run_as_root) bash -c 'wg genkey | tee $(WG_DIR)/wg5.key | wg pubkey > $(WG_DIR)/wg5.pub'; \
+		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg5.key | $(WG_BIN) pubkey > $(WG_DIR)/wg5.pub'; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg5.key $(WG_DIR)/wg5.pub; \
 		echo "✅ Server key for wg5 generated"; \
 	fi; \
@@ -249,7 +253,7 @@ wg6: ensure-wg-dir
 	@if [ -f "$(WG_DIR)/wg6.key" ] && [ "$(FORCE)" != "1" ]; then \
 		echo "🔒 Server key for wg6 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
 	else \
-		$(run_as_root) bash -c 'wg genkey | tee $(WG_DIR)/wg6.key | wg pubkey > $(WG_DIR)/wg6.pub'; \
+		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg6.key | $(WG_BIN) pubkey > $(WG_DIR)/wg6.pub'; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg6.key $(WG_DIR)/wg6.pub; \
 		echo "✅ Server key for wg6 generated"; \
 	fi; \
@@ -274,7 +278,7 @@ wg7: ensure-wg-dir
 	@if [ -f "$(WG_DIR)/wg7.key" ] && [ "$(FORCE)" != "1" ]; then \
 		echo "🔒 Server key for wg7 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
 	else \
-		$(run_as_root) bash -c 'wg genkey | tee $(WG_DIR)/wg7.key | wg pubkey > $(WG_DIR)/wg7.pub'; \
+		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg7.key | $(WG_BIN) pubkey > $(WG_DIR)/wg7.pub'; \
 		$(run_as_root) chmod 600 $(WG_DIR)/wg7.key $(WG_DIR)/wg7.pub; \
 		echo "✅ Server key for wg7 generated"; \
 	fi; \
@@ -297,7 +301,7 @@ wg7: ensure-wg-dir
 # --- Named client configs (create only; do NOT print QR) ---
 client-%: ensure-wg-dir
 	@echo "🧩 Generating WireGuard client config for $* (interface $(IFACE))"
-	@$(run_as_root) bash -c '\
+	@$(run_as_root) sh -c '\
 		BASE="$*"; \
 		# prefer explicit IFACE var, else try to extract from name suffix -wgN \
 		if [ -z "$(IFACE)" ]; then \
@@ -319,9 +323,9 @@ client-%: ensure-wg-dir
 		# ensure server key exists (create and bring up interface if missing) \
 		if [ ! -f "$(WG_DIR)/$$IFACE.key" ]; then \
 			echo "⚠️  Server key for $$IFACE not found, generating and bringing interface up..."; \
-			wg genkey | tee "$(WG_DIR)/$$IFACE.key" | wg pubkey > "$(WG_DIR)/$$IFACE.pub"; \
+			$(WG_BIN) genkey | tee "$(WG_DIR)/$$IFACE.key" | $(WG_BIN) pubkey > "$(WG_DIR)/$$IFACE.pub"; \
 			chmod 600 "$(WG_DIR)/$$IFACE.key" "$(WG_DIR)/$$IFACE.pub"; \
-			wg-quick up $$IFACE || true; \
+			$(WG_QUICK) up $$IFACE || true; \
 		fi; \
 		# generate client keypair (skip if exists unless FORCE=1) \
 		if [ -f "$(WG_DIR)/$$CONFNAME.key" ] && [ "$(FORCE)" != "1" ]; then \
@@ -329,11 +333,11 @@ client-%: ensure-wg-dir
 			# ensure pub exists when key already present \
 			if [ ! -f "$(WG_DIR)/$$CONFNAME.pub" ]; then \
 				echo "ℹ️  Client pub for $$CONFNAME missing — generating from key"; \
-				wg pubkey < "$(WG_DIR)/$$CONFNAME.key" > "$(WG_DIR)/$$CONFNAME.pub" || true; \
+				$(WG_BIN) pubkey < "$(WG_DIR)/$$CONFNAME.key" > "$(WG_DIR)/$$CONFNAME.pub" || true; \
 				chmod 600 "$(WG_DIR)/$$CONFNAME.pub" || true; \
 			fi; \
 		else \
-			wg genkey | tee "$(WG_DIR)/$$CONFNAME.key" | wg pubkey > "$(WG_DIR)/$$CONFNAME.pub"; \
+			$(WG_BIN) genkey | tee "$(WG_DIR)/$$CONFNAME.key" | $(WG_BIN) pubkey > "$(WG_DIR)/$$CONFNAME.pub"; \
 			chmod 600 "$(WG_DIR)/$$CONFNAME.key" "$(WG_DIR)/$$CONFNAME.pub"; \
 		fi; \
 		# build config values and write config atomically as root \
@@ -415,12 +419,12 @@ client-showqr-%:
 # --- Bring up/down any wg interface ---
 wg-up-%:
 	@echo "⏫ Bringing up WireGuard interface wg$*"
-	@$(run_as_root) wg-quick up wg$* || { echo "❌ failed to bring up wg$*"; exit 1; }
-	@$(run_as_root) wg show wg$*
+	@$(run_as_root) $(WG_QUICK) up wg$* || { echo "❌ failed to bring up wg$*"; exit 1; }
+	@$(run_as_root) $(WG_BIN) show wg$*
 
 wg-down-%:
 	@echo "⏬ Bringing down WireGuard interface wg$*"
-	@$(run_as_root) wg-quick down wg$* || { echo "❌ failed to bring down wg$*"; exit 1; }
+	@$(run_as_root) $(WG_QUICK) down wg$* || { echo "❌ failed to bring down wg$*"; exit 1; }
 
 # --- Clean (revoke) all clients bound to an interface (preview) ---
 wg-clean-list-%:
@@ -499,7 +503,7 @@ all-wg-up:
 	@for i in 0 1 2 3 4 5 6 7; do \
 		if [ -f "$(WG_DIR)/wg$$i.conf" ]; then \
 			echo "⏫ wg-quick up wg$$i"; \
-			$(run_as_root) wg-quick up wg$$i || echo "⚠️  wg$$i already up or failed to start"; \
+			$(run_as_root) $(WG_QUICK) up wg$$i || echo "⚠️  wg$$i already up or failed to start"; \
 		else \
 			echo "⏭ skipping wg$$i (no config)"; \
 		fi; \
@@ -528,45 +532,48 @@ all-clients-generate:
 # Ensure each server config contains persistent [Peer] blocks for clients and reload interfaces
 wg-add-peers:
 	@echo "🔗 Ensuring peers are present in server configs (from CLIENTS variable)..."
-	@for entry in $(CLIENTS); do \
-		base=$$(echo $$entry | sed 's/:.*//'); \
-		iface=$$(echo $$entry | sed 's/.*://'); \
-		if [ -z "$$base" ] || [ -z "$$iface" ]; then \
-			echo "❌ skipping $$entry — invalid format"; continue; \
-		fi; \
-		CONFNAME="$$base-$$iface"; \
-		CLIENT_PUB="$(WG_DIR)/$$CONFNAME.pub"; \
-		SERVER_CONF="$(WG_DIR)/$$iface.conf"; \
-		# ensure client pub exists: if key exists but pub missing, generate pub \
-		if [ ! -f "$$CLIENT_PUB" ] && [ -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
-		  echo "ℹ️  Found key for $$CONFNAME but missing pub — generating..."; \
-		  $(run_as_root) sh -c 'wg pubkey < "$(WG_DIR)/'"$$CONFNAME"'.key" > "$(WG_DIR)/'"$$CONFNAME"'.pub"' || { echo "❌ failed to generate pub for $$CONFNAME"; continue; }; \
-		  $(run_as_root) chmod 600 "$(WG_DIR)/$$CONFNAME.pub" || true; \
-		fi; \
-		if [ ! -f "$$CLIENT_PUB" ]; then echo "❌ missing $$CLIENT_PUB, skipping"; continue; fi; \
-		if [ ! -f "$$SERVER_CONF" ]; then echo "❌ missing $$SERVER_CONF, skipping"; continue; fi; \
-		PUB=$$(cat "$$CLIENT_PUB"); \
-		# skip if public key already present in server config \
-		grep -qF "$$PUB" "$$SERVER_CONF" 2>/dev/null && { echo "✅ $$CONFNAME already present in $$SERVER_CONF, skipping"; continue; }; \
-		echo "➕ Adding peer $$CONFNAME to $$SERVER_CONF"; \
-		# compute Allowed IPs (extract all addresses from client config, preserve order, comma-separated) \
-		ALLOWED_IPS=$$(grep -E '^Address' $(WG_DIR)/$$CONFNAME.conf 2>/dev/null | sed -n 's/Address = //p' | awk -F, '{out=""; for(i=1;i<=NF;i++){gsub(/^[[:space:]]+|[[:space:]]+$$/,"",$i); if(i==1) out=$i; else out=out","$i} print out}'); \
-		[ -z "$$ALLOWED_IPS" ] && ALLOWED_IPS="0.0.0.0/0"; \
-		# add peer to running interface (best-effort) with both IPv4 and IPv6 allowed-ips \
-		$(run_as_root) wg set $$iface peer "$$PUB" allowed-ips "$$ALLOWED_IPS" || true; \
-		# append a clean peer block to the server config as root \
-		# append peer block; include AllowedIPs line when ALLOWED_IPS is non-empty \
-		if [ -n "$$ALLOWED_IPS" ]; then \
-			printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IPS" | $(run_as_root) tee -a "$$SERVER_CONF" > /dev/null; \
-		else \
-			printf "\n[Peer]\n# %s\nPublicKey = %s\n" "$$CONFNAME" "$$PUB" | $(run_as_root) tee -a "$$SERVER_CONF" > /dev/null; \
-		fi; \
-		# reload interface to ensure runtime matches file \
-		echo "🔁 Reloading $$iface"; \
-		$(run_as_root) wg-quick down $$iface || true; \
-		$(run_as_root) wg-quick up $$iface || true; \
-	done; \
-	echo "✅ wg-add-peers complete."
+	@$(run_as_root) sh -c '\
+		CLIENTS="$(CLIENTS)"; \
+		for entry in $$CLIENTS; do \
+			base=$$(echo $$entry | sed "s/:.*//"); \
+			iface=$$(echo $$entry | sed "s/.*://"); \
+			if [ -z "$$base" ] || [ -z "$$iface" ]; then \
+				echo "❌ skipping $$entry — invalid format"; continue; \
+			fi; \
+			CONFNAME="$$base-$$iface"; \
+			CLIENT_PUB="$(WG_DIR)/$$CONFNAME.pub"; \
+			SERVER_CONF="$(WG_DIR)/$$iface.conf"; \
+			# ensure client pub exists: if key exists but pub missing, generate pub (all as root) \
+			if [ ! -f "$$CLIENT_PUB" ] && [ -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
+				echo "ℹ️  Found key for $$CONFNAME but missing pub — generating..."; \
+				$(WG_BIN) pubkey < "$(WG_DIR)/$$CONFNAME.key" > "$$CLIENT_PUB" || { echo "❌ failed to generate pub for $$CONFNAME"; continue; }; \
+				chmod 600 "$$CLIENT_PUB" || true; \
+			fi; \
+			# verify required files exist (root context) \
+			if [ ! -f "$$CLIENT_PUB" ]; then echo "❌ missing $$CLIENT_PUB, skipping"; continue; fi; \
+			if [ ! -f "$$SERVER_CONF" ]; then echo "❌ missing $$SERVER_CONF, skipping"; continue; fi; \
+			# read public key as root and skip if already present in server conf \
+			PUB=$$(cat "$$CLIENT_PUB"); \
+			grep -qF "$$PUB" "$$SERVER_CONF" 2>/dev/null && { echo "✅ $$CONFNAME already present in $$SERVER_CONF, skipping"; continue; }; \
+			echo "➕ Adding peer $$CONFNAME to $$SERVER_CONF"; \
+			# compute Allowed IPs (extract all addresses from client config, preserve order, comma-separated) \
+			ALLOWED_IPS=$$(grep -E '^Address' "$(WG_DIR)/$$CONFNAME.conf" 2>/dev/null | sed -n "s/Address = //p" | awk -F, '\''{out=""; for(i=1;i<=NF;i++){gsub(/^[[:space:]]+|[[:space:]]+$$/,"",$i); if(i==1) out=$i; else out=out","$i} print out}'\''); \
+			[ -z "$$ALLOWED_IPS" ] && ALLOWED_IPS="0.0.0.0/0"; \
+			# add peer to running interface (best-effort) with both IPv4 and IPv6 allowed-ips \
+			$(WG_BIN) set $$iface peer "$$PUB" allowed-ips "$$ALLOWED_IPS" || true; \
+			# append a clean peer block to the server config (as root) \
+			if [ -n "$$ALLOWED_IPS" ]; then \
+				printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IPS" | tee -a "$$SERVER_CONF" > /dev/null; \
+			else \
+				printf "\n[Peer]\n# %s\nPublicKey = %s\n" "$$CONFNAME" "$$PUB" | tee -a "$$SERVER_CONF" > /dev/null; \
+			fi; \
+			# reload interface to ensure runtime matches file \
+			echo "🔁 Reloading $$iface"; \
+			$(WG_QUICK) down $$iface || true; \
+			$(WG_QUICK) up $$iface || true; \
+		done; \
+		echo "✅ wg-add-peers complete."'
+
 
 .PHONY: regen-clients
 # Regenerate client configs for the interface named in $(IFACE)
@@ -600,8 +607,8 @@ client-dashboard-status:
 			TOTAL=$$($(run_as_root) awk '$$1=="[Peer]"{c++}END{print (c+0)}' $(WG_DIR)/wg$$i.conf 2>/dev/null | tr -d ' '); \
 			ONLINE=0; \
 			if $(run_as_root) ip link show wg$$i >/dev/null 2>&1; then \
-				HANDSHAKES=$$($(run_as_root) wg show wg$$i 2>/dev/null | awk '/latest handshake/ && $$0 !~ /0s/ {count++} END {print (count+0)}'); \
-				if [ "$$HANDSHAKES" -gt 0 ]; then ONLINE="$$HANDSHAKES"; else ONLINE=$$($(run_as_root) wg show wg$$i peers 2>/dev/null | wc -l | tr -d ' '); fi; \
+				HANDSHAKES=$$($(run_as_root) sh -c '$(WG_BIN) show wg'"$$i"' 2>/dev/null' | awk '/latest handshake/ && $$0 !~ /0s/ {count++} END {print (count+0)}'); \
+				if [ "$$HANDSHAKES" -gt 0 ]; then ONLINE="$$HANDSHAKES"; else ONLINE=$$($(run_as_root) sh -c '$(WG_BIN) show wg'"$$i"' peers 2>/dev/null' | wc -l | tr -d ' '); fi; \
 			fi; \
 			printf "| %-9s | %-6s | %-10s | %3s/%-3s |\n" "wg$$i" "$$STATUS" "$$LPORT" "$$ONLINE" "$$TOTAL"; \
 		else \
@@ -616,7 +623,7 @@ client-dashboard: client-dashboard-status
 regen-all-keys:
 	@echo "== regen-all-keys: backup /etc/wireguard and rotate keys =="
 	@echo "Backing up /etc/wireguard to /root/wg-backup-$(shell date +%Y%m%d-%H%M%S)"
-	@$(run_as_root) bash -c 'bk="/root/wg-backup-$(shell date +%Y%m%d-%H%M%S)"; mkdir -p "$$bk"; cp -a /etc/wireguard/*.key /etc/wireguard/*.pub /etc/wireguard/*.conf "$$bk"/ || true'
+	@$(run_as_root) sh -c 'bk="/root/wg-backup-$(shell date +%Y%m%d-%H%M%S)"; mkdir -p "$$bk"; cp -a /etc/wireguard/*.key /etc/wireguard/*.pub /etc/wireguard/*.conf "$$bk"/ || true'
 	@echo "Regenerating server keys and configs (FORCE=1 CONF_FORCE=1)..."
 	@for i in 0 1 2 3 4 5 6 7; do \
 	  echo " -> make wg$$i"; \
@@ -632,8 +639,8 @@ regen-all-keys:
 	@echo "Restarting interfaces..."
 	@for i in 0 1 2 3 4 5 6 7; do \
 	  echo " -> restart wg$$i"; \
-	  $(run_as_root) wg-quick down wg$$i || true; \
-	  $(run_as_root) wg-quick up wg$$i || echo "WARNING: wg$$i failed to start"; \
+	  $(run_as_root) $(WG_QUICK) down wg$$i || true; \
+	  $(run_as_root) $(WG_QUICK) up wg$$i || echo "WARNING: wg$$i failed to start"; \
 	done
 	@echo "Final runtime status:" \
-	&& $(run_as_root) wg show
+	&& $(run_as_root) sh -c '$(WG_BIN) show'
