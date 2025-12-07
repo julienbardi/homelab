@@ -1,0 +1,8 @@
+# known_hosts_to_check.txt
+# alias public_name internal_ip [port]
+router router.bardi.ch 10.89.12.1 2222
+diskstation diskstation.bardi.ch 10.89.12.2 2222
+qnap qnap.bardi.ch 10.89.12.3 2222
+nas nas.bardi.ch 10.89.12.4 2222
+vpn vpn.bardi.ch - 2222
+github github.com - 22
