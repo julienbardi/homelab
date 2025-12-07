@@ -194,3 +194,10 @@ uninstall-systemd:
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound-ctl-fix.service.d || true
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound.service.d || true
 	@$(run_as_root) systemctl daemon-reload
+
+.PHONY: wireguard
+# Convenience: ensure router then run the full wireguard orchestration
+wireguard: setup-subnet-router
+	@echo "[make] Running wireguard orchestration (all-start)"
+	@$(run_as_root) $(MAKE) -C $(HOMELAB_DIR) all-start FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) || true
+	@echo "[make] wireguard orchestration complete"
