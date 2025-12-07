@@ -68,79 +68,79 @@ fi
 
 # --- NAT setup (idempotent) ---
 log "Ensuring NAT MASQUERADE for ${LAN_SUBNET} via ${LAN_IF}..."
-run_as_root iptables-legacy -t nat -C POSTROUTING -s "${LAN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE 2>/dev/null || \
-run_as_root iptables-legacy -t nat -A POSTROUTING -s "${LAN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE
+run_as_root /sbin/iptables-legacy -t nat -C POSTROUTING -s "${LAN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE 2>/dev/null || \
+run_as_root /sbin/iptables-legacy -t nat -A POSTROUTING -s "${LAN_SUBNET}" -o "${LAN_IF}" -j MASQUERADE
 log "NAT MASQUERADE ensured."
 
 # --- Firewall rules for essential services (idempotent) ---
 log "Ensuring firewall INPUT rules for DNS/SSH/Web UI..."
 # DNS (Unbound)
-ensure_rule iptables-legacy -I INPUT -p udp --dport 53 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 53 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p udp --dport 53 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 53 -j ACCEPT
 # SSH (custom port and standard port)
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 2222 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 22   -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 2222 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 22   -j ACCEPT
 # UGOS Pro Web UI (nginx)
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 9999 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 9443 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 9999 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 9443 -j ACCEPT
 # UPnP service
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 49152 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p udp --dport 49152 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 49152 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p udp --dport 49152 -j ACCEPT
 # wsdd2 service (Web Services Discovery)
-ensure_rule iptables-legacy -I INPUT -p udp --dport 3702 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p udp --dport 5355 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p udp --dport 3702 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p udp --dport 5355 -j ACCEPT
 # SMB file sharing
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 137 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p udp --dport 137 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 138 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p udp --dport 138 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 139 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p udp --dport 139 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 445 -j ACCEPT
-ensure_rule iptables-legacy -I INPUT -p udp --dport 445 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 137 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p udp --dport 137 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 138 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p udp --dport 138 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 139 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p udp --dport 139 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 445 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p udp --dport 445 -j ACCEPT
 
 # --- Firewall rules for HTTPS and UDP ports (idempotent) ---
 log "Ensuring firewall INPUT rules for HTTPS and VPN ports..."
 # 443 TCP open to the world for HTTPS
-ensure_rule iptables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
+ensure_rule /sbin/ip6tables-legacy -I INPUT -p tcp --dport 443 -j ACCEPT
 
 # UDP 51421 only for interface bridge0  for 10.1.0/24 and 2a01:...:11::/64
-ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51421 -s 10.1.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51421 -s ${GLOBAL_IPV6_PREFIX}:11::/64 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51421 -s 10.1.0.0/24 -j ACCEPT
+ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51421 -s ${GLOBAL_IPV6_PREFIX}:11::/64 -j ACCEPT
 
 # UDP 51422 only for interface bridge0  for 10.2.0/24 and 2a01:...:12::/64
-ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51422 -s 10.2.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51422 -s ${GLOBAL_IPV6_PREFIX}:12::/64 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51422 -s 10.2.0.0/24 -j ACCEPT
+ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51422 -s ${GLOBAL_IPV6_PREFIX}:12::/64 -j ACCEPT
 
 # UDP 51423 only for interface bridge0  for 10.3.0/24 and 2a01:...:13::/64
-ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51423 -s 10.3.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51423 -s ${GLOBAL_IPV6_PREFIX}:13::/64 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51423 -s 10.3.0.0/24 -j ACCEPT
+ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51423 -s ${GLOBAL_IPV6_PREFIX}:13::/64 -j ACCEPT
 
 # UDP 51424 only for interface bridge0  for 10.4.0/24 and 2a01:...:14::/64
-ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51424 -s 10.4.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51424 -s ${GLOBAL_IPV6_PREFIX}:14::/64 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51424 -s 10.4.0.0/24 -j ACCEPT
+ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51424 -s ${GLOBAL_IPV6_PREFIX}:14::/64 -j ACCEPT
 
 # UDP 51425 only for interface bridge0  for 10.5.0/24 and 2a01:...:15::/64
-ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51425 -s 10.5.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51425 -s ${GLOBAL_IPV6_PREFIX}:15::/64 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51425 -s 10.5.0.0/24 -j ACCEPT
+ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51425 -s ${GLOBAL_IPV6_PREFIX}:15::/64 -j ACCEPT
 
 # UDP 51426 only for interface bridge0  for 10.6.0/24 and 2a01:...:16::/64
-ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51426 -s 10.6.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51426 -s ${GLOBAL_IPV6_PREFIX}:16::/64 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51426 -s 10.6.0.0/24 -j ACCEPT
+ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51426 -s ${GLOBAL_IPV6_PREFIX}:16::/64 -j ACCEPT
 
 # UDP 51427 only for interface bridge0  for 10.7.0/24 and 2a01:...:17::/64
-ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s 10.7.0.0/24 -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s ${GLOBAL_IPV6_PREFIX}:17::/64 -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s 10.7.0.0/24 -j ACCEPT
+ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport 51427 -s ${GLOBAL_IPV6_PREFIX}:17::/64 -j ACCEPT
 
 # bridge0  all ports all protocols from 10.89.12.0/24 and 2a01:8b81:4800:9c00::/64
-ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -s "${LAN_SUBNET}" -j ACCEPT
-ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -s "${LAN_SUBNET_V6}" -j ACCEPT
+ensure_rule /sbin/iptables-legacy -I INPUT -i "${LAN_IF}" -s "${LAN_SUBNET}" -j ACCEPT
+ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -s "${LAN_SUBNET_V6}" -j ACCEPT
 
 # --- Connection tracking safety rules (global) ---
 log "Ensuring conntrack safety rules (ESTABLISHED,RELATED)..."
-ensure_rule iptables-legacy -A INPUT   -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-ensure_rule iptables-legacy -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ensure_rule /sbin/iptables-legacy -A INPUT   -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ensure_rule /sbin/iptables-legacy -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 # --- WireGuard firewall rules (wg0–wg7 profiles) ---
 log "Applying WireGuard firewall rules for wg0–wg7..."
@@ -159,44 +159,44 @@ for i in {0..7}; do
 		# Special case: wg4 is IPv6-only
 		if [[ "${i}" == "4" ]]; then
 			PROFILE="IPv6-only"
-			ensure_rule ip6tables-legacy -A INPUT   -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
-			ensure_rule ip6tables-legacy -A FORWARD -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
-			ensure_rule ip6tables-legacy -A FORWARD -o "${WG_IF}" -d "${IPV6_SUBNET}" -j ACCEPT
-			ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport "${PORT}" -s "${IPV6_SUBNET}" -j ACCEPT
+			ensure_rule /sbin/ip6tables-legacy -A INPUT   -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
+			ensure_rule /sbin/ip6tables-legacy -A FORWARD -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
+			ensure_rule /sbin/ip6tables-legacy -A FORWARD -o "${WG_IF}" -d "${IPV6_SUBNET}" -j ACCEPT
+			ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport "${PORT}" -s "${IPV6_SUBNET}" -j ACCEPT
 			log "✅ IPv6-only rules applied for wg4."
 			log "Profile summary: ${WG_IF} → ${PROFILE}"
 			continue
 		fi
 
 		# IPv4 baseline
-		ensure_rule iptables-legacy -A INPUT   -i "${WG_IF}" -s "${IPV4_SUBNET}" -j ACCEPT
-		ensure_rule iptables-legacy -A FORWARD -i "${WG_IF}" -s "${IPV4_SUBNET}" -j ACCEPT
-		ensure_rule iptables-legacy -A FORWARD -o "${WG_IF}" -d "${IPV4_SUBNET}" -j ACCEPT
+		ensure_rule /sbin/iptables-legacy -A INPUT   -i "${WG_IF}" -s "${IPV4_SUBNET}" -j ACCEPT
+		ensure_rule /sbin/iptables-legacy -A FORWARD -i "${WG_IF}" -s "${IPV4_SUBNET}" -j ACCEPT
+		ensure_rule /sbin/iptables-legacy -A FORWARD -o "${WG_IF}" -d "${IPV4_SUBNET}" -j ACCEPT
 
 		# IPv6 baseline
-		ensure_rule ip6tables-legacy -A INPUT   -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
-		ensure_rule ip6tables-legacy -A FORWARD -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
-		ensure_rule ip6tables-legacy -A FORWARD -o "${WG_IF}" -d "${IPV6_SUBNET}" -j ACCEPT
+		ensure_rule /sbin/ip6tables-legacy -A INPUT   -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
+		ensure_rule /sbin/ip6tables-legacy -A FORWARD -i "${WG_IF}" -s "${IPV6_SUBNET}" -j ACCEPT
+		ensure_rule /sbin/ip6tables-legacy -A FORWARD -o "${WG_IF}" -d "${IPV6_SUBNET}" -j ACCEPT
 
 		# Accept UDP port for this interface
-		ensure_rule iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport "${PORT}" -s "${IPV4_SUBNET}" -j ACCEPT
-		ensure_rule ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport "${PORT}" -s "${IPV6_SUBNET}" -j ACCEPT
+		ensure_rule /sbin/iptables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport "${PORT}" -s "${IPV4_SUBNET}" -j ACCEPT
+		ensure_rule /sbin/ip6tables-legacy -I INPUT -i "${LAN_IF}" -p udp --dport "${PORT}" -s "${IPV6_SUBNET}" -j ACCEPT
 
 		# LAN access only for wg1, wg3, wg5, wg7
 		if [[ "${i}" =~ ^(1|3|5|7)$ ]]; then
 			PROFILE="${PROFILE}+LAN"
-			ensure_rule iptables-legacy -A FORWARD -i "${WG_IF}" -d "${LAN_SUBNET}" -j ACCEPT
-			ensure_rule iptables-legacy -A FORWARD -o "${WG_IF}" -s "${LAN_SUBNET}" -j ACCEPT
-			ensure_rule ip6tables-legacy -A FORWARD -i "${WG_IF}" -d "${LAN_SUBNET_V6}" -j ACCEPT
-			ensure_rule ip6tables-legacy -A FORWARD -o "${WG_IF}" -s "${LAN_SUBNET_V6}" -j ACCEPT
+			ensure_rule /sbin/iptables-legacy -A FORWARD -i "${WG_IF}" -d "${LAN_SUBNET}" -j ACCEPT
+			ensure_rule /sbin/iptables-legacy -A FORWARD -o "${WG_IF}" -s "${LAN_SUBNET}" -j ACCEPT
+			ensure_rule /sbin/ip6tables-legacy -A FORWARD -i "${WG_IF}" -d "${LAN_SUBNET_V6}" -j ACCEPT
+			ensure_rule /sbin/ip6tables-legacy -A FORWARD -o "${WG_IF}" -s "${LAN_SUBNET_V6}" -j ACCEPT
 		fi
 
 		# Internet access only for wg2, wg3, wg6, wg7
 		if [[ "${i}" =~ ^(2|3|6|7)$ ]]; then
 			PROFILE="${PROFILE}+Internet"
-			ensure_rule iptables-legacy -t nat -A POSTROUTING -s "${IPV4_SUBNET}" -o "${LAN_IF}" -j MASQUERADE
-			ensure_rule ip6tables-legacy -A FORWARD -i "${WG_IF}" -j ACCEPT
-			ensure_rule ip6tables-legacy -A FORWARD -o "${WG_IF}" -j ACCEPT
+			ensure_rule /sbin/iptables-legacy -t nat -A POSTROUTING -s "${IPV4_SUBNET}" -o "${LAN_IF}" -j MASQUERADE
+			ensure_rule /sbin/ip6tables-legacy -A FORWARD -i "${WG_IF}" -j ACCEPT
+			ensure_rule /sbin/ip6tables-legacy -A FORWARD -o "${WG_IF}" -j ACCEPT
 		fi
 
 		# IPv6 access for wg5, wg6, wg7 (wg4 handled separately)
@@ -220,16 +220,16 @@ TS_SUBNET_V6="fd7a:115c:a1e0::/48"
 log "Ensuring Tailscale firewall rules..."
 if ip link show "${TS_IF}" >/dev/null 2>&1; then
 	# IPv4
-	ensure_rule iptables-legacy -A INPUT   -i "${TS_IF}" -s "${TS_SUBNET_V4}" -j ACCEPT
-	ensure_rule iptables-legacy -A FORWARD -i "${TS_IF}" -s "${TS_SUBNET_V4}" -j ACCEPT
-	ensure_rule iptables-legacy -A FORWARD -o "${TS_IF}" -d "${TS_SUBNET_V4}" -j ACCEPT
-	ensure_rule iptables-legacy -t nat -A POSTROUTING -s "${TS_SUBNET_V4}" -o "${LAN_IF}" -j MASQUERADE
+	ensure_rule /sbin/iptables-legacy -A INPUT   -i "${TS_IF}" -s "${TS_SUBNET_V4}" -j ACCEPT
+	ensure_rule /sbin/iptables-legacy -A FORWARD -i "${TS_IF}" -s "${TS_SUBNET_V4}" -j ACCEPT
+	ensure_rule /sbin/iptables-legacy -A FORWARD -o "${TS_IF}" -d "${TS_SUBNET_V4}" -j ACCEPT
+	ensure_rule /sbin/iptables-legacy -t nat -A POSTROUTING -s "${TS_SUBNET_V4}" -o "${LAN_IF}" -j MASQUERADE
 
 	# IPv6
-	ensure_rule ip6tables-legacy -A INPUT   -i "${TS_IF}" -s "${TS_SUBNET_V6}" -j ACCEPT
-	ensure_rule ip6tables-legacy -A FORWARD -i "${TS_IF}" -s "${TS_SUBNET_V6}" -j ACCEPT
-	ensure_rule ip6tables-legacy -A FORWARD -o "${TS_IF}" -d "${TS_SUBNET_V6}" -j ACCEPT
-	ensure_rule ip6tables-legacy -t nat -A POSTROUTING -s "${TS_SUBNET_V6}" -o "${LAN_IF}" -j MASQUERADE
+	ensure_rule /sbin/ip6tables-legacy -A INPUT   -i "${TS_IF}" -s "${TS_SUBNET_V6}" -j ACCEPT
+	ensure_rule /sbin/ip6tables-legacy -A FORWARD -i "${TS_IF}" -s "${TS_SUBNET_V6}" -j ACCEPT
+	ensure_rule /sbin/ip6tables-legacy -A FORWARD -o "${TS_IF}" -d "${TS_SUBNET_V6}" -j ACCEPT
+	ensure_rule /sbin/ip6tables-legacy -t nat -A POSTROUTING -s "${TS_SUBNET_V6}" -o "${LAN_IF}" -j MASQUERADE
 
 	log "Tailscale firewall rules applied: VPN ${TS_SUBNET_V4}, ${TS_SUBNET_V6} bridged to LAN ${LAN_SUBNET} via ${LAN_IF}."
 else
@@ -313,8 +313,8 @@ log "Local route for ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} -> ${WG_IF} en
 
 # --- Persist firewall rules ---
 log "Persisting iptables rules to /etc/iptables/rules.v4 and /etc/iptables/rules.v6..."
-if run_as_root iptables-legacy-save > /etc/iptables/rules.v4 && \
-	run_as_root ip6tables-legacy-save > /etc/iptables/rules.v6; then
+if run_as_root /sbin/iptables-legacy-save > /etc/iptables/rules.v4 && \
+	run_as_root /sbin/ip6tables-legacy-save > /etc/iptables/rules.v6; then
 	log "Firewall rules persisted."
 else
 	log "ERROR: Failed to persist firewall rules!"
