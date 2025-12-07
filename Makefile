@@ -83,6 +83,17 @@ KNOWN_HOSTS_SCRIPT := $(HOMELAB_DIR)/scripts/helpers/verify_and_install_known_ho
 # Allow skipping in CI or when explicitly requested
 SKIP_KNOWN_HOSTS ?= 0
 
+ifeq ($(SKIP_KNOWN_HOSTS),1)
+.PHONY: ensure-known-hosts
+ensure-known-hosts:
+	@echo "[make] Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"
+else
+.PHONY: ensure-known-hosts
+ensure-known-hosts:
+	@echo "[make] Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE)..."
+	@bash "$(KNOWN_HOSTS_SCRIPT)" "$(KNOWN_HOSTS_FILE)"
+endif
+
 .PHONY: gitcheck update
 gitcheck: ensure-known-hosts
 	@if [ ! -d $(HOMELAB_DIR)/.git ]; then \
