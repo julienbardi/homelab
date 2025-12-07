@@ -299,7 +299,8 @@ wg7: ensure-wg-dir
 	fi
 
 # --- Named client configs (create only; do NOT print QR) ---
-client-%: ensure-wg-dir
+# Ensure subnet router is configured before generating client configs
+client-%: setup-subnet-router ensure-wg-dir
 	@echo "🧩 Generating WireGuard client config for $* (interface $(IFACE))"
 	@$(run_as_root) sh -c '\
 		BASE="$*"; \
@@ -417,7 +418,8 @@ client-showqr-%:
 		fi'
 
 # --- Bring up/down any wg interface ---
-wg-up-%:
+# Ensure subnet router is configured before bringing up interfaces
+wg-up-%: setup-subnet-router
 	@echo "⏫ Bringing up WireGuard interface wg$*"
 	@$(run_as_root) $(WG_QUICK) up wg$* || { echo "❌ failed to bring up wg$*"; exit 1; }
 	@$(run_as_root) $(WG_BIN) show wg$*
@@ -579,8 +581,8 @@ regen-clients:
 	done; \
 	echo "✅ regen-clients complete for $(IFACE)";
 
-# Full start: create servers, bring them up, create clients, add peers, and show dashboard
-all-start: all-wg all-wg-up all-clients-generate wg-add-peers client-dashboard-status
+# Full start: ensure subnet router first, then create servers, bring them up, create clients, add peers, and show dashboard
+all-start: setup-subnet-router all-wg all-wg-up all-clients-generate wg-add-peers client-dashboard-status
 	@echo "✅ all-start complete."
 
 # Dashboard with server status and client online state (handshake) — prints a compact table
