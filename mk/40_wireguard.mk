@@ -462,8 +462,8 @@ client-clean-%:
 
 # --- Dashboard: list users, machines, and interfaces (portable, POSIX shell) ---
 client-dashboard:
-	@echo "| User   | Machine   | wg0 | wg1 | wg2 | wg3 | wg4 | wg5 | wg6 | wg7 |"
-	@echo "|--------|-----------|-----|-----|-----|-----|-----|-----|-----|-----|"
+	@echo "| User   | Machine   | wg0  | wg1  | wg2  | wg3  | wg4  | wg5  | wg6  | wg7  |"
+	@echo "|--------|-----------|------|------|------|------|------|------|------|------|"
 	@TMP=$$(mktemp); \
 	for f in $(WG_DIR)/*-wg*.conf; do \
 		[ -f "$$f" ] || continue; \
@@ -482,7 +482,7 @@ client-dashboard:
 		machine=$$(echo "$$base" | awk -F- '{print $$2}'); \
 		printf "| %-6s | %-9s |" "$$user" "$$machine"; \
 		for i in 0 1 2 3 4 5 6 7; do \
-			if [ -f "$(WG_DIR)/$$base-wg$$i.conf" ]; then printf " %s |" "✅"; else printf " %s |" "-"; fi; \
+			if [ -f "$(WG_DIR)/$$base-wg$$i.conf" ]; then printf " %s |" " ✅ "; else printf " %s |" "-"; fi; \
 		done; \
 		printf "\n"; \
 	done < "$$TMP"; \
@@ -587,8 +587,8 @@ all-start: setup-subnet-router all-wg all-wg-up all-clients-generate wg-add-peer
 
 # Dashboard with server status and client online state (handshake) — prints a compact table
 client-dashboard-status:
-	@echo "| Interface | Status | ListenPort | Peers (online/total) |"; \
-	echo "|-----------|--------|------------|----------------------|"; \
+	@echo "| Interface | Status | Port  | Peers (online/total) |"; \
+	echo  "|-----------|--------|-------|----------------------|"; \
 	for i in 0 1 2 3 4 5 6 7; do \
 		if $(run_as_root) test -f $(WG_DIR)/wg$$i.conf; then \
 			if $(run_as_root) ip link show wg$$i >/dev/null 2>&1; then STATUS="up"; else STATUS="down"; fi; \
@@ -599,7 +599,7 @@ client-dashboard-status:
 				HANDSHAKES=$$($(run_as_root) sh -c '$(WG_BIN) show wg'"$$i"' 2>/dev/null' | awk '/latest handshake/ && $$0 !~ /0s/ {count++} END {print (count+0)}'); \
 				if [ "$$HANDSHAKES" -gt 0 ]; then ONLINE="$$HANDSHAKES"; else ONLINE=$$($(run_as_root) sh -c '$(WG_BIN) show wg'"$$i"' peers 2>/dev/null' | wc -l | tr -d ' '); fi; \
 			fi; \
-			printf "| %-9s | %-6s | %-10s | %3s/%-3s |\n" "wg$$i" "$$STATUS" "$$LPORT" "$$ONLINE" "$$TOTAL"; \
+			printf "| %-9s | %-6s | %-5s | %3s/%-3s |\n" "wg$$i" "$$STATUS" "$$LPORT" "$$ONLINE" "$$TOTAL"; \
 		else \
 			printf "| %-9s | %-6s | %-10s | %3s/%-3s |\n" "wg$$i" "missing" "-" "0" "0"; \
 		fi; \
