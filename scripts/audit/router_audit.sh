@@ -5,12 +5,9 @@
 # Audit health of VPN + DNS stack
 # Host: 10.89.12.4 (NAS / VPN node)
 # Responsibilities:
-#   - Check Headscale service status
-#   - Check CoreDNS service status and forwarding
-#   - Check Unbound service status and DNSSEC trust anchors
-#   - Check WireGuard interfaces wg0–wg7 and tailscale0
+#   - Summarize Headscale, CoreDNS, Unbound, ndppd services
+#   - Summarize WireGuard interfaces wg0–wg7 and tailscale0
 #   - Check firewall rules (run_as_root /sbin/iptables-legacy)
-#   - Log degraded mode if any component fails
 # ============================================================
 
 set -euo pipefail
@@ -18,75 +15,91 @@ source "/home/julie/src/homelab/scripts/common.sh"
 
 NAS_IP="10.89.12.4"
 VPN_SUBNET="10.4.0.0/24"
-
 SCRIPT_NAME=$(basename "$0" .sh)
-touch /var/log/${SCRIPT_NAME}.log
-chmod 644 /var/log/${SCRIPT_NAME}.log
 
 log() {
-	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*" | tee -a /var/log/${SCRIPT_NAME}.log
+	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*"
 	logger -t ${SCRIPT_NAME} "$*"
 }
 
-# --- Headscale ---
-log "🔍 Checking Headscale service..."
-if systemctl is-active --quiet headscale; then
-	version=$(headscale version 2>/dev/null || echo "unknown")
-	log "✅ Headscale running, version: $version"
-else
-	log "❌ ERROR: Headscale service not active"
-fi
+# --- Service Summary Table ---
+log "🔍 Service summary"
 
-# --- CoreDNS ---
-log "🔍 Checking CoreDNS service..."
-if systemctl is-active --quiet coredns; then
-	log "✅ CoreDNS service active"
-	if timeout 5 dig @"${NAS_IP}" device.tailnet +short >/dev/null 2>&1; then
-		log "✅ CoreDNS resolving tailnet domain correctly"
-	else
-		log "⚠️ WARN: CoreDNS not resolving tailnet domain (timeout)"
+SERVICES=(headscale coredns unbound ndppd)
+
+# Header
+printf "%-12s %-8s %-8s %-40s\n" "Service" "Active" "Enabled" "Hint"
+
+for svc in "${SERVICES[@]}"; do
+	active="❌"
+	enabled="unknown"
+	hint="-"
+
+	if systemctl is-active --quiet "${svc}"; then
+		active="✅"
 	fi
-else
-	log "❌ ERROR: CoreDNS service not active"
-fi
 
-# --- Unbound ---
-log "🔍 Checking Unbound service..."
-if systemctl is-active --quiet unbound; then
-	log "✅ Unbound service active"
-	if timeout 5 dig @"${NAS_IP}" . NS +dnssec +short >/dev/null 2>&1; then
-		log "✅ Unbound resolving root NS with DNSSEC"
-	else
-		log "⚠️ WARN: Unbound not resolving root NS (timeout)"
-	fi
-else
-	log "❌ ERROR: Unbound service not active"
-fi
+	enabled=$(systemctl is-enabled "${svc}" 2>/dev/null || echo "unknown")
 
-# --- WireGuard + Tailscale interfaces ---
-for IFACE in wg{0..7} tailscale0; do
-	log "🔍 Checking interface ${IFACE}..."
-	if ip link show "${IFACE}" >/dev/null 2>&1; then
-		log "✅ Interface ${IFACE} present"
-
-		if [[ "${IFACE}" == "tailscale0" ]]; then
-			log "ℹ️ tailscale0 present (use 'tailscale status' for details)"
-			continue
-		fi
-
-		wg_output=$(run_as_root /usr/bin/wg show "${IFACE}" 2>&1 || true)
-		if echo "${wg_output}" | grep -q "peer:"; then
-			log "✅ ${IFACE} has peers configured:"
-			log "${wg_output}"
+	if [[ "${active}" == "❌" ]]; then
+		if [[ "${enabled}" == "enabled" ]]; then
+			hint="check logs: journalctl -u ${svc}"
 		else
-			log "⚠️ ${IFACE} present but no peers configured"
+			hint="run 'systemctl enable --now ${svc}'"
 		fi
-	else
-		log "⚠️ WARN: Interface ${IFACE} not found"
 	fi
+
+	printf "%-12s %-8s %-8s %-40s\n" "${svc}" "${active}" "${enabled}" "${hint}"
 done
 
-# --- Firewall (run_as_root /sbin/iptables-legacy) ---
+# --- VPN Interface Summary Table ---
+log "🔍 VPN interface summary"
+
+IFACES=(wg0 wg1 wg2 wg3 wg4 wg5 wg6 wg7 tailscale0)
+
+# Header
+printf "%-12s" "Interface"
+for IFACE in "${IFACES[@]}"; do printf "%-12s" "${IFACE}"; done
+echo
+
+# Present
+printf "%-12s" "Present"
+for IFACE in "${IFACES[@]}"; do
+	if ip link show "${IFACE}" >/dev/null 2>&1; then printf "%-12s" "✅"; else printf "%-12s" "❌"; fi
+done
+echo
+
+# Configured
+printf "%-12s" "Configured"
+for IFACE in "${IFACES[@]}"; do
+	if [[ "${IFACE}" == "tailscale0" ]]; then printf "%-12s" "ℹ️"; continue; fi
+	wg_output=$(run_as_root /usr/bin/wg show "${IFACE}" 2>/dev/null || true)
+	if echo "${wg_output}" | grep -q "peer:"; then printf "%-12s" "✅"; else printf "%-12s" "⚠️"; fi
+done
+echo
+
+# Peer status (first 3 peers)
+for peer_idx in 1 2 3; do
+	printf "%-12s" "Peer #${peer_idx}"
+	for IFACE in "${IFACES[@]}"; do
+		if [[ "${IFACE}" == "tailscale0" ]]; then printf "%-12s" ""; continue; fi
+		wg_output=$(run_as_root /usr/bin/wg show "${IFACE}" 2>/dev/null || true)
+		peer_line=$(echo "${wg_output}" | awk '/peer:/ {print}' | sed -n "${peer_idx}p")
+		if [[ -n "${peer_line}" ]]; then
+			handshake=$(echo "${wg_output}" | awk '/latest handshake:/ {print}' | sed -n "${peer_idx}p")
+			if [[ -n "${handshake}" && ! "${handshake}" =~ "ago" ]]; then
+				printf "%-12s" "⚠️"
+			else
+				printf "%-12s" "✅"
+			fi
+		else
+			printf "%-12s" ""
+		fi
+	done
+	echo
+done
+
+# --- Firewall ---
 log "🔍 Checking firewall rules..."
 if run_as_root /sbin/iptables-legacy -L INPUT >/dev/null 2>&1; then
 	if run_as_root /sbin/iptables-legacy -L INPUT | grep -q "${VPN_SUBNET}"; then
@@ -98,4 +111,4 @@ else
 	log "❌ ERROR: run_as_root /sbin/iptables-legacy not available"
 fi
 
-log "🏁 Router audit complete."
+log "🏁 Router audit complete"
