@@ -43,7 +43,6 @@ include mk/99_lint.mk        # lint and safety checks (always last)
 
 # Default target
 .PHONY: help
-.PHONY: help
 help:
 	@echo "[make] Available targets:"
 	@echo ""
@@ -96,9 +95,6 @@ help:
 	@echo "[make] Notes:"
 	@echo "  - Some targets call $(KNOWN_HOSTS_SCRIPT) or other scripts under $(HOMELAB_DIR)."
 	@echo "  - Use SKIP_KNOWN_HOSTS=1 to skip the interactive known_hosts check."
-
-# Allow skipping in CI or when explicitly requested
-SKIP_KNOWN_HOSTS ?= 0
 
 # Path to the interactive known_hosts installer
 KNOWN_HOSTS_FILE := $(HOMELAB_DIR)/known_hosts_to_check.txt
