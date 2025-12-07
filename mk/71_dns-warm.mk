@@ -4,10 +4,9 @@
 #   sudo make -f mk/71_dns-warm.mk enable USER=dnswarm
 #   sudo make -f mk/71_dns-warm.mk disable USER=dnswarm
 #   sudo make -f mk/71_dns-warm.mk uninstall USER=dnswarm
-#   sudo make -f mk/71_dns-warm.mk test USER=dnswarm
+#   sudo make -f mk/71_dns-warm.mk test USER=dnswarm (broken)
 
-PREFIX ?= /usr/local
-BIN_DIR ?= $(PREFIX)/bin
+BIN_DIR ?= /usr/local/bin
 SCRIPT_NAME ?= dns-warm-rotate.sh
 SCRIPT_PATH ?= $(BIN_DIR)/$(SCRIPT_NAME)
 DOMAINS_DIR ?= /etc/dns-warm
@@ -41,12 +40,11 @@ install-deps:
 
 create-user:
 	@echo "Creating system user/group '$(USER)' if missing..."
-	@if ! id -u $(USER) >/dev/null 2>&1; then \
-		useradd --system --no-create-home --shell /usr/sbin/nologin --user-group $(USER) || true; \
-	fi
 	@if ! getent group $(GROUP) >/dev/null 2>&1; then \
 		groupadd --system $(GROUP) || true; \
-		usermod -g $(GROUP) $(USER) || true; \
+	fi; \
+	if ! id -u $(USER) >/dev/null 2>&1; then \
+		useradd --system --no-create-home --shell /usr/sbin/nologin -g $(GROUP) --comment "dns warm rotate" $(USER) || true; \
 	fi
 
 dirs:
@@ -59,122 +57,17 @@ dirs:
 
 install-script:
 	@echo "Installing warming script to $(SCRIPT_PATH)..."
-	@if [ -f ./dns-warm-rotate.sh ]; then \
-		install -m 755 -D ./dns-warm-rotate.sh $(SCRIPT_PATH); \
+	@if [ -f ./scripts/$(SCRIPT_NAME) ]; then \
+		install -m 755 -D ./scripts/$(SCRIPT_NAME) $(SCRIPT_PATH); \
+		chown $(USER):$(GROUP) $(SCRIPT_PATH) || true; \
+		# syntax check the installed script to catch generator errors early \
+		if ! bash -n $(SCRIPT_PATH); then \
+			echo "ERROR: syntax error in $(SCRIPT_PATH)"; exit 1; \
+		fi; \
 	else \
-		printf '%s\n' \
-'#!/usr/bin/env bash' \
-'set -euo pipefail' \
-'IFS=$'\''\n\t'\''' \
-'' \
-'RESOLVER="${1:-127.0.0.1}"' \
-'DOMAINS_FILE="/etc/dns-warm/domains.txt"' \
-'STATE_FILE="/var/lib/dns-warm/state.csv"' \
-'WORKERS=10' \
-'PER_RUN=100' \
-'DIG_TIMEOUT=2' \
-'DIG_TRIES=1' \
-'LOCKFILE="/var/lock/dns-warm-rotate.lock"' \
-'' \
-'mkdir -p "$(dirname "$STATE_FILE")"' \
-'' \
-'log() { printf "%s %s\n" "$(date +%Y-%m-%d\ %H:%M:%S)" "$*"; }' \
-'' \
-'# Create default domains file if missing' \
-'if [ ! -f "$DOMAINS_FILE" ]; then' \
-'  printf '\''%s\n'\'' '\''srf.ch'\'' '\''20min.ch'\'' '\''blick.ch'\'' '\''galaxus.ch'\'' '\''ricardo.ch'\'' '\''admin.ch'\'' '\''sbb.ch'\'' '\''migros.ch'\'' '\''tagesanzeiger.ch'\'' '\''watson.ch'\'' '\''digitec.ch'\'' '\''post.ch'\'' '\''rts.ch'\'' '\''google.ch'\'' '\''google.com'\'' '\''youtube.com'\'' '\''amazon.de'\'' '\''netflix.com'\'' '\''github.com'\'' '\''linkedin.com'\'' '\''spotify.com'\'' '\''wikipedia.org'\'' > "$DOMAINS_FILE"' \
-'  chmod 644 "$DOMAINS_FILE"' \
-'fi' \
-'' \
-'# Initialize state file if missing or add new domains' \
-'init_state() {' \
-'  if [ ! -f "$STATE_FILE" ]; then' \
-'    awk '\''{print $$0",0"}'\'' "$DOMAINS_FILE" > "$STATE_FILE"' \
-'    chmod 640 "$STATE_FILE"' \
-'    return' \
-'  fi' \
-'' \
-'  while read -r d; do' \
-'    [ -z "$d" ] && continue' \
-'    if ! awk -F, -v dom="$d" '\''$$1==dom{exit 0} END{exit 1}'\'' "$STATE_FILE"; then' \
-'      echo "$d,0" >> "$STATE_FILE"' \
-'    fi' \
-'  done < "$DOMAINS_FILE"' \
-'}' \
-'' \
-'# Select oldest PER_RUN domains (writes to stdout)' \
-'select_oldest() {' \
-'  awk -F, '\''{print $$2","$$1}'\'' "$STATE_FILE" | sort -n | awk -F, -v n="$PER_RUN" '\''NR<=n{print $$2}'\'' ' \
-'}' \
-'' \
-'# Update state for warmed domains (set last_epoch to now)' \
-'update_state() {' \
-'  local now tmp' \
-'  now="$(date +%s)"' \
-'  tmp="$(mktemp)"' \
-'  while IFS=, read -r dom last; do' \
-'    if echo "$1" | grep -qw "$dom"; then' \
-'      echo "$dom,$now"' \
-'    else' \
-'      echo "$dom,$last"' \
-'    fi' \
-'  done < "$STATE_FILE" > "$tmp"' \
-'  mv "$tmp" "$STATE_FILE"' \
-'}' \
-'' \
-'# Warm a single domain (A, AAAA, NS)' \
-'warm_domain() {' \
-'  local d="$1"' \
-'  dig @"$RESOLVER" +time="$DIG_TIMEOUT" +tries="$DIG_TRIES" +noall +answer "$d" A >/dev/null 2>&1 || true' \
-'  dig @"$RESOLVER" +time="$DIG_TIMEOUT" +tries="$DIG_TRIES" +noall +answer "$d" AAAA >/dev/null 2>&1 || true' \
-'  dig @"$RESOLVER" +time="$DIG_TIMEOUT" +tries="$DIG_TRIES" +noall +answer "$d" NS >/dev/null 2>&1 || true' \
-'}' \
-'' \
-'main() {' \
-'  exec 9>"$LOCKFILE"' \
-'  if ! flock -n 9; then' \
-'    log "Another instance is running; exiting"' \
-'    exit 0' \
-'  fi' \
-'' \
-'  init_state' \
-'' \
-'  # Use a temp file instead of process substitution for portability' \
-'  tmpfile="$(mktemp)"' \
-'  select_oldest > "$tmpfile"' \
-'  mapfile -t to_warm < "$tmpfile"' \
-'  rm -f "$tmpfile"' \
-'' \
-'  if [ "${#to_warm[@]}" -eq 0 ]; then' \
-'    log "No domains to warm"' \
-'    exit 0' \
-'  fi' \
-'' \
-'  log "Warming ${#to_warm[@]} domains (resolver=${RESOLVER})"' \
-'' \
-'  sem=0' \
-'  warmed_list=""' \
-'  for d in "${to_warm[@]}"; do' \
-'    warm_domain "$d" &' \
-'    ((sem++))' \
-'    warmed_list="$warmed_list $d"' \
-'    if [ "$sem" -ge "$WORKERS" ]; then' \
-'      wait -n || true' \
-'      sem=$((sem-1))' \
-'    fi' \
-'  done' \
-'' \
-'  wait || true' \
-'' \
-'  update_state "$warmed_list"' \
-'  log "Warming complete; updated state for ${#to_warm[@]} domains"' \
-'}' \
-'' \
-'main || true' \
-> $(SCRIPT_PATH); \
-		chmod 755 $(SCRIPT_PATH); \
-	fi; \
-	chown $(USER):$(GROUP) $(SCRIPT_PATH) || true
+		echo "ERROR: ./scripts/$(SCRIPT_NAME) not found in repo. Please add it."; \
+		exit 1; \
+	fi
 
 install-domains:
 	@echo "Ensuring domains file exists..."
@@ -239,7 +132,13 @@ status:
 
 test:
 	@echo "Running one-off warm (test) as $(USER)..."
-	sudo -u $(USER) /usr/bin/env bash $(SCRIPT_PATH) $(RESOLVER)
+	@if [ "$$(id -u)" -eq 0 ]; then \
+	  # We're root: run the script as the target user (use -- to stop sudo option parsing) \
+	  sudo -u $(USER) -- /usr/bin/env bash $(SCRIPT_PATH) $(RESOLVER); \
+	else \
+	  # Not root: run the script as the current user (no sudo) \
+	  /usr/bin/env bash $(SCRIPT_PATH) $(RESOLVER); \
+	fi
 
 disable:
 	@echo "Disabling and stopping timer/service..."
@@ -251,7 +150,8 @@ disable:
 uninstall: disable
 	@echo "Removing installed files and reloading systemd..."
 	-@rm -f $(SERVICE_PATH) $(TIMER_PATH) $(SCRIPT_PATH) 2>/dev/null || true
-	-@rm -rf $(STATE_DIR) $(DOMAINS_DIR) 2>/dev/null || true
+	-@rm -f $(STATE_DIR)/state.csv 2>/dev/null || true
+	-@rm -f $(DOMAINS_FILE) 2>/dev/null || true
 	@systemctl daemon-reload
 	@echo "Uninstalled."
 #last line
