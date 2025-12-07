@@ -182,7 +182,7 @@ prepare: renew fix-acme-perms
 	@$(run_as_root) $(DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
 
 # Deploy targets (pattern rule)
-deploy-%: prepare
+deploy-%: ensure-known-hosts prepare
 	@$(run_as_root) $(DEPLOY) deploy $* || { echo "[make] ❌ deploy-$* failed"; exit 1; }
 
 # Validate targets (pattern rule)
