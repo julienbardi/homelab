@@ -69,8 +69,24 @@ help:
 	@echo "  make bootstrap-headscale   Run setup-cert-watch-headscale + all-headscale"
 	@echo "  make bootstrap-coredns     Run setup-cert-watch-coredns + all-coredns"
 
+# Path to the interactive known_hosts installer
+KNOWN_HOSTS_FILE := $(HOMELAB_DIR)/known_hosts_to_check.txt
+KNOWN_HOSTS_SCRIPT := $(HOMELAB_DIR)/scripts/helpers/verify_and_install_known_hosts.sh
+
+# Allow skipping in CI or when explicitly requested
+SKIP_KNOWN_HOSTS ?= 0
+
+.PHONY: ensure-known-hosts
+ensure-known-hosts:
+ifeq ($(SKIP_KNOWN_HOSTS),1)
+	@echo "[make] Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"
+else
+	@echo "[make] Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE)..."
+	@bash "$(KNOWN_HOSTS_SCRIPT)" "$(KNOWN_HOSTS_FILE)"
+endif
+
 .PHONY: gitcheck update
-gitcheck:
+gitcheck: ensure-known-hosts
 	@if [ ! -d $(HOMELAB_DIR)/.git ]; then \
 		echo "[make] Cloning homelab repo..."; \
 		mkdir -p $(HOME)/src; \
@@ -112,7 +128,7 @@ test: logs
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
 
 .PHONY: caddy deploy-caddy
-caddy: gitcheck
+caddy: ensure-known-hosts gitcheck
 	@echo "[make] Deploying Caddyfile and reloading Caddy"
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/helpers/caddy-reload.sh
 
