@@ -130,7 +130,7 @@ install-wireguard-tools:
 	@$(run_as_root) apt-get install -y wireguard wireguard-tools netfilter-persistent iptables-persistent ethtool
 
 # --- Subnet router deployment ---
-SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup-subnet-router.sh
+SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup-subnet-router.nft.sh
 SCRIPT_DST  := /usr/local/bin/setup-subnet-router
 UNIT_SRC    := $(HOMELAB_DIR)/config/systemd/subnet-router.service
 UNIT_DST    := /etc/systemd/system/subnet-router.service
