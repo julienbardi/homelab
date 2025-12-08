@@ -1,0 +1,16 @@
+[Unit]
+Description=Host firewall nft rules
+Documentation=man:systemd.unit(5)
+After=network-online.target setup-subnet-router.service
+Wants=setup-subnet-router.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/firewall-nft.sh
+RemainAfterExit=yes
+TimeoutStartSec=60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

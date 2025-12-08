@@ -11,7 +11,7 @@
 
 # Aggregate deps target
 deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
-	install-pkg-tailscale
+	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard install-pkg-caddy install-pkg-unbound install-pkg-ndppd
 
 # Tailscale (client + daemon) via apt repository
 
@@ -88,6 +88,61 @@ install-pkg-vnstat:
 
 remove-pkg-vnstat:
 	$(call apt_remove,vnstat)
+
+# nftables (kernel userspace tools)
+.PHONY: install-pkg-nftables remove-pkg-nftables
+install-pkg-nftables:
+	@echo "📦 Installing nftables"
+	$(call apt_install,nftables,nftables)
+	@$(run_as_root) systemctl enable --now nftables || true
+	@echo "✅ nftables installed and service enabled"
+
+remove-pkg-nftables:
+	$(call apt_remove,nftables)
+
+# WireGuard (tools + kernel module helpers)
+.PHONY: install-pkg-wireguard remove-pkg-wireguard
+install-pkg-wireguard:
+	@echo "📦 Installing WireGuard (tools + kernel modules)"
+	$(call apt_install,wireguard,wireguard wireguard-tools)
+	@echo "✅ WireGuard packages installed"
+
+remove-pkg-wireguard:
+	$(call apt_remove,wireguard wireguard-tools)
+
+# Caddy (web server)
+.PHONY: install-pkg-caddy remove-pkg-caddy
+install-pkg-caddy:
+	@echo "📦 Installing Caddy"
+	$(call apt_install,caddy,caddy)
+	@$(run_as_root) systemctl enable --now caddy || true
+	@echo "✅ Caddy installed and enabled"
+
+remove-pkg-caddy:
+	$(call apt_remove,caddy)
+
+# Unbound (DNS resolver)
+.PHONY: install-pkg-unbound remove-pkg-unbound
+install-pkg-unbound:
+	@echo "📦 Installing Unbound"
+	$(call apt_install,unbound,unbound)
+	@$(run_as_root) systemctl enable --now unbound || true
+	@echo "✅ Unbound installed and enabled"
+
+remove-pkg-unbound:
+	$(call apt_remove,unbound)
+
+# ndppd (NDP proxy for IPv6 delegated prefixes)
+.PHONY: install-pkg-ndppd remove-pkg-ndppd
+install-pkg-ndppd:
+	@echo "📦 Installing ndppd (NDP proxy)"
+	$(call apt_install,ndppd,ndppd)
+	@$(run_as_root) systemctl enable --now ndppd || true
+	@echo "✅ ndppd installed and enabled"
+
+remove-pkg-ndppd:
+	$(call apt_remove,ndppd)
+
 
 # checkmake (build from upstream Makefile)
 install-pkg-checkmake: install-pkg-pandoc install-pkg-go

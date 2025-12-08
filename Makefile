@@ -11,7 +11,7 @@ include mk/01_common.mk
 
 SHELL := /bin/bash
 HOMELAB_REPO := git@github.com:Jambo15/homelab.git
-HOMELAB_DIR  := $(HOME)/src/homelab
+HOMELAB_DIR  := .# $(HOME)/src/homelab
 
 BUILDER_NAME := $(shell git config --get user.name)
 BUILDER_EMAIL := $(shell git config --get user.email)
@@ -152,6 +152,8 @@ reload:
 restart:
 	@$(run_as_root) systemctl restart tailscaled tailscaled-family.service
 	@echo "[make] 🔁 Restarted tailscaled + family + guest services"
+
+
 
 test: logs
 	@echo "[make] Running run_as_root harness..."

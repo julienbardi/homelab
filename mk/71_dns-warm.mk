@@ -57,15 +57,15 @@ dirs:
 
 install-script:
 	@echo "Installing warming script to $(SCRIPT_PATH)..."
-	@if [ -f ./scripts/$(SCRIPT_NAME) ]; then \
-		install -m 755 -D ./scripts/$(SCRIPT_NAME) $(SCRIPT_PATH); \
+	@if [ -f $(HOMELAB_DIR)/scripts/$(SCRIPT_NAME) ]; then \
+		install -m 755 -D $(HOMELAB_DIR)/scripts/$(SCRIPT_NAME) $(SCRIPT_PATH); \
 		chown $(USER):$(GROUP) $(SCRIPT_PATH) || true; \
 		# syntax check the installed script to catch generator errors early \
 		if ! bash -n $(SCRIPT_PATH); then \
 			echo "ERROR: syntax error in $(SCRIPT_PATH)"; exit 1; \
 		fi; \
 	else \
-		echo "ERROR: ./scripts/$(SCRIPT_NAME) not found in repo. Please add it."; \
+		echo "ERROR: $(HOMELAB_DIR)/scripts/$(SCRIPT_NAME) not found in repo. Please add it."; \
 		exit 1; \
 	fi
 
