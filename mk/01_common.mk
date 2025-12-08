@@ -7,6 +7,12 @@
 # - Do not wrap entire command in quotes.
 # - Escape operators (\>, \|, \&\&, \|\|) so they survive Make parsing.
 # --------------------------------------------------------------------
+# Repo root (overrideable by top-level Makefile / environment)
+HOMELAB_DIR ?= $(CURDIR)
+
+# Fallback for recursive make (do not force; let make set it if present)
+MAKE ?= $(MAKE)
+
 run_as_root := ./bin/run-as-root
 
 INSTALL_PATH ?= /usr/local/bin
@@ -76,5 +82,5 @@ homelab-cleanup‑deps: ; # clear any built‑in recipe
 	@DEBIAN_FRONTEND=noninteractive $(run_as_root) apt-get autoremove -y || true
 
 # pattern rule: install scripts/<name>.sh -> $(INSTALL_PATH)/<name>
-$(INSTALL_PATH)/%: scripts/%.sh
+$(INSTALL_PATH)/%: $(HOMELAB_DIR)/scripts/%.sh
 	$(call install_script,$<,$*)
