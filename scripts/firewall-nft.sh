@@ -59,40 +59,40 @@ add_rule "iifname \"lo\" accept" \
 
 # Allow LAN subnet full access to host services (scoped)
 add_rule "iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept" \
-  "nft add rule ip filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept"
 add_rule "iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept" \
-  "nft add rule ip6 filter input iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept"
 
 # Allow SSH (22,2222) from LAN
 add_rule "tcp dport 22 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
-  "nft add rule ip filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 22 accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 22 accept"
 add_rule "tcp dport 2222 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
-  "nft add rule ip filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 2222 accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 2222 accept"
 
 # Allow NAS Web UI from LAN (9999,9443)
 add_rule "tcp dport 9999 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
-  "nft add rule ip filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 9999 accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 9999 accept"
 add_rule "tcp dport 9443 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
-  "nft add rule ip filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 9443 accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 9443 accept"
 
 # Allow DNS from LAN and WG/Tailscale subnets
 add_rule "udp dport 53 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
-  "nft add rule ip filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} udp dport 53 accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} udp dport 53 accept"
 add_rule "udp dport 53 ip saddr ${WG_SUBNET}" \
-  "nft add rule ip filter input ip saddr ${WG_SUBNET} udp dport 53 accept"
+  "nft add rule inet filter input ip saddr ${WG_SUBNET} udp dport 53 accept"
 add_rule "udp dport 53 ip saddr ${TAILSCALE_SUBNET}" \
-  "nft add rule ip filter input ip saddr ${TAILSCALE_SUBNET} udp dport 53 accept"
+  "nft add rule inet filter input ip saddr ${TAILSCALE_SUBNET} udp dport 53 accept"
 
 # Allow incoming WireGuard handshake (UDP)
 add_rule "udp dport ${WG_PORT} accept" \
-  "nft add rule ip filter input udp dport ${WG_PORT} ct state new,established accept"
+  "nft add rule inet filter input udp dport ${WG_PORT} ct state new,established accept"
 add_rule "udp dport ${WG_PORT} accept ip6" \
-  "nft add rule ip6 filter input udp dport ${WG_PORT} ct state new,established accept"
+  "nft add rule inet filter input udp dport ${WG_PORT} ct state new,established accept"
 
 # Tailscale interface full accept (if present)
 if ip link show "${TAILSCALE_IF}" >/dev/null 2>&1; then
   add_rule "iifname \"${TAILSCALE_IF}\" accept" \
-	"nft add rule ip filter input iifname \"${TAILSCALE_IF}\" accept"
+	"nft add rule inet filter input iifname \"${TAILSCALE_IF}\" accept"
 fi
 
 # NAT for WireGuard subnet egress (example)
