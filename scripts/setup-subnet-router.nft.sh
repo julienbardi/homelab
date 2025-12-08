@@ -72,32 +72,32 @@ add_rule "ct state related,established accept FORWARD" \
 
 # --- LAN host accepts (IPv4 + IPv6) ---
 add_rule "iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept" \
-  "nft add rule ip filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept"
 add_rule "iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept" \
-  "nft add rule ip6 filter input iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept"
 
 # --- Essential service ports on host (DNS/SSH/HTTPS/UPnP/SMB/wsdd2) ---
 add_rule "tcp dport 443 accept" \
   "nft add rule inet filter input tcp dport 443 accept"
 add_rule "udp dport 53 accept" \
-  "nft add rule ip filter input udp dport 53 accept"
+  "nft add rule inet filter input udp dport 53 accept"
 add_rule "tcp dport 53 accept" \
-  "nft add rule ip filter input tcp dport 53 accept"
+  "nft add rule inet filter input tcp dport 53 accept"
 add_rule "tcp dport 22 accept" \
-  "nft add rule ip filter input tcp dport 22 accept"
+  "nft add rule inet filter input tcp dport 22 accept"
 add_rule "tcp dport 2222 accept" \
-  "nft add rule ip filter input tcp dport 2222 accept"
+  "nft add rule inet filter input tcp dport 2222 accept"
 add_rule "tcp dport 9999 accept" \
-  "nft add rule ip filter input tcp dport 9999 accept"
+  "nft add rule inet filter input tcp dport 9999 accept"
 add_rule "tcp dport 9443 accept" \
-  "nft add rule ip filter input tcp dport 9443 accept"
+  "nft add rule inet filter input tcp dport 9443 accept"
 
 # --- WireGuard handshake ports on LAN uplink (bridge0) ---
 # Accept UDP 51421-51427 on LAN_IF for both IPv4 and IPv6
 add_rule "iifname \"${LAN_IF}\" udp dport 51421-51427 accept" \
-  "nft add rule ip filter input iifname \"${LAN_IF}\" udp dport {51421-51427} ct state new,established accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" udp dport {51421-51427} ct state new,established accept"
 add_rule "iifname \"${LAN_IF}\" udp dport 51421-51427 accept ip6" \
-  "nft add rule ip6 filter input iifname \"${LAN_IF}\" udp dport {51421-51427} ct state new,established accept"
+  "nft add rule inet filter input iifname \"${LAN_IF}\" udp dport {51421-51427} ct state new,established accept"
 
 # --- WireGuard per-interface host + forward rules (wg0..wg7) ---
 for i in $(seq 0 7); do
@@ -110,24 +110,24 @@ for i in $(seq 0 7); do
 	log "Configuring ${WG_IF} rules (subnets ${IPV4_SUBNET}, ${IPV6_SUBNET}, port ${PORT})"
 
 	add_rule "iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept" \
-	  "nft add rule ip filter input iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept"
+	  "nft add rule inet filter input iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept"
 	add_rule "iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} forward-accept" \
-	  "nft add rule ip filter forward iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept"
+	  "nft add rule inet filter forward iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept"
 	add_rule "oifname \"${WG_IF}\" ip daddr ${IPV4_SUBNET} forward-accept" \
-	  "nft add rule ip filter forward oifname \"${WG_IF}\" ip daddr ${IPV4_SUBNET} accept"
+	  "nft add rule inet filter forward oifname \"${WG_IF}\" ip daddr ${IPV4_SUBNET} accept"
 
 	add_rule "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept" \
-	  "nft add rule ip6 filter input iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept"
+	  "nft add rule inet filter input iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept"
 	add_rule "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} forward-accept" \
-	  "nft add rule ip6 filter forward iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept"
+	  "nft add rule inet filter forward iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept"
 	add_rule "oifname \"${WG_IF}\" ip6 daddr ${IPV6_SUBNET} forward-accept" \
-	  "nft add rule ip6 filter forward oifname \"${WG_IF}\" ip6 daddr ${IPV6_SUBNET} accept"
+	  "nft add rule inet filter forward oifname \"${WG_IF}\" ip6 daddr ${IPV6_SUBNET} accept"
 
 	# Handshake path on LAN uplink: accept UDP port for this interface (no source restriction)
 	add_rule "iifname \"${LAN_IF}\" udp dport ${PORT} accept" \
-	  "nft add rule ip filter input iifname \"${LAN_IF}\" udp dport ${PORT} ct state new,established accept"
+	  "nft add rule inet filter input iifname \"${LAN_IF}\" udp dport ${PORT} ct state new,established accept"
 	add_rule "iifname \"${LAN_IF}\" udp dport ${PORT} accept ip6" \
-	  "nft add rule ip6 filter input iifname \"${LAN_IF}\" udp dport ${PORT} ct state new,established accept"
+	  "nft add rule inet filter input iifname \"${LAN_IF}\" udp dport ${PORT} ct state new,established accept"
 
 	# Profile-based NAT for Internet egress (bitmask model)
 	if [[ "${i}" =~ ^(2|3|6|7)$ ]]; then
@@ -149,20 +149,20 @@ TS_SUBNET_V6="fd7a:115c:a1e0::/48"
 
 if ip link show "${TS_IF}" >/dev/null 2>&1; then
   add_rule "iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept" \
-	"nft add rule ip filter input iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept"
+	"nft add rule inet filter input iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept"
   add_rule "iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} forward-accept" \
-	"nft add rule ip filter forward iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept"
+	"nft add rule inet filter forward iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept"
   add_rule "oifname \"${TS_IF}\" ip daddr ${TS_SUBNET_V4} forward-accept" \
-	"nft add rule ip filter forward oifname \"${TS_IF}\" ip daddr ${TS_SUBNET_V4} accept"
+	"nft add rule inet filter forward oifname \"${TS_IF}\" ip daddr ${TS_SUBNET_V4} accept"
   add_rule "oifname \"${LAN_IF}\" ip saddr ${TS_SUBNET_V4} masquerade" \
 	"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${TS_SUBNET_V4} masquerade"
 
   add_rule "iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept" \
-	"nft add rule ip6 filter input iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept"
+	"nft add rule inet filter input iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept"
   add_rule "iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} forward-accept" \
-	"nft add rule ip6 filter forward iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept"
+	"nft add rule inet filter forward iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept"
   add_rule "oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} forward-accept" \
-	"nft add rule ip6 filter forward oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} accept"
+	"nft add rule inet filter forward oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} accept"
 
   log "Tailscale nft rules applied."
 else
