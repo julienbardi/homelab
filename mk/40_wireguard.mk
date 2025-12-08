@@ -500,16 +500,26 @@ all-wg: $(ALL_WG)
 	@echo "✅ All server configs ensured."
 
 # Bring up all wg interfaces (idempotent)
-all-wg-up:
+all-wg-up: setup-subnet-router
 	@echo "⏫ Bringing up all wg interfaces..."
 	@for i in 0 1 2 3 4 5 6 7; do \
-		if [ -f "$(WG_DIR)/wg$$i.conf" ]; then \
-			echo "⏫ wg-quick up wg$$i"; \
-			$(run_as_root) $(WG_QUICK) up wg$$i || echo "⚠️  wg$$i already up or failed to start"; \
+		if $(run_as_root) test -f "$(WG_DIR)/wg$$i.conf" >/dev/null 2>&1; then \
+			dev=wg$$i; \
+			if [ -d "/sys/class/net/$$dev" ]; then \
+				echo "⏩ $$dev already present"; \
+			else \
+				echo "⏫ wg-quick up $$dev (using $(WG_DIR)/wg$$i.conf)"; \
+				if $(run_as_root) $(WG_QUICK) up $$dev >/dev/null 2>&1; then \
+					echo "✅ $$dev started"; \
+				else \
+					echo "❌ failed to bring up $$dev (check: journalctl -u wg-quick@$$dev.service)"; \
+				fi; \
+			fi; \
 		else \
-			echo "⏭ skipping wg$$i (no config)"; \
+			echo "⏭ skipping wg$$i (no config in $(WG_DIR))"; \
 		fi; \
 	done
+
 
 # Generate all missing client keys/configs from embedded CLIENTS variable
 all-clients-generate:
