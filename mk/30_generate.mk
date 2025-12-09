@@ -1,4 +1,4 @@
-# mk/generate.mk
+# mk/30_generate.mk
 SCRIPTS := $(notdir $(wildcard scripts/*.sh))
 strip_sh = $(patsubst %.sh,%,$(1))
 
