@@ -348,7 +348,7 @@ client-%: ensure-wg-dir
 			$(WG_BIN) genkey | tee "$(WG_DIR)/$$CONFNAME.key" | $(WG_BIN) pubkey > "$(WG_DIR)/$$CONFNAME.pub"; \
 			chmod 600 "$(WG_DIR)/$$CONFNAME.key" "$(WG_DIR)/$$CONFNAME.pub"; \
 		fi; \
-		# build config values and write config atomically as root \
+		# build config values (keep all sensitive ops inside root context) \
 		PRIVKEY=$$(cat "$(WG_DIR)/$$CONFNAME.key"); \
 		SERVERPUB=$$(cat "$(WG_DIR)/$$IFACE.pub"); \
 		PORT=$$(expr 51420 + $$IDX); \
@@ -369,24 +369,41 @@ client-%: ensure-wg-dir
 		esac; \
 		if [ "$$IDX" = "4" ]; then ALLOWED_LIST="2a01:8b81:4800:9c00:14::/64"; fi; \
 		ALLOWED="$$ALLOWED_LIST"; \
-		printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n" \
+		# write config to a root-owned temp file inside WG_DIR, compare, and mv only if different \
+		tmp_conf="$$(mktemp "$(WG_DIR)/.$$CONFNAME.conf.XXXXXX")"; \
+		chmod 600 "$$tmp_conf"; \
+		{ \
+		  printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n" \
 			"[Interface]" \
 			"PrivateKey = $$PRIVKEY" \
 			"Address = $$IPV4, $$IPV6" \
 			"DNS = $(DNS_SERVER)" \
 			"" \
 			"[Peer]" \
-			"PublicKey = $$SERVERPUB" \
-			> "$(WG_DIR)/$$CONFNAME.conf"; \
-		# write Endpoint and only write AllowedIPs if non-empty \
-		if [ -n "$$ALLOWED" ]; then \
-			printf "%s\n%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "PersistentKeepalive = 25" "AllowedIPs = $$ALLOWED" >> "$(WG_DIR)/$$CONFNAME.conf"; \
+			"PublicKey = $$SERVERPUB"; \
+		  if [ -n "$$ALLOWED" ]; then \
+			printf "%s\n%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "PersistentKeepalive = 25" "AllowedIPs = $$ALLOWED"; \
+		  else \
+			printf "%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "PersistentKeepalive = 25"; \
+		  fi; \
+		} > "$$tmp_conf"; \
+		# compare and move atomically if different \
+		if [ -f "$(WG_DIR)/$$CONFNAME.conf" ]; then \
+		  if cmp -s "$$tmp_conf" "$(WG_DIR)/$$CONFNAME.conf"; then \
+			echo "ℹ️  $(WG_DIR)/$$CONFNAME.conf unchanged; skipping overwrite"; \
+			rm -f "$$tmp_conf"; \
+		  else \
+			mv -f "$$tmp_conf" "$(WG_DIR)/$$CONFNAME.conf"; \
+			chmod 600 "$(WG_DIR)/$$CONFNAME.conf"; \
+			echo "✅ $$CONFNAME.conf written → $(WG_DIR)/$$CONFNAME.conf"; \
+		  fi; \
 		else \
-			printf "%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "PersistentKeepalive = 25" >> "$(WG_DIR)/$$CONFNAME.conf"; \
+		  mv -f "$$tmp_conf" "$(WG_DIR)/$$CONFNAME.conf"; \
+		  chmod 600 "$(WG_DIR)/$$CONFNAME.conf"; \
+		  echo "✅ $$CONFNAME.conf written → $(WG_DIR)/$$CONFNAME.conf"; \
 		fi; \
-		chmod 600 "$(WG_DIR)/$$CONFNAME.conf"; \
-		echo "✅ $$CONFNAME.conf written → $(WG_DIR)/$$CONFNAME.conf"; \
 	'
+
 
 # --- Show QR code for existing client config; auto-create if missing (check + display as root) ---
 client-showqr-%:
@@ -427,34 +444,57 @@ client-showqr-%:
 # --- Bring up/down any wg interface ---
 wg-up-%:
 	@echo "⏫ Bringing up WireGuard interface wg$*"
-	@$(run_as_root) $(WG_QUICK) up wg$* || { echo "❌ failed to bring up wg$*"; exit 1; }
 	@$(run_as_root) sh -c '\
-		for f in $(WG_DIR)/*-wg$*.conf; do \
-			[ -f "$$f" ] || continue; \
-			ip6=$$(grep -E "^Address" "$$f" | sed "s/Address = //g" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d " "); \
-			[ -z "$$ip6" ] && continue; \
-			ip -6 route replace $$ip6 dev wg$* || true; \
-			echo "🔁 installed IPv6 host route $$ip6 dev wg$*"; \
-		done'
-	@$(run_as_root) $(WG_BIN) show wg$*
-
+		dev=wg$*; \
+		# If interface already exists, show status and skip bringing up again
+		if ip link show "$$dev" >/dev/null 2>&1; then \
+			echo "⏭ $$dev already present; showing status"; \
+			$(WG_BIN) show "$$dev" 2>/dev/null || true; \
+			exit 0; \
+		fi; \
+		# Otherwise attempt to bring it up and install per-client IPv6 host routes
+		if $(WG_QUICK) up "$$dev" >/dev/null 2>&1; then \
+			echo "✅ $$dev started"; \
+			for f in $(WG_DIR)/*-$$dev.conf; do \
+				[ -f "$$f" ] || continue; \
+				ip6=$$(grep -E "^Address" "$$f" | sed "s/Address = //g" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d " "); \
+				[ -z "$$ip6" ] && continue; \
+				# install each IPv6 host route (best-effort) \
+				ip -6 route replace $$ip6 dev $$dev || true; \
+				echo "🔁 installed IPv6 host route $$ip6 dev $$dev"; \
+			done; \
+			$(WG_BIN) show "$$dev" || true; \
+		else \
+			echo "❌ failed to bring up $$dev (check: journalctl -u wg-quick@$$dev.service)"; \
+			exit 1; \
+		fi'
 
 wg-down-%:
 	@echo "⏬ Bringing down WireGuard interface wg$*"
 	@$(run_as_root) sh -c '\
-	  # remove any explicit per-client IPv6 host routes (best-effort) \
-	  for f in $(WG_DIR)/*-wg$*.conf; do \
-		[ -f "$$f" ] || continue; \
-		ip6=$$(grep -E "^Address" "$$f" | sed "s/Address = //g" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d " "); \
-		[ -z "$$ip6" ] && continue; \
-		ip -6 route del $$ip6 dev wg$* 2>/dev/null || true; \
-		echo "🔁 removed IPv6 host route $$ip6 dev wg$*"; \
-	  done || true; \
-	  # ensure no stray IPv6 routes remain for the device (idempotent) \
-	  ip -6 route flush dev wg$* 2>/dev/null || true; \
-	'
-	@$(run_as_root) $(WG_QUICK) down wg$* || { echo "❌ failed to bring down wg$*"; exit 1; }
-
+		dev=wg$*; \
+		# collect IPv6 addresses from client confs and deduplicate them before removal \
+		ADDRS_TMP=$$(mktemp); \
+		for f in $(WG_DIR)/*-$$dev.conf; do \
+			[ -f "$$f" ] || continue; \
+			grep -E "^Address" "$$f" | sed "s/Address = //g" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d " " >> "$$ADDRS_TMP"; \
+		done; \
+		if [ -f "$$ADDRS_TMP" ]; then \
+			sort -u "$$ADDRS_TMP" | while read -r ip6; do \
+				[ -z "$$ip6" ] && continue; \
+				ip -6 route del "$$ip6" dev $$dev 2>/dev/null || true; \
+				echo "🔁 removed IPv6 host route $$ip6 dev $$dev"; \
+			done; \
+			rm -f "$$ADDRS_TMP"; \
+		fi; \
+		# flush any remaining IPv6 routes for the device (idempotent) \
+		ip -6 route flush dev $$dev 2>/dev/null || true; \
+		# only call wg-quick down if the interface exists or wg-quick knows about it \
+		if ip link show $$dev >/dev/null 2>&1 || $(WG_QUICK) status $$dev >/dev/null 2>&1; then \
+			$(WG_QUICK) down $$dev || { echo "❌ failed to bring down $$dev"; exit 1; }; \
+		else \
+			echo "⏭ $$dev not present; nothing to do"; \
+		fi'
 
 # --- Clean (revoke) all clients bound to an interface (preview) ---
 wg-clean-list-%:
