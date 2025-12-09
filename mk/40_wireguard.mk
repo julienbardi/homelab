@@ -442,32 +442,40 @@ client-showqr-%:
 		fi'
 
 # --- Bring up/down any wg interface ---
+# Idempotent wg-up: restart existing interface, bring up, install per-client IPv6 host routes
+# Idempotent wg-up: restart existing interface, bring up, install per-client IPv6 host routes
 wg-up-%:
 	@echo "⏫ Bringing up WireGuard interface wg$*"
 	@$(run_as_root) sh -c '\
 		dev=wg$*; \
-		# If interface already exists, show status and skip bringing up again
+		conf="$(WG_DIR)/$$dev.conf"; \
+		[ -f "$$conf" ] || { echo "⏭ skipping $$dev (no config at $$conf)"; exit 0; }; \
+		# If interface exists, bring it down first for a clean restart (ignore errors) \
 		if ip link show "$$dev" >/dev/null 2>&1; then \
-			echo "⏭ $$dev already present; showing status"; \
-			$(WG_BIN) show "$$dev" 2>/dev/null || true; \
-			exit 0; \
+			echo "⏫ $$dev exists — restarting (down/up)"; \
+			$(WG_QUICK) down "$$dev" >/dev/null 2>&1 || true; \
+			ip link delete dev "$$dev" >/dev/null 2>&1 || true; \
 		fi; \
-		# Otherwise attempt to bring it up and install per-client IPv6 host routes
-		if $(WG_QUICK) up "$$dev" >/dev/null 2>&1; then \
+		# Try to bring it up with wg-quick; do not hide output so failures are visible \
+		if $(WG_QUICK) up "$$dev"; then \
 			echo "✅ $$dev started"; \
+			# install per-client IPv6 host routes from client configs (best-effort) \
 			for f in $(WG_DIR)/*-$$dev.conf; do \
 				[ -f "$$f" ] || continue; \
-				ip6=$$(grep -E "^Address" "$$f" | sed "s/Address = //g" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d " "); \
-				[ -z "$$ip6" ] && continue; \
-				# install each IPv6 host route (best-effort) \
+				ip6=$$(grep -E \"^Address\" \"$$f\" | sed \"s/Address = //g\" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d \" \"); \
+				[ -z \"$$ip6\" ] && continue; \
 				ip -6 route replace $$ip6 dev $$dev || true; \
 				echo "🔁 installed IPv6 host route $$ip6 dev $$dev"; \
 			done; \
 			$(WG_BIN) show "$$dev" || true; \
 		else \
 			echo "❌ failed to bring up $$dev (check: journalctl -u wg-quick@$$dev.service)"; \
+			journalctl -u wg-quick@$$dev -n 60 --no-pager 2>/dev/null || true; \
 			exit 1; \
 		fi'
+
+
+
 
 wg-down-%:
 	@echo "⏬ Bringing down WireGuard interface wg$*"
@@ -632,14 +640,16 @@ wg-add-peers:
 			# extract client addresses (Address lines) to use as AllowedIPs on server side \
 			ALLOWED_IPS=$$(grep -E "^Address" "$(WG_DIR)/$$CONFNAME.conf" | sed "s/Address = //"); \
 			echo "➕ Adding peer $$CONFNAME to $$SERVER_CONF"; \
-			$(WG_BIN) set $$iface peer "$$PUB" allowed-ips "$$ALLOWED_IPS" || true; \
+			if ! $(WG_BIN) set $$iface peer "$$PUB" allowed-ips "$$ALLOWED_IPS"; then \
+				echo "❌ wg set failed for $$CONFNAME (peer $$PUB)"; \
+				exit 1; \
+			fi; \
 			printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IPS" | tee -a "$$SERVER_CONF" > /dev/null; \
 			echo "🔁 Reloading $$iface"; \
 			$(WG_QUICK) down $$iface || true; \
 			$(WG_QUICK) up $$iface || true; \
 		done; \
 		echo "✅ wg-add-peers complete."'
-
 
 
 .PHONY: regen-clients
