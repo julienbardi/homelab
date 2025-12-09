@@ -89,8 +89,15 @@ julie-s22:wg3 \
 julie-s22:wg4 \
 julie-s22:wg5 \
 julie-s22:wg6 \
-julie-s22:wg7
-
+julie-s22:wg7 \
+julie-omen30l:wg0 \
+julie-omen30l:wg1 \
+julie-omen30l:wg2 \
+julie-omen30l:wg3 \
+julie-omen30l:wg4 \
+julie-omen30l:wg5 \
+julie-omen30l:wg6 \
+julie-omen30l:wg7
 .PHONY: ensure-wg-dir wg0 wg1 wg2 wg3 wg4 wg5 wg6 wg7 wg-up-% wg-down-% wg-clean-% wg-clean-list-% client-% client-list client-clean-% client-showqr-% client-dashboard all-wg all-wg-up all-clients-generate wg-add-peers all-start client-dashboard-status regen-clients
 
 # --- Ensure WG_DIR exists and has correct perms ---
@@ -300,7 +307,7 @@ wg7: ensure-wg-dir
 
 # --- Named client configs (create only; do NOT print QR) ---
 # Ensure subnet router is configured before generating client configs
-client-%: setup-subnet-router ensure-wg-dir
+client-%: ensure-wg-dir
 	@echo "🧩 Generating WireGuard client config for $* (interface $(IFACE))"
 	@$(run_as_root) sh -c '\
 		BASE="$*"; \
@@ -418,15 +425,36 @@ client-showqr-%:
 		fi'
 
 # --- Bring up/down any wg interface ---
-# Ensure subnet router is configured before bringing up interfaces
-wg-up-%: setup-subnet-router
+wg-up-%:
 	@echo "⏫ Bringing up WireGuard interface wg$*"
 	@$(run_as_root) $(WG_QUICK) up wg$* || { echo "❌ failed to bring up wg$*"; exit 1; }
+	@$(run_as_root) sh -c '\
+		for f in $(WG_DIR)/*-wg$*.conf; do \
+			[ -f "$$f" ] || continue; \
+			ip6=$$(grep -E "^Address" "$$f" | sed "s/Address = //g" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d " "); \
+			[ -z "$$ip6" ] && continue; \
+			ip -6 route replace $$ip6 dev wg$* || true; \
+			echo "🔁 installed IPv6 host route $$ip6 dev wg$*"; \
+		done'
 	@$(run_as_root) $(WG_BIN) show wg$*
+
 
 wg-down-%:
 	@echo "⏬ Bringing down WireGuard interface wg$*"
+	@$(run_as_root) sh -c '\
+	  # remove any explicit per-client IPv6 host routes (best-effort) \
+	  for f in $(WG_DIR)/*-wg$*.conf; do \
+		[ -f "$$f" ] || continue; \
+		ip6=$$(grep -E "^Address" "$$f" | sed "s/Address = //g" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d " "); \
+		[ -z "$$ip6" ] && continue; \
+		ip -6 route del $$ip6 dev wg$* 2>/dev/null || true; \
+		echo "🔁 removed IPv6 host route $$ip6 dev wg$*"; \
+	  done || true; \
+	  # ensure no stray IPv6 routes remain for the device (idempotent) \
+	  ip -6 route flush dev wg$* 2>/dev/null || true; \
+	'
 	@$(run_as_root) $(WG_QUICK) down wg$* || { echo "❌ failed to bring down wg$*"; exit 1; }
+
 
 # --- Clean (revoke) all clients bound to an interface (preview) ---
 wg-clean-list-%:
@@ -461,7 +489,7 @@ client-clean-%:
 	@echo "✅ Client $* removed from $(WG_DIR)"
 
 # --- Dashboard: list users, machines, and interfaces (portable, POSIX shell) ---
-client-dashboard:
+client-dashboard: client-dashboard-status
 	@echo "| User   | Machine   | wg0  | wg1  | wg2  | wg3  | wg4  | wg5  | wg6  | wg7  |"
 	@echo "|--------|-----------|------|------|------|------|------|------|------|------|"
 	@TMP=$$(mktemp); \
@@ -505,16 +533,16 @@ all-wg-up: setup-subnet-router
 	@for i in 0 1 2 3 4 5 6 7; do \
 		if $(run_as_root) test -f "$(WG_DIR)/wg$$i.conf" >/dev/null 2>&1; then \
 			dev=wg$$i; \
-			if [ -d "/sys/class/net/$$dev" ]; then \
-				echo "⏩ $$dev already present"; \
-			else \
+			#if [ -d "/sys/class/net/$$dev" ]; then \
+			#	echo "⏩ $$dev already present"; \
+			#else \
 				echo "⏫ wg-quick up $$dev (using $(WG_DIR)/wg$$i.conf)"; \
 				if $(run_as_root) $(WG_QUICK) up $$dev >/dev/null 2>&1; then \
 					echo "✅ $$dev started"; \
 				else \
 					echo "❌ failed to bring up $$dev (check: journalctl -u wg-quick@$$dev.service)"; \
 				fi; \
-			fi; \
+			#fi; \
 		else \
 			echo "⏭ skipping wg$$i (no config in $(WG_DIR))"; \
 		fi; \
@@ -614,9 +642,6 @@ client-dashboard-status:
 			printf "| %-9s | %-6s | %-10s | %3s/%-3s |\n" "wg$$i" "missing" "-" "0" "0"; \
 		fi; \
 	done
-
-# Backwards-compatible client-dashboard (human readable) calls the status target
-client-dashboard: client-dashboard-status
 
 .PHONY: regen-all-keys
 regen-all-keys:
