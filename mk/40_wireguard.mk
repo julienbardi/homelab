@@ -540,29 +540,31 @@ client-clean-%:
 client-dashboard: client-dashboard-status
 	@echo "| User   | Machine   | wg0  | wg1  | wg2  | wg3  | wg4  | wg5  | wg6  | wg7  |"
 	@echo "|--------|-----------|------|------|------|------|------|------|------|------|"
-	@TMP=$$(mktemp); \
-	for f in $(WG_DIR)/*-wg*.conf; do \
-		[ -f "$$f" ] || continue; \
-		name=$$(basename "$$f" .conf); \
-		# strip trailing -wgN to get base "user-machine" \
-		base=$$(echo "$$name" | sed -n 's/-wg[0-7]$$//p'); \
-		[ -n "$$base" ] && echo "$$base" >> "$$TMP"; \
-	done; \
-	if [ ! -s "$$TMP" ]; then \
-		echo "⏭ No client configs found."; rm -f "$$TMP"; exit 0; \
-	fi; \
-	sort -u "$$TMP" -o "$$TMP"; \
-	while read -r base; do \
-		# split base into user and machine (first two dash-separated fields) \
-		user=$$(echo "$$base" | awk -F- '{print $$1}'); \
-		machine=$$(echo "$$base" | awk -F- '{print $$2}'); \
-		printf "| %-6s | %-9s |" "$$user" "$$machine"; \
-		for i in 0 1 2 3 4 5 6 7; do \
-			if [ -f "$(WG_DIR)/$$base-wg$$i.conf" ]; then printf " %s |" " ✅ "; else printf " %s |" "-"; fi; \
+	@$(run_as_root) sh -c '\
+		TMP=$$(mktemp); \
+		for f in $(WG_DIR)/*-wg*.conf; do \
+			[ -f "$$f" ] || continue; \
+			name=$$(basename "$$f" .conf); \
+			# strip trailing -wgN to get base "user-machine" \
+			base=$$(echo "$$name" | sed -n '\''s/-wg[0-7]$$//p'\''); \
+			[ -n "$$base" ] && echo "$$base" >> "$$TMP"; \
 		done; \
-		printf "\n"; \
-	done < "$$TMP"; \
-	rm -f "$$TMP"
+		if [ ! -s "$$TMP" ]; then \
+			echo "⏭ No client configs found."; rm -f "$$TMP"; exit 0; \
+		fi; \
+		sort -u "$$TMP" -o "$$TMP"; \
+		while read -r base; do \
+			# split base into user and machine (first two dash-separated fields) \
+			user=$$(echo "$$base" | awk -F- '\''{print $$1}'\''); \
+			machine=$$(echo "$$base" | awk -F- '\''{print $$2}'\''); \
+			printf "| %-6s | %-9s |" "$$user" "$$machine"; \
+			for i in 0 1 2 3 4 5 6 7; do \
+				if [ -f "$(WG_DIR)/$$base-wg$$i.conf" ]; then printf " %s |" " ✅ "; else printf " %s |" "-"; fi; \
+			done; \
+			printf "\n"; \
+		done < "$$TMP"; \
+		rm -f "$$TMP"'
+
 
 # -------------------------
 # Bulk orchestration helpers
