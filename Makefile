@@ -75,7 +75,7 @@ help:
 	@echo ""
 	@echo "  Repo and preflight"
 	@echo "    make ensure-known-hosts  # Ensure SSH known_hosts entries (interactive)"
-	@echo "    make gitcheck            # Ensure homelab repo present (runs ensure-known-hosts)"
+	@echo "    make gitcheck            # Ensure homelab repo present"
 	@echo "    make update              # Pull latest homelab repo"
 	@echo ""
 	@echo "  Orchestration and services"
@@ -104,19 +104,17 @@ KNOWN_HOSTS_SCRIPT := $(HOMELAB_DIR)/scripts/helpers/verify_and_install_known_ho
 # Allow skipping in CI or when explicitly requested
 SKIP_KNOWN_HOSTS ?= 0
 
-ifeq ($(SKIP_KNOWN_HOSTS),1)
 .PHONY: ensure-known-hosts
 ensure-known-hosts:
-	@echo "[make] Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"
-else
-.PHONY: ensure-known-hosts
-ensure-known-hosts:
-	@echo "[make] Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE)..."
-	@bash "$(KNOWN_HOSTS_SCRIPT)" "$(KNOWN_HOSTS_FILE)"
-endif
+	@echo "[make] Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE) (SKIP_KNOWN_HOSTS=$(SKIP_KNOWN_HOSTS))"
+	@if [ "$(SKIP_KNOWN_HOSTS)" = "1" ]; then \
+	  echo "[make] Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
+	else \
+	  $(run_as_root) bash "$(KNOWN_HOSTS_SCRIPT)" "$(KNOWN_HOSTS_FILE)" || true; \
+	fi
 
 .PHONY: gitcheck update
-gitcheck: ensure-known-hosts
+gitcheck:
 	@if [ ! -d $(HOMELAB_DIR)/.git ]; then \
 		echo "[make] Cloning homelab repo..."; \
 		mkdir -p $(HOME)/src; \
@@ -160,7 +158,7 @@ test: logs
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
 
 .PHONY: caddy deploy-caddy
-caddy: ensure-known-hosts gitcheck
+caddy: gitcheck
 	@echo "[make] Deploying Caddyfile and reloading Caddy"
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/helpers/caddy-reload.sh
 
