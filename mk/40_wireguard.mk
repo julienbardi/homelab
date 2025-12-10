@@ -525,16 +525,38 @@ wg-clean-%:
 		printf "%s\n" $$TO_REMOVE; \
 	fi
 
-# --- List all client configs ---
+# --- List all client configs (detailed) ---
 client-list:
-	@echo "📋 Listing all client configs in $(WG_DIR):"
-	@ls -1 $(WG_DIR)/*.conf 2>/dev/null | grep -v 'wg[0-7].conf' || echo "⏭ No client configs found."
+	@echo "📋 Listing client files in $(WG_DIR) (only *-wg* files):"
+	@$(run_as_root) ls -la $(WG_DIR)/*-wg*.conf $(WG_DIR)/*-wg*.key $(WG_DIR)/*-wg*.pub 2>/dev/null || echo "⏭ No client files found."
 
-# --- Clean (revoke) a specific user-machine-interface ---
+# --- Clean (revoke) a specific user-machine-interface (client only) ---
 client-clean-%:
-	@echo "🧾 Revoking client $*"
-	@$(run_as_root) rm -f $(WG_DIR)/$*.conf $(WG_DIR)/$*.key $(WG_DIR)/$*.pub
-	@echo "✅ Client $* removed from $(WG_DIR)"
+	@echo "🧾 Revoking client $* (client-only: .conf .key .pub)"
+	@case "$*" in \
+		*-wg[0-7]) ;; \
+		*) echo "❌ Refusing to operate: target must be <user>-<machine>-wgN (got: $*)"; exit 1 ;; \
+	esac; \
+	# generate UTC timestamp with milliseconds as root and build backup dir inside $(WG_DIR) \
+	TIMESTAMP=$$($(run_as_root) date -u +%Y%m%dT%H%M%S.%3NZ); \
+	BKP_DIR="$(WG_DIR)/wg-client-backup-$$TIMESTAMP-$*"; \
+	echo "📦 Backing up client files to $$BKP_DIR"; \
+	$(run_as_root) mkdir -p "$$BKP_DIR"; \
+	$(run_as_root) cp -a "$(WG_DIR)/$*.conf" "$(WG_DIR)/$*.key" "$(WG_DIR)/$*.pub" "$$BKP_DIR" 2>/dev/null || true; \
+	# remove runtime peer if pub exists (read pub as root and call wg as root) \
+	if $(run_as_root) test -f "$(WG_DIR)/$*.pub"; then \
+		PUBKEY=$$($(run_as_root) cat "$(WG_DIR)/$*.pub"); \
+		IFACE=$$(echo "$*" | sed -n 's/.*-wg\([0-7]\)$$/\1/p'); \
+		if [ -n "$$IFACE" ]; then \
+			echo "🔁 Removing peer $* from wg$$IFACE (runtime)"; \
+			$(run_as_root) wg set wg$$IFACE peer "$$PUBKEY" remove || true; \
+		fi; \
+	fi; \
+	# delete only the exact client artifacts as root (never wgN.conf/key/pub) \
+	echo "🗑️  Removing client files for $* from $(WG_DIR)"; \
+	$(run_as_root) rm -f "$(WG_DIR)/$*.conf" "$(WG_DIR)/$*.key" "$(WG_DIR)/$*.pub"; \
+	echo "✅ Client $* removed (backup at $$BKP_DIR)"
+
 
 # --- Dashboard: list users, machines, and interfaces (portable, POSIX shell) ---
 client-dashboard: client-dashboard-status
