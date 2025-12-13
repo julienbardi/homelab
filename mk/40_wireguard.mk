@@ -147,8 +147,9 @@ all-wg: $(ALL_WG)
 	@echo "✅ all server configs ensured"
 
 all-wg-up: ensure-wg-dir
-	@echo "⏫ bringing up all wg interfaces"; \
-	for i in $(WG_IFACES); do $(run_as_root) $(MAKE) -s wg-up-$$i || { echo "❌ wg-up-$$i failed"; exit 1; }; done; \
+	@echo "⏫ bringing up all wg interfaces"
+	for i in $(WG_IFACES); do $(run_as_root) /usr/bin/make -s wg-up-$$i || { echo "❌ wg-up-$$i failed"; exit 1; }; \
+	done
 	@echo "✅ all-wg-up finished"
 
 # Generate missing clients from CLIENTS list
@@ -219,11 +220,11 @@ wg-reinstall-all:
 		$(run_as_root) install -m 0600 /dev/null $(MAP_FILE); \
 		$(run_as_root) chown root:root $(MAP_FILE) || true; \
 		# regenerate servers and clients (force keys+confs) \
-		$(run_as_root) $(MAKE) -B all-wg FORCE=1 CONF_FORCE=1; \
-		$(run_as_root) $(MAKE) -B all-clients-generate FORCE=1 CONF_FORCE=1; \
+		sudo sh -c "FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 /usr/bin/make -B all-wg"; \
+		sudo sh -c "FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 /usr/bin/make -B all-clients-generate"; \
 		# program peers and bring up interfaces \
-		$(run_as_root) $(MAKE) wg-add-peers; \
-		$(run_as_root) $(MAKE) all-wg-up; \
+		$(run_as_root) /usr/bin/make wg-add-peers; \
+		$(run_as_root) /usr/bin/make all-wg-up; \
 		echo \"[make] wg-reinstall-all complete\"'
 
 # --- Dashboard: list users, machines, and interfaces (space-delimited) ---
