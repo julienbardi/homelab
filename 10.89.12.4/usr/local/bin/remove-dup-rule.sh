@@ -81,8 +81,14 @@ for rule in "${dup_rules[@]}"; do
 
   echo "  Occurrences at line numbers: ${nums[*]}"
 
-  IFS=$'\n' sorted_desc=( $(printf "%s\n" "${nums[@]}" | sort -rn) )
-  to_delete=( "${sorted_desc[@]:0:${#sorted_desc[@]}-1}" )
+  # Sort numbers descending into an array (use mapfile to avoid SC2207)
+  mapfile -t sorted_desc < <(printf '%s\n' "${nums[@]}" | sort -rn)
+  # to_delete = all but the lowest-numbered (which is the last element in sorted_desc)
+  if [ "${#sorted_desc[@]}" -gt 1 ]; then
+    to_delete=( "${sorted_desc[@]:0:${#sorted_desc[@]}-1}" )
+  else
+    to_delete=()
+  fi
 
   echo "  Deleting duplicates (keeping lowest-numbered ${sorted_desc[-1]}): ${to_delete[*]}"
   for n in "${to_delete[@]}"; do
