@@ -397,22 +397,7 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 				ALLOWED="${ipv4}${ipv6:+, $ipv6}"
 				lockdir="/var/lock/wg-${IFACE}.lock"
 				if acquire_lock "$lockdir"; then
-						if ! run_root "grep -qF '$pubkey' '$SERVER_CONF' 2>/dev/null"; then
-								run_root "printf '\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n' '$confname' '$pubkey' '$ALLOWED' | tee -a '$SERVER_CONF' > /dev/null"
-								printf '➕ appended peer %s to %s\n' "$confname" "$SERVER_CONF"
-						else
-								printf '✅ peer %s already present in %s\n' "$confname" "$SERVER_CONF"
-						fi
-						if run_root "$WG_BIN set $IFACE peer '$pubkey' allowed-ips '$ALLOWED' 2>/dev/null"; then
-								printf '🔧 kernel programmed for %s (AllowedIPs=%s)\n' "$confname" "$ALLOWED"
-						else
-								err "WARN: wg set failed for $confname; wg-add-peers can reconcile later"
-						fi
-
-						# --- begin: append client peer block (fixed, safe, production-ready) ---
-						# Use generator variables and safe fallbacks
-						CLIENT_BASE=${CLIENT_BASE:-$b}
-						CLIENT_CONF=${CLIENT_CONF:-$conf_file}
+						# --- safe replace: ensure single peer block per client in server conf ---
 						# Read server pub/port as root (keep empty string if not available)
 						SERVER_PUB=${SERVER_PUB:-$(run_root "cat /etc/wireguard/${IFACE}.pub 2>/dev/null" || true)}
 						SERVER_PORT=${SERVER_PORT:-$(run_root "wg show ${IFACE} listen-port 2>/dev/null" || true)}
@@ -421,44 +406,47 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 						# Use ALLOWED computed above as client allowed IPs
 						CLIENT_ALLOWED_IPS=${CLIENT_ALLOWED_IPS:-${ALLOWED}}
 
-						# Ensure client conf exists (should already) and has correct perms
-						if [ ! -f "${CLIENT_CONF}" ]; then
-							mkdir -p "$(dirname "${CLIENT_CONF}")"
-							tmp_client_conf="$(mktemp "/tmp/${confname}.client.conf.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp_client_conf"
-							printf '%s\n' '[Interface]' '# placeholder - generator will fill PrivateKey/Address elsewhere' > "$tmp_client_conf"
-							atomic_move_as_root "$tmp_client_conf" "${CLIENT_CONF}"
-						fi
+						# Remove any existing peer paragraph that contains the client comment "# confname"
+						# Use awk paragraph mode to drop paragraphs containing the marker
+						run_root "awk -v name='${confname}' 'BEGIN{RS=\"\"; ORS=\"\\n\\n\"} index(\$0, \"# ${confname}\") {next} {print}' '${SERVER_CONF}' > '${SERVER_CONF}.tmp' && mv '${SERVER_CONF}.tmp' '${SERVER_CONF}'" || true
 
-						# Append peer block only if server pubkey present and not already in client conf
-						if [ -n "${SERVER_PUB}" ] && ! run_root "grep -qF '${SERVER_PUB}' '${CLIENT_CONF}' 2>/dev/null"; then
-							# Build peer block locally (avoid writing placeholders when SERVER_HOST unset)
-							tmp_peer="$(mktemp "/tmp/${confname}.peer.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp_peer"
-							{
-								printf '\n[Peer]\n'
-								printf 'PublicKey = %s\n' "${SERVER_PUB}"
-								if [ -n "${SERVER_HOST}" ]; then
-									# If SERVER_PORT is empty, still write the host (caller should set SERVER_PORT)
-									printf 'Endpoint = %s:%s\n' "${SERVER_HOST}" "${SERVER_PORT}"
-								fi
-								printf 'AllowedIPs = %s\n' "${CLIENT_ALLOWED_IPS}"
-								printf 'PersistentKeepalive = 25\n'
-							} > "$tmp_peer"
+						# Build the new peer block locally (avoid writing placeholders when SERVER_HOST unset)
+						tmp_peer="$(mktemp "/tmp/${confname}.peer.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp_peer"
+						{
+							printf '\n[Peer]\n'
+							printf '# %s (added %s)\n' "${confname}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+							printf 'PublicKey = %s\n' "${pubkey}"
+							if [ -n "${SERVER_HOST}" ]; then
+								printf 'Endpoint = %s:%s\n' "${SERVER_HOST}" "${SERVER_PORT}"
+							fi
+							printf 'AllowedIPs = %s\n' "${CLIENT_ALLOWED_IPS}"
+							printf 'PersistentKeepalive = 25\n'
+						} > "$tmp_peer"
 
-							# Append the prepared block as root by piping the local temp file into a root 'cat >>' command.
-							# The input redirection is performed by the current (unprivileged) shell, and run_root runs the append as root.
-							run_root "sh -c 'cat >> \"${CLIENT_CONF}\"'" < "$tmp_peer"
-							run_root "chmod 600 \"${CLIENT_CONF}\""
+						# Append the prepared block as root by piping the local temp file into a root 'cat >>' command.
+						run_root "sh -c 'cat >> \"${SERVER_CONF}\"'" < "$tmp_peer"
+						run_root "chmod 600 \"${SERVER_CONF}\""
+						rm -f -- "$tmp_peer" 2>/dev/null || true
+						TMPFILES="$(printf '%s' "$TMPFILES" | sed "s# $tmp_peer##g" | sed "s#^$tmp_peer##g")"
+						printf '➕ appended/updated peer %s in %s\n' "$confname" "$SERVER_CONF"
 
-							# Clean up local temp (trap/cleanup will also remove TMPFILES)
-							rm -f -- "$tmp_peer" 2>/dev/null || true
-							# Remove tmp_peer from TMPFILES since we deleted it
-							TMPFILES="$(printf '%s' "$TMPFILES" | sed "s# $tmp_peer##g" | sed "s#^$tmp_peer##g")"
+						# Reconcile kernel state: remove any stale peer that has the same IPv4 allowed IP (best-effort)
+						peers_list="$(run_root "$WG_BIN show ${IFACE} peers" 2>/dev/null || true)"
+						for p in $peers_list; do
+							# check allowed-ips for this peer
+							peer_allowed="$(run_root "$WG_BIN show ${IFACE} peer $p allowed-ips" 2>/dev/null || true)"
+							if printf '%s\n' "$peer_allowed" | grep -qF "${ipv4}" 2>/dev/null; then
+								# remove stale peer with same IP (best-effort)
+								run_root "$WG_BIN set ${IFACE} peer '$p' remove" 2>/dev/null || true
+							fi
+						done
 
-							printf '➕ appended client peer to %s\n' "${CLIENT_CONF}"
+						# Program the new peer into kernel (add/update)
+						if run_root "$WG_BIN set ${IFACE} peer '$pubkey' allowed-ips '$ALLOWED' 2>/dev/null"; then
+								printf '🔧 kernel programmed for %s (AllowedIPs=%s)\n' "$confname" "$ALLOWED"
 						else
-							printf 'ℹ️ client peer already present or SERVER_PUB missing; skipping append for %s\n' "${CLIENT_CONF}"
+								err "WARN: wg set failed for $confname; wg-add-peers can reconcile later"
 						fi
-# --- end: append client peer block ---
 
 						release_lock "$lockdir"
 				else
