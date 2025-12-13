@@ -53,7 +53,7 @@ APT_UPDATE_STAMP ?= $(STAMP_DIR)/apt.update.stamp
 APT_UPDATE_MAX_AGE ?= 21600   # 6 hours in seconds
 
 define apt_update_if_needed
-	@sudo mkdir -p --mode=0755 $(STAMP_DIR) >/dev/null 2>&1 || true; \
+	@$(run_as_root) mkdir -p --mode=0755 $(STAMP_DIR) >/dev/null 2>&1 || true; \
 	if [ ! -f "$(APT_UPDATE_STAMP)" ] || [ $$(expr $$(date +%s) - $$(stat -c %Y "$(APT_UPDATE_STAMP)" 2>/dev/null || echo 0) ) -gt $(APT_UPDATE_MAX_AGE) ]; then \
 		echo "[make] Running apt-get update (stamp missing or older than $(APT_UPDATE_MAX_AGE)s)"; \
 		$(run_as_root) apt-get update; \
