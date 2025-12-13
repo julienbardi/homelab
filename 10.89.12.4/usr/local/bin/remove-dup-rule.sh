@@ -2,13 +2,13 @@
 # remove-dup-rule.sh
 # Remove duplicate identical rules from a chain, keeping the lowest-numbered copy.
 # Usage:
-#   sudo ./remove-dup-rule.sh FORWARD
-#   sudo ./remove-dup-rule.sh POSTROUTING
-#   sudo ./remove-dup-rule.sh FORWARD v6
-#   sudo ./remove-dup-rule.sh POSTROUTING v6
+#   sudo remove-dup-rule.sh FORWARD
+#   sudo remove-dup-rule.sh POSTROUTING
+#   sudo remove-dup-rule.sh FORWARD v6
+#   sudo remove-dup-rule.sh POSTROUTING v6
 #
 # to deploy use 
-#     sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/remove-dup-rule.sh /usr/local/bin/
+#     sudo cp /home/julie/src/homelab/10.89.12.4/usr/local/bin/remove-dup-rule.sh /usr/local/bin/
 
 set -euo pipefail
 
