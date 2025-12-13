@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # scripts/gen-client-cert-wrapper.sh
 # Usage: gen-client-cert-wrapper.sh <CN> <run_as_root> <script_dir> [--force]
 set -euo pipefail
