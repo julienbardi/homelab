@@ -13,8 +13,9 @@ WG_BIN := /usr/bin/wg
 WG_QUICK := /usr/bin/wg-quick
 
 MAKEFLAGS += --no-print-directory
-export FORCE CONF_FORCE
+export FORCE CONF_FORCE FORCE_REASSIGN
 
+SERVER_HOST := vpn.bardi.ch
 # Per-interface data (index order must match)
 WG_IFACES := 0 1 2 3 4 5 6 7
 WG_PORTS  := 51420 51421 51422 51423 51424 51425 51426 51427
@@ -90,26 +91,22 @@ client-%: ensure-wg-dir
 	# sanitize BASE: strip leading generate- and trailing -wgN for the name passed to the generator
 	BASE="$$(printf '%s' "$$STEM" | sed -e 's/^generate-//' -e 's/-wg[0-9]$$//')"; \
 	echo "🧩 generating client $$BASE for $$IFACE"; \
-	$(run_as_root) "$(CURDIR)/scripts/gen-client.sh" "$$BASE" "$$IFACE" "$(FORCE)" "$(CONF_FORCE)"
-
+	$(run_as_root) sh -c 'FORCE_REASSIGN=$(FORCE_REASSIGN) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) exec "$(CURDIR)/scripts/gen-client.sh" "'"$$BASE"'" "'"$$IFACE"'"'
 
 # Show QR for client; auto-create if missing
 client-showqr-%:
-	@CONF="$(WG_DIR)/$*.conf"; \
-	if [ -f "$$CONF" ]; then \
-		$(run_as_root) qrencode -t ANSIUTF8 < "$$CONF"; \
-		exit 0; \
-	fi; \
+	@STEM="$*"; \
 	# infer IFACE if present in name
-	case "$*" in \
-		*-wg[0-7]) BASE=$$(echo "$*" | sed -n 's/^\(.*\)-wg\([0-7]\)$$/\1/p'); IFACE=$$(echo "$*" | sed -n 's/^.*-\(wg[0-7]\)$$/\1/p'); ;; \
-		*) BASE="$*"; IFACE="$(IFACE)"; ;; \
+	case "$$STEM" in \
+		*-wg[0-7]) BASE=$$(echo "$$STEM" | sed -n 's/^\(.*\)-wg\([0-7]\)$$/\1/p'); IFACE=$$(echo "$$STEM" | sed -n 's/^.*-\(wg[0-7]\)$$/\1/p'); ;; \
+		*) BASE="$$STEM"; IFACE="$(IFACE)"; ;; \
 	esac; \
 	if [ -z "$$IFACE" ]; then echo "❌ cannot infer IFACE; run: make client-<name> IFACE=wgN"; exit 1; fi; \
 	CONFNAME="$$BASE-$$IFACE"; \
-	echo "ℹ️ creating client $$CONFNAME then printing QR"; \
-	$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$BASE"' IFACE='"$$IFACE"'' || { echo "❌ failed to create $$CONFNAME"; exit 1; }; \
+	echo "ℹ️ ensuring client $$CONFNAME exists then printing QR"; \
+	$(run_as_root) sh -c 'FORCE_REASSIGN=$(FORCE_REASSIGN) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$BASE"' IFACE='"$$IFACE"'' || { echo "❌ failed to create $$CONFNAME"; exit 1; }; \
 	$(run_as_root) sh -c 'qrencode -t ANSIUTF8 < "$(WG_DIR)/'"$$CONFNAME"'.conf"'
+
 
 # Bring up/down interfaces (idempotent)
 wg-up-%:
@@ -161,7 +158,7 @@ all-clients-generate:
 	@echo "🛠 generating missing clients from CLIENTS"; \
 	for entry in $(CLIENTS); do base=$$(echo $$entry | sed 's/:.*//'); iface=$$(echo $$entry | sed 's/.*://'); CONFNAME="$$base-$$iface"; \
 		if [ ! -f "$(WG_DIR)/$$CONFNAME.conf" ] || [ ! -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
-			echo "➕ creating $$CONFNAME"; $(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$$iface"'' || { echo "❌ failed $$CONFNAME"; exit 1; }; \
+			echo "➕ creating $$CONFNAME"; $(run_as_root) sh -c 'FORCE_REASSIGN=$(FORCE_REASSIGN) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$$iface"'' || { echo "❌ failed $$CONFNAME"; exit 1; }; \
 		else echo "✅ $$CONFNAME exists"; fi; \
 	done; echo "✅ client generation complete"
 
@@ -188,7 +185,7 @@ regen-clients:
 	@if [ -z "$(IFACE)" ]; then echo "❌ regen-clients requires IFACE=wgN"; exit 1; fi; \
 	echo "♻️ regenerating clients for $(IFACE)"; \
 	for entry in $(CLIENTS); do base=$$(echo $$entry | sed 's/:.*//'); iface=$$(echo $$entry | sed 's/.*://'); \
-		if [ "$$iface" = "$(IFACE)" ]; then echo "🔁 regenerating $$base"; $(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$(IFACE)"'' || echo "⚠️ failed $$base"; fi; \
+		if [ "$$iface" = "$(IFACE)" ]; then echo "🔁 regenerating $$base"; $(run_as_root) sh -c 'FORCE_REASSIGN=$(FORCE_REASSIGN) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$(IFACE)"'' || echo "⚠️ failed $$base"; fi; \
 	done; echo "✅ regen-clients complete for $(IFACE)"
 
 # Destructive full reinstall (interactive confirmation)
