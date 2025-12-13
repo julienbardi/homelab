@@ -190,15 +190,33 @@ ${b}"
 done
 
 map_bases=""
-if [ -f "$MAP_FILE" ]; then
-		map_tmp="$(mktemp "/tmp/client-map.map.XXXXXX")"; TMPFILES="$TMPFILES $map_tmp"
-		read_map_lines "$MAP_FILE" > "$map_tmp"
-		while IFS=, read -r mbase miface m4 m6; do
-				[ "$miface" = "$IFACE" ] || continue
-				[ -n "$mbase" ] && map_bases="${map_bases}
+# Read existing map file as root into a local temp so unprivileged runs see the same input
+if run_root "test -f '${MAP_FILE}'"; then
+	map_tmp="$(mktemp "/tmp/client-map.map.XXXXXX")"; TMPFILES="$TMPFILES $map_tmp"
+	# capture authoritative map file contents locally
+	run_root "cat '${MAP_FILE}' 2>/dev/null" > "$map_tmp" || true
+	# normalize and parse the map lines from the local copy
+	read_map_lines "$map_tmp" > "${map_tmp}.norm" || true
+	mv "${map_tmp}.norm" "$map_tmp" 2>/dev/null || true
+	while IFS=, read -r mbase miface m4 m6; do
+		[ "$miface" = "$IFACE" ] || continue
+		[ -n "$mbase" ] && map_bases="${map_bases}
 ${mbase}"
-				: "$m6"  # mark m6 as used to silence shellcheck unused-var
-		done < "$map_tmp"
+		: "$m6"
+	done < "$map_tmp"
+else
+	# Fail fast with a clear instruction for unprivileged callers
+	err "ERROR: cannot read authoritative map ${MAP_FILE} for ${IFACE}."
+	err "This usually means the current user cannot read files under ${WG_DIR}."
+	err "To proceed, run the command as root, for example:"
+	err "  sudo FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 make client-showqr-${BASE}-${IFACE}"
+	err "If you prefer to allow a trusted user to run the generator without sudo,"
+	err "grant read access to the map for a dedicated group (safer than world-readable):"
+	err "  sudo groupadd --system wireguard || true"
+	err "  sudo chown root:wireguard '${MAP_FILE}'"
+	err "  sudo chmod 0640 '${MAP_FILE}'"
+	err "  sudo usermod -aG wireguard <username>   # then re-login or newgrp wireguard"
+	exit 1
 fi
 
 all_bases="$(printf '%s\n%s\n%s\n' "$existing_bases" "$map_bases" "$BASE" | sed '/^[[:space:]]*$/d' | sort -u)"
@@ -219,9 +237,13 @@ esac
 
 # ---------- Occupancy from existing map ----------
 used_indices=""
-if [ -f "$MAP_FILE" ]; then
+if run_root "test -f '${MAP_FILE}'"; then
 		map_tmp2="$(mktemp "/tmp/client-map.map2.XXXXXX")"; TMPFILES="$TMPFILES $map_tmp2"
-		read_map_lines "$MAP_FILE" > "$map_tmp2"
+		# capture authoritative map file contents locally
+		run_root "cat '${MAP_FILE}' 2>/dev/null" > "$map_tmp2" || true
+		# normalize and parse the map lines from the local copy
+		read_map_lines "$map_tmp2" > "${map_tmp2}.norm" || true
+		mv "${map_tmp2}.norm" "$map_tmp2" 2>/dev/null || true
 		while IFS=, read -r mbase miface m4 m6; do
 				[ "$miface" = "$IFACE" ] || continue
 				case "$m4" in
@@ -268,8 +290,9 @@ done
 # ---------- Compare with old map for this iface ----------
 TMP_OLD_MAP="$(mktemp "/tmp/client-map.old.${IFACE}.XXXXXX")"; TMPFILES="$TMPFILES $TMP_OLD_MAP"
 : > "$TMP_OLD_MAP"
-if [ -f "$MAP_FILE" ]; then
-		awk -F, -v iface="$IFACE" 'BEGIN{OFS=","} $2==iface {print $1,$2,$3,$4}' "$MAP_FILE" > "$TMP_OLD_MAP" || true
+if run_root "test -f '${MAP_FILE}'"; then
+	# capture authoritative map file and extract iface lines into TMP_OLD_MAP
+	run_root "cat '${MAP_FILE}' 2>/dev/null" | awk -F, -v iface="$IFACE" 'BEGIN{OFS=","} $2==iface {print $1,$2,$3,$4}' > "$TMP_OLD_MAP" || true
 fi
 
 reassign_diff="$(mktemp "/tmp/client-map.diff.${IFACE}.XXXXXX")"; TMPFILES="$TMPFILES $reassign_diff"
@@ -281,16 +304,17 @@ if ! diff -u "$TMP_OLD_MAP" "$TMP_NEW_MAP" > "$reassign_diff" 2>/dev/null; then
 				fi
 		done < "$TMP_OLD_MAP"
 		if [ "$changed" -eq 1 ] && [ "$FORCE_REASSIGN" -ne 1 ]; then
-				err "ERROR: allocation would reassign existing clients for $IFACE. Set FORCE_REASSIGN=1 to allow."
-				sed -n '1,200p' "$reassign_diff" >&2 || true
-				rm -f "$TMP_NEW_MAP" "$TMP_OLD_MAP" "$reassign_diff"
-				exit 1
+			err "ERROR: allocation would reassign existing clients for $IFACE."
+			err "To proceed, run as root and allow reassignment:"
+			err "  sudo FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 make client-showqr-${BASE}-${IFACE}"
+			rm -f "$TMP_NEW_MAP" "$TMP_OLD_MAP" "$reassign_diff"
+			exit 1
 		fi
 fi
 rm -f "$reassign_diff" 2>/dev/null || true
 
 # ---------- Merge new iface lines into global map atomically ----------
-if [ -f "$MAP_FILE" ]; then
+if run_root "test -f '${MAP_FILE}'"; then
 		TSTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 		BACKUP_PATH="${BACKUP_DIR%/}/wg-map-${TSTAMP}.tar.gz"
 		run_root "mkdir -p '$(dirname "$BACKUP_PATH")' && tar -czf '$BACKUP_PATH' -C '$(dirname "$MAP_FILE")' '$(basename "$MAP_FILE")' 2>/dev/null || true"
@@ -298,8 +322,9 @@ fi
 
 TMP_MERGED="$(mktemp "/tmp/client-map.merged.XXXXXX")"; TMPFILES="$TMPFILES $TMP_MERGED"
 : > "$TMP_MERGED"
-if [ -f "$MAP_FILE" ]; then
-		awk -F, -v iface="$IFACE" 'BEGIN{OFS=","} $2!=iface {print $1,$2,$3,$4}' "$MAP_FILE" >> "$TMP_MERGED" || true
+if run_root "test -f '${MAP_FILE}'"; then
+	# append all non-iface lines from authoritative map into merged
+	run_root "cat '${MAP_FILE}' 2>/dev/null" | awk -F, -v iface="$IFACE" 'BEGIN{OFS=","} $2!=iface {print $1,$2,$3,$4}' >> "$TMP_MERGED" || true
 fi
 cat "$TMP_NEW_MAP" >> "$TMP_MERGED"
 atomic_move_as_root "$TMP_MERGED" "$MAP_FILE"
@@ -384,12 +409,15 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 								err "WARN: wg set failed for $confname; wg-add-peers can reconcile later"
 						fi
 
-						# --- begin: append client peer block ---
+						# --- begin: append client peer block (fixed, safe, production-ready) ---
 						# Use generator variables and safe fallbacks
 						CLIENT_BASE=${CLIENT_BASE:-$b}
 						CLIENT_CONF=${CLIENT_CONF:-$conf_file}
-						SERVER_PUB=${SERVER_PUB:-$(cat /etc/wireguard/${IFACE}.pub 2>/dev/null || true)}
-						SERVER_PORT=${SERVER_PORT:-$(wg show ${IFACE} listen-port 2>/dev/null || true)}
+						# Read server pub/port as root (keep empty string if not available)
+						SERVER_PUB=${SERVER_PUB:-$(run_root "cat /etc/wireguard/${IFACE}.pub 2>/dev/null" || true)}
+						SERVER_PORT=${SERVER_PORT:-$(run_root "wg show ${IFACE} listen-port 2>/dev/null" || true)}
+						# Keep SERVER_HOST empty unless explicitly provided by environment
+						SERVER_HOST=${SERVER_HOST:-}
 						# Use ALLOWED computed above as client allowed IPs
 						CLIENT_ALLOWED_IPS=${CLIENT_ALLOWED_IPS:-${ALLOWED}}
 
@@ -400,18 +428,37 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 							printf '%s\n' '[Interface]' '# placeholder - generator will fill PrivateKey/Address elsewhere' > "$tmp_client_conf"
 							atomic_move_as_root "$tmp_client_conf" "${CLIENT_CONF}"
 						fi
+
 						# Append peer block only if server pubkey present and not already in client conf
 						if [ -n "${SERVER_PUB}" ] && ! run_root "grep -qF '${SERVER_PUB}' '${CLIENT_CONF}' 2>/dev/null"; then
-								# append locally (we have perms) then ensure perms via atomic_move_as_root if needed
-								run_root "sh -c 'printf \"\n\" >> \"${CLIENT_CONF}\"'"
-								# append via run_root so the write is performed as root
-								run_root "sh -c 'printf \"\n[Peer]\nPublicKey = ${SERVER_PUB}\nEndpoint = ${SERVER_HOST:-<SERVER_HOST>}:${SERVER_PORT}\nAllowedIPs = ${CLIENT_ALLOWED_IPS}\nPersistentKeepalive = 25\n\" >> \"${CLIENT_CONF}\"'"
-								run_root "chmod 600 \"${CLIENT_CONF}\""
-								printf '➕ appended client peer to %s\n' "${CLIENT_CONF}"
+							# Build peer block locally (avoid writing placeholders when SERVER_HOST unset)
+							tmp_peer="$(mktemp "/tmp/${confname}.peer.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp_peer"
+							{
+								printf '\n[Peer]\n'
+								printf 'PublicKey = %s\n' "${SERVER_PUB}"
+								if [ -n "${SERVER_HOST}" ]; then
+									# If SERVER_PORT is empty, still write the host (caller should set SERVER_PORT)
+									printf 'Endpoint = %s:%s\n' "${SERVER_HOST}" "${SERVER_PORT}"
+								fi
+								printf 'AllowedIPs = %s\n' "${CLIENT_ALLOWED_IPS}"
+								printf 'PersistentKeepalive = 25\n'
+							} > "$tmp_peer"
+
+							# Append the prepared block as root by piping the local temp file into a root 'cat >>' command.
+							# The input redirection is performed by the current (unprivileged) shell, and run_root runs the append as root.
+							run_root "sh -c 'cat >> \"${CLIENT_CONF}\"'" < "$tmp_peer"
+							run_root "chmod 600 \"${CLIENT_CONF}\""
+
+							# Clean up local temp (trap/cleanup will also remove TMPFILES)
+							rm -f -- "$tmp_peer" 2>/dev/null || true
+							# Remove tmp_peer from TMPFILES since we deleted it
+							TMPFILES="$(printf '%s' "$TMPFILES" | sed "s# $tmp_peer##g" | sed "s#^$tmp_peer##g")"
+
+							printf '➕ appended client peer to %s\n' "${CLIENT_CONF}"
 						else
-								printf 'ℹ️ client peer already present or SERVER_PUB missing; skipping append for %s\n' "${CLIENT_CONF}"
+							printf 'ℹ️ client peer already present or SERVER_PUB missing; skipping append for %s\n' "${CLIENT_CONF}"
 						fi
-						# --- end: append client peer block ---
+# --- end: append client peer block ---
 
 						release_lock "$lockdir"
 				else
