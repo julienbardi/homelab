@@ -11,16 +11,11 @@ INTERFACE="bridge0"
 LOG_FILE="/var/log/ipv6_route_fix.log"
 
 # Check if the route is currently in the routing table (Exit code 0 means found)
-ip -6 route show | grep -q "${BAD_ROUTE}"
-
-if [ $? -eq 0 ]; then
+if ip -6 route show | grep -q "${BAD_ROUTE}"; then
     echo "$(date) ⚠️ Found problematic IPv6 default route. Deleting it..." >> "${LOG_FILE}"
-    
-    # Execute the deletion command
-    sudo ip -6 route del default via "${GATEWAY}" dev "${INTERFACE}"
-    
-    # Check deletion status
-    if [ $? -eq 0 ]; then
+
+    # Execute the deletion command and test it directly
+    if sudo ip -6 route del default via "${GATEWAY}" dev "${INTERFACE}"; then
         echo "$(date) ✅ Problematic route deleted successfully." >> "${LOG_FILE}"
     else
         echo "$(date) ❌ ERROR: Failed to delete the route." >> "${LOG_FILE}"
@@ -32,11 +27,9 @@ fi
 # --- Check for the CORRECT default route ---
 if ! ip -6 route show | grep -q "default via fe80::127c:61ff:fe42:c2c0"; then
     echo "$(date) ⚠️ Missing correct default IPv6 route. Adding it..." >> "${LOG_FILE}"
-    
-    # Add the correct route
-    sudo ip -6 route add default via fe80::127c:61ff:fe42:c2c0 dev bridge0
-    
-    if [ $? -eq 0 ]; then
+
+    # Add the correct route and test the command directly
+    if sudo ip -6 route add default via fe80::127c:61ff:fe42:c2c0 dev bridge0; then
         echo "$(date) ✅ Correct default route added successfully." >> "${LOG_FILE}"
     else
         echo "$(date) ❌ ERROR: Failed to add correct default route." >> "${LOG_FILE}"
