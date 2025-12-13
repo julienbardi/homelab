@@ -348,6 +348,44 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 						else
 								err "WARN: wg set failed for $confname; wg-add-peers can reconcile later"
 						fi
+
+						# --- begin: append client peer block ---
+						# Use generator variables and safe fallbacks
+						CLIENT_BASE=${CLIENT_BASE:-$b}
+						CLIENT_CONF=${CLIENT_CONF:-$conf_file}
+						SERVER_PUB=${SERVER_PUB:-$(cat /etc/wireguard/${IFACE}.pub 2>/dev/null || true)}
+						SERVER_PORT=${SERVER_PORT:-$(wg show ${IFACE} listen-port 2>/dev/null || true)}
+						# Use ALLOWED computed above as client allowed IPs
+						CLIENT_ALLOWED_IPS=${CLIENT_ALLOWED_IPS:-${ALLOWED}}
+
+						# Ensure client conf exists (should already) and has correct perms
+						if [ ! -f "${CLIENT_CONF}" ]; then
+								mkdir -p "$(dirname "${CLIENT_CONF}")"
+								cat > "${CLIENT_CONF}" <<EOF
+[Interface]
+# placeholder - generator will fill PrivateKey/Address elsewhere
+EOF
+								chmod 600 "${CLIENT_CONF}"
+						fi
+
+						# Append peer block only if server pubkey present and not already in client conf
+						if [ -n "${SERVER_PUB}" ] && ! run_root "grep -qF '${SERVER_PUB}' '${CLIENT_CONF}' 2>/dev/null"; then
+								# append locally (we have perms) then ensure perms via atomic_move_as_root if needed
+								printf '\n' >> "${CLIENT_CONF}" || true
+								cat >> "${CLIENT_CONF}" <<EOF
+[Peer]
+PublicKey = ${SERVER_PUB}
+Endpoint = ${SERVER_HOST:-<SERVER_HOST>}:${SERVER_PORT}
+AllowedIPs = ${CLIENT_ALLOWED_IPS}
+PersistentKeepalive = 25
+EOF
+								chmod 600 "${CLIENT_CONF}" || true
+								printf '➕ appended client peer to %s\n' "${CLIENT_CONF}"
+						else
+								printf 'ℹ️ client peer already present or SERVER_PUB missing; skipping append for %s\n' "${CLIENT_CONF}"
+						fi
+						# --- end: append client peer block ---
+
 						release_lock "$lockdir"
 				else
 						err "failed to acquire lock for $IFACE; skipping kernel programming for $confname"
