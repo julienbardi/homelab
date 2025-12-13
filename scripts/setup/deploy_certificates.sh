@@ -21,8 +21,10 @@ usage() {
 
 days_left() {
 	local cert="$1"
-	local exp="$(openssl x509 -enddate -noout -in "$cert" | cut -d= -f2)"
-	local exp_epoch="$(date -d "$exp" +%s)" now_epoch="$(date +%s)"
+	local exp
+	exp="$(openssl x509 -enddate -noout -in "$cert" | cut -d= -f2)"
+	local exp_epoch
+	exp_epoch="$(date -d "$exp" +%s)" now_epoch="$(date +%s)"
 	echo $(( (exp_epoch - now_epoch) / 86400 ))
 }
 

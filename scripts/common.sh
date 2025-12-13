@@ -13,12 +13,15 @@ HOME="/home/julie"
 
 SCRIPT_NAME="$(basename "$0" .sh)"
 
+# shellcheck disable=SC2317
 log() {
-	local msg="$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME:-${0##*/}}] $*"
+	local msg
+	msg="$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME:-${0##*/}}] $*"
 	echo "$msg" >&2
 	logger -t "${SCRIPT_NAME:-${0##*/}}" "$msg"
 }
 
+# shellcheck source=./scripts/lib/run_as_root.sh
 source "$HOME/src/homelab/scripts/lib/run_as_root.sh"
 
 # Idempotent rule inserter: checks with -C first
@@ -100,7 +103,9 @@ atomic_install() {
 			log "Atomic install: ${src} → ${host}:${dest} (owner=${owner_group}, mode=${mode})"
 			log "DETAILS: src hash=${src_hash}, dest different/missing"
 			scp "$src" "$host:$dest"
+			# shellcheck disable=SC2029
 			ssh "$host" sudo chown "${owner_group%%:*}:${owner_group##*:}" "$dest"
+			# shellcheck disable=SC2029
 			ssh "$host" sudo chmod "$mode" "$dest"
 			echo "changed"
 			return 0   # success

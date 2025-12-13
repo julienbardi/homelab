@@ -46,17 +46,40 @@ user_all_tmp=""
 
 declare -a CHANGED_SUMMARY=()
 
+# shellcheck disable=SC2317
 cleanup() {
-  [ -n "${tmp_known:-}" ] && [ -f "$tmp_known" ] && rm -f "$tmp_known" 2>/dev/null || true
-  [ -n "${tmp_known_canon:-}" ] && [ -f "$tmp_known_canon" ] && rm -f "$tmp_known_canon" 2>/dev/null || true
-  [ -n "${tmp_root:-}" ] && sudo rm -f "$tmp_root" 2>/dev/null || true
-  [ -n "${tmp_root_canon:-}" ] && [ -f "$tmp_root_canon" ] && rm -f "$tmp_root_canon" 2>/dev/null || true
-  [ -n "${tmp_local_root_copy:-}" ] && [ -f "$tmp_local_root_copy" ] && rm -f "$tmp_local_root_copy" 2>/dev/null || true
-  [ -n "${tmp_local_root_canon:-}" ] && [ -f "$tmp_local_root_canon" ] && rm -f "$tmp_local_root_canon" 2>/dev/null || true
-  [ -n "${user_all_tmp:-}" ] && [ -f "$user_all_tmp" ] && rm -f "$user_all_tmp" 2>/dev/null || true
-  if command -v flock >/dev/null 2>&1; then
-	flock -u 9 2>/dev/null || true
-  fi
+if [ -n "${tmp_known:-}" ] && [ -f "$tmp_known" ]; then
+  rm -f "$tmp_known" 2>/dev/null || true
+fi
+
+if [ -n "${tmp_known_canon:-}" ] && [ -f "$tmp_known_canon" ]; then
+  rm -f "$tmp_known_canon" 2>/dev/null || true
+fi
+
+if [ -n "${tmp_root:-}" ]; then
+  sudo rm -f "$tmp_root" 2>/dev/null || true
+fi
+
+if [ -n "${tmp_root_canon:-}" ] && [ -f "$tmp_root_canon" ]; then
+  rm -f "$tmp_root_canon" 2>/dev/null || true
+fi
+
+if [ -n "${tmp_local_root_copy:-}" ] && [ -f "$tmp_local_root_copy" ]; then
+  rm -f "$tmp_local_root_copy" 2>/dev/null || true
+fi
+
+if [ -n "${tmp_local_root_canon:-}" ] && [ -f "$tmp_local_root_canon" ]; then
+  rm -f "$tmp_local_root_canon" 2>/dev/null || true
+fi
+
+if [ -n "${user_all_tmp:-}" ] && [ -f "$user_all_tmp" ]; then
+  rm -f "$user_all_tmp" 2>/dev/null || true
+fi
+
+if command -v flock >/dev/null 2>&1; then
+  flock -u 9 2>/dev/null || true
+fi
+
 }
 trap cleanup EXIT INT TERM
 
@@ -107,6 +130,7 @@ canonicalize_file() {
   chmod 600 "$outfile" || true
 }
 
+# shellcheck disable=SC2317
 safe_append() {
   local line="$1" target="$2"
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -332,7 +356,7 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   echo "🔁 Replacing entries for ${display_name} (atomic)"
 
   if [ "$DRY_RUN" -eq 1 ]; then
-	echo "DRY-RUN: would remove existing entries for host tokens: ${!TOKEN_FPS[@]}"
+	echo "DRY-RUN: would remove existing entries for host tokens: $(printf '%s ' "${!TOKEN_FPS[@]}")"
 	echo "DRY-RUN: would append scanned keys for ${display_name}"
 	[ "${#MISSING_KEYLINES[@]}" -gt 0 ] && print_keylines_for_host "$display_name (would add)" "${MISSING_KEYLINES[@]}"
 	logger -t verify_known_hosts "DRY-RUN replace for ${display_name}"
@@ -371,7 +395,11 @@ while IFS= read -r raw || [ -n "$raw" ]; do
 	mv -f "$bak" "${HOME}/.ssh/known_hosts.bak.$BACKUP_SUFFIX"
 	logger -t verify_known_hosts "Backup created: ${HOME}/.ssh/known_hosts.bak.$BACKUP_SUFFIX"
 	# rotate backups: keep last 5
-	(cd "$HOME/.ssh" && ls -1t known_hosts.bak.* 2>/dev/null | tail -n +6 | xargs -r rm --) || true
+	( cd "$HOME/.ssh" && \
+		find . -maxdepth 1 -type f -name 'known_hosts.bak.*' -printf '%T@ %p\n' 2>/dev/null \
+		| sort -nr \
+		| awk 'NR>5 { sub(/^[^ ]+ /, ""); print }' \
+		| xargs -r --no-run-if-empty rm -- ) || true
 
 	# Determine which keylines are new for user file
 	new_user_keylines=()
@@ -385,7 +413,7 @@ while IFS= read -r raw || [ -n "$raw" ]; do
 	mv -f "$tmp_known" "$KNOWN_HOSTS"
 	rm -f "$tmp_known_canon" "$known_canon"
 	tmp_known=""; tmp_known_canon=""
-	echo "✅ Replaced entries in $KNOWN_HOSTS for tokens: ${!TOKEN_FPS[@]}"
+	echo "✅ Replaced entries in $KNOWN_HOSTS for tokens: $(printf '%s ' "${!TOKEN_FPS[@]}")"
 	logger -t verify_known_hosts "Replaced entries in $KNOWN_HOSTS for ${display_name}"
 
 	if [ "${#new_user_keylines[@]}" -gt 0 ]; then
@@ -485,7 +513,7 @@ ROOTSCRIPT
 		  fi
 		done
 
-		echo "✅ Replaced entries in /root/.ssh/known_hosts for tokens: ${!TOKEN_FPS[@]}"
+		echo "✅ Replaced entries in /root/.ssh/known_hosts for tokens: $(printf '%s ' "${!TOKEN_FPS[@]}")"
 		logger -t verify_known_hosts "Replaced entries in /root/.ssh/known_hosts for ${display_name}"
 
 		if [ "${#new_root_keylines[@]}" -gt 0 ]; then
@@ -504,6 +532,7 @@ ROOTSCRIPT
 		done
 		if [ "$found_index" -ge 0 ]; then
 		  if ! printf "%s\n" "${CHANGED_SUMMARY[$found_index]}" | grep -q "root"; then
+			# shellcheck disable=SC2004
 			CHANGED_SUMMARY[$found_index]="${CHANGED_SUMMARY[$found_index]},root"
 		  fi
 		else
