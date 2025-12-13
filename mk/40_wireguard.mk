@@ -300,3 +300,12 @@ wg-status:
 wg-status2:
 	@echo "WireGuard peer status (resolved names from /etc/wireguard/client-map.csv)"
 	@$(SHELL) scripts/wg-status2.sh
+
+.PHONY: client-remove
+client-remove:
+	@# Usage: make client-remove BASE=<base> IFACE=<iface>
+	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
+		echo "Usage: make client-remove BASE=<base> IFACE=<iface>"; exit 1; \
+	fi
+	@echo "🗑 removing client $(BASE) on $(IFACE)"
+	$(run_as_root) "$(CURDIR)/scripts/remove-client.sh" "$(BASE)" "$(IFACE)"

@@ -122,6 +122,41 @@ if [ $# -lt 2 ]; then
 fi
 
 BASE="$1"; IFACE="$2"; shift 2
+# Normalize BASE: accept legacy generated names by stripping leading "generate-"
+# and trailing "-wgN" so Makefile callers remain compatible.
+case "$BASE" in
+  generate-*)
+	printf 'WARN: stripping leading '\''generate-'\'' from BASE\n' >&2
+	BASE="${BASE#generate-}"
+	;;
+  *)
+	;;
+esac
+
+# Strip trailing -wgN if present (e.g., foo-wg7 -> foo)
+case "$BASE" in
+  *-wg[0-9]*)
+	printf 'WARN: stripping trailing iface suffix from BASE\n' >&2
+	BASE="${BASE%-wg[0-9]*}"
+	;;
+  *)
+	;;
+esac
+
+# Validate BASE to avoid accidental generated names
+case "$BASE" in
+  *-wg[0-9]* )
+	printf 'ERROR: invalid BASE contains iface suffix (-wgN); pass plain base name\n' >&2
+	exit 2
+	;;
+  generate-* )
+	printf 'ERROR: invalid BASE contains generator prefix (generate-); pass plain base name\n' >&2
+	exit 2
+	;;
+  * ) ;;
+esac
+
+
 FORCE=0; CONF_FORCE=0
 while [ $# -gt 0 ]; do
 		case "$1" in
@@ -314,7 +349,7 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 		if [ -f "$conf_file" ] && [ "$CONF_FORCE" -ne 1 ]; then
 				printf '⏭ %s exists\n' "$conf_file"
 		else
-				tmp="$(mktemp "${conf_file}.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp"
+				tmp="$(mktemp "/tmp/${confname}.conf.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp"
 				{
 						printf '%s\n' '[Interface]'
 						printf 'PrivateKey = %s\n' "$privkey"
@@ -360,26 +395,18 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 
 						# Ensure client conf exists (should already) and has correct perms
 						if [ ! -f "${CLIENT_CONF}" ]; then
-								mkdir -p "$(dirname "${CLIENT_CONF}")"
-								cat > "${CLIENT_CONF}" <<EOF
-[Interface]
-# placeholder - generator will fill PrivateKey/Address elsewhere
-EOF
-								chmod 600 "${CLIENT_CONF}"
+							mkdir -p "$(dirname "${CLIENT_CONF}")"
+							tmp_client_conf="$(mktemp "/tmp/${confname}.client.conf.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp_client_conf"
+							printf '%s\n' '[Interface]' '# placeholder - generator will fill PrivateKey/Address elsewhere' > "$tmp_client_conf"
+							atomic_move_as_root "$tmp_client_conf" "${CLIENT_CONF}"
 						fi
-
 						# Append peer block only if server pubkey present and not already in client conf
 						if [ -n "${SERVER_PUB}" ] && ! run_root "grep -qF '${SERVER_PUB}' '${CLIENT_CONF}' 2>/dev/null"; then
 								# append locally (we have perms) then ensure perms via atomic_move_as_root if needed
-								printf '\n' >> "${CLIENT_CONF}" || true
-								cat >> "${CLIENT_CONF}" <<EOF
-[Peer]
-PublicKey = ${SERVER_PUB}
-Endpoint = ${SERVER_HOST:-<SERVER_HOST>}:${SERVER_PORT}
-AllowedIPs = ${CLIENT_ALLOWED_IPS}
-PersistentKeepalive = 25
-EOF
-								chmod 600 "${CLIENT_CONF}" || true
+								run_root "sh -c 'printf \"\n\" >> \"${CLIENT_CONF}\"'"
+								# append via run_root so the write is performed as root
+								run_root "sh -c 'printf \"\n[Peer]\nPublicKey = ${SERVER_PUB}\nEndpoint = ${SERVER_HOST:-<SERVER_HOST>}:${SERVER_PORT}\nAllowedIPs = ${CLIENT_ALLOWED_IPS}\nPersistentKeepalive = 25\n\" >> \"${CLIENT_CONF}\"'"
+								run_root "chmod 600 \"${CLIENT_CONF}\""
 								printf '➕ appended client peer to %s\n' "${CLIENT_CONF}"
 						else
 								printf 'ℹ️ client peer already present or SERVER_PUB missing; skipping append for %s\n' "${CLIENT_CONF}"
