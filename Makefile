@@ -46,6 +46,17 @@ include mk/99_lint.mk        # lint and safety checks (always last)
 help:
 	@echo "[make] Available targets:"
 	@echo ""
+	@echo "  Package and preflight"
+	@echo "    make deps               # Install system dependencies (apt + builds); includes shellcheck, codespell, aspell"
+	@echo "    make apt-update         # Force refresh apt cache (normally cached for $(APT_UPDATE_MAX_AGE)s)"
+	@echo "    make check-prereqs      # Verify required host commands (sudo, apt-get, git, ip, wg, etc.)"
+	@echo ""
+	@echo "  Linting"
+	@echo "    make lint               # Run permissive lint suite (shellcheck, checkmake, spell, headscale configtest)"
+	@echo "    make lint-fast          # Fast lint (shell syntax, shellcheck, checkmake) - permissive"
+	@echo "    make lint-all           # Full permissive lint (fast + spell + headscale)"
+	@echo "    make lint-ci            # STRICT CI lint (fails on any ShellCheck/checkmake/codespell/aspell issues)"
+	@echo ""
 	@echo "  Certificate lifecycle"
 	@echo "    make issue              # Issue new RSA+ECC certs"
 	@echo "    make renew              # Renew ECC (RSA fallback)"
@@ -118,8 +129,12 @@ help:
 	@echo "  - Admin-only helpers (assign/cleanup) live in /usr/local/sbin and are intended to be invoked via $(run_as_root) or sudo."
 	@echo ""
 	@echo "[make] Notes:"
-	@echo "  - Some targets call $(KNOWN_HOSTS_SCRIPT) or other scripts under $(HOMELAB_DIR)."
+	@echo "  - make deps now installs developer tools used by lint: shellcheck, codespell, aspell, checkmake."
+	@echo "  - The Makefile caches apt-get update for $(APT_UPDATE_MAX_AGE) seconds; use 'make apt-update' to force refresh."
+	@echo "  - Use 'make lint-ci' in CI to enforce strict linting (fails on ShellCheck/checkmake/codespell/aspell issues)."
+	@echo "  - Source builds (checkmake, headscale) are guarded by version/stamp checks to avoid unnecessary rebuilds."
 	@echo "  - Use SKIP_KNOWN_HOSTS=1 to skip the interactive known_hosts check."
+# --------------------------------------------------------------------
 
 # Path to the interactive known_hosts installer
 KNOWN_HOSTS_FILE := $(HOMELAB_DIR)/known_hosts_to_check.txt
