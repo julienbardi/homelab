@@ -15,7 +15,7 @@
 set -euo pipefail
 source "/home/julie/src/homelab/scripts/common.sh"
 
-SERVICE_NAME="caddy"
+#SERVICE_NAME="caddy"
 CADDYFILE="/etc/caddy/Caddyfile"
 
 # --- Deploy updated Caddyfile ---

@@ -13,13 +13,12 @@
 set -euo pipefail
 source "/home/julie/src/homelab/scripts/common.sh"
 
-NAS_IP="10.89.12.4"
 VPN_SUBNET="10.4.0.0/24"
 SCRIPT_NAME=$(basename "$0" .sh)
 
 log() {
 	echo "$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME}] $*"
-	logger -t ${SCRIPT_NAME} "$*"
+	logger -t "${SCRIPT_NAME}" "$*"
 }
 
 # --- Service Summary Table ---

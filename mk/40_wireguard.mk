@@ -1,729 +1,296 @@
 # ============================================================
-# mk/40_wireguard.mk — WireGuard orchestration
-# ============================================================
-# CONTRACT:
-# - Uses run_as_root := ./bin/run-as-root
-# - All recipes call $(run_as_root) with argv tokens.
-# - Generates wg0–wg7 configs under /etc/wireguard
-# - Generates named client configs: <user>-<machine>-wgX.conf
-# - Auto-creates server key if missing and brings interface up when creating a client
-# - DNS fixed to 10.89.12.4
-# - Prints QR code for mobile onboarding (requires qrencode)
-# - Provides wg-up-% and wg-down-% to manage interfaces
-# - Provides client-list to audit generated client configs
-# - Provides client-clean-% to revoke client configs safely
-# - Provides client-showqr-% to display QR code for existing client configs (auto-creates missing client)
-# - Provides client-dashboard to show emoji table of users/machines vs interfaces
-# - Provides wg-clean-% to revoke all clients bound to an interface
-# - Provides wg-clean-list-% to preview which client files would be removed by wg-clean-%
-#
-# USAGE EXAMPLES:
-#   make wg7
-#       → Create server keypair if missing and write wg7.conf (won't rotate key unless FORCE=1)
-#
-#   make wg7 CONF_FORCE=1
-#       → Rewrite /etc/wireguard/wg7.conf even if it exists
-#
-#   make wg7 FORCE=1
-#       → Regenerate server keypair (will overwrite wg7.key/wg7.pub)
-#
-#   make client-julie-s22 IFACE=wg7
-#       → Generate client config julie-s22-wg7.conf (creates server key if missing, starts wg7)
-#
-#   make client-julie-s22-wg7
-#       → Same as above (name may include -wgN suffix)
-#
-#   make client-showqr-julie-s22-wg7
-#       → Display QR code for julie-s22-wg7 config; auto-create client if missing
-#
-#   make wg-clean-list-7
-#       → Show which client files would be removed for wg7 (preview)
-#
-#   make wg-clean-7
-#       → Remove all client configs/keys for wg7 (revocation)
-#
-#   make client-list
-#       → List all client configs
-#
-#   make client-clean-julie-s22-wg7
-#       → Revoke julie-s22 on wg7 (delete config + keys)
-#
-#   make client-dashboard
-#       → Show emoji table of users/machines vs interfaces
+# mk/40_wireguard.mk — WireGuard orchestration (no heredoc)
+# - Production-ready, minimal duplication, robust shell usage
+# - Avoids make-level word() expansion; computes per-iface values at runtime
+# - Does not use heredoc to write files (uses printf | tee)
+# - All privileged actions go through $(run_as_root)
 # ============================================================
 
 run_as_root := ./bin/run-as-root
 WG_DIR := /etc/wireguard
-DNS_SERVER := 10.89.12.4
-
-# Absolute paths to WireGuard binaries to avoid PATH issues under sudo/run-as-root
+MAP_FILE := /etc/wireguard/client-map.csv
 WG_BIN := /usr/bin/wg
 WG_QUICK := /usr/bin/wg-quick
 
-# Avoid recursive-make "Entering directory" messages
 MAKEFLAGS += --no-print-directory
-
-# export FORCE and CONF_FORCE so recursive make inherits them
 export FORCE CONF_FORCE
 
-# NOTE: Some recipes invoke a root-owned make via $(run_as_root) $(MAKE) ...
-# To guarantee that FORCE and CONF_FORCE are visible to the recursive root
-# make process we explicitly wrap recursive invocations in a shell under
-# run-as-root so environment assignments are evaluated by the shell and
-# not interpreted as separate commands by sudo-like helpers.
+# Per-interface data (index order must match)
+WG_IFACES := 0 1 2 3 4 5 6 7
+WG_PORTS  := 51420 51421 51422 51423 51424 51425 51426 51427
+WG_IPV4S  := 10.0.0.1/24 10.1.0.1/24 10.2.0.1/24 10.3.0.1/24 10.4.0.1/24 10.5.0.1/24 10.6.0.1/24 10.7.0.1/24
+WG_IPV6S  := 2a01:8b81:4800:9c00:10::1/128 2a01:8b81:4800:9c00:11::1/128 2a01:8b81:4800:9c00:12::1/128 2a01:8b81:4800:9c00:13::1/128 \
+			 2a01:8b81:4800:9c00:14::1/128 2a01:8b81:4800:9c00:15::1/128 2a01:8b81:4800:9c00:16::1/128 2a01:8b81:4800:9c00:17::1/128
 
-# -------------------------
-# Embedded clients inventory
-# -------------------------
-# Define clients here as space-separated entries using colon to separate base and iface:
-#   <user-machine>:wgN
-# Examples:
-#   julie-s22:wg7 alice-laptop:wg3 bob-phone:wg7
-#
-# Edit this variable to add/remove clients. No external clients.list file required.
+# Embedded clients inventory (format: base:wgN)
 CLIENTS := \
-julie-s22:wg0 \
-julie-s22:wg1 \
-julie-s22:wg2 \
-julie-s22:wg3 \
-julie-s22:wg4 \
-julie-s22:wg5 \
-julie-s22:wg6 \
-julie-s22:wg7 \
-julie-omen30l:wg0 \
-julie-omen30l:wg1 \
-julie-omen30l:wg2 \
-julie-omen30l:wg3 \
-julie-omen30l:wg4 \
-julie-omen30l:wg5 \
-julie-omen30l:wg6 \
-julie-omen30l:wg7
-.PHONY: ensure-wg-dir wg0 wg1 wg2 wg3 wg4 wg5 wg6 wg7 wg-up-% wg-down-% wg-clean-% wg-clean-list-% client-% client-list client-clean-% client-showqr-% client-dashboard all-wg all-wg-up all-clients-generate wg-add-peers all-start client-dashboard-status regen-clients
+	julie-s22:wg0 \
+	julie-s22:wg1 \
+	julie-s22:wg2 \
+	julie-s22:wg3 \
+	julie-s22:wg4 \
+	julie-s22:wg5 \
+	julie-s22:wg6 \
+	julie-s22:wg7 \
+	julie-omen30l:wg0 \
+	julie-omen30l:wg1 \
+	julie-omen30l:wg2 \
+	julie-omen30l:wg3 \
+	julie-omen30l:wg4 \
+	julie-omen30l:wg5 \
+	julie-omen30l:wg6 \
+	julie-omen30l:wg7
 
-# --- Ensure WG_DIR exists and has correct perms ---
+.PHONY: ensure-wg-dir all-wg all-wg-up all-clients-generate wg-add-peers regen-clients client-list wg-reinstall-all
+
+# Ensure WG_DIR and map file exist with safe perms
 ensure-wg-dir:
 	@$(run_as_root) install -d -m 0700 $(WG_DIR)
+	@$(run_as_root) sh -c 'test -f "$(MAP_FILE)" || install -m 0600 /dev/null "$(MAP_FILE)"'
+	@$(run_as_root) chown root:root $(MAP_FILE) || true
 
-# --- Server targets (only generate keys when missing; CONF_FORCE to rewrite conf) ---
-wg0: ensure-wg-dir
-	@echo "🔧 Generating WireGuard config for wg0"
-	@if [ -f "$(WG_DIR)/wg0.key" ] && [ "$(FORCE)" != "1" ]; then \
-		echo "🔒 Server key for wg0 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
+# Generic server config generator for wgN (no make-level word() usage)
+# Usage: make wg3  or make wg% (pattern)
+wg%: ensure-wg-dir
+	@N=$*; \
+	INDEX=$$((N+1)); \
+	# compute values at runtime using shell (cut selects the INDEX-th field)
+	PORT=$$(echo "$(WG_PORTS)" | cut -d' ' -f$$INDEX); \
+	IPV4=$$(echo "$(WG_IPV4S)" | cut -d' ' -f$$INDEX); \
+	IPV6=$$(echo "$(WG_IPV6S)" | cut -d' ' -f$$INDEX); \
+	DEV=wg$$N; \
+	KEY="$(WG_DIR)/$$DEV.key"; PUB="$(WG_DIR)/$$DEV.pub"; CONF="$(WG_DIR)/$$DEV.conf"; \
+	echo "🔧 ensure $$DEV (PORT=$$PORT, IPV4=$$IPV4, IPV6=$$IPV6)"; \
+	# generate keypair if missing or FORCE=1
+	if [ -f "$$KEY" ] && [ "$(FORCE)" != "1" ]; then \
+		echo "🔒 $$KEY exists, skipping key generation"; \
 	else \
-		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg0.key | $(WG_BIN) pubkey > $(WG_DIR)/wg0.pub'; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg0.key $(WG_DIR)/wg0.pub; \
-		echo "✅ Server key for wg0 generated"; \
+		$(run_as_root) sh -c 'KEY="'"$$KEY"'" PUB="'"$$PUB"'" ; $(WG_BIN) genkey | tee "$$KEY" | $(WG_BIN) pubkey > "$$PUB"'; \
+		$(run_as_root) chmod 600 "$$KEY" "$$PUB"; \
+		echo "✅ generated $$KEY and $$PUB"; \
 	fi; \
-	PORT=51420; IPV4="10.0.0.1/24"; IPV6="2a01:8b81:4800:9c00:10::1/64"; \
-	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg0.key); \
-	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg0.conf" ]; then \
-		printf "%s\n%s\n%s\n%s\n" \
-		"[Interface]" \
-		"Address = $$IPV4, $$IPV6" \
-		"ListenPort = $$PORT" \
-		"PrivateKey = $$PRIVKEY" \
-		| $(run_as_root) tee $(WG_DIR)/wg0.conf > /dev/null; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg0.conf; \
-		echo "📄 wg0.conf written → $(WG_DIR)/wg0.conf"; \
-		$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg0' || echo "⚠️  regen-clients failed for wg0"; \
+	PRIVKEY=$$($(run_as_root) cat "$$KEY"); \
+	# write conf if missing or CONF_FORCE=1 (use printf to avoid heredoc)
+	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$$CONF" ]; then \
+		printf "%s\n%s\n%s\n%s\n" "[Interface]" "Address = $$IPV4, $$IPV6" "ListenPort = $$PORT" "PrivateKey = $$PRIVKEY" | $(run_as_root) tee "$$CONF" > /dev/null; \
+		$(run_as_root) chmod 600 "$$CONF"; \
+		echo "📄 wrote $$CONF"; \
+		$(run_as_root) sh -c 'DEV="'"$$DEV"'" ; FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=$$DEV' || echo "⚠️ regen-clients failed for $$DEV"; \
 	else \
-		echo "⏭ wg0.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
+		echo "⏭ $$CONF exists and CONF_FORCE!=1, skipping"; \
 	fi
 
-wg1: ensure-wg-dir
-	@echo "🔧 Generating WireGuard config for wg1"
-	@if [ -f "$(WG_DIR)/wg1.key" ] && [ "$(FORCE)" != "1" ]; then \
-		echo "🔒 Server key for wg1 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
-	else \
-		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg1.key | $(WG_BIN) pubkey > $(WG_DIR)/wg1.pub'; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg1.key $(WG_DIR)/wg1.pub; \
-		echo "✅ Server key for wg1 generated"; \
-	fi; \
-	PORT=51421; IPV4="10.1.0.1/24"; IPV6="2a01:8b81:4800:9c00:11::1/64"; \
-	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg1.key); \
-	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg1.conf" ]; then \
-		printf "%s\n%s\n%s\n%s\n" \
-		"[Interface]" \
-		"Address = $$IPV4, $$IPV6" \
-		"ListenPort = $$PORT" \
-		"PrivateKey = $$PRIVKEY" \
-		| $(run_as_root) tee $(WG_DIR)/wg1.conf > /dev/null; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg1.conf; \
-		echo "📄 wg1.conf written → $(WG_DIR)/wg1.conf"; \
-		$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg1' || echo "⚠️  regen-clients failed for wg1"; \
-	else \
-		echo "⏭ wg1.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
-	fi
-
-wg2: ensure-wg-dir
-	@echo "🔧 Generating WireGuard config for wg2"
-	@if [ -f "$(WG_DIR)/wg2.key" ] && [ "$(FORCE)" != "1" ]; then \
-		echo "🔒 Server key for wg2 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
-	else \
-		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg2.key | $(WG_BIN) pubkey > $(WG_DIR)/wg2.pub'; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg2.key $(WG_DIR)/wg2.pub; \
-		echo "✅ Server key for wg2 generated"; \
-	fi; \
-	PORT=51422; IPV4="10.2.0.1/24"; IPV6="2a01:8b81:4800:9c00:12::1/64"; \
-	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg2.key); \
-	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg2.conf" ]; then \
-		printf "%s\n%s\n%s\n%s\n" \
-		"[Interface]" \
-		"Address = $$IPV4, $$IPV6" \
-		"ListenPort = $$PORT" \
-		"PrivateKey = $$PRIVKEY" \
-		| $(run_as_root) tee $(WG_DIR)/wg2.conf > /dev/null; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg2.conf; \
-		echo "📄 wg2.conf written → $(WG_DIR)/wg2.conf"; \
-		$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg2' || echo "⚠️  regen-clients failed for wg2"; \
-	else \
-		echo "⏭ wg2.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
-	fi
-
-wg3: ensure-wg-dir
-	@echo "🔧 Generating WireGuard config for wg3"
-	@if [ -f "$(WG_DIR)/wg3.key" ] && [ "$(FORCE)" != "1" ]; then \
-		echo "🔒 Server key for wg3 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
-	else \
-		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg3.key | $(WG_BIN) pubkey > $(WG_DIR)/wg3.pub'; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg3.key $(WG_DIR)/wg3.pub; \
-		echo "✅ Server key for wg3 generated"; \
-	fi; \
-	PORT=51423; IPV4="10.3.0.1/24"; IPV6="2a01:8b81:4800:9c00:13::1/64"; \
-	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg3.key); \
-	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg3.conf" ]; then \
-		printf "%s\n%s\n%s\n%s\n" \
-		"[Interface]" \
-		"Address = $$IPV4, $$IPV6" \
-		"ListenPort = $$PORT" \
-		"PrivateKey = $$PRIVKEY" \
-		| $(run_as_root) tee $(WG_DIR)/wg3.conf > /dev/null; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg3.conf; \
-		echo "📄 wg3.conf written → $(WG_DIR)/wg3.conf"; \
-		$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg3' || echo "⚠️  regen-clients failed for wg3"; \
-	else \
-		echo "⏭ wg3.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
-	fi
-
-wg4: ensure-wg-dir
-	@echo "🔧 Generating WireGuard config for wg4"
-	@if [ -f "$(WG_DIR)/wg4.key" ] && [ "$(FORCE)" != "1" ]; then \
-		echo "🔒 Server key for wg4 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
-	else \
-		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg4.key | $(WG_BIN) pubkey > $(WG_DIR)/wg4.pub'; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg4.key $(WG_DIR)/wg4.pub; \
-		echo "✅ Server key for wg4 generated"; \
-	fi; \
-	PORT=51424; IPV4="10.4.0.1/24"; IPV6="2a01:8b81:4800:9c00:14::1/64"; \
-	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg4.key); \
-	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg4.conf" ]; then \
-		printf "%s\n%s\n%s\n%s\n" \
-		"[Interface]" \
-		"Address = $$IPV4, $$IPV6" \
-		"ListenPort = $$PORT" \
-		"PrivateKey = $$PRIVKEY" \
-		| $(run_as_root) tee $(WG_DIR)/wg4.conf > /dev/null; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg4.conf; \
-		echo "📄 wg4.conf written → $(WG_DIR)/wg4.conf"; \
-		$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg4' || echo "⚠️  regen-clients failed for wg4"; \
-	else \
-		echo "⏭ wg4.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
-	fi
-
-wg5: ensure-wg-dir
-	@echo "🔧 Generating WireGuard config for wg5"
-	@if [ -f "$(WG_DIR)/wg5.key" ] && [ "$(FORCE)" != "1" ]; then \
-		echo "🔒 Server key for wg5 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
-	else \
-		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg5.key | $(WG_BIN) pubkey > $(WG_DIR)/wg5.pub'; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg5.key $(WG_DIR)/wg5.pub; \
-		echo "✅ Server key for wg5 generated"; \
-	fi; \
-	PORT=51425; IPV4="10.5.0.1/24"; IPV6="2a01:8b81:4800:9c00:15::1/64"; \
-	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg5.key); \
-	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg5.conf" ]; then \
-		printf "%s\n%s\n%s\n%s\n" \
-		"[Interface]" \
-		"Address = $$IPV4, $$IPV6" \
-		"ListenPort = $$PORT" \
-		"PrivateKey = $$PRIVKEY" \
-		| $(run_as_root) tee $(WG_DIR)/wg5.conf > /dev/null; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg5.conf; \
-		echo "📄 wg5.conf written → $(WG_DIR)/wg5.conf"; \
-		$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg5' || echo "⚠️  regen-clients failed for wg5"; \
-	else \
-		echo "⏭ wg5.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
-	fi
-
-wg6: ensure-wg-dir
-	@echo "🔧 Generating WireGuard config for wg6"
-	@if [ -f "$(WG_DIR)/wg6.key" ] && [ "$(FORCE)" != "1" ]; then \
-		echo "🔒 Server key for wg6 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
-	else \
-		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg6.key | $(WG_BIN) pubkey > $(WG_DIR)/wg6.pub'; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg6.key $(WG_DIR)/wg6.pub; \
-		echo "✅ Server key for wg6 generated"; \
-	fi; \
-	PORT=51426; IPV4="10.6.0.1/24"; IPV6="2a01:8b81:4800:9c00:16::1/64"; \
-	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg6.key); \
-	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg6.conf" ]; then \
-		printf "%s\n%s\n%s\n%s\n" \
-		"[Interface]" \
-		"Address = $$IPV4, $$IPV6" \
-		"ListenPort = $$PORT" \
-		"PrivateKey = $$PRIVKEY" \
-		| $(run_as_root) tee $(WG_DIR)/wg6.conf > /dev/null; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg6.conf; \
-		echo "📄 wg6.conf written → $(WG_DIR)/wg6.conf"; \
-		$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg6' || echo "⚠️  regen-clients failed for wg6"; \
-	else \
-		echo "⏭ wg6.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
-	fi
-
-wg7: ensure-wg-dir
-	@echo "🔧 Generating WireGuard config for wg7"
-	@if [ -f "$(WG_DIR)/wg7.key" ] && [ "$(FORCE)" != "1" ]; then \
-		echo "🔒 Server key for wg7 already exists, skipping key generation (use FORCE=1 to regenerate)"; \
-	else \
-		$(run_as_root) sh -c '$(WG_BIN) genkey | tee $(WG_DIR)/wg7.key | $(WG_BIN) pubkey > $(WG_DIR)/wg7.pub'; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg7.key $(WG_DIR)/wg7.pub; \
-		echo "✅ Server key for wg7 generated"; \
-	fi; \
-	PORT=51427; IPV4="10.7.0.1/24"; IPV6="2a01:8b81:4800:9c00:17::1/64"; \
-	PRIVKEY=$$($(run_as_root) cat $(WG_DIR)/wg7.key); \
-	if [ "$(CONF_FORCE)" = "1" ] || [ ! -f "$(WG_DIR)/wg7.conf" ]; then \
-		printf "%s\n%s\n%s\n%s\n" \
-		"[Interface]" \
-		"Address = $$IPV4, $$IPV6" \
-		"ListenPort = $$PORT" \
-		"PrivateKey = $$PRIVKEY" \
-		| $(run_as_root) tee $(WG_DIR)/wg7.conf > /dev/null; \
-		$(run_as_root) chmod 600 $(WG_DIR)/wg7.conf; \
-		echo "📄 wg7.conf written → $(WG_DIR)/wg7.conf"; \
-		$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg7' || echo "⚠️  regen-clients failed for wg7"; \
-	else \
-		echo "⏭ wg7.conf exists and CONF_FORCE!=1, skipping config rewrite"; \
-	fi
-
-# --- Named client configs (create only; do NOT print QR) ---
-# Ensure subnet router is configured before generating client configs
+# Named client configs (create only; do NOT print QR)
 client-%: ensure-wg-dir
-	@echo "🧩 Generating WireGuard client config for $* (interface $(IFACE))"
-	@$(run_as_root) sh -c '\
-		BASE="$*"; \
-		# prefer explicit IFACE var, else try to extract from name suffix -wgN \
-		if [ -z "$(IFACE)" ]; then \
-			IFACE=$$(echo "$$BASE" | sed -n "s/.*-\\(wg[0-7]\\)$$/\\1/p"); \
-		else \
-			IFACE="$(IFACE)"; \
-		fi; \
-		# determine CONFNAME: if BASE already ends with -wgN use it, otherwise append IFACE \
-		if echo "$$BASE" | sed -n "s/.*-wg[0-7]$$/x/p" | grep -q x; then \
-			CONFNAME="$$BASE"; \
-			[ -z "$$IFACE" ] && IFACE=$$(echo "$$BASE" | sed -n "s/.*-\\(wg[0-7]\\)$$/\\1/p"); \
-		else \
-			[ -z "$$IFACE" ] && { echo "❌ must specify IFACE=wgX when client name does not include -wgN"; exit 1; }; \
-			CONFNAME="$$BASE-$$IFACE"; \
-		fi; \
-		# validate IFACE and index \
-		IDX=$$(echo "$$IFACE" | sed -n "s/^wg\\([0-7]\\)$$/\\1/p"); \
-		[ -n "$$IDX" ] || { echo "❌ IFACE must be wg0–wg7"; exit 1; }; \
-		# ensure server key exists (create and bring up interface if missing) \
-		if [ ! -f "$(WG_DIR)/$$IFACE.key" ]; then \
-			echo "⚠️  Server key for $$IFACE not found, generating and bringing interface up..."; \
-			$(WG_BIN) genkey | tee "$(WG_DIR)/$$IFACE.key" | $(WG_BIN) pubkey > "$(WG_DIR)/$$IFACE.pub"; \
-			chmod 600 "$(WG_DIR)/$$IFACE.key" "$(WG_DIR)/$$IFACE.pub"; \
-			$(WG_QUICK) up $$IFACE || true; \
-		fi; \
-		# generate client keypair (skip if exists unless FORCE=1) \
-		if [ -f "$(WG_DIR)/$$CONFNAME.key" ] && [ "$(FORCE)" != "1" ]; then \
-			echo "🔒 Client key for $$CONFNAME already exists, skipping key generation (use FORCE=1 to regenerate)"; \
-			# ensure pub exists when key already present \
-			if [ ! -f "$(WG_DIR)/$$CONFNAME.pub" ]; then \
-				echo "ℹ️  Client pub for $$CONFNAME missing — generating from key"; \
-				$(WG_BIN) pubkey < "$(WG_DIR)/$$CONFNAME.key" > "$(WG_DIR)/$$CONFNAME.pub" || true; \
-				chmod 600 "$(WG_DIR)/$$CONFNAME.pub" || true; \
-			fi; \
-		else \
-			$(WG_BIN) genkey | tee "$(WG_DIR)/$$CONFNAME.key" | $(WG_BIN) pubkey > "$(WG_DIR)/$$CONFNAME.pub"; \
-			chmod 600 "$(WG_DIR)/$$CONFNAME.key" "$(WG_DIR)/$$CONFNAME.pub"; \
-		fi; \
-		# build config values (keep all sensitive ops inside root context) \
-		PRIVKEY=$$(cat "$(WG_DIR)/$$CONFNAME.key"); \
-		SERVERPUB=$$(cat "$(WG_DIR)/$$IFACE.pub"); \
-		PORT=$$(expr 51420 + $$IDX); \
-		IPV4="10.$$IDX.0.2/32"; \
-		IPV6="2a01:8b81:4800:9c00:1$$IDX::2/128"; \
-		# build ALLOWED as a comma-separated list (portable, no leading spaces) \
-		ALLOWED_LIST=""; \
-		case "$$IDX" in \
-			1|3|5|7) ALLOWED_LIST="10.89.12.0/24";; \
-		esac; \
-		case "$$IDX" in \
-			2|3|6|7) \
-				if [ -z "$$ALLOWED_LIST" ]; then ALLOWED_LIST="0.0.0.0/0"; else ALLOWED_LIST="$$ALLOWED_LIST, 0.0.0.0/0"; fi;; \
-		esac; \
-		case "$$IDX" in \
-			5|6|7) \
-				if [ -z "$$ALLOWED_LIST" ]; then ALLOWED_LIST="::/0"; else ALLOWED_LIST="$$ALLOWED_LIST, ::/0"; fi;; \
-		esac; \
-		if [ "$$IDX" = "4" ]; then ALLOWED_LIST="2a01:8b81:4800:9c00:14::/64"; fi; \
-		ALLOWED="$$ALLOWED_LIST"; \
-		# write config to a root-owned temp file inside WG_DIR, compare, and mv only if different \
-		tmp_conf="$$(mktemp "$(WG_DIR)/.$$CONFNAME.conf.XXXXXX")"; \
-		chmod 600 "$$tmp_conf"; \
-		{ \
-		  printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n" \
-			"[Interface]" \
-			"PrivateKey = $$PRIVKEY" \
-			"Address = $$IPV4, $$IPV6" \
-			"DNS = $(DNS_SERVER)" \
-			"" \
-			"[Peer]" \
-			"PublicKey = $$SERVERPUB"; \
-		  if [ -n "$$ALLOWED" ]; then \
-			printf "%s\n%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "PersistentKeepalive = 25" "AllowedIPs = $$ALLOWED"; \
-		  else \
-			printf "%s\n%s\n" "Endpoint = vpn.bardi.ch:$$PORT" "PersistentKeepalive = 25"; \
-		  fi; \
-		} > "$$tmp_conf"; \
-		# compare and move atomically if different \
-		if [ -f "$(WG_DIR)/$$CONFNAME.conf" ]; then \
-		  if cmp -s "$$tmp_conf" "$(WG_DIR)/$$CONFNAME.conf"; then \
-			echo "ℹ️  $(WG_DIR)/$$CONFNAME.conf unchanged; skipping overwrite"; \
-			rm -f "$$tmp_conf"; \
-		  else \
-			mv -f "$$tmp_conf" "$(WG_DIR)/$$CONFNAME.conf"; \
-			chmod 600 "$(WG_DIR)/$$CONFNAME.conf"; \
-			echo "✅ $$CONFNAME.conf written → $(WG_DIR)/$$CONFNAME.conf"; \
-		  fi; \
-		else \
-		  mv -f "$$tmp_conf" "$(WG_DIR)/$$CONFNAME.conf"; \
-		  chmod 600 "$(WG_DIR)/$$CONFNAME.conf"; \
-		  echo "✅ $$CONFNAME.conf written → $(WG_DIR)/$$CONFNAME.conf"; \
-		fi; \
-	'
+	@BASE="$*"; \
+	IFACE="$(IFACE)"; \
+	if [ -z "$$IFACE" ]; then IFACE=$$(echo "$$BASE" | sed -n "s/.*-\(wg[0-7]\)$$/\1/p"); fi; \
+	[ -n "$$IFACE" ] || { echo "❌ must specify IFACE=wgN when client name does not include -wgN"; exit 1; }; \
+	echo "🧩 generating client $$BASE for $$IFACE"; \
+	$(run_as_root) "$(CURDIR)/scripts/gen-client.sh" "$$BASE" "$$IFACE" "$(FORCE)" "$(CONF_FORCE)"
 
-
-# --- Show QR code for existing client config; auto-create if missing (check + display as root) ---
+# Show QR for client; auto-create if missing
 client-showqr-%:
-	@echo "🔍 Displaying QR code for client $*"
 	@CONF="$(WG_DIR)/$*.conf"; \
 	if [ -f "$$CONF" ]; then \
 		$(run_as_root) qrencode -t ANSIUTF8 < "$$CONF"; \
 		exit 0; \
 	fi; \
-	# parse name: if it ends with -wgN split base/iface, else require IFACE var \
+	# infer IFACE if present in name
 	case "$*" in \
-		*-wg[0-7]) \
-			BASE=$$(echo "$*" | sed -n 's/^\(.*\)-wg\([0-7]\)$$/\1/p'); \
-			IFACE=$$(echo "$*" | sed -n 's/^.*-\(wg[0-7]\)$$/\1/p'); \
-			;; \
-		*) \
-			BASE="$*"; \
-			IFACE="$(IFACE)"; \
-			;; \
+		*-wg[0-7]) BASE=$$(echo "$*" | sed -n 's/^\(.*\)-wg\([0-7]\)$$/\1/p'); IFACE=$$(echo "$*" | sed -n 's/^.*-\(wg[0-7]\)$$/\1/p'); ;; \
+		*) BASE="$*"; IFACE="$(IFACE)"; ;; \
 	esac; \
-	if [ -z "$$IFACE" ]; then \
-		echo "❌ Config for $* not found and IFACE could not be inferred. Run: make client-<name> IFACE=wgN"; \
-		exit 1; \
-	fi; \
+	if [ -z "$$IFACE" ]; then echo "❌ cannot infer IFACE; run: make client-<name> IFACE=wgN"; exit 1; fi; \
 	CONFNAME="$$BASE-$$IFACE"; \
-	echo "ℹ️  Config for $* not found — generating client $$CONFNAME with IFACE=$$IFACE..."; \
-	# create client as root (client-% writes the config but does not print QR) \
-	$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$BASE"' IFACE='"$$IFACE"'' || { echo "❌ Failed to generate client $$CONFNAME"; exit 1; }; \
-	# now check existence and display QR as root (same context that created the file) \
-	$(run_as_root) sh -c '\
-		if [ -f "$(WG_DIR)/'"$$CONFNAME"'.conf" ]; then \
-			qrencode -t ANSIUTF8 < "$(WG_DIR)/'"$$CONFNAME"'.conf"; \
-		else \
-			echo "❌ Client '"$$CONFNAME"' was not created as expected (root could not find the file)"; \
-			exit 1; \
-		fi'
+	echo "ℹ️ creating client $$CONFNAME then printing QR"; \
+	$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$BASE"' IFACE='"$$IFACE"'' || { echo "❌ failed to create $$CONFNAME"; exit 1; }; \
+	$(run_as_root) sh -c 'qrencode -t ANSIUTF8 < "$(WG_DIR)/'"$$CONFNAME"'.conf"'
 
-# --- Bring up/down any wg interface ---
-# Idempotent wg-up: restart existing interface, bring up, install per-client IPv6 host routes
-# Idempotent wg-up: restart existing interface, bring up, install per-client IPv6 host routes
+# Bring up/down interfaces (idempotent)
 wg-up-%:
-	@echo "⏫ Bringing up WireGuard interface wg$*"
-	@$(run_as_root) sh -c '\
-		dev=wg$*; \
-		conf="$(WG_DIR)/$$dev.conf"; \
-		[ -f "$$conf" ] || { echo "⏭ skipping $$dev (no config at $$conf)"; exit 0; }; \
-		# If interface exists, bring it down first for a clean restart (ignore errors) \
-		if ip link show "$$dev" >/dev/null 2>&1; then \
-			echo "⏫ $$dev exists — restarting (down/up)"; \
-			$(WG_QUICK) down "$$dev" >/dev/null 2>&1 || true; \
-			ip link delete dev "$$dev" >/dev/null 2>&1 || true; \
-		fi; \
-		# Try to bring it up with wg-quick; do not hide output so failures are visible \
-		if $(WG_QUICK) up "$$dev"; then \
-			echo "✅ $$dev started"; \
-			# install per-client IPv6 host routes from client configs (best-effort) \
-			for f in $(WG_DIR)/*-$$dev.conf; do \
-				[ -f "$$f" ] || continue; \
-				ip6=$$(grep -E \"^Address\" \"$$f\" | sed \"s/Address = //g\" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d \" \"); \
-				[ -z \"$$ip6\" ] && continue; \
-				ip -6 route replace $$ip6 dev $$dev || true; \
-				echo "🔁 installed IPv6 host route $$ip6 dev $$dev"; \
-			done; \
-			$(WG_BIN) show "$$dev" || true; \
-		else \
-			echo "❌ failed to bring up $$dev (check: journalctl -u wg-quick@$$dev.service)"; \
-			journalctl -u wg-quick@$$dev -n 60 --no-pager 2>/dev/null || true; \
-			exit 1; \
-		fi'
-
-
-
+	@DEV=wg$*; CONF="$(WG_DIR)/$$DEV.conf"; \
+	if [ ! -f "$$CONF" ]; then echo "⏭ $$DEV: no config at $$CONF"; exit 0; fi; \
+	echo "⏫ starting $$DEV"; \
+	# clean restart if present
+	if ip link show "$$DEV" >/dev/null 2>&1; then $(run_as_root) $(WG_QUICK) down "$$DEV" >/dev/null 2>&1 || true; fi; \
+	$(run_as_root) $(WG_QUICK) up "$$DEV" || { echo "❌ failed to bring up $$DEV"; journalctl -u wg-quick@$$DEV -n 60 --no-pager || true; exit 1; }; \
+	echo "✅ $$DEV up"; $(run_as_root) $(WG_BIN) show "$$DEV" || true
 
 wg-down-%:
-	@echo "⏬ Bringing down WireGuard interface wg$*"
-	@$(run_as_root) sh -c '\
-		dev=wg$*; \
-		# collect IPv6 addresses from client confs and deduplicate them before removal \
-		ADDRS_TMP=$$(mktemp); \
-		for f in $(WG_DIR)/*-$$dev.conf; do \
-			[ -f "$$f" ] || continue; \
-			grep -E "^Address" "$$f" | sed "s/Address = //g" | awk -F, '\''{for(i=1;i<=NF;i++) if ($$i ~ /:/) print $$i}'\'' | tr -d " " >> "$$ADDRS_TMP"; \
-		done; \
-		if [ -f "$$ADDRS_TMP" ]; then \
-			sort -u "$$ADDRS_TMP" | while read -r ip6; do \
-				[ -z "$$ip6" ] && continue; \
-				ip -6 route del "$$ip6" dev $$dev 2>/dev/null || true; \
-				echo "🔁 removed IPv6 host route $$ip6 dev $$dev"; \
-			done; \
-			rm -f "$$ADDRS_TMP"; \
-		fi; \
-		# flush any remaining IPv6 routes for the device (idempotent) \
-		ip -6 route flush dev $$dev 2>/dev/null || true; \
-		# only call wg-quick down if the interface exists or wg-quick knows about it \
-		if ip link show $$dev >/dev/null 2>&1 || $(WG_QUICK) status $$dev >/dev/null 2>&1; then \
-			$(WG_QUICK) down $$dev || { echo "❌ failed to bring down $$dev"; exit 1; }; \
-		else \
-			echo "⏭ $$dev not present; nothing to do"; \
-		fi'
-
-# --- Clean (revoke) all clients bound to an interface (preview) ---
-wg-clean-list-%:
-	@echo "🗑️  Clients that would be removed for wg$* (preview):"
-	@ls -1 $(WG_DIR)/*-wg$*.conf 2>/dev/null || echo "⏭ No client configs found for wg$*."
-	@ls -1 $(WG_DIR)/*-wg$*.key 2>/dev/null || true
-	@ls -1 $(WG_DIR)/*-wg$*.pub 2>/dev/null || true
-
-# --- Clean (revoke) all clients bound to an interface (destructive, explicit list) ---
-wg-clean-%:
-	@echo "🧹 Revoking all clients bound to wg$*"
-	@TO_REMOVE=$$(ls -1 $(WG_DIR)/*-wg$*.conf $(WG_DIR)/*-wg$*.key $(WG_DIR)/*-wg$*.pub 2>/dev/null || true); \
-	if [ -z "$$TO_REMOVE" ]; then \
-		echo "⏭ No client files found for wg$*"; \
+	@DEV=wg$*; \
+	echo "⏬ stopping $$DEV"; \
+	if ip link show "$$DEV" >/dev/null 2>&1 || $(WG_QUICK) status "$$DEV" >/dev/null 2>&1; then \
+		$(run_as_root) $(WG_QUICK) down "$$DEV" || { echo "❌ failed to bring down $$DEV"; exit 1; }; \
 	else \
-		echo "⚠️  The following files will be removed:"; \
-		printf "%s\n" $$TO_REMOVE; \
-		$(run_as_root) sh -c 'rm -f $(WG_DIR)/*-wg$*.conf $(WG_DIR)/*-wg$*.key $(WG_DIR)/*-wg$*.pub'; \
-		echo "✅ Removed files:"; \
-		printf "%s\n" $$TO_REMOVE; \
+		echo "⏭ $$DEV not present"; \
 	fi
 
-# --- List all client configs (detailed) ---
+# Preview and destructive clean for clients bound to an interface
+wg-clean-list-%:
+	@echo "🗑️ clients for wg$* (preview):"; ls -1 $(WG_DIR)/*-wg$*.conf 2>/dev/null || echo "⏭ none"
+
+wg-clean-%:
+	@echo "🧹 revoking clients for wg$*"; \
+	TO_REMOVE=$$(ls -1 $(WG_DIR)/*-wg$*.conf $(WG_DIR)/*-wg$*.key $(WG_DIR)/*-wg$*.pub 2>/dev/null || true); \
+	if [ -z "$$TO_REMOVE" ]; then echo "⏭ none"; else echo "$$TO_REMOVE"; $(run_as_root) sh -c 'rm -f $(WG_DIR)/*-wg$*.conf $(WG_DIR)/*-wg$*.key $(WG_DIR)/*-wg$*.pub'; echo "✅ removed"; fi
+
+# Client inventory (simple, robust)
 client-list:
-	@echo "📋 Listing client files in $(WG_DIR) (only *-wg* files):"
-	@$(run_as_root) ls -la $(WG_DIR)/*-wg*.conf $(WG_DIR)/*-wg*.key $(WG_DIR)/*-wg*.pub 2>/dev/null || echo "⏭ No client files found."
+	@echo "Clients in $(WG_DIR):"; \
+	for f in $(WG_DIR)/*-wg*.conf; do [ -f "$$f" ] || continue; base=$$(basename "$$f" .conf); printf "%s\n" "$$base"; done
 
-# --- Clean (revoke) a specific user-machine-interface (client only) ---
-client-clean-%:
-	@echo "🧾 Revoking client $* (client-only: .conf .key .pub)"
-	@case "$*" in \
-		*-wg[0-7]) ;; \
-		*) echo "❌ Refusing to operate: target must be <user>-<machine>-wgN (got: $*)"; exit 1 ;; \
-	esac; \
-	# generate UTC timestamp with milliseconds as root and build backup dir inside $(WG_DIR) \
-	TIMESTAMP=$$($(run_as_root) date -u +%Y%m%dT%H%M%S.%3NZ); \
-	BKP_DIR="$(WG_DIR)/wg-client-backup-$$TIMESTAMP-$*"; \
-	echo "📦 Backing up client files to $$BKP_DIR"; \
-	$(run_as_root) mkdir -p "$$BKP_DIR"; \
-	$(run_as_root) cp -a "$(WG_DIR)/$*.conf" "$(WG_DIR)/$*.key" "$(WG_DIR)/$*.pub" "$$BKP_DIR" 2>/dev/null || true; \
-	# remove runtime peer if pub exists (read pub as root and call wg as root) \
-	if $(run_as_root) test -f "$(WG_DIR)/$*.pub"; then \
-		PUBKEY=$$($(run_as_root) cat "$(WG_DIR)/$*.pub"); \
-		IFACE=$$(echo "$*" | sed -n 's/.*-wg\([0-7]\)$$/\1/p'); \
-		if [ -n "$$IFACE" ]; then \
-			echo "🔁 Removing peer $* from wg$$IFACE (runtime)"; \
-			$(run_as_root) wg set wg$$IFACE peer "$$PUBKEY" remove || true; \
-		fi; \
-	fi; \
-	# delete only the exact client artifacts as root (never wgN.conf/key/pub) \
-	echo "🗑️  Removing client files for $* from $(WG_DIR)"; \
-	$(run_as_root) rm -f "$(WG_DIR)/$*.conf" "$(WG_DIR)/$*.key" "$(WG_DIR)/$*.pub"; \
-	echo "✅ Client $* removed (backup at $$BKP_DIR)"
+# Bulk helpers
+ALL_WG := $(addprefix wg,$(WG_IFACES))
 
+all-wg: $(ALL_WG)
+	@echo "✅ all server configs ensured"
 
-# --- Dashboard: list users, machines, and interfaces (portable, POSIX shell) ---
+all-wg-up: ensure-wg-dir
+	@echo "⏫ bringing up all wg interfaces"; \
+	for i in $(WG_IFACES); do $(run_as_root) $(MAKE) -s wg-up-$$i || { echo "❌ wg-up-$$i failed"; exit 1; }; done; \
+	@echo "✅ all-wg-up finished"
+
+# Generate missing clients from CLIENTS list
+all-clients-generate:
+	@echo "🛠 generating missing clients from CLIENTS"; \
+	for entry in $(CLIENTS); do base=$$(echo $$entry | sed 's/:.*//'); iface=$$(echo $$entry | sed 's/.*://'); CONFNAME="$$base-$$iface"; \
+		if [ ! -f "$(WG_DIR)/$$CONFNAME.conf" ] || [ ! -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
+			echo "➕ creating $$CONFNAME"; $(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$$iface"'' || { echo "❌ failed $$CONFNAME"; exit 1; }; \
+		else echo "✅ $$CONFNAME exists"; fi; \
+	done; echo "✅ client generation complete"
+
+# Ensure peers are present in server configs and reload
+wg-add-peers:
+	@echo "🔗 ensuring peers from CLIENTS"; \
+	$(run_as_root) sh -c '\
+		for entry in $(CLIENTS); do \
+			base=$$(echo $$entry | sed "s/:.*//"); iface=$$(echo $$entry | sed "s/.*://"); \
+			conf="$(WG_DIR)/$$iface.conf"; client_pub="$(WG_DIR)/$$base-$$iface.pub"; client_key="$(WG_DIR)/$$base-$$iface.key"; client_conf="$(WG_DIR)/$$base-$$iface.conf"; \
+			[ -f "$$client_pub" ] || { [ -f "$$client_key" ] && $(WG_BIN) pubkey < "$$client_key" > "$$client_pub" || echo "⚠️ missing pub for $$base-$$iface"; }; \
+			[ -f "$$client_pub" ] || continue; [ -f "$$conf" ] || continue; \
+			PUB=$$(cat "$$client_pub"); grep -qF "$$PUB" "$$conf" && { echo "✅ $$base-$$iface already in $$conf"; continue; }; \
+			ALLOWED=$$(grep -m1 -E "^[[:space:]]*Address" "$$client_conf" 2>/dev/null | sed -E "s/^[[:space:]]*Address[[:space:]]*=[[:space:]]*//" || true); \
+			[ -z "$$ALLOWED" ] && ALLOWED="0.0.0.0/32"; \
+			echo "➕ adding peer $$base-$$iface to $$conf"; \
+			$(WG_BIN) set $$iface peer "$$PUB" allowed-ips "$$ALLOWED" || echo "⚠️ wg set failed for $$base-$$iface"; \
+			printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$base-$$iface" "$$PUB" "$$ALLOWED" | tee -a "$$conf" > /dev/null; \
+			$(WG_QUICK) down $$iface >/dev/null 2>&1 || true; $(WG_QUICK) up $$iface >/dev/null 2>&1 || true; \
+		done; echo "✅ wg-add-peers complete"'
+
+# Regenerate clients for a given IFACE (IFACE=wgN)
+regen-clients:
+	@if [ -z "$(IFACE)" ]; then echo "❌ regen-clients requires IFACE=wgN"; exit 1; fi; \
+	echo "♻️ regenerating clients for $(IFACE)"; \
+	for entry in $(CLIENTS); do base=$$(echo $$entry | sed 's/:.*//'); iface=$$(echo $$entry | sed 's/.*://'); \
+		if [ "$$iface" = "$(IFACE)" ]; then echo "🔁 regenerating $$base"; $(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$(IFACE)"'' || echo "⚠️ failed $$base"; fi; \
+	done; echo "✅ regen-clients complete for $(IFACE)"
+
+# Destructive full reinstall (interactive confirmation)
+.PHONY: wg-reinstall-all
+wg-reinstall-all:
+	@echo "[make] WARNING: destructive reinstall of WireGuard server + client artifacts (map file recreated)"
+	@echo ""
+	@echo "This will:"
+	@echo "  - stop any running wg interfaces (wg0..wg7)"
+	@echo "  - remove server configs and keys: $(WG_DIR)/wg*.conf $(WG_DIR)/wg*.key $(WG_DIR)/wg*.pub"
+	@echo "  - remove client artifacts: $(WG_DIR)/*-wg*.conf $(WG_DIR)/*-wg*.key $(WG_DIR)/*-wg*.pub"
+	@echo "  - recreate empty map file: $(MAP_FILE)"
+	@echo ""
+	@echo "Before proceeding you should verify and securely share any public keys you need to keep."
+	@echo "  - To list public keys (copy/paste or save):"
+	@echo "      sudo ls -la $(WG_DIR)/*.pub"
+	@echo "  - To display a client's QR code locally (scan with mobile):"
+	@echo "      sudo make client-showqr-<base>-<iface>    # e.g. sudo make client-showqr-julie-s22-wg3"
+	@echo ""
+	@echo "Secure sharing suggestions:"
+	@echo "  - Use an end-to-end channel (Signal, Wire, or similar) to send public key text."
+	@echo "  - Or scan the QR code locally rather than sending files over chat/email."
+	@echo ""
+	@bash -c 'read -r -p "Type YES to confirm destructive reinstall: " CONFIRM; \
+		if [ "$$CONFIRM" != "YES" ]; then echo "[make] Aborted by user (confirmation not YES)"; exit 1; fi; \
+		echo "[make] Proceeding with destructive reinstall..." ; \
+		# stop interfaces (idempotent) \
+		for i in 0 1 2 3 4 5 6 7; do $(MAKE) wg-down-$$i || true; done; \
+		# remove artifacts \
+		$(run_as_root) rm -f $(WG_DIR)/wg*.conf $(WG_DIR)/wg*.key $(WG_DIR)/wg*.pub $(WG_DIR)/*-wg*.conf $(WG_DIR)/*-wg*.key $(WG_DIR)/*-wg*.pub || true; \
+		# ensure dir and recreate map file \
+		$(run_as_root) install -d -m 0700 $(WG_DIR); \
+		$(run_as_root) install -m 0600 /dev/null $(MAP_FILE); \
+		$(run_as_root) chown root:root $(MAP_FILE) || true; \
+		# regenerate servers and clients (force keys+confs) \
+		$(run_as_root) $(MAKE) -B all-wg FORCE=1 CONF_FORCE=1; \
+		$(run_as_root) $(MAKE) -B all-clients-generate FORCE=1 CONF_FORCE=1; \
+		# program peers and bring up interfaces \
+		$(run_as_root) $(MAKE) wg-add-peers; \
+		$(run_as_root) $(MAKE) all-wg-up; \
+		echo \"[make] wg-reinstall-all complete\"'
+
+# --- Dashboard: list users, machines, and interfaces (space-delimited) ---
+.PHONY: client-dashboard client-dashboard-status
+client-dashboard-status:
+	@true
+
 client-dashboard: client-dashboard-status
-	@echo "| User   | Machine   | wg0  | wg1  | wg2  | wg3  | wg4  | wg5  | wg6  | wg7  |"
-	@echo "|--------|-----------|------|------|------|------|------|------|------|------|"
+	@printf "%-8s %-10s %-3s %-3s %-3s %-3s %-3s %-3s %-3s %-3s\n" "USER" "MACHINE" "wg0" "wg1" "wg2" "wg3" "wg4" "wg5" "wg6" "wg7"
+	@printf "%-8s %-10s %-3s %-3s %-3s %-3s %-3s %-3s %-3s %-3s\n" "--------" "----------" "---" "---" "---" "---" "---" "---" "---" "---"
 	@$(run_as_root) sh -c '\
 		TMP=$$(mktemp); \
 		for f in $(WG_DIR)/*-wg*.conf; do \
 			[ -f "$$f" ] || continue; \
 			name=$$(basename "$$f" .conf); \
-			# strip trailing -wgN to get base "user-machine" \
 			base=$$(echo "$$name" | sed -n '\''s/-wg[0-7]$$//p'\''); \
 			[ -n "$$base" ] && echo "$$base" >> "$$TMP"; \
 		done; \
 		if [ ! -s "$$TMP" ]; then \
-			echo "⏭ No client configs found."; rm -f "$$TMP"; exit 0; \
+			echo "No client configs found."; rm -f "$$TMP"; exit 0; \
 		fi; \
 		sort -u "$$TMP" -o "$$TMP"; \
 		while read -r base; do \
-			# split base into user and machine (first two dash-separated fields) \
 			user=$$(echo "$$base" | awk -F- '\''{print $$1}'\''); \
 			machine=$$(echo "$$base" | awk -F- '\''{print $$2}'\''); \
-			printf "| %-6s | %-9s |" "$$user" "$$machine"; \
+			row=( "$$user" "$$machine" ); \
 			for i in 0 1 2 3 4 5 6 7; do \
-				if [ -f "$(WG_DIR)/$$base-wg$$i.conf" ]; then printf " %s |" " ✅ "; else printf " %s |" "-"; fi; \
+				if [ -f "$(WG_DIR)/$$base-wg$$i.conf" ]; then val="✅ "; else val="-"; fi; \
+				row+=( "$$val" ); \
 			done; \
-			printf "\n"; \
+			printf "%-8s %-10s %-3s %-3s %-3s %-3s %-3s %-3s %-3s %-3s\n" "$${row[0]}" "$${row[1]}" "$${row[2]}" "$${row[3]}" "$${row[4]}" "$${row[5]}" "$${row[6]}" "$${row[7]}" "$${row[8]}" "$${row[9]}"; \
 		done < "$$TMP"; \
-		rm -f "$$TMP"'
+		rm -f "$$TMP"' 
 
 
-# -------------------------
-# Bulk orchestration helpers
-# -------------------------
-ALL_WG := wg0 wg1 wg2 wg3 wg4 wg5 wg6 wg7
-
-.PHONY: all-wg all-wg-up all-clients-generate wg-add-peers all-start client-dashboard-status
-
-# Create server configs for all wg interfaces (uses existing wgN targets)
-all-wg: $(ALL_WG)
-	@echo "✅ All server configs ensured."
-
-# Bring up all wg interfaces (idempotent)
-all-wg-up: setup-subnet-router
-	@echo "⏫ Bringing up all wg interfaces (validated restart)"
-	@$(run_as_root) $(INSTALL_PATH)/wg-restart-all || true
-	@echo "✅ all-wg-up finished (check logs or /var/log/wg-restart-*)"
-
-
-# Generate all missing client keys/configs from embedded CLIENTS variable
-all-clients-generate:
-	@echo "🛠️  Generating all missing client keys/configs from CLIENTS variable..."
-	@for entry in $(CLIENTS); do \
-		# entry format base:iface \
-		base=$$(echo $$entry | sed 's/:.*//'); \
-		iface=$$(echo $$entry | sed 's/.*://'); \
-		if [ -z "$$base" ] || [ -z "$$iface" ]; then \
-			echo "❌ skipping $$entry — invalid format (expected base:wgN)"; continue; \
-		fi; \
-		CONFNAME="$$base-$$iface"; \
-		if [ ! -f "$(WG_DIR)/$$CONFNAME.conf" ] || [ ! -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
-			echo "➕ Creating $$CONFNAME (IFACE=$$iface)"; \
-			$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$$iface"'' || { echo "❌ failed to create $$CONFNAME"; exit 1; }; \
-		else \
-			echo "✅ $$CONFNAME already exists, skipping"; \
-		fi; \
-	done; \
-	echo "✅ client generation complete."
-
-# Ensure each server config contains persistent [Peer] blocks for clients and reload interfaces
-wg-add-peers:
-	@echo "🔗 Ensuring peers are present in server configs (from CLIENTS variable)..."
+# --- wg-status: space-delimited interface table (no private key) ---
+.PHONY: wg-status
+wg-status:
+	@echo "WireGuard status summary:"
+	@printf "%-6s %-12s %-44s %-6s %-8s %-s\n" "IFACE" "LINK" "PUBLIC_KEY(short)" "PORT" "PEERS" "SAMPLE_ALLOWEDIPS"
+	@printf "%-6s %-12s %-44s %-6s %-8s %-s\n" "------" "------------" "--------------------------------------------" "------" "------" "--------------------"
 	@$(run_as_root) sh -c '\
-		CLIENTS="$(CLIENTS)"; \
-		for entry in $$CLIENTS; do \
-			base=$$(echo $$entry | sed "s/:.*//"); \
-			iface=$$(echo $$entry | sed "s/.*://"); \
-			CONFNAME="$$base-$$iface"; \
-			CLIENT_PUB="$(WG_DIR)/$$CONFNAME.pub"; \
-			SERVER_CONF="$(WG_DIR)/$$iface.conf"; \
-			if [ ! -f "$$CLIENT_PUB" ] && [ -f "$(WG_DIR)/$$CONFNAME.key" ]; then \
-				echo "ℹ️  Generating pub for $$CONFNAME"; \
-				$(WG_BIN) pubkey < "$(WG_DIR)/$$CONFNAME.key" > "$$CLIENT_PUB"; \
-				chmod 600 "$$CLIENT_PUB"; \
+		for i in $(WG_IFACES); do \
+			dev=wg$$i; conf="$(WG_DIR)/$$dev.conf"; \
+			# link state (brief) \
+			link_line=$$(ip -brief link show "$$dev" 2>/dev/null || echo "not-present"); \
+			# pick a concise link token (UP/DOWN/UNKNOWN/not-present) \
+			link_state=$$(printf "%s" "$$link_line" | awk '\''{print ($$2 ? $$2 : $$1)}'\''); \
+			# gather wg output if present \
+			wg_out=$$($(WG_BIN) show "$$dev" 2>/dev/null || true); \
+			if [ -n "$$wg_out" ]; then \
+				pub=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*public key:[[:space:]]*//p'\'' | head -n1); \
+				port=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*listening port:[[:space:]]*//p'\'' | head -n1); \
+				peer_count=$$(printf "%s" "$$wg_out" | grep -c '^peer:' || true); \
+				sample_allowed=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*AllowedIPs[[:space:]]*=[[:space:]]*//Ip'\'' | head -n1 | tr -d \"\\n\" ); \
+			else \
+				pub="(none)"; port="-"; peer_count=0; sample_allowed="-"; \
 			fi; \
-			[ -f "$$CLIENT_PUB" ] || { echo "❌ missing $$CLIENT_PUB, skipping"; continue; }; \
-			[ -f "$$SERVER_CONF" ] || { echo "❌ missing $$SERVER_CONF, skipping"; continue; }; \
-			PUB=$$(cat "$$CLIENT_PUB"); \
-			grep -qF "$$PUB" "$$SERVER_CONF" && { echo "✅ $$CONFNAME already present, skipping"; continue; }; \
-			# extract client addresses (Address lines) to use as AllowedIPs on server side \
-			ALLOWED_IPS=$$(grep -E "^Address" "$(WG_DIR)/$$CONFNAME.conf" | sed "s/Address = //"); \
-			echo "➕ Adding peer $$CONFNAME to $$SERVER_CONF"; \
-			if ! $(WG_BIN) set $$iface peer "$$PUB" allowed-ips "$$ALLOWED_IPS"; then \
-				echo "❌ wg set failed for $$CONFNAME (peer $$PUB)"; \
-				exit 1; \
+			# shorten public key for display (first 8 + ... + last 8) \
+			if [ "$$pub" != "(none)" ] && [ -n "$$pub" ]; then \
+				pub_short=$$(printf "%s" "$$pub" | awk '\''{s=$$0; printf substr(s,1,8) "..." substr(s,length(s)-7)}'\''); \
+			else \
+				pub_short="(none)"; \
 			fi; \
-			printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s\n" "$$CONFNAME" "$$PUB" "$$ALLOWED_IPS" | tee -a "$$SERVER_CONF" > /dev/null; \
-			echo "🔁 Reloading $$iface"; \
-			$(WG_QUICK) down $$iface || true; \
-			$(WG_QUICK) up $$iface || true; \
+			# note if config file missing \
+			if [ ! -f "$$conf" ]; then cfg_note="(no-conf)"; else cfg_note=""; fi; \
+			# print aligned space-delimited row \
+			printf "%-6s %-12s %-44s %-6s %-8s %-s\n" "$$dev" "$$link_state$$cfg_note" "$$pub_short" "$$port" "$$peer_count" "$$sample_allowed"; \
 		done; \
-		echo "✅ wg-add-peers complete."'
-
-
-.PHONY: regen-clients
-# Regenerate client configs for the interface named in $(IFACE)
-regen-clients:
-	@if [ -z "$(IFACE)" ]; then \
-		echo "❌ regen-clients requires IFACE=wgN"; exit 1; \
-	fi; \
-	echo "♻️  Regenerating client configs for $(IFACE) (FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE))"; \
-	for entry in $(CLIENTS); do \
-		base=$$(echo $$entry | sed 's/:.*//'); \
-		iface=$$(echo $$entry | sed 's/.*://'); \
-		if [ "$$iface" = "$(IFACE)" ]; then \
-			echo "🔁 Regenerating client $$base for $(IFACE)"; \
-			$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) client-'"$$base"' IFACE='"$(IFACE)"'' || echo "⚠️  failed to regenerate $$base"; \
-		fi; \
-	done; \
-	echo "✅ regen-clients complete for $(IFACE)";
-
-# Full start: ensure subnet router first, then create servers, bring them up, create clients, add peers, and show dashboard
-all-start: setup-subnet-router all-wg all-wg-up all-clients-generate wg-add-peers client-dashboard-status
-	@echo "✅ all-start complete."
-
-# Dashboard with server status and client online state (handshake) — prints a compact table
-client-dashboard-status:
-	@echo "| Interface | Status | Port  | Peers (online/total) |"; \
-	echo  "|-----------|--------|-------|----------------------|"; \
-	for i in 0 1 2 3 4 5 6 7; do \
-		if $(run_as_root) test -f $(WG_DIR)/wg$$i.conf; then \
-			if $(run_as_root) ip link show wg$$i >/dev/null 2>&1; then STATUS="up"; else STATUS="down"; fi; \
-			LPORT=$$($(run_as_root) awk -F' = ' '/^ListenPort/ {print $$2; exit}' $(WG_DIR)/wg$$i.conf 2>/dev/null || echo "-"); \
-			TOTAL=$$($(run_as_root) awk '$$1=="[Peer]"{c++}END{print (c+0)}' $(WG_DIR)/wg$$i.conf 2>/dev/null | tr -d ' '); \
-			ONLINE=0; \
-			if $(run_as_root) ip link show wg$$i >/dev/null 2>&1; then \
-				HANDSHAKES=$$($(run_as_root) sh -c '$(WG_BIN) show wg'"$$i"' 2>/dev/null' | awk '/latest handshake/ && $$0 !~ /0s/ {count++} END {print (count+0)}'); \
-				if [ "$$HANDSHAKES" -gt 0 ]; then ONLINE="$$HANDSHAKES"; else ONLINE=$$($(run_as_root) sh -c '$(WG_BIN) show wg'"$$i"' peers 2>/dev/null' | wc -l | tr -d ' '); fi; \
-			fi; \
-			printf "| %-9s | %-6s | %-5s | %3s/%-3s |\n" "wg$$i" "$$STATUS" "$$LPORT" "$$ONLINE" "$$TOTAL"; \
-		else \
-			printf "| %-9s | %-6s | %-10s | %3s/%-3s |\n" "wg$$i" "missing" "-" "0" "0"; \
-		fi; \
-	done
-
-.PHONY: regen-all-keys
-regen-all-keys:
-	@echo "== regen-all-keys: backup /etc/wireguard and rotate keys =="
-	@echo "Backing up /etc/wireguard to /root/wg-backup-$(shell date +%Y%m%d-%H%M%S)"
-	@$(run_as_root) sh -c 'bk="/root/wg-backup-$(shell date +%Y%m%d-%H%M%S)"; mkdir -p "$$bk"; cp -a /etc/wireguard/*.key /etc/wireguard/*.pub /etc/wireguard/*.conf "$$bk"/ || true'
-	@echo "Regenerating server keys and configs (FORCE=1 CONF_FORCE=1)..."
-	@for i in 0 1 2 3 4 5 6 7; do \
-	  echo " -> make wg$$i"; \
-	  $(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) wg'"$$i"'' || { echo "ERROR: wg$$i failed"; exit 1; }; \
-	done
-	@echo "Regenerating client configs (regen-clients IFACE=wgN)..."
-	@for i in 0 1 2 3 4 5 6 7; do \
-	  echo " -> regen-clients IFACE=wg$$i"; \
-	  $(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) regen-clients IFACE=wg'"$$i"''; \
-	done
-	@echo "Ensuring peers and reloading runtime (wg-add-peers)..."
-	@$(run_as_root) sh -c 'FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) $(MAKE) wg-add-peers'
-	@echo "Restarting interfaces..."
-	@for i in 0 1 2 3 4 5 6 7; do \
-	  echo " -> restart wg$$i"; \
-	  $(run_as_root) $(WG_QUICK) down wg$$i || true; \
-	  $(run_as_root) $(WG_QUICK) up wg$$i || echo "WARNING: wg$$i failed to start"; \
-	done
-	@echo "Final runtime status:" \
-	&& $(run_as_root) sh -c '$(WG_BIN) show'
+		echo ""'
