@@ -2,7 +2,7 @@
 # refresh-root-trust.sh
 # purpose: refresh unbound root trust anchor and root hints, record timestamp
 # to deploy use
-#   sudo cp /home/julie/src/homelab/10.89.12.4/usr/local/bin/refresh-root-trust.sh /usr/local/bin/; sudo chmod 755 /usr/local/bin/refresh-root-trust.sh
+#   sudo install -m 755 -o root -g root 10.89.12.4/usr/local/bin/refresh-root-trust.sh /usr/local/bin/refresh-root-trust.sh
 #   wire it into systemd; sudo systemctl edit unbound
 #   enter
 #   [Service]
