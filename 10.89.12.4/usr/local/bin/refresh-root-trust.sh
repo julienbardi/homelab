@@ -27,13 +27,16 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || { log "❌ Missing command: $1"; exit 1; }
 }
 
-require_cmd wget
-require_cmd unbound-anchor
-
+# If not running as root, show a clear message and exit early.
 if [[ $EUID -ne 0 ]]; then
   log "❌ Error: must run as root (try: sudo $0)"
   exit 1
 fi
+
+# Now that we are root, ensure required commands are present
+require_cmd wget
+require_cmd unbound-anchor
+
 
 ts=$(date -u +%Y%m%dT%H%M%SZ)
 # default root key path (can be overridden by exporting root_key in the environment)
