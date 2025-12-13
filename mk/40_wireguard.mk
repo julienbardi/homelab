@@ -82,12 +82,16 @@ wg%: ensure-wg-dir
 
 # Named client configs (create only; do NOT print QR)
 client-%: ensure-wg-dir
-	@BASE="$*"; \
+	@STEM="$*"; \
+	# infer IFACE from the original stem first (so we don't lose -wgN)
 	IFACE="$(IFACE)"; \
-	if [ -z "$$IFACE" ]; then IFACE=$$(echo "$$BASE" | sed -n "s/.*-\(wg[0-7]\)$$/\1/p"); fi; \
+	if [ -z "$$IFACE" ]; then IFACE=$$(echo "$$STEM" | sed -n "s/.*-\(wg[0-7]\)$$/\1/p"); fi; \
 	[ -n "$$IFACE" ] || { echo "❌ must specify IFACE=wgN when client name does not include -wgN"; exit 1; }; \
+	# sanitize BASE: strip leading generate- and trailing -wgN for the name passed to the generator
+	BASE="$$(printf '%s' "$$STEM" | sed -e 's/^generate-//' -e 's/-wg[0-9]$$//')"; \
 	echo "🧩 generating client $$BASE for $$IFACE"; \
 	$(run_as_root) "$(CURDIR)/scripts/gen-client.sh" "$$BASE" "$$IFACE" "$(FORCE)" "$(CONF_FORCE)"
+
 
 # Show QR for client; auto-create if missing
 client-showqr-%:
