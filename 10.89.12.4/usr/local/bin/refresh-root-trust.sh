@@ -60,6 +60,7 @@ fi
 
 log "🔑 Step 3: Generating trust anchor..."
 # capture output for debugging but don't fail the script on non-zero exit
+# shellcheck disable=SC2034
 ua_out=$(unbound-anchor -a "$candidate" -f "$anchors_xml" 2>&1 || true)
 # echo "$ua_out"  # uncomment for debugging
 
