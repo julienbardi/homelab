@@ -13,7 +13,7 @@ WG_BIN := /usr/bin/wg
 WG_QUICK := /usr/bin/wg-quick
 
 MAKEFLAGS += --no-print-directory
-export FORCE CONF_FORCE FORCE_REASSIGN
+export FORCE CONF_FORCE FORCE_REASSIGN SERVER_HOST
 
 SERVER_HOST := vpn.bardi.ch
 # Per-interface data (index order must match)
@@ -91,7 +91,14 @@ client-%: ensure-wg-dir
 	# sanitize BASE: strip leading generate- and trailing -wgN for the name passed to the generator
 	BASE="$$(printf '%s' "$$STEM" | sed -e 's/^generate-//' -e 's/-wg[0-9]$$//')"; \
 	echo "🧩 generating client $$BASE for $$IFACE"; \
-	$(run_as_root) sh -c 'FORCE_REASSIGN=$(FORCE_REASSIGN) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) exec "$(CURDIR)/scripts/gen-client.sh" "'"$$BASE"'" "'"$$IFACE"'"'
+	IFACE_INDEX=$$(printf '%s' "$$IFACE" | sed -n 's/^wg\([0-9]\+\)$$/\1/p'); \
+	if [ -n "$$IFACE_INDEX" ]; then \
+		IDX=$$((IFACE_INDEX + 1)); \
+		SERVER_PORT_VAL=$$(echo "$(WG_PORTS)" | cut -d' ' -f$$IDX); \
+	else \
+		SERVER_PORT_VAL=""; \
+	fi; \
+	$(run_as_root) sh -c 'SERVER_HOST=$(SERVER_HOST) SERVER_PORT='"$$SERVER_PORT_VAL"' FORCE_REASSIGN=$(FORCE_REASSIGN) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) exec "$(CURDIR)/scripts/gen-client.sh" "'"$$BASE"'" "'"$$IFACE"'"'
 
 # Show QR for client; auto-create if missing
 client-showqr-%:

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# /lib/run_as_root.sh
-# Execute one command as root, optionally preserving environment.
+# run_as_root.sh — Execute command as root, optionally preserving environment.
 # --------------------------------------------------------------------
 # CONTRACT:
 # - Provides run_as_root() function for scripts (argv tokens contract).
@@ -10,71 +9,31 @@
 # - Escape operators (\>, \|, \&\&, \|\|) in Make recipes so they survive parsing.
 # --------------------------------------------------------------------
 # Usage:
-#   run_as_root <program> [args...]
-#   run_as_root --preserve <program> [args...]
+#   run_as_root <program> [args...]
+#   run_as_root --preserve <program> [args...]
 #
 # Examples:
-#   run_as_root systemctl restart unbound
-#   run_as_root --preserve env | grep PATH
+#   run_as_root systemctl restart unbound
+#   run_as_root --preserve env | grep PATH
 
 set -euo pipefail
 
-log() {
-	echo "$(date '+%Y-%m-%d %H:%M:%S') [${0##*/}] $*"
-}
-
-run_as_root_OLD() {
+run_as_root() {
 	local preserve=false
+
+	# Check if --preserve is first arg
 	if [[ "${1:-}" == "--preserve" ]]; then
 		preserve=true
 		shift
 	fi
 
-	if [[ $# -ne 1 ]]; then
-		log "ERROR: expects a single quoted command string"
-		exit 1
+	# Validate at least one argument
+	if [ $# -eq 0 ]; then
+		echo "run_as_root: no command provided" >&2
+		return 1
 	fi
 
-	local cmd="$1"
-	log "Executing with sudo${preserve:+ -E}: $cmd"
-
-	if $preserve; then
-		sudo -E bash -c "$cmd"
-	else
-		sudo bash -c "$cmd"
-	fi
-}
-
-run_as_root_OLD2() {
-	local preserve=false
-	if [[ "${1:-}" == "--preserve" ]]; then
-		preserve=true
-		shift
-	fi
-
-	if [ "$(id -u)" -eq 0 ]; then
-		if $preserve; then
-			exec env -i "$@"
-		else
-			exec "$@"
-		fi
-	else
-		if $preserve; then
-			exec sudo -E -- "$@"
-		else
-			exec sudo -- "$@"
-		fi
-	fi
-}
-
-run_as_root ()
-{
-	local preserve=false
-	if [[ "${1:-}" == "--preserve" ]]; then
-		preserve=true
-		shift
-	fi
-
+	# If already root, run directly
 	if [ "$(id -u)" -eq 0 ]; then
 		if $preserve; then
 			env -i "$@"
@@ -82,6 +41,7 @@ run_as_root ()
 			"$@"
 		fi
 	else
+		# Use sudo
 		if $preserve; then
 			sudo -E -- "$@"
 		else
@@ -90,7 +50,7 @@ run_as_root ()
 	fi
 }
 
-# Only run when the file is executed directly, not when sourced
+# Only run when executed directly, not when sourced
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
-  run_as_root "$@"
+	run_as_root "$@"
 fi
