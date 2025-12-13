@@ -24,7 +24,8 @@ cd -- "$TARGET_DIR" || { printf '❌ FATAL: cannot chdir to %s\n' "$TARGET_DIR" 
 
 shopt -s nullglob
 # expand safely into array of pathnames
-mapfile -t cands < <(printf '%s\n' $PATTERN)
+# Quote $PATTERN to avoid word-splitting / globbing issues
+mapfile -t cands < <(printf '%s\n' "$PATTERN")
 shopt -u nullglob
 
 # exclude live file
@@ -58,8 +59,8 @@ if [[ ${#entries[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# sort ascending by epoch
-IFS=$'\n' sorted=($(printf '%s\n' "${entries[@]}" | sort -n -t$'\t' -k1,1)); unset IFS
+# sort ascending by epoch (use mapfile to avoid SC2207)
+mapfile -t sorted < <(printf '%s\n' "${entries[@]}" | sort -n -t$'\t' -k1,1)
 
 # expand into 0-based arrays
 files=()
