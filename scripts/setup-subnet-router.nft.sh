@@ -10,7 +10,7 @@ LAN_IF="bridge0"
 LAN_SUBNET="10.89.12.0/24"
 LAN_SUBNET_V6="2a01:8b81:4800:9c00::/64"
 WG_IF_PREFIX="wg"
-VPN_SUBNET_PREFIX="10"   # wgN -> 10.N.0.0/24
+#VPN_SUBNET_PREFIX="10"   # wgN -> 10.N.0.0/24
 GLOBAL_IPV6_PREFIX="2a01:8b81:4800:9c00"
 GLOBAL_PREFIX_LEN=64
 
@@ -221,7 +221,8 @@ else
 fi
 
 # Ensure kernel route for the /64 is present (idempotent)
-ip -6 route replace ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} dev "${WG_IF_PREFIX}0" >/dev/null 2>&1 || true
+log "Ensuring kernel route for ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} on ${LAN_IF}"
+ip -6 route replace "${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN}" dev "${LAN_IF}" >/dev/null 2>&1 || true
 log "Local route for ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} ensured."
 
 # --- Persist nft ruleset and enable nftables service ---

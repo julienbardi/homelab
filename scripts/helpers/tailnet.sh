@@ -31,7 +31,7 @@ if [[ -z "${DEVICE_NAME}" ]]; then
 fi
 
 log "Registering device '${DEVICE_NAME}' in namespace '${NAMESPACE}'..."
-if ! ${HEADSCALE_BIN} nodes register --user ${NAMESPACE} --name ${DEVICE_NAME}; then
+if ! ${HEADSCALE_BIN} nodes register --user "${NAMESPACE}" --name "${DEVICE_NAME}"; then
 	log "ERROR: Failed to register device ${DEVICE_NAME}, continuing degraded"
 else
 	log "Device ${DEVICE_NAME} registered successfully"
@@ -40,7 +40,7 @@ fi
 # --- Generate client config ---
 log "Generating client config for ${DEVICE_NAME}..."
 mkdir -p "${QR_DIR}"
-${HEADSCALE_BIN} nodes generate --namespace ${NAMESPACE} --name ${DEVICE_NAME} > "${CONFIG_DIR}/${DEVICE_NAME}.conf" || log "ERROR: Failed to generate config"
+${HEADSCALE_BIN} nodes generate --namespace "${NAMESPACE}" --name "${DEVICE_NAME}" > "${CONFIG_DIR}/${DEVICE_NAME}.conf" || log "ERROR: Failed to generate config"
 
 # --- Generate QR code ---
 if command -v qrencode >/dev/null 2>&1; then

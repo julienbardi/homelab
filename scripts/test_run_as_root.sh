@@ -39,12 +39,14 @@ pass "chained commands"
 
 log "=== Test 4: env assignment ==="
 # run the assignment inside bash -c passed as separate args
+# shellcheck disable=SC2016
 output=$(run_as_root bash -c 'FOO=bar; echo $FOO')
 [[ "$output" == "bar" ]] || fail "env assignment"
 pass "env assignment"
 
 log "=== Test 5: inherited env (expected empty) ==="
 FOO=bar
+# shellcheck disable=SC2016
 output=$(run_as_root bash -c 'echo ${FOO:-unset}')
 [[ "$output" == "unset" ]] || fail "env isolation"
 pass "env isolation"
@@ -66,6 +68,7 @@ output=$(run_as_root --preserve bash -c 'echo FirstPreserve && echo SecondPreser
 pass "chained commands preserve"
 
 log "=== Test 9: env assignment (preserve) ==="
+# shellcheck disable=SC2016
 output=$(run_as_root --preserve bash -c 'FOO=bar; echo $FOO')
 [[ "$output" == "bar" ]] || fail "env assignment preserve"
 pass "env assignment preserve"
@@ -74,6 +77,7 @@ log "=== Test 10: inherited env (preserve) ==="
 export FOO=bar
 
 # Try to observe FOO via run_as_root --preserve
+# shellcheck disable=SC2016
 output=$(run_as_root --preserve bash -c 'echo ${FOO:-__UNSET__}' 2>/dev/null || true)
 
 if [ "$output" = "bar" ]; then

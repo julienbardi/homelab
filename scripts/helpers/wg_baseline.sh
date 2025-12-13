@@ -68,7 +68,7 @@ if [ -z "${CLIENT_NAME}" ]; then
 else
 	log "Generating client config for ${CLIENT_NAME}..."
 	CLIENT_PRIV=$(wg genkey)
-	CLIENT_PUB=$(echo "${CLIENT_PRIV}" | wg pubkey)
+	#CLIENT_PUB=$(echo "${CLIENT_PRIV}" | wg pubkey)
 
 	# Write base client config (omit AllowedIPs here; append conditionally)
 	cat > "${WG_DIR}/${CLIENT_NAME}.conf" <<EOF

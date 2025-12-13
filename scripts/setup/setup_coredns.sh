@@ -16,8 +16,6 @@ set -euo pipefail
 source "/home/julie/src/homelab/config/homelab.env"
 source "/home/julie/src/homelab/scripts/common.sh"
 
-LOGFILE="/var/log/homelab/setup_coredns.log"
-
 SERVICE_NAME="coredns"
 CONFIG_DIR="/etc/coredns"
 CONFIG_FILE="${CONFIG_DIR}/Corefile"
@@ -83,8 +81,8 @@ run_as_root systemctl restart "${SERVICE_NAME}" || log "ERROR: Failed to start C
 
 if systemctl is-active --quiet "${SERVICE_NAME}"; then
 	listeners=$(ss -ltnp 2>/dev/null | awk '/coredns/ {print $4}' | sort -u | paste -s -d',' -)
-	[ -z "$$listeners" ] && listeners="(no listening sockets detected)"
-	log "CoreDNS setup complete; listeners: $$listeners; forwarding non-tailnet queries to ${UNBOUND_IP}:53"
+	[ -z "$listeners" ] && listeners="(no listening sockets detected)"
+	log "CoreDNS setup complete; listeners: $listeners; forwarding non-tailnet queries to ${UNBOUND_IP}:53"
 else
 	log "CoreDNS setup finished but service is not active; check journalctl -u ${SERVICE_NAME}"
 fi
