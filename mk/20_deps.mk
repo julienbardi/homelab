@@ -11,7 +11,8 @@
 
 # Aggregate deps target
 deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
-	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard install-pkg-caddy install-pkg-unbound install-pkg-ndppd
+	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard install-pkg-caddy install-pkg-unbound install-pkg-ndppd \
+	install-pkg-shellcheck install-pkg-codespell install-pkg-aspell
 
 # Tailscale (client + daemon) via apt repository
 
@@ -29,7 +30,8 @@ tailscale-repo:
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).tailscale-keyring.list \
 		| sudo install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
 
-	@sudo apt-get update
+	@# Update apt cache (use cached helper to avoid repeated full updates)
+	@$(call apt_update_if_needed)
 	@echo "✅ Tailscale repository configured"
 
 install-pkg-tailscale: tailscale-repo
@@ -42,7 +44,7 @@ install-pkg-tailscale: tailscale-repo
 
 upgrade-pkg-tailscale: tailscale-repo
 	@echo "⬆️ Upgrading Tailscale to latest stable"
-	@sudo apt-get update
+	@$(call apt_update_if_needed)
 	@sudo apt-get install -y --only-upgrade tailscale
 	@sudo systemctl restart tailscaled
 	@$(MAKE) verify-pkg-tailscale
@@ -145,22 +147,34 @@ remove-pkg-ndppd:
 
 
 # checkmake (build from upstream Makefile)
+CHECKMAKE_VERSION := 0.2.2
+CHECKMAKE_BIN := /usr/local/bin/checkmake
+STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
+
 install-pkg-checkmake: install-pkg-pandoc install-pkg-go
-	@echo "[make] Installing checkmake (v0.2.2) using upstream Makefile..."
-	@mkdir -p $(HOME)/src
-	@rm -rf $(HOME)/src/checkmake
-	@git clone https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake
-	@cd $(HOME)/src/checkmake && git config advice.detachedHead false && git checkout 0.2.2
-	@cd $(HOME)/src/checkmake && \
+	@echo "[make] Installing checkmake (v$(CHECKMAKE_VERSION)) using upstream Makefile..."
+	@if [ -x "$(CHECKMAKE_BIN)" ]; then \
+	  INST_VER=$$($(CHECKMAKE_BIN) --version 2>/dev/null | awk '{print $$2}' || true); \
+	  if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
+		echo "[make] checkmake $(CHECKMAKE_VERSION) already installed; skipping build"; \
+		exit 0; \
+	  fi; \
+	fi; \
+	mkdir -p $(HOME)/src; \
+	rm -rf $(HOME)/src/checkmake; \
+	git clone --depth 1 --branch v$(CHECKMAKE_VERSION) https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake; \
+	cd $(HOME)/src/checkmake && git config advice.detachedHead false && git checkout v$(CHECKMAKE_VERSION); \
+	cd $(HOME)/src/checkmake && \
 	BUILDER_NAME="$$(git config --get user.name)" \
 	BUILDER_EMAIL="$$(git config --get user.email)" \
-	make
-	@sudo install -m 0755 $(HOME)/src/checkmake/checkmake /usr/local/bin/checkmake
-	@echo "[make] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"
-	@checkmake --version
+	make; \
+	$(run_as_root) install -m 0755 $(HOME)/src/checkmake/checkmake $(CHECKMAKE_BIN); \
+	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" | $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null; \
+	@echo "[make] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"; \
+	@$(CHECKMAKE_BIN) --version
 
 remove-pkg-checkmake:
-	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake)
+	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake && rm -f $(STAMP_CHECKMAKE))
 
 # strace (used for debugging)
 install-pkg-strace:
@@ -170,7 +184,6 @@ remove-pkg-strace:
 	$(call apt_remove,strace)
 
 # Headscale build (remote install fallback to upstream release)
-
 HEADSCALE_VERSION ?= v0.27.1
 
 headscale-build: install-pkg-go
@@ -194,7 +207,6 @@ PANDOC_VERSION := 3.8.2.1
 PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.8.2.1/pandoc-3.8.2.1-1-amd64.deb
 PANDOC_SHA256 := 5d4ecbf9c616360a9046e14685389ff2898088847e5fb260eedecd023453995a
 PANDOC_DEB := /tmp/pandoc-$(PANDOC_VERSION)-amd64.deb
-STAMP_DIR ?= /var/lib/homelab
 STAMP_PANDOC := $(STAMP_DIR)/pandoc.installed
 
 .PHONY: install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc
@@ -235,7 +247,7 @@ install-pkg-pandoc:
 
 upgrade-pkg-pandoc: $(STAMP_PANDOC)
 	@echo "[make] Upgrading pandoc only if previously installed by Makefile..."
-	@DEBIAN_FRONTEND=noninteractive sudo apt-get update
+	@$(call apt_update_if_needed)
 	@DEBIAN_FRONTEND=noninteractive sudo apt-get install --only-upgrade -y pandoc || true
 	@tmp=$$(mktemp); dpkg-query -W -f='${Version}\n' pandoc > "$$tmp" 2>/dev/null || echo "unknown" > "$$tmp"; \
 	echo "version=$$(cat $$tmp) upgraded_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" | sudo tee $(STAMP_PANDOC) >/dev/null; \
@@ -262,3 +274,34 @@ remove-pkg-pandoc:
 	else \
 		echo "[make] pandoc not installed; nothing to do"; \
 	fi
+
+.PHONY: install-pkg-shellcheck remove-pkg-shellcheck \
+		install-pkg-codespell remove-pkg-codespell \
+		install-pkg-aspell remove-pkg-aspell
+
+# ShellCheck (shell script linter)
+install-pkg-shellcheck:
+	@echo "📦 Installing shellcheck (shell script linter)"
+	$(call apt_install,shellcheck,shellcheck)
+	@echo "[make] shellcheck version: $$(shellcheck --version | head -n1)"
+
+remove-pkg-shellcheck:
+	$(call apt_remove,shellcheck)
+
+# codespell (common typo finder)
+install-pkg-codespell:
+	@echo "📦 Installing codespell (typo finder)"
+	$(call apt_install,codespell,codespell)
+	@echo "[make] codespell version: $$(codespell --version 2>/dev/null || echo 'unknown')"
+
+remove-pkg-codespell:
+	$(call apt_remove,codespell)
+
+# aspell (spell checker)
+install-pkg-aspell:
+	@echo "📦 Installing aspell (spell checker)"
+	$(call apt_install,aspell,aspell)
+	@echo "[make] aspell version: $$(aspell --version 2>/dev/null | head -n1 || echo 'unknown')"
+
+remove-pkg-aspell:
+	$(call apt_remove,aspell)

@@ -294,3 +294,8 @@ wg-status:
 			printf "%-6s %-12s %-44s %-6s %-8s %-s\n" "$$dev" "$$link_state$$cfg_note" "$$pub_short" "$$port" "$$peer_count" "$$sample_allowed"; \
 		done; \
 		echo ""'
+
+.PHONY: wg-status2
+wg-status2:
+	@echo "WireGuard peer status (resolved names from /etc/wireguard/client-map.csv)"
+	@$(SHELL) scripts/wg-status2.sh
