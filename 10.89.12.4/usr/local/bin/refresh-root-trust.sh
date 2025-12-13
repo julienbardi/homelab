@@ -1,22 +1,18 @@
 #!/bin/bash
 # refresh-root-trust.sh
-# purpose: refresh unbound root trust anchor and record timestamp
+# purpose: refresh unbound root trust anchor and root hints, record timestamp
 # to deploy use
-#   sudo cp /home/julie/homelab/10.89.12.4/usr/local/bin/refresh-root-trust.sh /usr/local/bin/;sudo chmod 755 /usr/local/bin/refresh-root-trust.sh
+#   sudo cp /home/julie/src/homelab/10.89.12.4/usr/local/bin/refresh-root-trust.sh /usr/local/bin/; sudo chmod 755 /usr/local/bin/refresh-root-trust.sh
 #   wire it into systemd; sudo systemctl edit unbound
 #   enter
 #   [Service]
 #   ExecStartPre=/usr/local/bin/refresh-root-trust.sh
 #   then reload and restart unbound
-#   sudo systemctl daemon-reload;sudo systemctl restart unbound
+#   sudo systemctl daemon-reload; sudo systemctl restart unbound
 #   verify that both show today's timestamp:
 #   ls -l /var/lib/unbound/root.hints
 #   cat /var/lib/unbound/rootkey.lastupdate
 #
-
-#!/bin/bash
-# refresh-root-trust.sh
-# purpose: refresh unbound root trust anchor and root hints, record timestamp
 set -euo pipefail
 
 # Enable bash tracing if DEBUG=1 is exported
@@ -40,6 +36,8 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 ts=$(date -u +%Y%m%dT%H%M%SZ)
+# default root key path (can be overridden by exporting root_key in the environment)
+root_key=${root_key:-/var/lib/unbound/root.key}
 candidate="/var/lib/unbound/root.key.$ts"
 anchors_xml="/var/lib/unbound/root-anchors.xml"
 hints="/var/lib/unbound/root.hints"
@@ -61,10 +59,12 @@ else
 fi
 
 log "🔑 Step 3: Generating trust anchor..."
-ua_out=$(unbound-anchor -a "$root_key.$ts" -f "$anchors_xml" 2>&1 || true)
-#echo "$ua_out"
-if [ -s "$root_key.$ts" ] && grep -q "DNSKEY" "$root_key.$ts"; then
-  cp -p "$root_key.$ts" "$root_key"
+# capture output for debugging but don't fail the script on non-zero exit
+ua_out=$(unbound-anchor -a "$candidate" -f "$anchors_xml" 2>&1 || true)
+# echo "$ua_out"  # uncomment for debugging
+
+if [ -s "$candidate" ] && grep -q "DNSKEY" "$candidate"; then
+  cp -p "$candidate" "$root_key"
   chown unbound:unbound "$root_key"
   chmod 644 "$root_key"
   log "✅ Trust anchor refreshed"
