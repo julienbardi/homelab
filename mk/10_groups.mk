@@ -35,14 +35,14 @@ harden-groups:
 		# --- ensure group exists ---
 		if ! getent group $$g >/dev/null 2>&1; then \
 			$(call log, ➕ Creating group $$g); \
-			sudo groupadd $$g; \
+			$(run_as_root) groupadd $$g; \
 		fi; \
 		# --- ensure authorized users are members ---
 		for u in $(AUTHORIZED_ADMINS); do \
 			case " $$missing " in *" $$u "*) continue ;; esac; \
 			if ! id -nG $$u | grep -qw $$g; then \
 				$(call log, ➕ Adding user $$u to group $$g); \
-				sudo usermod -aG $$g $$u; \
+				$(run_as_root) usermod -aG $$g $$u; \
 			fi; \
 		done; \
 		# --- prune unauthorized users ---
@@ -50,7 +50,7 @@ harden-groups:
 			case " $(AUTHORIZED_ADMINS) " in \
 				*" $$u "*) ;; \
 				*) $(call log, ❌ Removing user $$u from group $$g (not authorized)); \
-				   sudo gpasswd -d $$u $$g || true ;; \
+				   $(run_as_root) gpasswd -d $$u $$g || true ;; \
 			esac; \
 		done; \
 		echo "🎯 Group $$g membership enforced"; \
