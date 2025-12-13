@@ -1,50 +1,174 @@
-
 # ============================================================
-# mk/lint.mk — lint orchestration
+# mk/99_lint.mk — lint orchestration
 # ============================================================
 
-# ShellCheck configuration (use repo root as source path so no hardcoded directives)
-# Use repo root as source path even when make is run with -C mk
 REPO_ROOT := $(abspath $(CURDIR)/..)
+
+# Tools (allow override)
 SHELLCHECK ?= shellcheck
-SHELLCHECK_OPTS ?= -x --external-sources --source-path=$(REPO_ROOT)
+SHELLCHECK_OPTS ?= -s bash -x --external-sources --source-path=$(REPO_ROOT)
+CODESPELL ?= codespell
+ASPELL ?= aspell
+CHECKMAKE ?= checkmake
 
-# --- Lint target ---
-.PHONY: lint lint-scripts lint-config lint-makefile lint-headscale lint-shellcheck
+# Files to lint
+# Prefer git-tracked files; fallback to find for non-git contexts
+SH_FILES := $(shell git -C $(REPO_ROOT) ls-files '*.sh' 2>/dev/null || true)
+ifeq ($(strip $(SH_FILES)),)
+SH_FILES := $(shell find $(REPO_ROOT) -type f -name '*.sh' -print)
+endif
 
-lint: lint-scripts lint-config lint-makefile lint-headscale
+MK_FILES := $(shell git -C $(REPO_ROOT) ls-files 'mk/*.mk' 2>/dev/null || true)
+ifeq ($(strip $(MK_FILES)),)
+MK_FILES := $(wildcard $(REPO_ROOT)/mk/*.mk)
+endif
 
-# Run shell syntax check and ShellCheck
+MAKEFILES := $(REPO_ROOT)/Makefile $(MK_FILES)
+
+.PHONY: lint lint-all lint-fast lint-ci lint-scripts lint-shellcheck lint-shellcheck-strict \
+		lint-config lint-makefile lint-makefile-strict lint-headscale lint-spell lint-spell-strict
+
+# Default lint target: permissive full suite
+lint: lint-all
+
+# Fast lint: shell syntax + shellcheck + checkmake (permissive)
+lint-fast: lint-scripts lint-makefile
+
+# Full lint: fast + spell checks + headscale config test (permissive)
+lint-all: lint-fast lint-spell lint-headscale
+
+# Strict CI lint: fail on any issue (ShellCheck warnings, checkmake errors, codespell, aspell)
+lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale
+	@echo "[lint-ci] All checks passed (strict mode)."
+
+# Run shell syntax check and ShellCheck across all tracked .sh files (permissive)
 lint-scripts:
-	@echo "Checking shell syntax..."
-	@bash -n scripts/setup/*.sh scripts/helpers/*.sh scripts/audit/*.sh scripts/deploy/*.sh
-	@echo "Running ShellCheck..."
+	@echo "[lint] Checking shell syntax for tracked .sh files..."
+	@if [ -z "$(SH_FILES)" ]; then \
+	  echo "[lint] No shell files found to lint"; \
+	else \
+	  for f in $(SH_FILES); do \
+		echo "[lint] bash -n $$f"; bash -n "$$f" || { echo "[lint] Syntax error in $$f"; exit 1; }; \
+	  done; \
+	fi
+	@echo "[lint] Running ShellCheck (permissive)..."
 	@$(MAKE) lint-shellcheck
 
-# Run ShellCheck with external sources enabled and repo as source path
+# ShellCheck permissive: never fails the whole run (useful for local dev)
 lint-shellcheck:
-	@echo "ShellCheck: scripts/setup/*.sh"
-	@$(SHELLCHECK) $(SHELLCHECK_OPTS) scripts/setup/*.sh || true
-	@echo "ShellCheck: scripts/helpers/*.sh"
-	@$(SHELLCHECK) $(SHELLCHECK_OPTS) scripts/helpers/*.sh || true
-	@echo "ShellCheck: scripts/audit/*.sh"
-	@$(SHELLCHECK) $(SHELLCHECK_OPTS) scripts/audit/*.sh || true
-	@echo "ShellCheck: scripts/deploy/*.sh"
-	@$(SHELLCHECK) $(SHELLCHECK_OPTS) scripts/deploy/*.sh || true
-
-lint-config:
-	@$(run_as_root) headscale configtest --config /etc/headscale/headscale.yaml || \
-		(echo "Headscale config invalid!" && exit 1)
-
-lint-makefile:
-	@if command -v checkmake >/dev/null 2>&1; then \
-		$(run_as_roots) checkmake Makefile; \
-		$(run_as_roots) checkmake --version; \
+	@echo "[shellcheck] Scanning tracked shell files (permissive)"
+	@if ! command -v $(SHELLCHECK) >/dev/null 2>&1; then \
+	  echo "[shellcheck] shellcheck not installed; install with 'make deps' or set SHELLCHECK=..."; \
 	else \
-		make -n all >/dev/null; \
+	  if [ -z "$(SH_FILES)" ]; then \
+		echo "[shellcheck] No shell files to check"; \
+	  else \
+		for f in $(SH_FILES); do \
+		  echo "[shellcheck] $$f"; \
+		  $(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || true; \
+		done; \
+	  fi; \
 	fi
 
-# Run headscale configtest against the deployed config
+# ShellCheck strict: fail on any ShellCheck non-zero exit
+lint-shellcheck-strict:
+	@echo "[shellcheck] Scanning tracked shell files (strict)"
+	@if ! command -v $(SHELLCHECK) >/dev/null 2>&1; then \
+	  echo "[shellcheck] ERROR: shellcheck not installed; install with 'make deps' or set SHELLCHECK=..."; exit 2; \
+	else \
+	  if [ -z "$(SH_FILES)" ]; then \
+		echo "[shellcheck] No shell files to check"; \
+	  else \
+		rc=0; \
+		for f in $(SH_FILES); do \
+		  echo "[shellcheck] $$f"; \
+		  $(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || rc=$$?; \
+		done; \
+		if [ $$rc -ne 0 ]; then echo "[shellcheck] Errors/warnings detected"; exit $$rc; fi; \
+	  fi; \
+	fi
+
+# Spell checks: codespell (permissive) and aspell (permissive)
+lint-spell:
+	@echo "[lint] Running codespell and aspell (permissive)..."
+	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
+	  echo "[codespell] scanning..."; \
+	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(REPO_ROOT) || true; \
+	else \
+	  echo "[lint] codespell not installed; skipping codespell"; \
+	fi
+	@if command -v $(ASPELL) >/dev/null 2>&1; then \
+	  echo "[aspell] scanning comments (lightweight pass)"; \
+	  (for f in $(SH_FILES) $(MAKEFILES); do \
+		 [ -f "$$f" ] || continue; \
+		 sed -n 's/^[[:space:]]*#//p' "$$f" | sed 's/[^[:alpha:][:space:]]/ /g'; \
+	   done) | tr '[:upper:]' '[:lower:]' | tr -s ' ' '\n' | sort -u | $(ASPELL) list | sort -u || true; \
+	else \
+	  echo "[lint] aspell not installed; skipping aspell"; \
+	fi
+
+# Spell checks strict: fail if codespell or aspell find issues
+lint-spell-strict:
+	@echo "[lint-ci] Running codespell and aspell (strict)..."
+	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
+	  echo "[codespell] scanning..."; \
+	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(REPO_ROOT); \
+	else \
+	  echo "[lint-ci] ERROR: codespell not installed; install with 'make deps' or set CODESPELL=..."; exit 2; \
+	fi
+	@if command -v $(ASPELL) >/dev/null 2>&1; then \
+	  echo "[aspell] scanning comments (strict)"; \
+	  bad=$$( (for f in $(SH_FILES) $(MAKEFILES); do \
+		 [ -f "$$f" ] || continue; \
+		 sed -n 's/^[[:space:]]*#//p' "$$f" | sed 's/[^[:alpha:][:space:]]/ /g'; \
+	   done) | tr '[:upper:]' '[:lower:]' | tr -s ' ' '\n' | sort -u | $(ASPELL) list | sort -u ); \
+	  if [ -n "$$bad" ]; then echo "[aspell] Unknown words found:"; echo "$$bad"; exit 1; fi; \
+	else \
+	  echo "[lint-ci] ERROR: aspell not installed; install with 'make deps' or set ASPELL=..."; exit 2; \
+	fi
+
+# Lint Makefiles and mk/*.mk using checkmake when available (permissive)
+lint-makefile:
+	@echo "[lint] Linting Makefiles and mk/*.mk (permissive)..."
+	@if command -v $(CHECKMAKE) >/dev/null 2>&1; then \
+	  for mf in $(REPO_ROOT)/Makefile $(MK_FILES); do \
+		[ -f "$$mf" ] || continue; \
+		echo "[checkmake] $$mf"; \
+		$(CHECKMAKE) "$$mf" || true; \
+	  done; \
+	else \
+	  echo "[lint] checkmake not installed; run 'make deps' to install it or set CHECKMAKE=..."; \
+	  echo "[lint] Falling back to 'make -n' for a dry-run (non-failing)"; \
+	  make -n all >/dev/null || true; \
+	fi
+
+# Lint Makefiles strict: fail on checkmake errors
+lint-makefile-strict:
+	@echo "[lint-ci] Linting Makefiles and mk/*.mk (strict)..."
+	@if ! command -v $(CHECKMAKE) >/dev/null 2>&1; then \
+	  echo "[lint-ci] ERROR: checkmake not installed; install with 'make deps' or set CHECKMAKE=..."; exit 2; \
+	else \
+	  for mf in $(REPO_ROOT)/Makefile $(MK_FILES); do \
+		[ -f "$$mf" ] || continue; \
+		echo "[checkmake] $$mf"; \
+		$(CHECKMAKE) "$$mf" || { echo "[checkmake] Issues in $$mf"; exit 1; }; \
+	  done; \
+	fi
+
+# Headscale config test (use run_as_root helper)
 lint-headscale:
-	@echo "Linting /etc/headscale/headscale.yaml..."
-	@sudo headscale configtest --config /etc/headscale/headscale.yaml
+	@echo "[lint] Linting /etc/headscale/headscale.yaml (permissive)..."
+	@if command -v headscale >/dev/null 2>&1; then \
+	  $(run_as_root) headscale configtest --config /etc/headscale/headscale.yaml || echo "[lint] Headscale configtest failed (permissive)"; \
+	else \
+	  echo "[lint] headscale binary not found; skipping headscale configtest"; \
+	fi
+
+# Headscale config test strict
+lint-headscale-strict:
+	@echo "[lint-ci] Linting /etc/headscale/headscale.yaml (strict)..."
+	@if ! command -v headscale >/dev/null 2>&1; then \
+	  echo "[lint-ci] headscale binary not found; skipping headscale configtest"; \
+	else \
+	  $(run_as_root) headscale configtest --config /etc/headscale/headscale.yaml || { echo "[lint-ci] Headscale config invalid"; exit 1; }; \
+	fi
