@@ -147,9 +147,9 @@ all-wg: $(ALL_WG)
 	@echo "✅ all server configs ensured"
 
 all-wg-up: ensure-wg-dir
-	@echo "⏫ bringing up all wg interfaces"; \
-	for i in $(WG_IFACES); do $(run_as_root) $(MAKE) -s wg-up-$$i || { echo "❌ wg-up-$$i failed"; exit 1; }; done; \
-	@echo "✅ all-wg-up finished"
+	$(info ⏫ bringing up all wg interfaces)
+	@for i in $(WG_IFACES); do $(run_as_root) $(MAKE) -s wg-up-$$i || { echo "❌ wg-up-$$i failed"; exit 1; }; done; \
+	$(info ✅ all-wg-up finished)
 
 # Generate missing clients from CLIENTS list
 all-clients-generate:
@@ -187,26 +187,27 @@ regen-clients:
 	done; echo "✅ regen-clients complete for $(IFACE)"
 
 # Destructive full reinstall (interactive confirmation)
+.SILENT: wg-reinstall-all
 .PHONY: wg-reinstall-all
 wg-reinstall-all:
-	@echo "[make] WARNING: destructive reinstall of WireGuard server + client artifacts (map file recreated)"
-	@echo ""
-	@echo "This will:"
-	@echo "  - stop any running wg interfaces (wg0..wg7)"
-	@echo "  - remove server configs and keys: $(WG_DIR)/wg*.conf $(WG_DIR)/wg*.key $(WG_DIR)/wg*.pub"
-	@echo "  - remove client artifacts: $(WG_DIR)/*-wg*.conf $(WG_DIR)/*-wg*.key $(WG_DIR)/*-wg*.pub"
-	@echo "  - recreate empty map file: $(MAP_FILE)"
-	@echo ""
-	@echo "Before proceeding you should verify and securely share any public keys you need to keep."
-	@echo "  - To list public keys (copy/paste or save):"
-	@echo "      sudo ls -la $(WG_DIR)/*.pub"
-	@echo "  - To display a client's QR code locally (scan with mobile):"
-	@echo "      sudo make client-showqr-<base>-<iface>    # e.g. sudo make client-showqr-julie-s22-wg3"
-	@echo ""
-	@echo "Secure sharing suggestions:"
-	@echo "  - Use an end-to-end channel (Signal, Wire, or similar) to send public key text."
-	@echo "  - Or scan the QR code locally rather than sending files over chat/email."
-	@echo ""
+	$(info [make] WARNING: destructive reinstall of WireGuard server + client artifacts (map file recreated))
+	$(info )
+	$(info This will:)
+	$(info   - stop any running wg interfaces (wg0..wg7))
+	$(info   - remove server configs and keys: $(WG_DIR)/wg*.conf $(WG_DIR)/wg*.key $(WG_DIR)/wg*.pub)
+	$(info   - remove client artifacts: $(WG_DIR)/*-wg*.conf $(WG_DIR)/*-wg*.key $(WG_DIR)/*-wg*.pub)
+	$(info   - recreate empty map file: $(MAP_FILE))
+	$(info )
+	$(info Before proceeding you should verify and securely share any public keys you need to keep.)
+	$(info   - To list public keys (copy/paste or save):)
+	$(info       sudo ls -la $(WG_DIR)/*.pub)
+	$(info   - To display a client's QR code locally (scan with mobile):)
+	$(info       sudo make client-showqr-<base>-<iface>    # e.g. sudo make client-showqr-julie-s22-wg3)
+	$(info )
+	$(info Secure sharing suggestions:)
+	$(info   - Use an end-to-end channel (Signal, Wire, or similar) to send public key text.)
+	$(info   - Or scan the QR code locally rather than sending files over chat/email.)
+	$(info )
 	@bash -c 'read -r -p "Type YES to confirm destructive reinstall: " CONFIRM; \
 		if [ "$$CONFIRM" != "YES" ]; then echo "[make] Aborted by user (confirmation not YES)"; exit 1; fi; \
 		echo "[make] Proceeding with destructive reinstall..." ; \
@@ -219,8 +220,8 @@ wg-reinstall-all:
 		$(run_as_root) install -m 0600 /dev/null $(MAP_FILE); \
 		$(run_as_root) chown root:root $(MAP_FILE) || true; \
 		# regenerate servers and clients (force keys+confs) \
-		$(run_as_root) $(MAKE) -B all-wg FORCE=1 CONF_FORCE=1; \
-		$(run_as_root) $(MAKE) -B all-clients-generate FORCE=1 CONF_FORCE=1; \
+		$(run_as_root) sh -c 'FORCE=1 CONF_FORCE=1 $(MAKE) -B all-wg' ; \
+		$(run_as_root) sh -c 'FORCE=1 CONF_FORCE=1 $(MAKE) -B all-clients-generate' ; \
 		# program peers and bring up interfaces \
 		$(run_as_root) $(MAKE) wg-add-peers; \
 		$(run_as_root) $(MAKE) all-wg-up; \
