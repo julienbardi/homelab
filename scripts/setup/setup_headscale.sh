@@ -15,11 +15,53 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Resolve the directory this script lives in (works when invoked from any CWD).
+# This resolves symlinks and yields an absolute path.
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SCRIPT_SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" >/dev/null 2>&1 && pwd)"
+  SCRIPT_SOURCE="$(readlink "$SCRIPT_SOURCE")"
+  [[ $SCRIPT_SOURCE != /* ]] && SCRIPT_SOURCE="$DIR/$SCRIPT_SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")" >/dev/null 2>&1 && pwd)"
+
+# If your repo layout has scripts/ under the repo root, compute repo root:
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." >/dev/null 2>&1 && pwd)"
+
 # load helper functions (log, run_as_root, etc.)
-source "/home/julie/src/homelab/config/homelab.env"
-source "$HOME/src/homelab/scripts/common.sh"
-type run_as_root
-declare -f run_as_root
+HOMELAB_ENV="${REPO_ROOT}/config/homelab.env"
+COMMON_SH="${REPO_ROOT}/scripts/common.sh"
+
+if [ -f "${HOMELAB_ENV}" ]; then
+  # shellcheck disable=SC1090
+  source "${HOMELAB_ENV}"
+else
+  echo "Missing ${HOMELAB_ENV}; run this script from the repository root." >&2
+  exit 1
+fi
+
+if [ -f "${COMMON_SH}" ]; then
+  # shellcheck disable=SC1090
+  source "${COMMON_SH}"
+else
+  echo "Missing ${COMMON_SH}; run this script from the repository root." >&2
+  exit 1
+fi
+
+# Ensure run_as_root helper is available (fallback to sudo)
+if ! command -v run_as_root >/dev/null 2>&1; then
+  if command -v sudo >/dev/null 2>&1; then
+    run_as_root() { sudo "$@"; }
+  else
+    echo "run_as_root helper not found and sudo unavailable; aborting" >&2
+    exit 1
+  fi
+fi
+
+
+
+#type run_as_root
+#declare -f run_as_root
 
 
 SERVICE_NAME="headscale"
@@ -27,10 +69,8 @@ CONFIG_DIR="/etc/headscale"
 CONFIG_FILE="${CONFIG_DIR}/config.yaml"
 DERP_FILE="${CONFIG_DIR}/derp.yaml"
 SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
-REPO_CONFIG="/home/julie/src/homelab/config/headscale.yaml"
-REPO_DERP="/home/julie/src/homelab/config/derp.yaml"
-NAS_IP="10.89.12.4"
-UNBOUND_IP="${NAS_IP}"   # Unbound runs locally on NAS
+REPO_CONFIG="${REPO_ROOT}/config/headscale.yaml"
+REPO_DERP="${REPO_ROOT}/config/derp.yaml"
 
 # install locations and runtime user
 GOBIN="/usr/local/bin"
@@ -81,7 +121,12 @@ else
 fi
 
 # --- Resolve headscale binary path once and reuse ---
-HS_BIN="$(command -v headscale || printf '%s' "${HEADSCALE_BIN}")"
+HS_BIN="$(command -v headscale 2>/dev/null || printf '%s' "${HEADSCALE_BIN}")"
+if [ ! -x "${HS_BIN}" ]; then
+  log "ERROR: headscale binary not found or not executable at ${HS_BIN}; please install headscale or adjust HEADSCALE_BIN"
+  exit 1
+fi
+
 
 # --- Deploy configs from repo ---
 log "Deploying Headscale config files"
@@ -157,8 +202,11 @@ fi
 # --- Noise private key generation ---
 if [ ! -f "${CONFIG_DIR}/noise_private.key" ]; then
 	# Generate the key only if missing, capture stdout into the file as root
-	run_as_root --preserve env HS_BIN="${HS_BIN}" CONFIG_DIR="${CONFIG_DIR}" bash -c 'umask 077; exec "$HS_BIN" generate private-key > "$CONFIG_DIR/noise_private.key"'
-
+	run_as_root --preserve env HS_BIN="${HS_BIN}" CONFIG_DIR="${CONFIG_DIR}" \
+		bash -s _ "$HS_BIN" "$CONFIG_DIR" <<'INNER'
+umask 077
+exec "$1" generate private-key > "$2/noise_private.key"
+INNER
 	if [ -f "${CONFIG_DIR}/noise_private.key" ]; then
 		log "Noise private key created at ${CONFIG_DIR}/noise_private.key"
 		run_as_root chown "${HEADSCALE_USER}":"${HEADSCALE_USER}" "${CONFIG_DIR}/noise_private.key"
@@ -176,7 +224,7 @@ Description=Headscale coordination server
 After=network.target
 
 [Service]
-ExecStart=${HEADSCALE_BIN} serve --config ${CONFIG_FILE}
+ExecStart=${HS_BIN} serve --config ${CONFIG_FILE}
 WorkingDirectory=${CONFIG_DIR}
 User=${HEADSCALE_USER}
 Group=${HEADSCALE_USER}

@@ -91,6 +91,7 @@ warm_cache() {
   export -f log
 
   # Use xargs for parallelism; each job queries A, AAAA, NS
+  # shellcheck disable=SC2016
   xargs -a "$OUT_LIST" -n1 -P "$PARALLEL" -I{} bash -c '
     d="{}"
     # Query A, AAAA, NS; ignore failures but keep short timeout

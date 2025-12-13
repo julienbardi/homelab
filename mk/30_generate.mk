@@ -1,4 +1,5 @@
 # mk/30_generate.mk
+# Usage: make install-all
 SCRIPTS := $(notdir $(wildcard scripts/*.sh))
 strip_sh = $(patsubst %.sh,%,$(1))
 
@@ -6,7 +7,7 @@ INSTALL_TARGETS :=
 UNINSTALL_TARGETS :=
 
 $(foreach s,$(SCRIPTS),\
-  $(eval NAME := $(call strip_sh,$(s)))\
+  $(eval NAME := $(s))\
   $(eval SRC := scripts/$(s))\
   $(eval FILE := $(INSTALL_PATH)/$(NAME))\
   $(eval INSTALL_TARGETS += install-$(NAME))\

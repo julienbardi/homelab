@@ -100,7 +100,7 @@ for dev in "${IFACE_ARR[@]}"; do
   # 5) fallback: try up with hooks disabled (comment PostUp/PreDown)
   if [ $up_ok -ne 1 ]; then
 	info "⤴ Fallback: trying to bring $dev up with hooks disabled"
-	tmpconf="$(mktemp /tmp/${dev}.conf.XXXX)"
+	tmpconf="$(mktemp "/tmp/${dev}.conf.XXXX")"
 	sed -E 's/^[[:space:]]*(PostUp|PreDown)[[:space:]]*=/# &/I' "$conf" > "$tmpconf"
 	chmod 600 "$tmpconf"
 	if $WG_QUICK up "$tmpconf" > "$LOGDIR/${dev}-up-fallback.out" 2>&1; then
