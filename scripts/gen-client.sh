@@ -261,38 +261,76 @@ if run_root "test -f '${MAP_FILE}'"; then
 		done < "$map_tmp2"
 fi
 
-# ---------- Canonical allocation ----------
+# ---------- Canonical allocation (preserve existing iface entries) ----------
 TMP_NEW_MAP="$(mktemp "/tmp/client-map.new.${IFACE}.XXXXXX")"; TMPFILES="$TMPFILES $TMP_NEW_MAP"
 : > "$TMP_NEW_MAP"
+
+# 1) Preserve any existing base+iface lines exactly and mark their indices used
+if [ -f "$TMP_OLD_MAP" ]; then
+	while IFS=, read -r obase oiface o4 o6; do
+		# only lines for this iface are in TMP_OLD_MAP, but be defensive
+		[ "$oiface" = "$IFACE" ] || continue
+
+		printf '%s,%s,%s,%s\n' "$obase" "$oiface" "$o4" "$o6" >> "$TMP_NEW_MAP"
+
+		# extract last octet and mark used
+		case "$o4" in
+			*.*.*.*/*) last_octet="$(printf '%s' "$o4" | sed -E 's/.*\.([0-9]+)\/.*/\1/')";;
+			*.*.*.*) last_octet="$(printf '%s' "$o4" | sed -E 's/.*\.([0-9]+)$/\1/')";;
+			*) last_octet="";;
+		esac
+		if [ -n "$last_octet" ]; then
+			idx=$((last_octet - HOST_OFFSET))
+			if [ "$idx" -ge 0 ] 2>/dev/null && [ "$idx" -lt "$USABLE_HOSTS" ] 2>/dev/null; then
+				used_indices="${used_indices} ${idx}"
+			fi
+		fi
+	done < "$TMP_OLD_MAP"
+fi
+
+# 2) Now allocate only for bases that are not already present for this iface
 for name in $(printf '%s\n' "$all_bases"); do
-		# NEW: reuse index if client exists anywhere in the map (extract last octet from IPv4)
-		existing_idx="$(awk -F, -v n="$name" '$1==n {print $3}' "$MAP_FILE" \
-			| sed -E 's/.*\.([0-9]+)(\/.*)?$/\1/' | head -n1 2>/dev/null || true)"
-		if [ -n "$existing_idx" ]; then
-				i=$((existing_idx - HOST_OFFSET))
-				tried=0; found=0
-		else
-				start="$(alloc_index "$name" "$USABLE_HOSTS")"
-				i="$start"; tried=0; found=0
-		fi
-		while [ "$tried" -lt "$USABLE_HOSTS" ]; do
-				case " $used_indices " in
-						*" $i "*) ;;
-						*) found=1; break ;;
-				esac
-				i=$(( (i + 1) % USABLE_HOSTS ))
-				tried=$((tried + 1))
-		done
-		if [ "$found" -ne 1 ]; then
-				rm -f "$TMP_NEW_MAP"
-				err "no free host slot found for iface $IFACE"
-				exit 1
-		fi
-		host_octet=$((i + HOST_OFFSET))
-		ipv4="${NET4}.${host_octet}/32"
-		ipv6="${NET6_PREFIX}${host_octet}/128"
-		printf '%s,%s,%s,%s\n' "$name" "$IFACE" "$ipv4" "$ipv6" >> "$TMP_NEW_MAP"
-		used_indices="${used_indices} ${i}"
+	# skip if this base already has a line in TMP_NEW_MAP for this iface
+	if awk -F, -v n="$name" -v i="$IFACE" '$1==n && $2==i {exit 0} END{exit 1}' "$TMP_NEW_MAP"; then
+		continue
+	fi
+
+	# Prefer normalized local copies (map_tmp2 then map_tmp) to avoid races/visibility issues
+	existing_idx="$(
+	  { [ -f "${map_tmp2:-}" ] && cat "$map_tmp2" || [ -f "${map_tmp:-}" ] && cat "$map_tmp" || true; } \
+	  | awk -F, -v n="$name" '$1==n {print $3; exit}' \
+	  | sed -E 's/.*\.([0-9]+)(\/.*)?$/\1/' \
+	  | head -n1 || true
+	)"
+
+	if [ -n "$existing_idx" ]; then
+		i=$((existing_idx - HOST_OFFSET))
+		tried=0; found=0
+	else
+		start="$(alloc_index "$name" "$USABLE_HOSTS")"
+		i="$start"; tried=0; found=0
+	fi
+
+	while [ "$tried" -lt "$USABLE_HOSTS" ]; do
+		case " $used_indices " in
+			*" $i "*) ;;
+			*) found=1; break ;;
+		esac
+		i=$(( (i + 1) % USABLE_HOSTS ))
+		tried=$((tried + 1))
+	done
+
+	if [ "$found" -ne 1 ]; then
+		rm -f "$TMP_NEW_MAP"
+		err "no free host slot found for iface $IFACE"
+		exit 1
+	fi
+
+	host_octet=$((i + HOST_OFFSET))
+	ipv4="${NET4}.${host_octet}/32"
+	ipv6="${NET6_PREFIX}${host_octet}/128"
+	printf '%s,%s,%s,%s\n' "$name" "$IFACE" "$ipv4" "$ipv6" >> "$TMP_NEW_MAP"
+	used_indices="${used_indices} ${i}"
 done
 
 # ---------- Compare with old map for this iface ----------
@@ -305,25 +343,18 @@ fi
 
 reassign_diff="$(mktemp "/tmp/client-map.diff.${IFACE}.XXXXXX")"; TMPFILES="$TMPFILES $reassign_diff"
 if ! diff -u "$TMP_OLD_MAP" "$TMP_NEW_MAP" > "$reassign_diff" 2>/dev/null; then
-	changed=0
-	while IFS=, read -r obase oiface o4 o6; do
-		[ "$oiface" = "$IFACE" ] || continue
+	# Compare by base: only flag when a base+iface existed before and its IP tuple changed.
+	mismatches="$(awk -F, -v iface="$IFACE" '
+		NR==FNR && $2==iface { old[$1]=$3","$4; next }
+		$2==iface {
+			if ($1 in old && old[$1]!=$3","$4) print $1","old[$1]","$3","$4
+		}
+	' "$TMP_OLD_MAP" "$TMP_NEW_MAP")"
 
-		# Look for this base+iface in the new map
-		new_line="$(awk -F, -v b="$obase" -v i="$oiface" '$1==b && $2==i {print; exit}' "$TMP_NEW_MAP")"
-
-		if [ -n "$new_line" ]; then
-			# If the exact line is present, nothing changed
-			if [ "$new_line" = "${obase},${oiface},${o4},${o6}" ]; then
-				continue
-			fi
-			# Same base+iface but different IPs → reassignment
-			changed=1; break
-		fi
-		# If base+iface not present at all in new map, that’s a removal, not a reassignment
-	done < "$TMP_OLD_MAP"
-	if [ "$changed" -eq 1 ] && [ "$FORCE_REASSIGN" -ne 1 ]; then
+	if [ -n "$mismatches" ]; then
 		err "ERROR: allocation would reassign existing clients for $IFACE."
+		err "Reassignments detected (base,old_ipv4/ipv6,new_ipv4/ipv6):"
+		printf '%s\n' "$mismatches" | sed 's/^/  /'
 		err "To proceed, run as root and allow reassignment:"
 		err "  sudo FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 make client-${BASE}-${IFACE}"
 		err "  or"
