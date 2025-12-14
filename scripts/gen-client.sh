@@ -265,8 +265,16 @@ fi
 TMP_NEW_MAP="$(mktemp "/tmp/client-map.new.${IFACE}.XXXXXX")"; TMPFILES="$TMPFILES $TMP_NEW_MAP"
 : > "$TMP_NEW_MAP"
 for name in $(printf '%s\n' "$all_bases"); do
-		start="$(alloc_index "$name" "$USABLE_HOSTS")"
-		i="$start"; tried=0; found=0
+		# NEW: reuse index if client exists anywhere in the map (extract last octet from IPv4)
+		existing_idx="$(awk -F, -v n="$name" '$1==n {print $3}' "$MAP_FILE" \
+			| sed -E 's/.*\.([0-9]+)(\/.*)?$/\1/' | head -n1 2>/dev/null || true)"
+		if [ -n "$existing_idx" ]; then
+				i=$((existing_idx - HOST_OFFSET))
+				tried=0; found=0
+		else
+				start="$(alloc_index "$name" "$USABLE_HOSTS")"
+				i="$start"; tried=0; found=0
+		fi
 		while [ "$tried" -lt "$USABLE_HOSTS" ]; do
 				case " $used_indices " in
 						*" $i "*) ;;
@@ -357,6 +365,11 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 		ipv6="$(printf '%s' "$line" | awk -F, '{print $4}')"
 
 		confname="${b}-${IFACE}"
+		key_file="${WG_DIR}/${confname}.key}"
+		pub_file="${WG_DIR}/${confname}.pub}"
+		conf_file="${WG_DIR}/${confname}.conf}"
+
+		# Fix filenames (typo correction without changing intent)
 		key_file="${WG_DIR}/${confname}.key"
 		pub_file="${WG_DIR}/${confname}.pub"
 		conf_file="${WG_DIR}/${confname}.conf"
@@ -392,6 +405,25 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 		else
 				run_root "printf '%s\n' 'Address = ${ipv4}${ipv6:+, $ipv6}' >> '$conf_file'"
 		fi
+
+		# NEW: append client-side [Peer] block pointing to server
+		SERVER_PUB=${SERVER_PUB:-$(run_root "cat /etc/wireguard/${IFACE}.pub 2>/dev/null" || true)}
+		SERVER_PORT=${SERVER_PORT:-$(run_root "wg show ${IFACE} listen-port 2>/dev/null" || true)}
+		SERVER_HOST=${SERVER_HOST:-}
+		tmp_peer_cli="$(mktemp "/tmp/${confname}.peercli.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp_peer_cli"
+		{
+				printf '\n[Peer]\n'
+				printf '# server for %s (added %s)\n' "${confname}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+				[ -n "${SERVER_PUB}" ] && printf 'PublicKey = %s\n' "${SERVER_PUB}"
+				if [ -n "${SERVER_HOST}" ] && [ -n "${SERVER_PORT}" ]; then
+						printf 'Endpoint = %s:%s\n' "${SERVER_HOST}" "${SERVER_PORT}"
+				fi
+				printf 'AllowedIPs = %s\n' "${CLIENT_ALLOWED_DESTS:-0.0.0.0/0, ::/0}"
+				printf 'PersistentKeepalive = 25\n'
+		} > "$tmp_peer_cli"
+		run_root "sh -c 'cat >> \"${conf_file}\"'" < "$tmp_peer_cli"
+		rm -f -- "$tmp_peer_cli" 2>/dev/null || true
+		TMPFILES="$(printf '%s' "$TMPFILES" | sed "s# $tmp_peer_cli##g" | sed "s#^$tmp_peer_cli##g")"
 
 		if [ -n "$pubkey" ] && run_root "test -f '$SERVER_CONF'"; then
 				ALLOWED="${ipv4}${ipv6:+, $ipv6}"
