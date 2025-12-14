@@ -1,2 +1,1 @@
-# Forward all queries to Unbound
-* 127.0.0.1:5335
+* 127.0.0.1:53

@@ -151,8 +151,8 @@ bardi.ch:8384 {
 				reject_message "DNS query rate limit exceeded"
 			}
 		}
-		 # Forward to dnscrypt-proxy (plain HTTP listener on 127.0.0.1:8053)
-		reverse_proxy 127.0.0.1:8053
+		 # Forward to dnscrypt-proxy (plain HTTP listener on 127.0.0.1:53)
+		reverse_proxy 127.0.0.1:53
 	}
 
 	# Unknown host fallback

@@ -7,7 +7,7 @@ SHELL := /bin/bash
 
 # Binary + version
 DNSCRYPT_BIN       := /usr/bin/dnscrypt-proxy
-DNSCRYPT_VERSION   := 2.1.5
+DNSCRYPT_VERSION   := 2.1.15
 DNSCRYPT_URL       := https://github.com/DNSCrypt/dnscrypt-proxy/releases/download/$(DNSCRYPT_VERSION)/dnscrypt-proxy-linux_x86_64-$(DNSCRYPT_VERSION).tar.gz
 
 # Config + rules
@@ -22,6 +22,12 @@ RUN_USER           ?= dnscrypt
 SERVICE_NAME       ?= dnscrypt-proxy
 SYSTEMD_UNIT       := /etc/systemd/system/$(SERVICE_NAME).service
 OVERWRITE_UNIT     ?= 0
+
+# Resolver list sources + destinations
+RESOLVERS_MD_URL  := https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md
+RESOLVERS_SIG_URL := https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md.minisig
+RESOLVERS_MD_DEST := $(DNSCRYPT_CONF_DIR)/public-resolvers.md
+RESOLVERS_SIG_DEST:= $(DNSCRYPT_CONF_DIR)/public-resolvers.md.minisig
 
 .PHONY: install-pkg-dnscrypt-proxy
 
@@ -55,6 +61,15 @@ install-pkg-dnscrypt-proxy:
 	@echo "📑 Installing forwarding-rules.txt from $(DNSCRYPT_RULES_SRC) -> $(DNSCRYPT_RULES_DEST)"
 	sudo install -m 0644 "$(DNSCRYPT_RULES_SRC)" "$(DNSCRYPT_RULES_DEST)"
 
+	@echo "ℹ️ Skipping resolver list download (forwarding-only mode)"
+	# fetch resolver list + signature
+	#@echo "📥 Downloading resolver list into $(DNSCRYPT_CONF_DIR)"
+	#curl -L $(RESOLVERS_MD_URL)  -o /tmp/public-resolvers.md
+	#curl -L $(RESOLVERS_SIG_URL) -o /tmp/public-resolvers.md.minisig
+	#sudo install -m 0644 /tmp/public-resolvers.md        $(RESOLVERS_MD_DEST)
+	#sudo install -m 0644 /tmp/public-resolvers.md.minisig $(RESOLVERS_SIG_DEST)
+	sudo rm -f $(RESOLVERS_MD_DEST) $(RESOLVERS_SIG_DEST)
+
 	# create or overwrite systemd unit
 	if [ ! -f "$(SYSTEMD_UNIT)" ] || [ "$(OVERWRITE_UNIT)" = "1" ]; then \
 		echo "📝 Writing systemd unit to $(SYSTEMD_UNIT)"; \
@@ -65,7 +80,7 @@ install-pkg-dnscrypt-proxy:
 "" \
 "[Service]" \
 "ExecStart=$(DNSCRYPT_BIN) -config $(DNSCRYPT_CONF_DEST)" \
-"WorkingDirectory=$(DNSCRYPT_CONF_DIR)" \
+"WorkingDirectory=/" \
 "User=$(RUN_USER)" \
 "Group=$(RUN_USER)" \
 "Restart=on-failure" \
