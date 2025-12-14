@@ -5,17 +5,23 @@
 .ONESHELL:
 SHELL := /bin/bash
 
-DNSCRYPT_BIN := /usr/bin/dnscrypt-proxy
-DNSCRYPT_CONF_SRC := $(HOMELAB_DIR)/config/dnscrypt-proxy/dnscrypt-proxy.toml
-DNSCRYPT_CONF_DEST := /etc/dnscrypt-proxy/dnscrypt-proxy.toml
+# Binary + version
+DNSCRYPT_BIN       := /usr/bin/dnscrypt-proxy
+DNSCRYPT_VERSION   := 2.1.5
+DNSCRYPT_URL       := https://github.com/DNSCrypt/dnscrypt-proxy/releases/download/$(DNSCRYPT_VERSION)/dnscrypt-proxy-linux_x86_64-$(DNSCRYPT_VERSION).tar.gz
 
-RUN_USER ?= dnscrypt
-SERVICE_NAME ?= dnscrypt-proxy
-SYSTEMD_UNIT := /etc/systemd/system/$(SERVICE_NAME).service
-OVERWRITE_UNIT ?= 0
+# Config + rules
+DNSCRYPT_CONF_DIR  := /etc/dnscrypt-proxy
+DNSCRYPT_CONF_SRC  := $(HOMELAB_DIR)/config/dnscrypt-proxy/dnscrypt-proxy.toml
+DNSCRYPT_CONF_DEST := $(DNSCRYPT_CONF_DIR)/dnscrypt-proxy.toml
+DNSCRYPT_RULES_SRC := $(HOMELAB_DIR)/config/dnscrypt-proxy/forwarding-rules.txt
+DNSCRYPT_RULES_DEST:= $(DNSCRYPT_CONF_DIR)/forwarding-rules.txt
 
-DNSCRYPT_VERSION := 2.1.5
-DNSCRYPT_URL := https://github.com/DNSCrypt/dnscrypt-proxy/releases/download/$(DNSCRYPT_VERSION)/dnscrypt-proxy-linux_x86_64-$(DNSCRYPT_VERSION).tar.gz
+# Service + unit
+RUN_USER           ?= dnscrypt
+SERVICE_NAME       ?= dnscrypt-proxy
+SYSTEMD_UNIT       := /etc/systemd/system/$(SERVICE_NAME).service
+OVERWRITE_UNIT     ?= 0
 
 .PHONY: install-pkg-dnscrypt-proxy
 
@@ -36,14 +42,18 @@ install-pkg-dnscrypt-proxy:
 		echo "👤 Creating runtime user $(RUN_USER)"; \
 		sudo useradd --system --no-create-home --shell /usr/sbin/nologin $(RUN_USER) || true; \
 	fi
-	# ensure that directory exists and is accessible
-	sudo mkdir -p /etc/dnscrypt-proxy
-	sudo chown $(RUN_USER):$(RUN_USER) /etc/dnscrypt-proxy
-	
+
+	# ensure config directory exists and is accessible
+	sudo mkdir -p $(DNSCRYPT_CONF_DIR)
+	sudo chown $(RUN_USER):$(RUN_USER) $(DNSCRYPT_CONF_DIR)
+
 	# install curated config
 	@echo "📑 Installing dnscrypt-proxy.toml from $(DNSCRYPT_CONF_SRC) -> $(DNSCRYPT_CONF_DEST)"
-	sudo mkdir -p $(dir $(DNSCRYPT_CONF_DEST))
 	sudo install -m 0644 "$(DNSCRYPT_CONF_SRC)" "$(DNSCRYPT_CONF_DEST)"
+
+	# install forwarding rules file
+	@echo "📑 Installing forwarding-rules.txt from $(DNSCRYPT_RULES_SRC) -> $(DNSCRYPT_RULES_DEST)"
+	sudo install -m 0644 "$(DNSCRYPT_RULES_SRC)" "$(DNSCRYPT_RULES_DEST)"
 
 	# create or overwrite systemd unit
 	if [ ! -f "$(SYSTEMD_UNIT)" ] || [ "$(OVERWRITE_UNIT)" = "1" ]; then \
@@ -55,7 +65,7 @@ install-pkg-dnscrypt-proxy:
 "" \
 "[Service]" \
 "ExecStart=$(DNSCRYPT_BIN) -config $(DNSCRYPT_CONF_DEST)" \
-"WorkingDirectory=/etc/dnscrypt-proxy" \
+"WorkingDirectory=$(DNSCRYPT_CONF_DIR)" \
 "User=$(RUN_USER)" \
 "Group=$(RUN_USER)" \
 "Restart=on-failure" \
