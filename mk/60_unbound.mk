@@ -182,3 +182,23 @@ dns-watch:
 		-e 's/warning:/⚠️ warning:/g' \
 		-e 's/error:/❌ error:/g' \
 		-e 's/notice:/ℹ️ notice:/g'
+
+sysctl:
+	@echo "📄 Ensuring /etc/sysctl.d/99-unbound-buffers.conf exists and is correct..."
+	@if ! [ -f /etc/sysctl.d/99-unbound-buffers.conf ] || \
+	   ! grep -q "net.core.rmem_max = 8388608" /etc/sysctl.d/99-unbound-buffers.conf || \
+	   ! grep -q "net.core.wmem_max = 8388608" /etc/sysctl.d/99-unbound-buffers.conf; then \
+		echo "# Increase socket buffer sizes for Unbound DNS resolver" | sudo tee /etc/sysctl.d/99-unbound-buffers.conf >/dev/null; \
+		echo "net.core.rmem_max = 8388608" | sudo tee -a /etc/sysctl.d/99-unbound-buffers.conf >/dev/null; \
+		echo "net.core.wmem_max = 8388608" | sudo tee -a /etc/sysctl.d/99-unbound-buffers.conf >/dev/null; \
+		echo "✅ Wrote /etc/sysctl.d/99-unbound-buffers.conf"; \
+	else \
+		echo "✔ /etc/sysctl.d/99-unbound-buffers.conf already correct"; \
+	fi
+	@echo "🔧 Reloading sysctl configuration..."
+	@sudo /sbin/sysctl --system >/dev/null
+	@echo "🔄 Restarting Unbound to apply new buffer sizes..."
+	@sudo systemctl restart unbound
+	@echo "✔ Sysctl reload complete. Current buffer limits:"
+	@/sbin/sysctl -q net.core.rmem_max net.core.wmem_max
+
