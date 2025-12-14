@@ -36,7 +36,10 @@ install-pkg-dnscrypt-proxy:
 		echo "👤 Creating runtime user $(RUN_USER)"; \
 		sudo useradd --system --no-create-home --shell /usr/sbin/nologin $(RUN_USER) || true; \
 	fi
-
+	# ensure that directory exists and is accessible
+	sudo mkdir -p /etc/dnscrypt-proxy
+	sudo chown $(RUN_USER):$(RUN_USER) /etc/dnscrypt-proxy
+	
 	# install curated config
 	@echo "📑 Installing dnscrypt-proxy.toml from $(DNSCRYPT_CONF_SRC) -> $(DNSCRYPT_CONF_DEST)"
 	sudo mkdir -p $(dir $(DNSCRYPT_CONF_DEST))
@@ -52,6 +55,7 @@ install-pkg-dnscrypt-proxy:
 "" \
 "[Service]" \
 "ExecStart=$(DNSCRYPT_BIN) -config $(DNSCRYPT_CONF_DEST)" \
+"WorkingDirectory=/etc/dnscrypt-proxy" \
 "User=$(RUN_USER)" \
 "Group=$(RUN_USER)" \
 "Restart=on-failure" \
