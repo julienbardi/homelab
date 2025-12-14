@@ -243,7 +243,7 @@ all: harden-groups gitcheck gen0 gen1 gen2
 	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
 
 # --- Gen0: foundational services ---
-gen0: harden-groups ensure-known-hosts setup-subnet-router headscale tailscaled dns dnscrypt-proxy
+gen0: sysctl harden-groups ensure-known-hosts setup-subnet-router headscale tailscaled dns dnscrypt-proxy
 	@echo "[make] Running gen0 foundational services..."
 
 # --- Headscale orchestration ---
