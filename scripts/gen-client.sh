@@ -314,6 +314,8 @@ if ! diff -u "$TMP_OLD_MAP" "$TMP_NEW_MAP" > "$reassign_diff" 2>/dev/null; then
 		if [ "$changed" -eq 1 ] && [ "$FORCE_REASSIGN" -ne 1 ]; then
 			err "ERROR: allocation would reassign existing clients for $IFACE."
 			err "To proceed, run as root and allow reassignment:"
+			err "  sudo FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 make client-${BASE}-${IFACE}"
+			err "  or"
 			err "  sudo FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 make client-showqr-${BASE}-${IFACE}"
 			rm -f "$TMP_NEW_MAP" "$TMP_OLD_MAP" "$reassign_diff"
 			exit 1
