@@ -305,21 +305,26 @@ fi
 
 reassign_diff="$(mktemp "/tmp/client-map.diff.${IFACE}.XXXXXX")"; TMPFILES="$TMPFILES $reassign_diff"
 if ! diff -u "$TMP_OLD_MAP" "$TMP_NEW_MAP" > "$reassign_diff" 2>/dev/null; then
-		changed=0
-		while IFS=, read -r obase oiface o4 o6; do
-				if ! grep -F -x -q "${obase},${oiface},${o4},${o6}" "$TMP_NEW_MAP" 2>/dev/null; then
-						changed=1; break
-				fi
-		done < "$TMP_OLD_MAP"
-		if [ "$changed" -eq 1 ] && [ "$FORCE_REASSIGN" -ne 1 ]; then
-			err "ERROR: allocation would reassign existing clients for $IFACE."
-			err "To proceed, run as root and allow reassignment:"
-			err "  sudo FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 make client-${BASE}-${IFACE}"
-			err "  or"
-			err "  sudo FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 make client-showqr-${BASE}-${IFACE}"
-			rm -f "$TMP_NEW_MAP" "$TMP_OLD_MAP" "$reassign_diff"
-			exit 1
+	changed=0
+	while IFS=, read -r obase oiface o4 o6; do
+		# Only compare if base+iface already existed
+		if grep -F -x -q "${obase},${oiface},${o4},${o6}" "$TMP_NEW_MAP" 2>/dev/null; then
+			continue
 		fi
+		# If this base+iface existed before and now differs, flag change
+		if [ "$oiface" = "$IFACE" ]; then
+			changed=1; break
+		fi
+	done < "$TMP_OLD_MAP"
+	if [ "$changed" -eq 1 ] && [ "$FORCE_REASSIGN" -ne 1 ]; then
+		err "ERROR: allocation would reassign existing clients for $IFACE."
+		err "To proceed, run as root and allow reassignment:"
+		err "  sudo FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 make client-${BASE}-${IFACE}"
+		err "  or"
+		err "  sudo FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 make client-showqr-${BASE}-${IFACE}"
+		rm -f "$TMP_NEW_MAP" "$TMP_OLD_MAP" "$reassign_diff"
+		exit 1
+	fi
 fi
 rm -f "$reassign_diff" 2>/dev/null || true
 
