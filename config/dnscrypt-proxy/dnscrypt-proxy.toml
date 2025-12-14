@@ -12,16 +12,18 @@ bootstrap_resolvers = ['127.0.0.1:5335']
 # Fallback resolvers (used if bootstrap fails, e.g. router safety net)
 fallback_resolvers = ['10.89.12.1:53']
 
-# Upstream DoH servers (optional, if you want dnscrypt-proxy itself to resolve)
+# Forward all queries to Unbound via external rules file
+forwarding_rules = '/etc/dnscrypt-proxy/forwarding-rules.txt'
+
+# Upstream DoH servers disabled (Unbound handles resolution)
 # Full list of available server_names:
 #   https://github.com/DNSCrypt/dnscrypt-resolvers
 #   https://dnscrypt.info/public-servers
-# Example (uncomment if needed):
 # server_names = ['cloudflare', 'quad9-doh']
 server_names = []
 
 # Enable DoH support
-doh_servers = true
+doh_servers = false
 
 # Logging
 log_level = 2
