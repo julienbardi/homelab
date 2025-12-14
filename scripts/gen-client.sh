@@ -319,7 +319,7 @@ if ! diff -u "$TMP_OLD_MAP" "$TMP_NEW_MAP" > "$reassign_diff" 2>/dev/null; then
 			# Same base+iface but different IPs → reassignment
 			changed=1; break
 		fi
-		# If base+iface not present at all, that’s fine (it’s a new addition elsewhere)
+		# If base+iface not present at all in new map, skip (it was removed, not reassigned)
 	done < "$TMP_OLD_MAP"
 	if [ "$changed" -eq 1 ] && [ "$FORCE_REASSIGN" -ne 1 ]; then
 		err "ERROR: allocation would reassign existing clients for $IFACE."
