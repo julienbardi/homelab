@@ -7,7 +7,7 @@
 # ============================================================
 
 AUTHORIZED_ADMINS = julie leona
-SENSITIVE_GROUPS = systemd-journal docker sudo adm headscale coredns
+SENSITIVE_GROUPS = systemd-journal docker sudo adm headscale coredns dnscrypt
 
 # Guard: only allow authorized admins to run these targets
 CURRENT_USER := $(shell id -un)

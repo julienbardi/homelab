@@ -1,0 +1,35 @@
+##############################################
+# dnscrypt-proxy.toml
+# dnscrypt-proxy homelab configuration
+##############################################
+
+# Listener: internal port, proxied by Caddy
+listen_addresses = ['127.0.0.1:8053']
+
+# Forward queries to local Unbound resolver
+fallback_resolver = '127.0.0.1:5335'
+
+# Upstream DoH servers (optional, if you want dnscrypt-proxy itself to resolve)
+# Full list of available server_names:
+#   https://github.com/DNSCrypt/dnscrypt-resolvers
+#   https://dnscrypt.info/public-servers
+# Example (uncomment if needed):
+# server_names = ['cloudflare', 'quad9-doh']
+server_names = []
+
+# Enable DoH support
+doh_servers = true
+
+# Logging
+log_level = 2
+log_file = '/var/log/dnscrypt-proxy.log'
+
+# Cache responses locally
+cache = true
+cache_size = 1024
+cache_min_ttl = 60
+cache_max_ttl = 86400
+
+# Performance tuning
+max_clients = 250
+timeout = 2500
