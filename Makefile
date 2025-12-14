@@ -30,7 +30,7 @@ include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include mk/40_wireguard.mk   # Wireguard orchestration
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/60_unbound.mk     # Unbound DNS resolver setup
-include mk/70_coredns.mk     # CoreDNS setup and deployment
+#include mk/70_coredns.mk     # CoreDNS setup and deployment
 include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
 include mk/81_headscale.mk   # Headscale-specific targets (Noise key rotation, etc.)
 include mk/82_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
@@ -196,17 +196,50 @@ test: logs
 	@echo "[make] Running run_as_root harness..."
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
 
+
+CADDY_BIN    := /usr/bin/caddy
+CADDY_BACKUP := /usr/bin/caddy.orig
+STAMP_CADDY  := $(STAMP_DIR)/caddy.installed
+
+CADDYFILE    := /etc/caddy/Caddyfile
+SRC_CADDYFILE:= $(HOMELAB_DIR)/config/caddy/Caddyfile
+
 .PHONY: caddy deploy-caddy
-caddy: gitcheck
-	@echo "[make] Deploying Caddyfile and reloading Caddy"
-	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/helpers/caddy-reload.sh
+caddy: gitcheck verify-caddy
+	@set -euo pipefail; \
+	echo "📄⬇️ Installing Caddyfile"; \
+	$(run_as_root) install -m 0644 -o root -g root "$(SRC_CADDYFILE)" "$(CADDYFILE)"; \
+	echo "📦 Deploying custom Caddy binary with rate_limit plugin"; \
+	if [ -x "$(CADDY_BIN)" ] && [ ! -f "$(CADDY_BACKUP)" ]; then \
+		$(run_as_root) mv "$(CADDY_BIN)" "$(CADDY_BACKUP)"; \
+		echo "💾 Original Caddy backed up → $(CADDY_BACKUP)"; \
+	fi; \
+	$(run_as_root) install -m 0755 -o root -g root /tmp/caddy "$(CADDY_BIN)"; \
+	echo "🔎 Verifying installed Caddy"; \
+	if ! "$(CADDY_BIN)" version >/dev/null 2>&1; then \
+		echo "❌ Installed Caddy not executable"; \
+		[ -f "$(CADDY_BACKUP)" ] && $(run_as_root) mv "$(CADDY_BACKUP)" "$(CADDY_BIN)"; \
+		exit 1; \
+	fi; \
+	if ! "$(CADDY_BIN)" list-modules | grep -q '^http.handlers.rate_limit$$'; then \
+		echo "❌ rate_limit plugin not found in installed binary"; \
+		[ -f "$(CADDY_BACKUP)" ] && $(run_as_root) mv "$(CADDY_BACKUP)" "$(CADDY_BIN)"; \
+		exit 1; \
+	fi; \
+	VERSION=$$("$(CADDY_BIN)" version); \
+	echo "✔ Caddy verified with rate_limit plugin: $$VERSION"; \
+	echo "version=$$VERSION installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		| $(run_as_root) tee "$(STAMP_CADDY)" >/dev/null; \
+	echo "🔄 Reloading Caddy service"; \
+	$(run_as_root) systemctl reload caddy && echo "✅ Reload successful"
+
 
 # --- Default target ---
 all: harden-groups gitcheck gen0 gen1 gen2
 	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
 
 # --- Gen0: foundational services ---
-gen0: harden-groups setup-subnet-router headscale tailscaled dns coredns
+gen0: harden-groups ensure-known-hosts setup-subnet-router headscale tailscaled dns coredns
 	@echo "[make] Running gen0 foundational services..."
 
 # --- Headscale orchestration ---
@@ -219,17 +252,10 @@ tailscaled: headscale tailscaled-family enable-tailscaled start-tailscaled tails
 	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
 		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
-.PHONY: coredns
+#.PHONY: coredns
 
-/etc/coredns/Corefile:
-	@$(run_as_root) chmod 0755 /etc/coredns; \
-	$(run_as_root) install -o coredns -g coredns -m 640 $(HOMELAB_DIR)/config/coredns/Corefile /etc/coredns/Corefile
-
-coredns: dns headscale deploy-coredns /etc/coredns/Corefile
-	@echo "[make] coredns"
-	@$(run_as_root) env SCRIPT_NAME=coredns bash $(HOMELAB_DIR)/scripts/setup/deploy_certificates.sh renew FORCE=$(FORCE) || { echo "[make] ❌ renew failed"; exit 1; }
-
-	#@$(run_as_root) bash -c 'export SCRIPT_NAME="coredns"; $(HOMELAB_DIR)/scripts/lib/run_as_root.sh && run_as_root'
+#coredns: deploy-coredns install-pkg-coredns
+#	@echo "[make] coredns : CoreDNS build and deploy complete"
 
 SYSTEMD_DIR = /etc/systemd/system
 REPO_SYSTEMD = config/systemd
