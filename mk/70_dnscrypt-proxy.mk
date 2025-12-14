@@ -39,6 +39,7 @@ install-pkg-dnscrypt-proxy:
 
 	# install curated config
 	@echo "📑 Installing dnscrypt-proxy.toml from $(DNSCRYPT_CONF_SRC) -> $(DNSCRYPT_CONF_DEST)"
+	sudo mkdir -p $(dir $(DNSCRYPT_CONF_DEST))
 	sudo install -m 0644 "$(DNSCRYPT_CONF_SRC)" "$(DNSCRYPT_CONF_DEST)"
 
 	# create or overwrite systemd unit
