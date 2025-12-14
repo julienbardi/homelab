@@ -307,7 +307,10 @@ reassign_diff="$(mktemp "/tmp/client-map.diff.${IFACE}.XXXXXX")"; TMPFILES="$TMP
 if ! diff -u "$TMP_OLD_MAP" "$TMP_NEW_MAP" > "$reassign_diff" 2>/dev/null; then
 	changed=0
 	while IFS=, read -r obase oiface o4 o6; do
-		# Does this base+iface exist in the new map?
+		# Only care about lines for this iface
+		[ "$oiface" = "$IFACE" ] || continue
+
+		# Does this base+iface exist at all in the new map?
 		if grep -F -q "${obase},${oiface}," "$TMP_NEW_MAP"; then
 			# If the exact line is present, nothing changed
 			if grep -F -x -q "${obase},${oiface},${o4},${o6}" "$TMP_NEW_MAP"; then
@@ -316,7 +319,7 @@ if ! diff -u "$TMP_OLD_MAP" "$TMP_NEW_MAP" > "$reassign_diff" 2>/dev/null; then
 			# Same base+iface but different IPs → reassignment
 			changed=1; break
 		fi
-		# If base+iface not present at all, that’s fine (new addition elsewhere)
+		# If base+iface not present at all, that’s fine (it’s a new addition elsewhere)
 	done < "$TMP_OLD_MAP"
 	if [ "$changed" -eq 1 ] && [ "$FORCE_REASSIGN" -ne 1 ]; then
 		err "ERROR: allocation would reassign existing clients for $IFACE."
