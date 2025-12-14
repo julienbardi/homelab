@@ -6,8 +6,11 @@
 # Listener: internal port, proxied by Caddy
 listen_addresses = ['127.0.0.1:8053']
 
-# Forward queries to local Unbound resolver
-fallback_resolver = '127.0.0.1:5335'
+# Bootstrap resolvers (used to resolve DoH server names at startup)
+bootstrap_resolvers = ['127.0.0.1:5335']
+
+# Fallback resolvers (used if bootstrap fails, e.g. router safety net)
+fallback_resolvers = ['10.89.12.1:53']
 
 # Upstream DoH servers (optional, if you want dnscrypt-proxy itself to resolve)
 # Full list of available server_names:
