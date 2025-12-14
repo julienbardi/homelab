@@ -337,6 +337,24 @@ if run_root "test -f '${MAP_FILE}'"; then
 	run_root "cat '${MAP_FILE}' 2>/dev/null" | awk -F, -v iface="$IFACE" 'BEGIN{OFS=","} $2!=iface {print $1,$2,$3,$4}' >> "$TMP_MERGED" || true
 fi
 cat "$TMP_NEW_MAP" >> "$TMP_MERGED"
+# ---------- Duplicate IP detection ----------
+dup_check="$(mktemp "/tmp/client-map.dupcheck.${IFACE}.XXXXXX")"; TMPFILES="$TMPFILES $dup_check"
+run_root "cat '${TMP_MERGED}'" > "$dup_check" || true
+
+# Extract all IPv4 and IPv6 addresses and check for duplicates
+dup_ipv4="$(awk -F, '{print $3}' "$dup_check" | sort | uniq -d)"
+dup_ipv6="$(awk -F, '{print $4}' "$dup_check" | sort | uniq -d)"
+
+if [ -n "$dup_ipv4" ] || [ -n "$dup_ipv6" ]; then
+	err "ERROR: duplicate IP addresses detected in client-map.csv"
+	[ -n "$dup_ipv4" ] && err "Duplicate IPv4 entries: $dup_ipv4"
+	[ -n "$dup_ipv6" ] && err "Duplicate IPv6 entries: $dup_ipv6"
+	rm -f "$dup_check"
+	exit 1
+fi
+
+rm -f "$dup_check"
+# ---------- Apply merged map ----------
 atomic_move_as_root "$TMP_MERGED" "$MAP_FILE"
 
 # ---------- Determine which bases are new ----------
