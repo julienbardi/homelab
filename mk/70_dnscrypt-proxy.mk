@@ -14,23 +14,22 @@ SERVICE_NAME ?= dnscrypt-proxy
 SYSTEMD_UNIT := /etc/systemd/system/$(SERVICE_NAME).service
 OVERWRITE_UNIT ?= 0
 
+DNSCRYPT_VERSION := 2.1.5
+DNSCRYPT_URL := https://github.com/DNSCrypt/dnscrypt-proxy/releases/download/$(DNSCRYPT_VERSION)/dnscrypt-proxy-linux_x86_64-$(DNSCRYPT_VERSION).tar.gz
+
 .PHONY: install-pkg-dnscrypt-proxy
 
 install-pkg-dnscrypt-proxy:
 	@echo "🛠️ Installing and configuring dnscrypt-proxy..."
 	set -euo pipefail
 
-	# refresh package index
-	sudo apt-get update
+	# fetch upstream release tarball
+	echo "📥 Downloading dnscrypt-proxy $(DNSCRYPT_VERSION) from GitHub"
+	curl -L $(DNSCRYPT_URL) -o /tmp/dnscrypt-proxy.tar.gz
 
-	# install or upgrade only dnscrypt-proxy
-	if ! command -v $(DNSCRYPT_BIN) >/dev/null 2>&1; then \
-		echo "📥 Installing dnscrypt-proxy"; \
-		sudo apt-get install --no-install-recommends -y dnscrypt-proxy; \
-	else \
-		echo "🔄 Upgrading dnscrypt-proxy only"; \
-		sudo apt-get install --no-install-recommends --only-upgrade -y dnscrypt-proxy; \
-	fi
+	# extract binary
+	tar -xzf /tmp/dnscrypt-proxy.tar.gz -C /tmp
+	sudo install -m 0755 /tmp/linux-x86_64/dnscrypt-proxy $(DNSCRYPT_BIN)
 
 	# prepare runtime user
 	if ! id -u $(RUN_USER) >/dev/null 2>&1; then \
@@ -79,3 +78,7 @@ install-pkg-dnscrypt-proxy:
 	sudo systemctl status $(SERVICE_NAME) --no-pager || true
 
 	@echo "✅ install-pkg-dnscrypt-proxy: done (binary -> $(DNSCRYPT_BIN))"
+
+.PHONY: dnscrypt-proxy
+dnscrypt-proxy: install-pkg-dnscrypt-proxy
+	@echo "[make] dnscrypt-proxy orchestration complete"
