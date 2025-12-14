@@ -1,23 +1,39 @@
 # ============================================================
+# /home/julie/src/homelab/config/coredns/Corefile
 # CoreDNS Corefile
 # ------------------------------------------------------------
 # Resolves tailnet peers via Headscale plugin
 # Forwards all other queries to Unbound
+# Provides DoH frontend for Caddy (/dns-query)
 # ============================================================
 
+# Tailnet peers via Headscale
 tailnet:53 {
-    headscale {
-        base_domain tailnet
-        listen 10.89.12.4:53
-    }
-    log
-    errors
+	headscale {
+		base_domain tailnet
+		listen 10.89.12.4:53
+	}
+	log
+	errors
 }
 
+# Default DNS recursion via Unbound
 .:53 {
-    forward . 10.89.12.4:53
-    cache 30
-    log
-    errors
+	forward . 10.89.12.4:53
+	cache 30
+	log
+	errors
 }
 
+# DoH frontend for Caddy
+https://127.0.0.1:8053 {
+	# TLS certs (use same ones Caddy manages, or self‑signed for internal)
+	tls /etc/ssl/caddy/fullchain.pem /etc/ssl/caddy/privkey.pem
+
+	# Forward all DoH queries to Unbound
+	forward . 10.89.12.4:53
+
+	cache 30
+	log
+	errors
+}

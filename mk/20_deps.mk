@@ -9,9 +9,9 @@
 	install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale \
 	headscale-build
 
-# Aggregate deps target
+# Aggregate deps target, not used: install-pkg-caddy
 deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
-	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard install-pkg-caddy install-pkg-unbound install-pkg-ndppd \
+	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard build-caddy-custom verify-caddy install-pkg-unbound install-pkg-ndppd \
 	install-pkg-shellcheck install-pkg-codespell install-pkg-aspell
 
 # Tailscale (client + daemon) via apt repository
@@ -305,3 +305,74 @@ install-pkg-aspell:
 
 remove-pkg-aspell:
 	$(call apt_remove,aspell)
+
+# xcaddy + custom Caddy build with rate_limit plugin
+XCADDY_BIN := /usr/local/bin/xcaddy
+CADDY_BIN  := /usr/bin/caddy
+CADDY_BACKUP := /usr/bin/caddy.orig
+CADDY_VERSION := v2.8.0
+STAMP_CADDY := $(STAMP_DIR)/caddy.installed
+
+# Map uname -m to Debian-style arch names
+ARCH := $(shell dpkg --print-architecture)
+
+.PHONY: install-pkg-xcaddy build-caddy-custom verify-caddy remove-pkg-xcaddy restore-caddy
+
+install-pkg-xcaddy:
+	@echo "📦 Installing xcaddy (builder for custom Caddy)"
+	@if [ ! -x "$(XCADDY_BIN)" ]; then \
+		curl -sSL https://github.com/caddyserver/xcaddy/releases/download/v0.4.5/xcaddy_0.4.5_linux_$(ARCH).tar.gz \
+			-o /tmp/xcaddy.tar.gz; \
+		sudo tar -xzf /tmp/xcaddy.tar.gz -C /usr/local/bin xcaddy; \
+		rm -f /tmp/xcaddy.tar.gz; \
+		echo "✅ xcaddy installed at $(XCADDY_BIN)"; \
+	else \
+		echo "ℹ️ xcaddy already present at $(XCADDY_BIN)"; \
+	fi
+
+build-caddy-custom: install-pkg-xcaddy
+	@set -euo pipefail; \
+	echo "🔨 Building Caddy $(CADDY_VERSION) with rate_limit plugin..."; \
+	BUILD_DIR=$$(mktemp -d /tmp/caddy-build.XXXXXX); \
+	trap 'rm -rf "$$BUILD_DIR"' EXIT; \
+	cd "$$BUILD_DIR"; \
+	"$(XCADDY_BIN)" build "$(CADDY_VERSION)" \
+		--with github.com/mholt/caddy-ratelimit@v0.1.0; \
+	echo "📦 Deploying custom Caddy binary"; \
+	if [ -x "$(CADDY_BIN)" ] && [ ! -f "$(CADDY_BACKUP)" ]; then \
+		sudo mv "$(CADDY_BIN)" "$(CADDY_BACKUP)"; \
+		echo "💾 Original Caddy backed up to $(CADDY_BACKUP)"; \
+	fi; \
+	sudo install -m 0755 -o root -g root "$$BUILD_DIR/caddy" "$(CADDY_BIN)";
+
+verify-caddy:
+	echo "🔎 Verifying Caddy installation"; \
+	if ! "$(CADDY_BIN)" version >/dev/null 2>&1; then \
+		echo "❌ Installed Caddy not executable"; \
+		[ -f "$(CADDY_BACKUP)" ] && sudo mv "$(CADDY_BACKUP)" "$(CADDY_BIN)"; \
+		exit 1; \
+	fi; \
+	if ! "$(CADDY_BIN)" list-modules | grep -q '^http.handlers.rate_limit$$'; then \
+		echo "❌ rate_limit plugin not found in installed binary"; \
+		[ -f "$(CADDY_BACKUP)" ] && sudo mv "$(CADDY_BACKUP)" "$(CADDY_BIN)"; \
+		exit 1; \
+	fi; \
+	VERSION=$$("$(CADDY_BIN)" version); \
+	echo "✅ Caddy verified with rate_limit plugin: $$VERSION"; \
+	echo "version=$$VERSION installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		| sudo tee "$(STAMP_CADDY)" >/dev/null
+
+
+remove-pkg-xcaddy:
+	@echo "🗑️ Removing xcaddy"
+	@sudo rm -f $(XCADDY_BIN)
+	@echo "✅ xcaddy removed"
+
+restore-caddy:
+	@echo "♻️ Restoring original Caddy binary"
+	@if [ -f "$(CADDY_BACKUP)" ]; then \
+		sudo mv $(CADDY_BACKUP) $(CADDY_BIN); \
+		echo "✅ Original Caddy restored"; \
+	else \
+		echo "⚠️ No backup found at $(CADDY_BACKUP)"; \
+	fi
