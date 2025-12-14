@@ -112,7 +112,8 @@ help:
 	@echo "    make client-dashboard           # Emoji table of users/machines vs interfaces"
 	@echo ""
 	@echo "  DNS"
-	@echo "    make dnscrypt-proxy             # Install + configure dnscrypt-proxy (systemd unit, curated config)"
+	@echo "    make dns-all                    # Install + configure Unbound + dnscrypt-proxy"
+	@echo "    DISABLED: make dnscrypt-proxy   # Install + configure dnscrypt-proxy (systemd unit, curated config)"
 	@echo ""
 	@echo "  Monitoring and system helpers"
 	@echo "    make check-dns                  # Run DNS health check"
@@ -242,8 +243,8 @@ caddy: gitcheck verify-caddy
 all: harden-groups gitcheck gen0 gen1 gen2
 	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
 
-# --- Gen0: foundational services ---
-gen0: sysctl harden-groups ensure-known-hosts setup-subnet-router headscale tailscaled dns dnscrypt-proxy
+# --- Gen0: foundational services --- disabled: dnscrypt-proxy
+gen0: sysctl harden-groups ensure-known-hosts setup-subnet-router headscale tailscaled dns-all dns 
 	@echo "[make] Running gen0 foundational services..."
 
 # --- Headscale orchestration ---
