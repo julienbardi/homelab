@@ -54,6 +54,19 @@ if nft list tables 2>/dev/null | grep -q '^table ip filter'; then
     log "Detected UGOS-managed firewall (iptables-nft compatibility mode)"
 fi
 
+# --- Enable kernel forwarding (runtime) ---
+if sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1; then
+    log "IPv4 forwarding enabled"
+else
+    log "WARNING: failed to enable IPv4 forwarding"
+fi
+
+if sysctl -w net.ipv6.conf.all.forwarding=1 >/dev/null 2>&1; then
+    log "IPv6 forwarding enabled"
+else
+    log "WARNING: failed to enable IPv6 forwarding"
+fi
+
 # --- Ensure base tables/chains exist (idempotent) ---
 nft -f - <<'EOF' || true
 table inet filter {
