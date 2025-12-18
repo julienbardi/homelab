@@ -13,23 +13,91 @@ After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
 - Inbound SSH: restricted to RFC1918 ranges (10.0.0.0/8, 192.168.0.0/16, 172.16.0.0/12) → secure, but IPv6 SSH is dropped.
 - Forwarding: only RELATED,ESTABLISHED → no new outbound connections allowed unless explicitly permitted.
 
-🛠️ Minimal rules to add
-1. Allow outbound DNS (UDP/TCP 53)
+🛠️ Minimal rules to add for basic connectivity
+    ```
+    📝 firewall-allow.sh
+    sh
+    #!/bin/sh
+    # Add LAN-only ICMP echo rules and allow outbound DNS/HTTP/HTTPS/NTP
+    # Includes rate-limited logging for dropped packets
+    # Supports dry-run mode: run with ./firewall-allow.sh --dry-run
+    # Footer shows Git commit hash if available, else file hash
+    # Logs deployment to syslog for auditability
+    
+    DRYRUN=0
+    [ "$1" = "--dry-run" ] && DRYRUN=1
+    
+    run() {
+        if [ "$DRYRUN" -eq 1 ]; then
+            echo "DRY-RUN: $*"
+        else
+            echo "Running: $*"
+            $*
+        fi
+    }
+    
+    # IPv4: allow ping from LAN
+    run nft add rule ip filter INPUT ip saddr 10.89.12.0/24 icmp type echo-request accept
+    
+    # IPv6: allow ping from LAN
+    run nft add rule ip6 filter INPUT ip6 saddr 2a01:8b81:4800:9c00::/64 icmpv6 type echo-request accept
+    
+    # IPv4: allow outbound DNS
+    run nft add rule ip filter OUTPUT udp dport 53 accept
+    run nft add rule ip filter OUTPUT tcp dport 53 accept
+    
+    # IPv6: allow outbound DNS
+    run nft add rule ip6 filter OUTPUT udp dport 53 accept
+    run nft add rule ip6 filter OUTPUT tcp dport 53 accept
+    
+    # IPv4: allow outbound web traffic
+    run nft add rule ip filter OUTPUT tcp dport 80 accept
+    run nft add rule ip filter OUTPUT tcp dport 443 accept
+    
+    # IPv6: allow outbound web traffic
+    run nft add rule ip6 filter OUTPUT tcp dport 80 accept
+    run nft add rule ip6 filter OUTPUT tcp dport 443 accept
+    
+    # Optional: allow outbound ICMP for diagnostics
+    run nft add rule ip filter OUTPUT icmp type echo-request accept
+    run nft add rule ip6 filter OUTPUT icmpv6 type echo-request accept
+    
+    # Optional: allow outbound NTP
+    run nft add rule ip filter OUTPUT udp dport 123 accept
+    run nft add rule ip6 filter OUTPUT udp dport 123 accept
+    
+    # Rate-limited logging of drops (safe against DoS floods)
+    run nft add rule ip filter INPUT log prefix "DROP-IPv4: " level info limit rate 5/second
+    run nft add rule ip6 filter INPUT log prefix "DROP-IPv6: " level info limit rate 5/second
+    
+    # Footer: Git commit hash if available, else file hash
+    if command -v git >/dev/null 2>&1 && git rev-parse --short HEAD >/dev/null 2>&1; then
+        VERSION="commit $(git rev-parse --short HEAD)"
+    else
+        VERSION="hash $(sha256sum "$0" | cut -c1-8)"
+    fi
+    
+    MESSAGE="✅ Firewall rules applied ($VERSION) at $(date '+%Y-%m-%d %H:%M:%S')"
+    
+    # Echo to shell
+    echo "$MESSAGE"
+    
+    # Log to syslog
+    logger -t firewall-allow "$MESSAGE"
+🔹 Usage
+Dry run (preview only):
     ```bash
-    sudo nft add rule ip filter OUTPUT udp dport 53 accept
-    sudo nft add rule ip filter OUTPUT tcp dport 53 accept
-    sudo nft add rule ip6 filter OUTPUT udp dport 53 accept
-    sudo nft add rule ip6 filter OUTPUT tcp dport 53 accept
-3. Allow outbound HTTP/HTTPS (for updates, downloads)
+    ./firewall-allow.sh --dry-run
+Apply rules:
     ```bash
-    sudo iptables -A OUTPUT -p tcp --dport 80 -j ACCEPT
-    sudo iptables -A OUTPUT -p tcp --dport 443 -j ACCEPT
-    sudo ip6tables -A OUTPUT -p tcp --dport 80 -j ACCEPT
-    sudo ip6tables -A OUTPUT -p tcp --dport 443 -j ACCEPT
-4. (Optional) Allow ICMP echo replies for monitoring
-     ```bash
-    sudo nft add rule ip filter INPUT ip saddr 10.89.12.0/24 icmp type echo-request accept
-    sudo nft add rule ip6 filter INPUT ip6 saddr 2a01:8b81:4800:9c00::/64 icmpv6 type echo-request accept
+    sudo ./firewall-allow.sh
+✅ Result
+- LAN‑only ping allowed
+- Outbound DNS, web, ICMP, NTP allowed
+- Drop logging rate‑limited to avoid DoS risk
+- Footer shows Git commit hash (or file hash fallback)
+- Deployment recorded in syslog (journalctl -t firewall-allow)
+- 
 5. Verify
 List the rules back:
     ```bash
