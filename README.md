@@ -1,5 +1,38 @@
 # Homelab Gateway Stack
 
+## first setup
+
+After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
+- Outbound UDP: rate‑limited, then dropped → DNS queries fail.
+- ICMP echo (ping): dropped after a small burst → you can’t monitor reachability.
+- Inbound SSH: restricted to RFC1918 ranges (10.0.0.0/8, 192.168.0.0/16, 172.16.0.0/12) → secure, but IPv6 SSH is dropped.
+- Forwarding: only RELATED,ESTABLISHED → no new outbound connections allowed unless explicitly permitted.
+
+🛠️ Minimal rules to add
+1. Allow outbound DNS (UDP/TCP 53)
+    ```bash
+    sudo iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
+    sudo iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+    sudo ip6tables -A OUTPUT -p udp --dport 53 -j ACCEPT
+    sudo ip6tables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+3. Allow outbound HTTP/HTTPS (for updates, downloads)
+    ```bash
+    sudo iptables -A OUTPUT -p tcp --dport 80 -j ACCEPT
+    sudo iptables -A OUTPUT -p tcp --dport 443 -j ACCEPT
+    sudo ip6tables -A OUTPUT -p tcp --dport 80 -j ACCEPT
+    sudo ip6tables -A OUTPUT -p tcp --dport 443 -j ACCEPT
+4. (Optional) Allow ICMP echo replies for monitoring
+     ```bash
+    sudo iptables -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+    sudo ip6tables -A INPUT -p ipv6-icmp --icmpv6-type echo-request -j ACCEPT
+6. Persist changes
+On Debian 12 with UGOS, persistence is usually handled by netfilter-persistent:
+    ```bash
+    sudo netfilter-persistent save
+This appends your new rules to the UGOS defaults.
+
+
+
 ## Overview
 This repository contains a modular, audit‑friendly homelab stack built in **generations**:
 
