@@ -28,13 +28,14 @@ After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
     sudo ip6tables -A OUTPUT -p tcp --dport 443 -j ACCEPT
 4. (Optional) Allow ICMP echo replies for monitoring
      ```bash
-    sudo iptables -A INPUT -p icmp --icmp-type echo-request -s 10.89.12.0/24 -j ACCEPT
-    sudo ip6tables -A INPUT -p ipv6-icmp --icmpv6-type -s 2a01:8b81:4800:9c00::/64 echo-request -j ACCEPT
+    sudo nft add rule ip filter INPUT ip saddr 10.89.12.0/24 icmp type echo-request accept
+    sudo nft add rule ip6 filter INPUT ip6 saddr 2a01:8b81:4800:9c00::/64 icmpv6 type echo-request accept
 6. Persist changes
-On Debian 12 with UGOS, persistence is usually handled by netfilter-persistent:
+On Debian 12 with UGOS:
     ```bash
-    sudo netfilter-persistent save
-This appends your new rules to the UGOS defaults.
+    sudo sh -c 'nft list ruleset > /etc/nftables.conf'
+    sudo systemctl restart nftables
+This ensures your additions survive reboot and remain layered on top of UGOS defaults.
 
 
 
