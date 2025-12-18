@@ -26,6 +26,11 @@ After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
 # Footer shows Git commit hash if available, else file hash
 # Logs deployment to syslog for auditability
 
+[ "$(id -u)" -eq 0 ] || {
+    echo "This script must be run as root"
+    exit 1
+}
+
 DRYRUN=0
 [ "$1" = "--dry-run" ] && DRYRUN=1
 
