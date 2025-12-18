@@ -20,8 +20,6 @@ After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
     sudo nft add rule ip filter OUTPUT tcp dport 53 accept
     sudo nft add rule ip6 filter OUTPUT udp dport 53 accept
     sudo nft add rule ip6 filter OUTPUT tcp dport 53 accept
-
-
 3. Allow outbound HTTP/HTTPS (for updates, downloads)
     ```bash
     sudo iptables -A OUTPUT -p tcp --dport 80 -j ACCEPT
