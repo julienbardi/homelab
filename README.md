@@ -91,6 +91,7 @@ logger -t firewall-allow "$MESSAGE"
 </details>
 
 🔹 Usage
+- `chmod +x firewall-allow.sh`
 - Dry run (preview only):
     ```bash
     ./firewall-allow.sh --dry-run
