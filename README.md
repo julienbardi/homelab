@@ -73,9 +73,9 @@ run nft add rule ip6 filter OUTPUT icmpv6 type echo-request accept
 run nft add rule ip filter OUTPUT udp dport 123 accept
 run nft add rule ip6 filter OUTPUT udp dport 123 accept
 
-# Rate-limited logging of drops (safe against DoS floods)
-run nft add rule ip filter INPUT log prefix "DROP-IPv4: " level info limit rate 5/second
-run nft add rule ip6 filter INPUT log prefix "DROP-IPv6: " level info limit rate 5/second
+# Rate-limited logging of drops (safe against DoS floods) is managed by UGOS. Following rules are forbidden by UGOS
+#run nft add rule ip filter INPUT log prefix "DROP-IPv4: " level info limit rate 5/second
+#run nft add rule ip6 filter INPUT log prefix "DROP-IPv6: " level info limit rate 5/second
 
 # Footer: Git commit hash if available, else file hash
 if command -v git >/dev/null 2>&1 && git rev-parse --short HEAD >/dev/null 2>&1; then
