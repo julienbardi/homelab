@@ -31,10 +31,10 @@ DRYRUN=0
 
 run() {
     if [ "$DRYRUN" -eq 1 ]; then
-        echo "DRY-RUN: $*"
+        printf 'DRY-RUN: %s\n' "$*"
     else
-        echo "Running: $*"
-        $*
+        printf 'Running: %s\n' "$*"
+        "$@"
     fi
 }
 
