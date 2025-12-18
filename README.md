@@ -1,5 +1,10 @@
 # Homelab Gateway Stack
 
+## LAN topology 
+
+LAN subnet IPv4: `10.89.12.0/24`
+LAN subnet IPv6: `2a01:8b81:4800:9c00::/64`
+
 ## first setup
 
 After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
@@ -23,8 +28,8 @@ After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
     sudo ip6tables -A OUTPUT -p tcp --dport 443 -j ACCEPT
 4. (Optional) Allow ICMP echo replies for monitoring
      ```bash
-    sudo iptables -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
-    sudo ip6tables -A INPUT -p ipv6-icmp --icmpv6-type echo-request -j ACCEPT
+    sudo iptables -A INPUT -p icmp --icmp-type echo-request -s 10.89.12.0/24 -j ACCEPT
+    sudo ip6tables -A INPUT -p ipv6-icmp --icmpv6-type -s 2a01:8b81:4800:9c00::/64 echo-request -j ACCEPT
 6. Persist changes
 On Debian 12 with UGOS, persistence is usually handled by netfilter-persistent:
     ```bash
