@@ -16,10 +16,12 @@ After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
 🛠️ Minimal rules to add
 1. Allow outbound DNS (UDP/TCP 53)
     ```bash
-    sudo iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
-    sudo iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
-    sudo ip6tables -A OUTPUT -p udp --dport 53 -j ACCEPT
-    sudo ip6tables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+    sudo nft add rule ip filter OUTPUT udp dport 53 accept
+    sudo nft add rule ip filter OUTPUT tcp dport 53 accept
+    sudo nft add rule ip6 filter OUTPUT udp dport 53 accept
+    sudo nft add rule ip6 filter OUTPUT tcp dport 53 accept
+
+
 3. Allow outbound HTTP/HTTPS (for updates, downloads)
     ```bash
     sudo iptables -A OUTPUT -p tcp --dport 80 -j ACCEPT
@@ -30,6 +32,11 @@ After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
      ```bash
     sudo nft add rule ip filter INPUT ip saddr 10.89.12.0/24 icmp type echo-request accept
     sudo nft add rule ip6 filter INPUT ip6 saddr 2a01:8b81:4800:9c00::/64 icmpv6 type echo-request accept
+5. Verify
+List the rules back:
+    ```bash
+    sudo nft list ruleset | grep dport
+
 6. Persist changes
 On Debian 12 with UGOS:
     ```bash
