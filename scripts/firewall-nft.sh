@@ -11,6 +11,7 @@ LAN_SUBNET="10.89.12.0/24"
 LAN_SUBNET_V6="2a01:8b81:4800:9c00::/64"
 TAILSCALE_IF="tailscale0"
 TAILSCALE_SUBNET="100.64.0.0/10"
+TAILSCALE_SUBNET_V6="fd7a:115c:a1e0::/48"
 
 # bitmask controlling which wg interfaces are active (bit0=wg0 .. bit7=wg7)
 : "${WG_MASK:=0xff}"   # default enable all 8 if not set
@@ -47,6 +48,12 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+UGOS=0
+if nft list tables 2>/dev/null | grep -q '^table ip filter'; then
+    UGOS=1
+    log "Detected UGOS-managed firewall (iptables-nft compatibility mode)"
+fi
+
 # --- Ensure base tables/chains exist (idempotent) ---
 nft -f - <<'EOF' || true
 table inet filter {
@@ -68,7 +75,9 @@ EOF
 add_rule() {
     local check="$1"; shift
     local cmd="$*"
-    if ! nft -a list ruleset | grep -F -q "$check"; then
+    if ! nft list chain inet filter input 2>/dev/null | grep -F -q "$check" \
+       && ! nft list chain inet filter output 2>/dev/null | grep -F -q "$check" \
+       && ! nft list chain inet filter forward 2>/dev/null | grep -F -q "$check"; then
         log "Adding: $check"
         eval "$cmd"
     else
@@ -81,6 +90,7 @@ ensure_masquerade() {
     local subnet="$1" marker="$2"
     [ -n "$subnet" ] || return 0
     local expr="oifname \"${LAN_IF}\" ip saddr ${subnet} masquerade"
+	# check for marker or exact expression
     if nft -a list chain ip nat postrouting | grep -qF "${marker}"; then
         log "masquerade marker present for ${subnet}"
         return 0
@@ -90,7 +100,7 @@ ensure_masquerade() {
         return 0
     fi
     log "Adding masquerade for ${subnet}"
-    nft add rule ip nat postrouting oifname "${LAN_IF}" ip saddr "${subnet}" masquerade comment "${marker}"
+    nft add rule ip nat postrouting oifname "${LAN_IF}" ip saddr "${subnet}" masquerade comment "\"${marker}\""
 }
 
 # --- Basic host input rules ---
@@ -110,6 +120,40 @@ add_rule "iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept" \
 add_rule "iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept" \
     "nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept"
 
+# Allow SSH (22,2222) from LAN
+add_rule "tcp dport 22 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
+    "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 22 accept"
+add_rule "tcp dport 2222 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
+    "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 2222 accept"
+
+# Allow NAS Web UI from LAN (9999,9443)
+add_rule "tcp dport 9999 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
+    "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 9999 accept"
+add_rule "tcp dport 9443 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
+    "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} tcp dport 9443 accept"
+
+# Allow DNS from LAN (IPv4)
+add_rule "udp dport 53 iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET}" \
+    "nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} udp dport 53 accept"
+
+# Tailscale and WG DNS allow (IPv4)
+for s in "${TAILSCALE_SUBNET}" "${WG_SUBNETS[@]}"; do
+    [ -n "$s" ] || continue
+    add_rule "udp dport 53 ip saddr ${s}" \
+        "nft add rule inet filter input ip saddr ${s} udp dport 53 accept"
+done
+
+# Allow DNS from LAN (IPv6)
+add_rule "udp dport 53 ip6 saddr ${LAN_SUBNET_V6}" \
+    "nft add rule inet filter input ip6 saddr ${LAN_SUBNET_V6} udp dport 53 accept"
+
+# Tailscale and WG DNS allow (IPv6)
+for s in "${WG6_SUBNETS[@]}" "${TAILSCALE_SUBNET_V6}"; do
+    [ -n "$s" ] || continue
+    add_rule "udp dport 53 ip6 saddr ${s}" \
+        "nft add rule inet filter input ip6 saddr ${s} udp dport 53 accept"
+done
+
 # Allow LAN-only ICMP echo to host
 add_rule "ip saddr ${LAN_SUBNET} icmp type echo-request accept" \
     "nft add rule inet filter input ip saddr ${LAN_SUBNET} icmp type echo-request accept"
@@ -117,26 +161,74 @@ add_rule "ip6 saddr ${LAN_SUBNET_V6} icmpv6 type echo-request accept" \
     "nft add rule inet filter input ip6 saddr ${LAN_SUBNET_V6} icmpv6 type echo-request accept"
 
 # Allow outbound DNS
-add_rule "udp dport 53 accept OUTPUT" \
+add_rule "udp dport 53 accept" \
     "nft add rule inet filter output udp dport 53 accept"
-add_rule "tcp dport 53 accept OUTPUT" \
+add_rule "tcp dport 53 accept" \
     "nft add rule inet filter output tcp dport 53 accept"
 
 # Allow outbound HTTP/HTTPS
-add_rule "tcp dport 80 accept OUTPUT" \
+add_rule "tcp dport 80 accept" \
     "nft add rule inet filter output tcp dport 80 accept"
-add_rule "tcp dport 443 accept OUTPUT" \
+add_rule "tcp dport 443 accept" \
     "nft add rule inet filter output tcp dport 443 accept"
 
 # Allow outbound ICMP for diagnostics
-add_rule "icmp type echo-request accept OUTPUT" \
+add_rule "icmp type echo-request accept" \
     "nft add rule inet filter output icmp type echo-request accept"
-add_rule "icmpv6 type echo-request accept OUTPUT" \
+add_rule "icmpv6 type echo-request accept" \
     "nft add rule inet filter output icmpv6 type echo-request accept"
 
 # Allow outbound NTP
-add_rule "udp dport 123 accept OUTPUT" \
+add_rule "udp dport 123 accept" \
     "nft add rule inet filter output udp dport 123 accept"
 
+
 # --- WireGuard: open per-interface UDP ports and ensure IPv4 NAT per WG subnet ---
-# (unchanged below)
+for i in $(seq 0 7); do
+	bit=$((1 << i))
+	if [ $((WG_MASK & bit)) -ne 0 ]; then
+		iface="wg${i}"
+		port="${WG_PORTS[$i]}"
+		subnet="${WG_SUBNETS[$i]}"
+		subnet6="${WG6_SUBNETS[$i]}"
+		marker="managed-by=firewall-nft.sh:${iface}"
+
+		# open UDP port for WireGuard (IPv4 + IPv6)
+		add_rule "udp dport ${port} accept" \
+			"nft add rule inet filter input udp dport ${port} ct state new,established accept"
+		add_rule "udp dport ${port} accept ip6" \
+			"nft add rule inet filter input udp dport ${port} ct state new,established accept"
+
+		# ensure IPv4 masquerade for this WG subnet (skip if subnet empty)
+		ensure_masquerade "${subnet}" "${marker}"
+
+		# allow forwarding from WG subnet to LAN and to internet (IPv4)
+		if [ -n "${subnet}" ]; then
+			add_rule "iifname \"${iface}\" oifname \"${LAN_IF}\" ip saddr ${subnet} accept" \
+				"nft add rule inet filter forward iifname \"${iface}\" oifname \"${LAN_IF}\" ip saddr ${subnet} accept"
+			add_rule "iifname \"${iface}\" oifname != \"${LAN_IF}\" ip saddr ${subnet} accept" \
+				"nft add rule inet filter forward iifname \"${iface}\" oifname != \"${LAN_IF}\" ip saddr ${subnet} accept"
+		fi
+
+		# allow forwarding for IPv6 (no NAT) and allow NDP/ICMPv6 essentials
+		if [ -n "${subnet6}" ]; then
+			add_rule "ip6 saddr ${subnet6} iifname \"${iface}\" oifname \"${LAN_IF}\" accept" \
+				"nft add rule inet filter forward ip6 saddr ${subnet6} iifname \"${iface}\" oifname \"${LAN_IF}\" accept"
+			add_rule "ip6 saddr ${subnet6} iifname \"${iface}\" oifname != \"${LAN_IF}\" accept" \
+				"nft add rule inet filter forward ip6 saddr ${subnet6} iifname \"${iface}\" oifname != \"${LAN_IF}\" accept"
+		fi
+	fi
+done
+
+if [[ $UGOS -eq 0 ]]; then
+    nft list ruleset > /etc/nftables.conf
+    if systemctl enable --now nftables; then
+        log "nftables service enabled and ruleset persisted"
+    else
+        log "WARNING: failed to enable/start nftables.service (rules applied live)"
+    fi
+else
+    log "UGOS detected: skipping nftables.service and ruleset persistence"
+fi
+
+log "firewall-nft: rules ensured and persisted"
