@@ -100,65 +100,58 @@ Save and exit.
 ```bash
 sudo chmod +x /usr/local/bin/ug-firewall-override.sh
 ```
-3️⃣ Hook it into system startup
-UGOS supports /etc/rc.local if present.
-
-Check first:
-
+3️⃣ Create a systemd service
 ```bash
-ls -l /etc/rc.local
+sudo nano /etc/systemd/system/ug-firewall-override.service
 ```
-If it exists, edit it:
+
+Paste
 ```bash
-sudo nano /etc/rc.local
+[Unit]
+Description=UGOS firewall override (SSH rules)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ug-firewall-override.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
 ```
-Add before exit 0:
 
+3️⃣ Reload systemd and enable it
 ```bash
-/usr/local/bin/ug-firewall-override.sh
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+sudo systemctl enable ug-firewall-override.service
 ```
-If it does not exist, create it:
-
+3️⃣ Test immediately (no reboot needed)
 ```bash
-sudo nano /etc/rc.local
+sudo systemctl start ug-firewall-override.service
+sudo nft list chain ip filter UG_INPUT
 ```
-Add the following two lines just before udevadm trigger:
-
+You should see your SSH rules appear.
+3️⃣ Reboot to confirm persistence
 ```bash
-#!/usr/bin/bash
-echo "file drivers/watchdog/it87_wdt.c +p" > /sys/kernel/debug/dynamic_debug/control
-
-# Apply custom firewall overrides (SSH access)
-[ -x /usr/local/bin/ug-firewall-override.sh ] && /usr/local/bin/ug-firewall-override.sh
-
-udevadm trigger
-
-```
-Then:
-```bash
-sudo chmod +x /etc/rc.local
-```
-4️⃣ Reboot and verify
-```bash
-# reboot in 45 seconds (=0.75 minutes)
-shutdown -r +0.75 "Rebooting to validate persistent network configuration"
+# reboot in 15 seconds (=0.25 minutes)
+shutdown -r +0.25 "Rebooting to validate persistent network configuration"
 ```
 After reboot:
-
 ```bash
 sudo sysctl net.ipv4.conf.eth0.rp_filter
 sudo nft list chain ip filter UG_INPUT
 ```
-You should see your SSH rules present again.
+Your rules will still be there.
 
-🧠 Why this works on UGOS
-- UGOS initializes its firewall early
-- rc.local runs after
-- Your rules are appended safely
-- No conflict with vendor updates
-- No race conditions
-This is the least fragile method.
 
+🧠 Why this works on UGOS (and rc.local doesn't)
+- systemd units are not regenerated
+- UGOS uses systemd internally
+- network-online.target ensures firewall exists
+- oneshot service is clean and auditable
+- survives firmware updates
 
 ### 2. Apply required kernel networking settings
 
