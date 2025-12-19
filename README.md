@@ -146,6 +146,7 @@ shutdown -r +0.75 "Rebooting to validate persistent network configuration"
 After reboot:
 
 ```bash
+sudo sysctl net.ipv4.conf.eth0.rp_filter
 sudo nft list chain ip filter UG_INPUT
 ```
 You should see your SSH rules present again.
