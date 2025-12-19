@@ -1,11 +1,59 @@
 # Homelab Gateway Stack
 
-## LAN topology 
+## LAN topology
+This system uses a dual‑LAN design with clearly separated roles to ensure predictable routing, high performance, and clean firewall behavior.
+
+Routed LAN (LAN2 – Router‑connected)
+- IPv4 subnet: 10.89.12.0/24
+- IPv6 subnet: 2a01:8b81:4800:9c00::/64
+- Purpose: Internet access, routed LAN traffic, VPN egress
+- Gateway: 10.89.12.1
+- IPv6: Fully routed via router (RA + default gateway)
+
+This interface is the **only default route** for the system. All outbound traffic, NAT, and VPN traffic must exit via this LAN.
+
+Direct‑attach LAN (LAN1 – 10 Gbps point‑to‑point)
+- Link type: Direct PC ↔ NAS (10 Gbps)
+- IPv4 subnet: 10.89.13.0/24
+- IPv6: Disabled
+- Gateway: None
+- DNS: None
+LAN1 is a static, IPv4‑only, point‑to‑point link used exclusively for high‑speed local access (storage, management, bulk transfers).
+
+There is:
+- No router
+- No DHCP
+- No IPv6 routing
+- No NAT
+Both ends **must be manually configured**.
+This design avoids ARP ambiguity, asymmetric routing issues, and IPv6 link‑local delays, and behaves like a dedicated storage fabric.
+
+## Design notes
+- LAN1 and LAN2 are intentionally not bridged
+- Each interface has a single, well‑defined role
+- Asymmetric routing is expected and explicitly allowed at the kernel level
+- Firewall rules are interface‑aware
+
+## DXP4800+ first setup
+The initial setup of the DXP4800+ assumes the LAN topology described above and must be completed in the following order:
+1. Configure LAN2 (router‑connected) with a static IPv4 address and default gateway
+2. Verify internet connectivity and system updates
+3. Configure LAN1 (10 Gbps) with a static IPv4 address and no gateway
+4. Apply required kernel networking settings (rp_filter, ARP behavior)
+5. Apply firewall rules with explicit interface separation
+This order ensures reliable access during setup and prevents silent connectivity failures caused by asymmetric routing or incomplete firewall rules.
+
+## LAN topology (old)
 
 LAN subnet IPv4: `10.89.12.0/24`
 LAN subnet IPv6: `2a01:8b81:4800:9c00::/64`
 
-## first setup
+LAN1 (10 Gbps) is a static, IPv4‑only, point‑to‑point link with no gateway and no DNS.
+Both ends must be manually configured.
+
+
+
+## first setup (old)
 
 After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
 - Outbound UDP: rate‑limited, then dropped → DNS queries fail.
