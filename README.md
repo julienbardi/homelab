@@ -43,6 +43,32 @@ The initial setup of the DXP4800+ assumes the LAN topology described above and m
 5. Apply firewall rules with explicit interface separation
 This order ensures reliable access during setup and prevents silent connectivity failures caused by asymmetric routing or incomplete firewall rules.
 
+On the NAS:
+```
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+touch ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+vi ~/.ssh/authorized_keys
+add content as any line of "code C:\Users\julie\.ssh\id_ed25519.pub"
+```
+These permissions are mandatory — SSH will silently ignore the file if they’re wrong.
+From your PC, copy the contents of:
+~/.ssh/id_ed25519.pub
+Then on the NAS:
+```
+nano ~/.ssh/authorized_keys
+```
+Paste the entire line (one key per line), save, exit.
+Verify it works
+From the PC:
+
+```powershell
+ssh -p2222 julie@10.89.13.4
+```
+You should connect without a password prompt.
+
+
 ## LAN topology (old)
 
 LAN subnet IPv4: `10.89.12.0/24`
