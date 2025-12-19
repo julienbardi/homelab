@@ -73,10 +73,7 @@ ssh -p2222 julie@10.89.13.4
 ```
 You should connect without a password prompt.
 
-
-
-#### Allow SSH via LAN2 (router‑connected)
-
+#### Allow SSH via LAN2 (router‑connected) and LAN1 (PC connected)
 
 UGOS does not support persistent nftables.conf in the usual Debian way.
 The safest method is to re‑apply your rules at boot via a startup script.
@@ -157,18 +154,55 @@ This is the least fragile method.
 
 
 ### 2. Apply required kernel networking settings
+
 Because the NAS is multi‑homed, asymmetric routing must be explicitly allowed.
 
-```bash
-sudo sysctl -w net.ipv4.conf.all.rp_filter=2
-sudo sysctl -w net.ipv4.conf.default.rp_filter=2
-sudo sysctl -w net.ipv4.conf.eth0.rp_filter=2
-sudo sysctl -w net.ipv4.conf.eth1.rp_filter=2
+Persist sysctl settings via /etc/sysctl.d/
+This is the correct Linux mechanism, and UGOS honors it.
 
-sudo sysctl -w net.ipv4.conf.all.arp_ignore=1
-sudo sysctl -w net.ipv4.conf.all.arp_announce=2
+1️⃣ Create a dedicated sysctl file
+```bash
+sudo nano /etc/sysctl.d/99-ug-multilan.conf
 ```
+Paste:
+```conf
+# Allow asymmetric routing on multi-homed NAS
+net.ipv4.conf.all.rp_filter = 2
+net.ipv4.conf.default.rp_filter = 2
+net.ipv4.conf.eth0.rp_filter = 2
+net.ipv4.conf.eth1.rp_filter = 2
+
+# Prevent ARP flux on dual-LAN setup
+net.ipv4.conf.all.arp_ignore = 1
+net.ipv4.conf.all.arp_announce = 2
+```
+Save and exit.
+
+2️⃣ Apply immediately (no reboot needed)
+```bash
+sudo sysctl --system
+```
+3️⃣ Verify persistence
+```bash
+sysctl net.ipv4.conf.eth0.rp_filter
+sysctl net.ipv4.conf.eth1.rp_filter
+sysctl net.ipv4.conf.all.arp_ignore
+```
+Reboot once to confirm they survive.
+
 These settings prevent silent packet drops and ARP confusion.
+
+🧠 Why this is the right architecture
+Component	Responsibility
+| Component| Responsibility |
+|:-----------|:------------|
+|`/etc/sysctl.d/99-ug-multilan.conf`|	Kernel routing & ARP behavior|
+|`/usr/local/bin/ug-firewall-override.sh`|	Interface‑aware firewall rules|
+|`/etc/rc.local`|	Execution order glue|
+Each layer does one thing well.
+
+This is exactly how you’d structure it on a router, firewall appliance, or production NAS.
+
 
 ### 3. Configure SSH key‑based authentication
 Where SSH keys live on the NAS
