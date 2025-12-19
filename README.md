@@ -194,11 +194,12 @@ These settings prevent silent packet drops and ARP confusion.
 
 🧠 Why this is the right architecture
 Component	Responsibility
-| Component| Responsibility |
-|:-----------|:------------|
+| Component  | Responsibility |
+|:-----------|:---------------|
 |`/etc/sysctl.d/99-ug-multilan.conf`|	Kernel routing & ARP behavior|
 |`/usr/local/bin/ug-firewall-override.sh`|	Interface‑aware firewall rules|
 |`/etc/rc.local`|	Execution order glue|
+
 Each layer does one thing well.
 
 This is exactly how you’d structure it on a router, firewall appliance, or production NAS.
