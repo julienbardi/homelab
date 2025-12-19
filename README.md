@@ -1,25 +1,23 @@
 # Homelab Gateway Stack
 
 ## LAN topology
-This system uses a dual‑LAN design with clearly separated roles to ensure predictable routing, high performance, and clean firewall behavior.
+This system uses a dual‑LAN design with clearly separated roles to ensure deterministic routing, high performance, and clean firewall behavior.
 
 Routed LAN (LAN2 – Router‑connected)
-- IPv4 subnet: 10.89.12.0/24
-- IPv6 subnet: 2a01:8b81:4800:9c00::/64
+- IPv4 subnet: `10.89.12.0/24`
+- IPv6 subnet: `2a01:8b81:4800:9c00::/64`
 - Purpose: Internet access, routed LAN traffic, VPN egress
-- Gateway: 10.89.12.1
+- Gateway: `10.89.12.1`
 - IPv6: Fully routed via router (RA + default gateway)
-
-This interface is the **only default route** for the system. All outbound traffic, NAT, and VPN traffic must exit via this LAN.
+This interface is the **only default route** for the system. All outbound traffic (updates, package installs, VPN traffic) must exit via this LAN.
 
 Direct‑attach LAN (LAN1 – 10 Gbps point‑to‑point)
+LAN1 is a **static, IPv4‑only, point‑to‑point link** used exclusively for high‑speed local access (storage, management, bulk transfers).
 - Link type: Direct PC ↔ NAS (10 Gbps)
-- IPv4 subnet: 10.89.13.0/24
+- IPv4 subnet: `10.89.13.0/24`
 - IPv6: Disabled
 - Gateway: None
 - DNS: None
-LAN1 is a static, IPv4‑only, point‑to‑point link used exclusively for high‑speed local access (storage, management, bulk transfers).
-
 There is:
 - No router
 - No DHCP
@@ -35,6 +33,7 @@ This design avoids ARP ambiguity, asymmetric routing issues, and IPv6 link‑loc
 - Firewall rules are interface‑aware
 
 ## DXP4800+ first setup
+
 The initial setup of the DXP4800+ assumes the LAN topology described above and must be completed in the following order:
 1. Configure LAN2 (router‑connected) with a static IPv4 address and default gateway
 2. Verify internet connectivity and system updates
@@ -42,6 +41,10 @@ The initial setup of the DXP4800+ assumes the LAN topology described above and m
 4. Apply required kernel networking settings (rp_filter, ARP behavior)
 5. Apply firewall rules with explicit interface separation
 This order ensures reliable access during setup and prevents silent connectivity failures caused by asymmetric routing or incomplete firewall rules.
+
+### 1. Establish initial SSH access and internet connectivity
+UGOS manages its own firewall and does not allow SSH on custom ports by default.
+To establish connectivity during first setup, SSH must be explicitly allowed.
 
 On the NAS:
 ```
@@ -53,6 +56,7 @@ vi ~/.ssh/authorized_keys
 add content as any line of "code C:\Users\julie\.ssh\id_ed25519.pub"
 ```
 These permissions are mandatory — SSH will silently ignore the file if they’re wrong.
+
 From your PC, copy the contents of:
 ~/.ssh/id_ed25519.pub
 Then on the NAS:
@@ -60,6 +64,7 @@ Then on the NAS:
 nano ~/.ssh/authorized_keys
 ```
 Paste the entire line (one key per line), save, exit.
+
 Verify it works
 From the PC:
 
@@ -67,6 +72,79 @@ From the PC:
 ssh -p2222 julie@10.89.13.4
 ```
 You should connect without a password prompt.
+
+
+
+#### Allow SSH via LAN2 (router‑connected)
+```bash
+sudo nft add rule ip filter UG_INPUT iifname "eth1" tcp dport 22 accept
+sudo nft add rule ip filter UG_INPUT iifname "eth1" tcp dport 2222 accept
+```
+This is required to:
+- SSH into the NAS
+- Establish internet connectivity
+- Perform updates and configuration
+
+#### Optional: allow SSH via LAN1 (10 Gbps direct link)
+```bash
+sudo nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 22 accept
+sudo nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 2222 accept
+```
+### 2. Apply required kernel networking settings
+Because the NAS is multi‑homed, asymmetric routing must be explicitly allowed.
+
+```bash
+sudo sysctl -w net.ipv4.conf.all.rp_filter=2
+sudo sysctl -w net.ipv4.conf.default.rp_filter=2
+sudo sysctl -w net.ipv4.conf.eth0.rp_filter=2
+sudo sysctl -w net.ipv4.conf.eth1.rp_filter=2
+
+sudo sysctl -w net.ipv4.conf.all.arp_ignore=1
+sudo sysctl -w net.ipv4.conf.all.arp_announce=2
+```
+These settings prevent silent packet drops and ARP confusion.
+
+### 3. Configure SSH key‑based authentication
+Where SSH keys live on the NAS
+For user julie, public keys must be placed in:
+
+```Code
+/home/julie/.ssh/authorized_keys
+```
+Required permissions:
+```bash
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+```
+#### Important reminder
+SSH key authentication must be tested from the client that owns the private key.  
+Running ssh on the NAS itself will always fall back to password authentication.
+
+The private key stays on the PC.
+Only the public key is stored on the NAS.
+
+### 4. Validation
+From a LAN2 host (router LAN):
+
+```powershell
+ssh -p2222 julie@10.89.12.4
+```
+From the direct‑attached PC on LAN1:
+```powershell
+ssh -p2222 julie@10.89.13.4
+```
+Successful login should occur without a password prompt.
+
+### 5. Persistence warning
+The `nft add rule` commands above are **runtime‑only**.
+- UGOS regenerates its firewall on reboot
+- These rules must be re‑applied via:
+  - a startup script, or
+  - a custom firewall override
+
+
+
+
 
 
 ## LAN topology (old)
