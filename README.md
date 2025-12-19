@@ -189,9 +189,9 @@ sudo sysctl --system
 ```
 3️⃣ Verify persistence
 ```bash
-sysctl net.ipv4.conf.eth0.rp_filter
-sysctl net.ipv4.conf.eth1.rp_filter
-sysctl net.ipv4.conf.all.arp_ignore
+sudo sysctl net.ipv4.conf.eth0.rp_filter
+sudo sysctl net.ipv4.conf.eth1.rp_filter
+sudo sysctl net.ipv4.conf.all.arp_ignore
 ```
 Reboot once to confirm they survive.
 
