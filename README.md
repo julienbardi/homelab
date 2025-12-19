@@ -244,10 +244,16 @@ This ensures:
 - UGOS‑frozen packages remain untouched
 This is the safest possible command on a UGOS‑based system.
 ### 2. Add SSH public key of the nac and PC/laptop to gitlab as authorization and signing key
-On Linux: cat ~/.ssh/id_ed25519.pub
-On PC (PowerShell): type C:\Users\julie\.ssh\id_ed25519.pub
-Add this line as authentication and signing key on https://github.com/settings/keys
-At the bottom tick vigilant mode
+- On Linux: cat ~/.ssh/id_ed25519.pub
+- On PC (PowerShell): type C:\Users\julie\.ssh\id_ed25519.pub
+- Add each of the above key as authentication and then repeat as signing key on https://github.com/settings/keys
+- At the bottom tick vigilant mode
+
+### 3. clone the repository
+```
+    cd ~/src/
+    git clone git@github.com:Jambo15/homelab.git
+```
 
 ## Overview
 This repository contains a modular, audit‑friendly homelab stack built in **generations**:
