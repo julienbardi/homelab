@@ -233,6 +233,7 @@ ssh -p2222 julie@10.89.13.4
 Successful login should occur without a password prompt.
 
 ## Install git
+### 1. Install git
 ```
 sudo apt-get install git --no-upgrade
 ```
@@ -242,8 +243,11 @@ This ensures:
 - No existing packages are upgraded
 - UGOS‑frozen packages remain untouched
 This is the safest possible command on a UGOS‑based system.
-
-
+### 2. Add SSH public key of the nac and PC/laptop to gitlab as authorization and signing key
+On Linux: cat ~/.ssh/id_ed25519.pub
+On PC (PowerShell): type C:\Users\julie\.ssh\id_ed25519.pub
+Add this line as authentication and signing key on https://github.com/settings/keys
+At the bottom tick vigilant mode
 
 ## Overview
 This repository contains a modular, audit‑friendly homelab stack built in **generations**:
