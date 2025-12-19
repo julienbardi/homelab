@@ -78,6 +78,8 @@ You should connect without a password prompt.
 UGOS does not support persistent nftables.conf in the usual Debian way.
 The safest method is to re‑apply your rules at boot via a startup script.
 
+Note: On UGOS, SSH typically listens on port 2222 only. Port 22 may be closed or unused depending on firmware. Both ports are allowed in firewall rules to avoid lockout during upgrades, but only port 2222 is expected to accept connections.
+
 #### 1 Create a firewall restore script
 bash
 sudo nano /usr/local/bin/ug-firewall-override.sh
@@ -145,13 +147,8 @@ sudo nft list chain ip filter UG_INPUT
 ```
 Your rules will still be there.
 
-
 🧠 Why this works on UGOS (and rc.local doesn't)
-- systemd units are not regenerated
-- UGOS uses systemd internally
-- network-online.target ensures firewall exists
-- oneshot service is clean and auditable
-- survives firmware updates
+- UGOS regenerates nftables rules at boot, but does not overwrite custom systemd units
 
 ### 2. Apply required kernel networking settings
 
@@ -198,10 +195,9 @@ Component	Responsibility
 |:-----------|:---------------|
 |`/etc/sysctl.d/99-ug-multilan.conf`|	Kernel routing & ARP behavior|
 |`/usr/local/bin/ug-firewall-override.sh`|	Interface‑aware firewall rules|
-|`/etc/rc.local`|	Execution order glue|
+|`/etc/rc.local`|	Execution order glue: systemd oneshot service (After=network-online.target) |
 
 Each layer does one thing well.
-
 This is exactly how you’d structure it on a router, firewall appliance, or production NAS.
 
 
@@ -243,141 +239,6 @@ The `nft add rule` commands above are **runtime‑only**.
   - a startup script, or
   - a custom firewall override
 
-
-
-
-
-
-## LAN topology (old)
-
-LAN subnet IPv4: `10.89.12.0/24`
-LAN subnet IPv6: `2a01:8b81:4800:9c00::/64`
-
-LAN1 (10 Gbps) is a static, IPv4‑only, point‑to‑point link with no gateway and no DNS.
-Both ends must be manually configured.
-
-
-
-## first setup (old)
-
-After a hard reset of UGOS DXP 4800+ nas, UGOS is configured as follows:
-- Outbound UDP: rate‑limited, then dropped → DNS queries fail.
-- ICMP echo (ping): dropped after a small burst → you can’t monitor reachability.
-- Inbound SSH: restricted to RFC1918 ranges (10.0.0.0/8, 192.168.0.0/16, 172.16.0.0/12) → secure, but IPv6 SSH is dropped.
-- Forwarding: only RELATED,ESTABLISHED → no new outbound connections allowed unless explicitly permitted.
-
-🛠️ Minimal rules to add for basic connectivity
-<details>
-<summary>Click to expand 📝 firewall-allow.sh</summary>
-
-`
-```sh
-#!/bin/sh
-# Add LAN-only ICMP echo rules and allow outbound DNS/HTTP/HTTPS/NTP
-# Includes rate-limited logging for dropped packets
-# Supports dry-run mode: run with ./firewall-allow.sh --dry-run
-# Footer shows Git commit hash if available, else file hash
-# Logs deployment to syslog for auditability
-
-[ "$(id -u)" -eq 0 ] || {
-    echo "This script must be run as root"
-    exit 1
-}
-
-DRYRUN=0
-[ "$1" = "--dry-run" ] && DRYRUN=1
-
-run() {
-    if [ "$DRYRUN" -eq 1 ]; then
-        printf 'DRY-RUN: %s\n' "$*"
-    else
-        printf 'Running: %s\n' "$*"
-        "$@"
-    fi
-}
-
-# IPv4: allow ping from LAN
-run nft add rule ip filter INPUT ip saddr 10.89.12.0/24 icmp type echo-request accept
-
-# IPv6: allow ping from LAN
-run nft add rule ip6 filter INPUT ip6 saddr 2a01:8b81:4800:9c00::/64 icmpv6 type echo-request accept
-
-# IPv4: allow outbound DNS
-run nft add rule ip filter OUTPUT udp dport 53 accept
-run nft add rule ip filter OUTPUT tcp dport 53 accept
-
-# IPv6: allow outbound DNS
-run nft add rule ip6 filter OUTPUT udp dport 53 accept
-run nft add rule ip6 filter OUTPUT tcp dport 53 accept
-
-# IPv4: allow outbound web traffic
-run nft add rule ip filter OUTPUT tcp dport 80 accept
-run nft add rule ip filter OUTPUT tcp dport 443 accept
-
-# IPv6: allow outbound web traffic
-run nft add rule ip6 filter OUTPUT tcp dport 80 accept
-run nft add rule ip6 filter OUTPUT tcp dport 443 accept
-
-# Optional: allow outbound ICMP for diagnostics
-run nft add rule ip filter OUTPUT icmp type echo-request accept
-run nft add rule ip6 filter OUTPUT icmpv6 type echo-request accept
-
-# Optional: allow outbound NTP
-run nft add rule ip filter OUTPUT udp dport 123 accept
-run nft add rule ip6 filter OUTPUT udp dport 123 accept
-
-# Rate-limited logging of drops (safe against DoS floods) is managed by UGOS. Following rules are forbidden by UGOS
-#run nft add rule ip filter INPUT log prefix "DROP-IPv4: " level info limit rate 5/second
-#run nft add rule ip6 filter INPUT log prefix "DROP-IPv6: " level info limit rate 5/second
-
-# Footer: Git commit hash if available, else file hash
-if command -v git >/dev/null 2>&1 && git rev-parse --short HEAD >/dev/null 2>&1; then
-    VERSION="commit $(git rev-parse --short HEAD)"
-else
-    VERSION="hash $(sha256sum "$0" | cut -c1-8)"
-fi
-
-MESSAGE="✅ Firewall rules applied ($VERSION) at $(date '+%Y-%m-%d %H:%M:%S')"
-
-# Echo to shell
-echo "$MESSAGE"
-
-# Log to syslog
-logger -t firewall-allow "$MESSAGE"
-```
-`
-</details>
-
-🔹 Usage
-- `chmod +x firewall-allow.sh`
-- Dry run (preview only):
-    ```bash
-    ./firewall-allow.sh --dry-run
-    ```
-- Apply rules:
-    ```bash
-    sudo ./firewall-allow.sh
-    ```
-- Verify
-List the rules back:
-    ```bash
-    sudo nft list ruleset | grep dport
-    ```
-- Persist changes
-On Debian 12 with UGOS:
-    ```bash
-    sudo sh -c 'nft list ruleset > /etc/nftables.conf'
-    sudo systemctl restart nftables
-    ```
-This ensures your additions survive reboot and remain layered on top of UGOS defaults.
-
-✅ Result
-- LAN‑only ping allowed
-- Outbound DNS, web, ICMP, NTP allowed
-- Drop logging rate‑limited to avoid DoS risk
-- Footer shows Git commit hash (or file hash fallback)
-- Deployment recorded in syslog (journalctl -t firewall-allow)
- 
 
 
 ## Overview
@@ -598,75 +459,48 @@ homelab/
 This section documents the lab topology and the measured throughput between nodes using `iperf3`.  
 Tests were run with 8 parallel streams (`-P 4`) and in both directions (`-R` for reverse mode).
 
-### Machine Inventory
+### 🖧 Machine IP Overview (IPv4 + IPv6)
+Code
+| Host        | IPv4           | IPv6                                |
+|-------------|----------------|-------------------------------------|
+| omen30l     | via router     | via router                          |
+| nas         | 10.89.12.4     | 2a01:8b81:4800:9c00::4              |
+| router      | 10.89.12.1     | 2a01:8b81:4800:9c00::1              |
+| diskstation | 10.89.12.2     | 2a01:8b81:4800:9c00::2              |
+| s22         | DHCP (varies)  | SLAAC (varies)                      |
+| s22 WG      | via router WG  | via router WG                       |
+| s22 4G WG   | via router WG  | via router WG                       |
+
+### 🖧 Performance Tests
 on destination: iperf3 -s
-on source: iperf3.exe -P 8 -R -c 10.89.12.4 or iperf3.exe -6 -P 8 -R -c 2a01:8b81:4800:9c00::5
+on source: 
+- iperf3.exe    -P 8 -R -c 10.89.13.4
+- iperf3.exe -6 -P 8 -R -c 2a01:8b81:4800:9c00::5
 The lowest value between seneder ans receiver is reported
-|-------------|---------------------------------------------|----------- |
-| Source      | Destination                                 | Gbits/sec  |
-|:------------|:--------------------------------------------|----------- |
-| omen30l     | 10.89.13.4 nas                              | 9.30       |
-| omen30l     | 10.89.13.4 nas                              | 9.30       |
-| omen30l     | 2a01:8b81:4800:9c00::5 nas                  | 9.35       |
-| omen30l     | 2a01:8b81:4800:9c00:6e1f:f7ff:fe8d:9511 nas | 9.35       |
-| omen30l     | 10.89.12.4 nas                              | 1.12       |
-| omen30l     | 10.89.12.1 router                           | 0.942 Gbps |
-| omen30l     | 2a01:8b81:4800:9c00::1 router               | 0.925 Gbps |
-| omen30l     | 10.89.12.2 diskstation                      | 0.949 Gbps |
-| omen30l     | 2a01:8b81:4800:9c00::2 diskstation          | 0.951 Gbps |
-| omen30l     | speedtest.init7.net                         | 0.505 Gbps |
-| omen30l     | t5.cscs.ch                                  | 0.504 Gbps |
 
-### 🖧 Network Topology and Performance Tests
-Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
-- Destination (server):
-  ```bash601-
-  iperf3 -s 
-  ip -4 addr show scope global | awk '/inet / {print $2}' | head -n1 | cut -d/ -f1
-  iperf3 -s -6 
-  ip -6 addr show scope global | awk '/inet / {print $2}' | head -n1 | cut -d/ -f1
-  
-  # show IPv6 address 
-  ip -6 addr show scope global | awk '/inet6/ && $2 !~ /^fd/ {print $2}' | head -n1 | cut -d/ -f1 # to get <IPv6_address>
-  
-- Source (client):
-  ```bash
-  iperf3 -P 4 -t 10 -R    -c <IPv4_address>
-  iperf3 -P 4 -t 10 -R -6 -c <IPv6_address>
-### IPv4 vs IPv6 iperf3 Results
-| Source ↔ Destination       | IPv4 Throughput (Gbps) (v4/v6) | Retransmits (v4/v6) | Notes                                                                 | Health |
-|----------------------------|--------------------------------|---------------------|-----------------------------------------------------------------------|--------|
-| omen30l ↔ nas              | 9.40 / 10.5                   | 0 / 0               | Excellent 10 GbE path, fully saturating line‑rate                      | ✅ Good |
-| omen30l ↔ disksation       | 1.1                           | 0                   | Endpoint CPU/disk bottleneck, not the network                          | ⚠️ Fair |
-| omen30l ↔ router br0       | 1.10 / 1.10                   | 176 / 235           | Gigabit link saturated, retransmits indicate congestion/noise          | ⚠️ Fair |
-| omen30l ↔ router eth0      | 0.50                          | 5                   | WAN interface, ~500 Mb/s, stable with minimal loss                     | ✅ Good |
-| omen30l ↔ router tailscale0| 0.48                          | 2                   | Tailscale overlay, ~500 Mb/s, very low retransmits                     | ✅ Good |
-| disksation ↔ QNAP          |                               |                     | CPU bottleneck on NAS/QNAP, throughput limited by hardware             | ❌ Poor |
-| s22 ↔ router br0           | 0.83                          | 1940                | WLAN path, decent throughput but very high retransmits (Wi‑Fi noise)   | ⚠️ Fair |
-| s22 ↔ router bardi.ch      | 0.90                          | 287                 | WLAN path, good throughput, moderate retransmits                       | ✅ Good |
-| s22 ↔ disksation           | 0.89                          | 0                   | WLAN path, stable and clean                                            | ✅ Good |
-| s22 ↔ nas                  | 1.01                          | 517                 | WLAN path, powered device, some retransmits                            | ⚠️ Fair |
-| s22 ↔ nas                  | 0.013 →, 0.09 ←               | 0                   | WLAN + WireGuard via router, extremely poor (router CPU/MTU overhead)  | ❌ Poor |
-| s22 ↔ nas                  | 0.006 →, 0.03 ←               | 0                   | 4G + WireGuard via router, extremely poor (mobile uplink + WG overhead)| ❌ Poor |
+| Source      | Destination   | Iface | IPv4 (Mb/s) | IPv6 (Mb/s) | Health             |
+|-------------|---------------|-------|-------------|-------------|--------------------|
+| omen30l     | nas           | LAN   | 9360        | 8830        | ✅ 10G  ██████████ |
+| nas         | router        | LAN   | 2140        | 1760        | ✅ 2.5G ██         |
+| omen30l     | router        | LAN   |  942        |  925        | ✅ 1G   █          |
+| omen30l     | diskstation   | LAN   |  949        |  938        | ✅ 1G   █          |
+| nas         | diskstation   | LAN   |  941        |  909        | ✅ 1G   █          |
+| omen30l     | init7         | WAN   |  505        |     —       | ✅ 1G   █          |
+| omen30l     | t5.cscs.ch    | WAN   |  504        |     —       | ✅ 1G   █          |
+| s22         | nas           | LAN   |  596        |  617        | ✅ 1G   █          |
+| s22         | diskstation   | LAN   |  685        |  611        | ✅ 1G   █          |
+| s22         | nas           | WGr   |    1        |    2        | ⚠️ 1M   ▏         |
+| s22         | router        | WGr   |    3        |    2        | ⚠️ 1M   ▏         |
+| s22 4G WG   | nas           | WGr   |    —        |    3        | ⚠️ 1M   ▏         |
 
-### iperf3 -P 8 -R -c ping.online.net
+🧭 Legend
+Iface (Interface)
+- LAN — Local network path
+- WAN — Internet path
+- WGr — WireGuard on router
 
 
-
-
-### Notes
-- **Arrows:** → forward, ← reverse, ↔ both directions.  
-- **Asymmetry:** When results differ, values are summarized in the Summary colum
-
----
-
-## ✅ Next Step
-
-1. Create the file in your repo root:
-   ```bash
-   cd ~/homelab
-   nano README.md
-   ````
+# Appendix with archived content, most probably updated
 
 ## sudo apt
 
@@ -675,7 +509,7 @@ sudo apt install -y shellcheck
 
 ## Core DNS (experimental)
 
-We use CorDNS to provide DOH for our DNS
+We use CoreDNS to provide DOH for our DNS
 
 Quick (recommended): install prebuilt binary
 Download and install the latest prebuilt binary:
