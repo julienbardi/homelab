@@ -594,31 +594,28 @@ homelab/
 ````
 
 ## 🖧 Network Topology and Performance Tests
+
 This section documents the lab topology and the measured throughput between nodes using `iperf3`.  
-Tests were run with 4 parallel streams (`-P 4`) and in both directions (`-R` for reverse mode).
+Tests were run with 8 parallel streams (`-P 4`) and in both directions (`-R` for reverse mode).
 
 ### Machine Inventory
-
-iperf3.exe -P 8 -R -c nas
-|-------------|
-| Source      | Destination |
-|-------------|-------------|-----------
-| omen30l     | nas         | 2.38 Gbps
-| omen30l     | router      | 1.12 Gbps
-| omen30l     | diskstation | 0.95 Gbps
-| router      | nas         | 2.26 Gbps
-| router      | diskstation | 0.94 Gbps
-
-
-Linux: iperf3 -P 8 -R -c ping.online.net           Windows: iperf3.exe -P 8 -R -c ping.online.net
-
-| Machine     | IPv4 Address | IPv6 Address        | Notes                  | iperf3 -P 8 -R -c ping.online.net |
-|-------------|--------------|---------------------|------------------------|-----------------------------------|
-| omen30l     | 10.89.12.123 |                     | Windows host, 10 GbE   | 197-209 Mbps |
-| nas         | 10.89.12.4   |                     | 10 GbE capable storage | 601-645 Mbps |
-| disksation  | 10.89.12.2   |                     | Synology, 1 GbE        | 500-530 Mbps |
-| router      | 10.89.12.1   |                     | Asus router, 1 GbE     | 605-643 Mpbs |
-| s22         |              |                     |                        |
+on destination: iperf3 -s
+on source: iperf3.exe -P 8 -R -c 10.89.12.4 or iperf3.exe -6 -P 8 -R -c 2a01:8b81:4800:9c00::5
+The lowest value between seneder ans receiver is reported
+|-------------|---------------------------------------------|----------- |
+| Source      | Destination                                 | Gbits/sec  |
+|:------------|:--------------------------------------------|----------- |
+| omen30l     | 10.89.13.4 nas                              | 9.30       |
+| omen30l     | 10.89.13.4 nas                              | 9.30       |
+| omen30l     | 2a01:8b81:4800:9c00::5 nas                  | 9.35       |
+| omen30l     | 2a01:8b81:4800:9c00:6e1f:f7ff:fe8d:9511 nas | 9.35       |
+| omen30l     | 10.89.12.4 nas                              | 1.12       |
+| omen30l     | 10.89.12.1 router                           | 0.942 Gbps |
+| omen30l     | 2a01:8b81:4800:9c00::1 router               | 0.925 Gbps |
+| omen30l     | 10.89.12.2 diskstation                      | 0.949 Gbps |
+| omen30l     | 2a01:8b81:4800:9c00::2 diskstation          | 0.951 Gbps |
+| omen30l     | speedtest.init7.net                         | 0.505 Gbps |
+| omen30l     | t5.cscs.ch                                  | 0.504 Gbps |
 
 ### 🖧 Network Topology and Performance Tests
 Throughput was measured with `iperf3` using 4 parallel streams over 10 seconds.
