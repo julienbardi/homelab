@@ -76,20 +76,86 @@ You should connect without a password prompt.
 
 
 #### Allow SSH via LAN2 (router‑connected)
-```bash
-sudo nft add rule ip filter UG_INPUT iifname "eth1" tcp dport 22 accept
-sudo nft add rule ip filter UG_INPUT iifname "eth1" tcp dport 2222 accept
-```
-This is required to:
-- SSH into the NAS
-- Establish internet connectivity
-- Perform updates and configuration
 
-#### Optional: allow SSH via LAN1 (10 Gbps direct link)
+
+UGOS does not support persistent nftables.conf in the usual Debian way.
+The safest method is to re‑apply your rules at boot via a startup script.
+
+1️⃣ Create a firewall restore script
+bash
+sudo nano /usr/local/bin/ug-firewall-override.sh
+Paste this:
+
 ```bash
-sudo nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 22 accept
-sudo nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 2222 accept
+#!/bin/sh
+# UGOS firewall SSH override
+# Applied after UG firewall initialization
+
+nft add rule ip filter UG_INPUT iifname "eth1" tcp dport 22 accept
+nft add rule ip filter UG_INPUT iifname "eth1" tcp dport 2222 accept
+#allow SSH via LAN1 (10 Gbps direct link)
+nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 22 accept
+nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 2222 accept
 ```
+Save and exit.
+
+2️⃣ Make it executable
+```bash
+sudo chmod +x /usr/local/bin/ug-firewall-override.sh
+```
+3️⃣ Hook it into system startup
+UGOS supports /etc/rc.local if present.
+
+Check first:
+
+```bash
+ls -l /etc/rc.local
+```
+If it exists, edit it:
+```bash
+sudo nano /etc/rc.local
+```
+Add before exit 0:
+
+```bash
+/usr/local/bin/ug-firewall-override.sh
+```
+If it does not exist, create it:
+
+```bash
+sudo nano /etc/rc.local
+```
+Paste:
+
+```bash
+#!/bin/sh
+/usr/local/bin/ug-firewall-override.sh
+```
+exit 0
+Then:
+```bash
+sudo chmod +x /etc/rc.local
+```
+4️⃣ Reboot and verify
+```bash
+sudo reboot
+```
+After reboot:
+
+```bash
+sudo nft list chain ip filter UG_INPUT
+```
+You should see your SSH rules present again.
+
+🧠 Why this works on UGOS
+- UGOS initializes its firewall early
+- rc.local runs after
+- Your rules are appended safely
+- No conflict with vendor updates
+- No race conditions
+This is the least fragile method.
+
+
 ### 2. Apply required kernel networking settings
 Because the NAS is multi‑homed, asymmetric routing must be explicitly allowed.
 
