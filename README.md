@@ -135,8 +135,8 @@ sudo nft list chain ip filter UG_INPUT
 You should see your SSH rules appear.
 3️⃣ Reboot to confirm persistence
 ```bash
-# reboot in 15 seconds (=0.25 minutes)
-shutdown -r +0.25 "Rebooting to validate persistent network configuration"
+# reboot in 1 minute
+sudo shutdown -r +1 "Rebooting to validate persistent network configuration"
 ```
 After reboot:
 ```bash
