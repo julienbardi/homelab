@@ -232,12 +232,16 @@ ssh -p2222 julie@10.89.13.4
 ```
 Successful login should occur without a password prompt.
 
-### 5. Persistence warning
-The `nft add rule` commands above are **runtime‑only**.
-- UGOS regenerates its firewall on reboot
-- These rules must be re‑applied via:
-  - a startup script, or
-  - a custom firewall override
+## Install git
+```
+sudo apt-get install git --no-upgrade
+```
+This ensures:
+- Git is installed
+- Only new packages are added
+- No existing packages are upgraded
+- UGOS‑frozen packages remain untouched
+This is the safest possible command on a UGOS‑based system.
 
 
 
