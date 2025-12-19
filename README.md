@@ -122,13 +122,18 @@ If it does not exist, create it:
 ```bash
 sudo nano /etc/rc.local
 ```
-Paste:
+Add the following two lines just before udevadm trigger:
 
 ```bash
-#!/bin/sh
-/usr/local/bin/ug-firewall-override.sh
+#!/usr/bin/bash
+echo "file drivers/watchdog/it87_wdt.c +p" > /sys/kernel/debug/dynamic_debug/control
+
+# Apply custom firewall overrides (SSH access)
+[ -x /usr/local/bin/ug-firewall-override.sh ] && /usr/local/bin/ug-firewall-override.sh
+
+udevadm trigger
+
 ```
-exit 0
 Then:
 ```bash
 sudo chmod +x /etc/rc.local
