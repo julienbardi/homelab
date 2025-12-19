@@ -140,7 +140,8 @@ sudo chmod +x /etc/rc.local
 ```
 4️⃣ Reboot and verify
 ```bash
-sudo reboot
+# reboot in 45 seconds (=0.75 minutes)
+shutdown -r +0.75 "Rebooting to validate persistent network configuration"
 ```
 After reboot:
 
