@@ -78,7 +78,7 @@ You should connect without a password prompt.
 UGOS does not support persistent nftables.conf in the usual Debian way.
 The safest method is to re‑apply your rules at boot via a startup script.
 
-1️⃣ Create a firewall restore script
+#### 1 Create a firewall restore script
 bash
 sudo nano /usr/local/bin/ug-firewall-override.sh
 Paste this:
@@ -96,11 +96,11 @@ nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 2222 accept
 ```
 Save and exit.
 
-2️⃣ Make it executable
+#### 2 Make it executable
 ```bash
 sudo chmod +x /usr/local/bin/ug-firewall-override.sh
 ```
-3️⃣ Create a systemd service
+#### 3 Create a systemd service
 ```bash
 sudo nano /etc/systemd/system/ug-firewall-override.service
 ```
@@ -121,19 +121,19 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 ```
 
-3️⃣ Reload systemd and enable it
+#### 4 Reload systemd and enable it
 ```bash
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl enable ug-firewall-override.service
 ```
-3️⃣ Test immediately (no reboot needed)
+#### 5 Test immediately (no reboot needed)
 ```bash
 sudo systemctl start ug-firewall-override.service
 sudo nft list chain ip filter UG_INPUT
 ```
 You should see your SSH rules appear.
-3️⃣ Reboot to confirm persistence
+#### 6 Reboot to confirm persistence
 ```bash
 # reboot in 1 minute
 sudo shutdown -r +1 "Rebooting to validate persistent network configuration"
