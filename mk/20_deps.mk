@@ -6,20 +6,57 @@ GO_MODERN_PREFIX  := /usr/local/go
 GO_MODERN_BIN     := $(GO_MODERN_PREFIX)/bin/go
 STAMP_GO_MODERN   := $(STAMP_DIR)/go-modern.installed
 
+DNSMASQ_CONF_SRC := $(HOMELAB_DIR)/config/dnsmasq/unbound.conf
+DNSMASQ_CONF_DST := /etc/dnsmasq.d/unbound.conf
+
 .PHONY: deps install-pkg-go remove-pkg-go \
 	install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc \
 	install-pkg-checkmake remove-pkg-checkmake \
 	install-pkg-strace remove-pkg-strace \
 	install-pkg-vnstat remove-pkg-vnstat \
 	install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale \
-	headscale-build
+	headscale-build \
+	install-pkg-dnsmasq remove-pkg-dnsmasq \
+	install-dnsmasq-unbound-config remove-dnsmasq-unbound-config
 
 # Aggregate deps target, not used: install-pkg-caddy
 deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
 	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard build-caddy-custom verify-caddy \
-	install-pkg-unbound install-pkg-ndppd \
+	install-pkg-unbound install-dnsmasq-unbound-config \
+	install-pkg-ndppd \
 	install-pkg-shellcheck install-pkg-codespell install-pkg-aspell \
 	install-pkg-code-server
+
+install-pkg-dnsmasq:
+	@echo "📦 Installing dnsmasq"
+	$(call apt_install,dnsmasq,dnsmasq)
+	@$(run_as_root) systemctl enable --now dnsmasq || true
+	@echo "✅ dnsmasq installed and enabled"
+
+remove-pkg-dnsmasq:
+	@echo "🗑️ Removing dnsmasq"
+	@$(run_as_root) systemctl stop dnsmasq || true
+	@$(run_as_root) systemctl disable dnsmasq || true
+	$(call apt_remove,dnsmasq)
+	@echo "✅ dnsmasq removed"
+
+install-dnsmasq-unbound-config: install-pkg-dnsmasq
+	@echo "📂 Installing dnsmasq → Unbound forwarding config"
+	@if [ ! -f "$(DNSMASQ_CONF_SRC)" ]; then \
+		echo "❌ Missing $(DNSMASQ_CONF_SRC)"; exit 1; \
+	fi
+	@$(run_as_root) install -o root -g root -m 0644 \
+		"$(DNSMASQ_CONF_SRC)" "$(DNSMASQ_CONF_DST)"
+	@$(run_as_root) systemctl restart dnsmasq
+	@echo "✅ dnsmasq now forwards DNS to Unbound (127.0.0.1:5335)"
+
+remove-dnsmasq-unbound-config:
+	@echo "🗑️ Removing dnsmasq → Unbound forwarding config"
+	@$(run_as_root) rm -f "$(DNSMASQ_CONF_DST)"
+	@$(run_as_root) systemctl restart dnsmasq || true
+	@echo "✅ dnsmasq forwarding config removed"
+
+
 
 # Tailscale (client + daemon) via apt repository
 
@@ -75,7 +112,6 @@ verify-pkg-tailscale:
 		fi; \
 		echo "✔ Versions aligned" \
 	'
-
 
 # Use apt_install macro from mk/01_common.mk
 install-pkg-go:
