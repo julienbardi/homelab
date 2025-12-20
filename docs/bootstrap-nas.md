@@ -56,20 +56,20 @@ Create:
 
 Contents:
 
-`
+```
 #!/bin/sh
 nft add rule ip filter UG_INPUT iifname "eth1" tcp dport 2222 accept
 nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 2222 accept
-`
+```
 
 Enable:
-
-`sudo chmod +x /usr/local/bin/ug-firewall-override.sh`  
-`sudo nano /etc/systemd/system/ug-firewall-override.service`
-
+```
+sudo chmod +x /usr/local/bin/ug-firewall-override.sh
+sudo nano /etc/systemd/system/ug-firewall-override.service
+```
 Paste:
 
-`
+```
 [Unit]
 Description=UGOS firewall override (SSH rules)
 After=network-online.target
@@ -82,12 +82,14 @@ RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
-`
+```
 
 Activate:
 
-`sudo systemctl daemon-reload`  
-`sudo systemctl enable --now ug-firewall-override.service`
+```
+sudo systemctl daemon-reload
+sudo systemctl enable --now ug-firewall-override.service
+```
 
 ---
 
