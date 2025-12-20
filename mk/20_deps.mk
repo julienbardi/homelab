@@ -232,7 +232,7 @@ headscale-build: install-pkg-go
 			echo "⚠️  A new version has been detected: $$CURRENT_VER"; \
 			echo "👉 See https://github.com/juanfont/headscale/releases"; \
 		fi; \
-		headscale version; \
+		command -v headscale >/dev/null 2>&1 && headscale version; \
 	fi
 
 # ---------------------------------------------------------------------
