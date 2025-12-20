@@ -241,3 +241,6 @@ Set:
 `tailscale status`
 
 If all succeed → NAS is fully bootstrapped.
+
+Note:
+- Caddy requires Go ≥ 1.21 and is installed under /usr/local/go via Makefile.
