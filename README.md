@@ -251,10 +251,57 @@ This is the safest possible command on a UGOS‑based system.
 
 ### 3. clone the repository
 ```
-    cd ~/src/
-    git clone git@github.com:Jambo15/homelab.git
+cd ~/src/
+git clone git@github.com:Jambo15/homelab.git
 ```
 
+### 4. Set your global Git name and email
+On nas:
+```
+cd ~/src/homelab
+git config --global user.name "Jambo15"
+git config --global user.email "Jambo15@users.noreply.github.com"
+# Verify your global identity
+git config --global user.name
+git config --global user.email
+```
+```
+# Rename the existing GitHub remote
+git remote rename origin github
+# verify
+git remote -v
+
+
+#add GitLab as your new primary remote
+git remote add origin git@gitlab.com:jbardi/homelab.git
+# verify the remotes
+git remote -v
+
+# Merge. This keeps both histories and simply merges the GitLab YAML commit into your repo.
+git pull origin main --allow-unrelated-histories --no-rebase
+git push origin main
+git pull github main --allow-unrelated-histories --no-rebase
+git push github main
+
+#set GitLab as the upstream so that git push (without arguments) goes to the right place.
+git branch --set-upstream-to=origin/main
+```
+
+From now on, I need to push as follows to keep both repo in sync
+```
+#Push to GitLab (primary)
+git push;
+#Mirror to GitHub
+git push github main
+```
+🟢 Why this works so well
+- Git treats each remote independently
+- You avoid merge conflicts
+- You stay in full control
+- You can switch primary/secondary anytime
+- You keep GitHub Copilot for commit messages
+- You keep GitLab for infra, CI, and private hosting
+    
 ## Overview
 This repository contains a modular, audit‑friendly homelab stack built in **generations**:
 
