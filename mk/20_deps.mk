@@ -12,7 +12,8 @@
 # Aggregate deps target, not used: install-pkg-caddy
 deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
 	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard build-caddy-custom verify-caddy install-pkg-unbound install-pkg-ndppd \
-	install-pkg-shellcheck install-pkg-codespell install-pkg-aspell
+	install-pkg-shellcheck install-pkg-codespell install-pkg-aspell \
+	install-pkg-code-server
 
 # Tailscale (client + daemon) via apt repository
 
@@ -376,3 +377,43 @@ restore-caddy:
 	else \
 		echo "⚠️ No backup found at $(CADDY_BACKUP)"; \
 	fi
+
+# ============================================================
+# code-server (browser-based VS Code)
+# ============================================================
+
+CODE_SERVER_BIN := /usr/bin/code-server
+STAMP_CODE_SERVER := $(STAMP_DIR)/code-server.installed
+
+.PHONY: install-pkg-code-server remove-pkg-code-server verify-pkg-code-server
+
+install-pkg-code-server:
+	@echo "📦 Installing code-server (VS Code in browser)"
+	@if [ -x "$(CODE_SERVER_BIN)" ]; then \
+		echo "[make] code-server already installed; skipping"; \
+	else \
+		echo "[make] Running official code-server installer"; \
+		curl -fsSL https://code-server.dev/install.sh -o /tmp/code-server-install.sh; \
+		$(run_as_root) bash /tmp/code-server-install.sh; \
+		rm -f /tmp/code-server-install.sh; \
+	fi
+	@$(MAKE) verify-pkg-code-server
+	@echo "version=$$($(CODE_SERVER_BIN) --version) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		| $(run_as_root) tee "$(STAMP_CODE_SERVER)" >/dev/null
+	@echo "✅ code-server installed"
+
+verify-pkg-code-server:
+	@echo "🔎 Verifying code-server installation"
+	@if ! $(CODE_SERVER_BIN) --version >/dev/null 2>&1; then \
+		echo "❌ code-server not functional"; exit 1; \
+	else \
+		echo "✔ code-server version: $$($(CODE_SERVER_BIN) --version)"; \
+	fi
+
+remove-pkg-code-server:
+	@echo "🗑️ Removing code-server"
+	@if dpkg -s code-server >/dev/null 2>&1; then \
+		$(run_as_root) apt-get remove -y code-server; \
+	fi
+	@$(run_as_root) rm -f "$(STAMP_CODE_SERVER)" || true
+	@echo "✅ code-server removed"
