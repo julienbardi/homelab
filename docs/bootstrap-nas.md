@@ -127,30 +127,28 @@ UGOS does not ship with `git` and `make`.
 
 Clone repo:
 
-`
+```
 mkdir -p ~/src
 cd ~/src
 git clone git@gitlab.com:jbardi/homelab.git
 cd homelab
-`
+```
 
 Configure identity:
-
-`git config --global user.name "Jambo15"`  
-`git config --global user.email "Jambo15@users.noreply.github.com"`
+```
+git config --global user.name "Jambo15"
+git config --global user.email "Jambo15@users.noreply.github.com"
+```
 
 Set dual remotes:
-
-`
+```
 git remote rename origin github
 git remote add origin git@gitlab.com:jbardi/homelab.git
 git branch --set-upstream-to=origin/main
-`
+```
 
 Push workflow:
-
-`git push`  
-`git push github main`
+`git push;git push github main`
 
 ---
 
