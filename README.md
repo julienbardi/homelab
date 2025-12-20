@@ -301,7 +301,43 @@ git push github main
 - You can switch primary/secondary anytime
 - You keep GitHub Copilot for commit messages
 - You keep GitLab for infra, CI, and private hosting
-    
+
+
+## VS Code Remote‑SSH on Ugreen DXP4800+ (Manual Server Install)
+The Ugreen DXP4800+ runs a minimal BusyBox‑style Linux environment that cannot auto‑install the VS Code Server. To enable full Remote‑SSH support (Explorer tree, Git integration, remote terminal), the VS Code Server must be installed manually.
+
+### Manual installation steps
+
+#### 1. Determine your VS Code commit ID (on your PC)
+Run:
+code --version
+
+Example:
+1.107.1
+994fd12f8d3a5aa16f17d42c041e5809167e845a
+x64
+
+Use the second line (the commit ID).
+
+#### 2. Create the VS Code Server directory (on the NAS)
+mkdir -p ~/.vscode-server/bin/994fd12f8d3a5aa16f17d42c041e5809167e845a
+
+#### 3. Download the matching VS Code Server build
+curl -L https://update.code.visualstudio.com/commit:994fd12f8d3a5aa16f17d42c041e5809167e845a/server-linux-x64/stable -o vscode-server.tar.gz
+
+#### 4. Extract the server into the correct folder
+tar -xzf vscode-server.tar.gz -C ~/.vscode-server/bin/994fd12f8d3a5aa16f17d42c041e5809167e845a --strip-components=1
+
+#### 5. Fix permissions
+chmod -R 755 ~/.vscode-server/bin/994fd12f8d3a5aa16f17d42c041e5809167e845a
+
+#### 6. Clean up
+rm vscode-server.tar.gz
+
+#### 7. Reconnect from VS Code
+Close all VS Code windows, reopen VS Code, click the green “<>” Remote indicator, choose “Connect to Host → nas”, then open the folder /home/julie/src/homelab. The Explorer tree, Git integration, and remote terminal will now work normally.
+
+
 ## Overview
 This repository contains a modular, audit‑friendly homelab stack built in **generations**:
 
