@@ -103,7 +103,7 @@ Create:
 
 Contents:
 
-`
+```
 net.ipv4.conf.all.rp_filter = 2
 net.ipv4.conf.default.rp_filter = 2
 net.ipv4.conf.eth0.rp_filter = 2
@@ -111,7 +111,7 @@ net.ipv4.conf.eth1.rp_filter = 2
 
 net.ipv4.conf.all.arp_ignore = 1
 net.ipv4.conf.all.arp_announce = 2
-`
+```
 
 Apply:
 
