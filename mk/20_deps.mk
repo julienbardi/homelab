@@ -1,6 +1,11 @@
 # mk/20_deps.mk
 # Package installation and build helpers
 
+GO_MODERN_VERSION := 1.22.0
+GO_MODERN_PREFIX  := /usr/local/go
+GO_MODERN_BIN     := $(GO_MODERN_PREFIX)/bin/go
+STAMP_GO_MODERN   := $(STAMP_DIR)/go-modern.installed
+
 .PHONY: deps install-pkg-go remove-pkg-go \
 	install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc \
 	install-pkg-checkmake remove-pkg-checkmake \
@@ -33,7 +38,7 @@ tailscale-repo:
 		| sudo install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
 
 	@# Update apt cache (use cached helper to avoid repeated full updates)
-	@$(call apt_update_if_needed)
+	@sudo apt-get update
 	@echo "✅ Tailscale repository configured"
 
 install-pkg-tailscale: tailscale-repo
@@ -78,6 +83,36 @@ install-pkg-go:
 
 remove-pkg-go:
 	$(call apt_remove,golang-go)
+
+# Caddy requires Go >= 1.21; install isolated toolchain under /usr/local/go
+.PHONY: install-pkg-go-modern remove-pkg-go-modern verify-pkg-go-modern
+
+install-pkg-go-modern:
+	@echo "📦 Installing Go $(GO_MODERN_VERSION) under $(GO_MODERN_PREFIX)"
+	@if [ -x "$(GO_MODERN_BIN)" ]; then \
+		CUR_VER=$$($(GO_MODERN_BIN) version | awk '{print $$3}' | sed 's/go//'); \
+		if [ "$$CUR_VER" = "$(GO_MODERN_VERSION)" ]; then \
+			echo "✔ Go $(GO_MODERN_VERSION) already installed"; \
+			exit 0; \
+		fi; \
+	fi
+	@tmp=$$(mktemp -d); \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	curl -fsSL https://go.dev/dl/go$(GO_MODERN_VERSION).linux-amd64.tar.gz \
+		-o "$$tmp/go.tar.gz"; \
+	sudo rm -rf "$(GO_MODERN_PREFIX)"; \
+	sudo tar -C /usr/local -xzf "$$tmp/go.tar.gz"; \
+	echo "version=$(GO_MODERN_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		| sudo tee "$(STAMP_GO_MODERN)" >/dev/null
+	@echo "✅ Go $(GO_MODERN_VERSION) installed"
+
+verify-pkg-go-modern:
+	@$(GO_MODERN_BIN) version
+
+remove-pkg-go-modern:
+	@echo "🗑️ Removing Go $(GO_MODERN_PREFIX)"
+	@sudo rm -rf "$(GO_MODERN_PREFIX)"
+	@sudo rm -f "$(STAMP_GO_MODERN)"
 
 # vnstat (network traffic monitor)
 install-pkg-vnstat:
@@ -154,7 +189,7 @@ CHECKMAKE_BIN := /usr/local/bin/checkmake
 STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
 
 install-pkg-checkmake: install-pkg-pandoc install-pkg-go
-	@echo "[make] Installing checkmake (v$(CHECKMAKE_VERSION)) using upstream Makefile..."
+	@echo "[make] Installing checkmake (v$(CHECKMAKE_VERSION)) via direct Go build..."
 	@if [ -x "$(CHECKMAKE_BIN)" ]; then \
 	  INST_VER=$$($(CHECKMAKE_BIN) --version 2>/dev/null | awk '{print $$2}' || true); \
 	  if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
@@ -165,15 +200,14 @@ install-pkg-checkmake: install-pkg-pandoc install-pkg-go
 	mkdir -p $(HOME)/src; \
 	rm -rf $(HOME)/src/checkmake; \
 	git clone --depth 1 --branch v$(CHECKMAKE_VERSION) https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake; \
-	cd $(HOME)/src/checkmake && git config advice.detachedHead false && git checkout v$(CHECKMAKE_VERSION); \
 	cd $(HOME)/src/checkmake && \
-	BUILDER_NAME="$$(git config --get user.name)" \
-	BUILDER_EMAIL="$$(git config --get user.email)" \
-	make; \
-	$(run_as_root) install -m 0755 $(HOME)/src/checkmake/checkmake $(CHECKMAKE_BIN); \
-	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" | $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null; \
-	@echo "[make] Installed checkmake built by $$(git config --get user.name) <$$(git config --get user.email)>"; \
+	go build -o checkmake cmd/checkmake/main.go; \
+	sudo install -m 0755 $(HOME)/src/checkmake/checkmake $(CHECKMAKE_BIN); \
+	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" | sudo tee "$(STAMP_CHECKMAKE)" >/dev/null
+
+	@echo "[make] Installed checkmake $(CHECKMAKE_VERSION)"
 	@$(CHECKMAKE_BIN) --version
+
 
 remove-pkg-checkmake:
 	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake && rm -f $(STAMP_CHECKMAKE))
@@ -332,8 +366,9 @@ install-pkg-xcaddy:
 		echo "ℹ️ xcaddy already present at $(XCADDY_BIN)"; \
 	fi
 
-build-caddy-custom: install-pkg-xcaddy
-	@set -euo pipefail; \
+build-caddy-custom: install-pkg-xcaddy install-pkg-go-modern
+	@export PATH="$(GO_MODERN_PREFIX)/bin:$$PATH"; \
+	set -euo pipefail; \
 	echo "🔨 Building Caddy $(CADDY_VERSION) with rate_limit plugin..."; \
 	BUILD_DIR=$$(mktemp -d /tmp/caddy-build.XXXXXX); \
 	trap 'rm -rf "$$BUILD_DIR"' EXIT; \
