@@ -119,11 +119,11 @@ Apply:
 
 ---
 
-# 6. Install Git (Safe on UGOS) and make (Required for `make deps`)
-UGOS does not ship with `git` and `make`.
+# 6. Install Git (Safe on UGOS), make (for `make deps`), unbound-anchor(for Unbound)
+UGOS does not ship with `git`, `make`, `unbound-anchor`.
 
 `sudo apt-get update`  
-`sudo apt-get install -y git make --no-upgrade`
+`sudo apt-get install -y git make unbound-anchor --no-upgrade`
 
 Clone repo:
 

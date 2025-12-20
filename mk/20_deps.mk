@@ -19,10 +19,10 @@ DNSMASQ_CONF_DST := /etc/dnsmasq.d/unbound.conf
 	install-pkg-dnsmasq remove-pkg-dnsmasq \
 	install-dnsmasq-unbound-config remove-dnsmasq-unbound-config
 
-# Aggregate deps target, not used: install-pkg-caddy
+# Aggregate deps target, not used: install-pkg-caddy. Do not use install-pkg-unbound, it is too early, see mk/60_unbound.mk
 deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
 	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard build-caddy-custom verify-caddy \
-	install-pkg-unbound install-dnsmasq-unbound-config \
+	install-dnsmasq-unbound-config \
 	install-pkg-ndppd \
 	install-pkg-shellcheck install-pkg-codespell install-pkg-aspell \
 	install-pkg-code-server
