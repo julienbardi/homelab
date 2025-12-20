@@ -429,11 +429,6 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 	ipv6="$(printf '%s' "$line" | awk -F, '{print $4}')"
 
 	confname="${b}-${IFACE}"
-	key_file="${WG_DIR}/${confname}.key}"
-	pub_file="${WG_DIR}/${confname}.pub}"
-	conf_file="${WG_DIR}/${confname}.conf}"
-
-	# Fix filenames (typo correction without changing intent)
 	key_file="${WG_DIR}/${confname}.key"
 	pub_file="${WG_DIR}/${confname}.pub"
 	conf_file="${WG_DIR}/${confname}.conf"
