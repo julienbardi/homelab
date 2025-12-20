@@ -1,5 +1,4 @@
-# ============================================================
-# Tailnet orchestration
+# 80_tailnet.mk Tailnet orchestration
 # ------------------------------------------------------------
 # Registers current host into Headscale namespace and generates
 # client config + QR code
@@ -18,7 +17,7 @@ tailnet:
 
 tailnet-menu-deploy:
 	@echo "Deploying tailnet-menu.sh to /usr/local/bin..."
-	@$(s*run_as_roots*) cp scripts/helpers/tailnet-menu.sh /usr/local/bin/tailnet-menu
-	@$(s*run_as_roots*) chown root:root /usr/local/bin/tailnet-menu
-	@$(s*run_as_roots*) chmod 755 /usr/local/bin/tailnet-menu
+	@$(run_as_roots) cp scripts/helpers/tailnet-menu.sh /usr/local/bin/tailnet-menu
+	@$(run_as_roots) chown root:root /usr/local/bin/tailnet-menu
+	@$(run_as_roots) chmod 755 /usr/local/bin/tailnet-menu
 	@echo "Done. Run 'tailnet-menu' from anywhere."
