@@ -6,7 +6,7 @@ set -euo pipefail
 log() { printf '%s %s\n' "$(date -Iseconds)" "$*"; }
 
 # --- Variables (adjust only if your environment differs) ---
-LAN_IF="bridge0"
+LAN_IF="eth0"
 LAN_SUBNET="10.89.12.0/24"
 LAN_SUBNET_V6="2a01:8b81:4800:9c00::/64"
 TAILSCALE_IF="tailscale0"
