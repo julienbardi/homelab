@@ -136,6 +136,41 @@ bardi.ch:8384 {
 	}
 	reverse_proxy @nas_internal 127.0.0.1:9999
 
+	# Dev IDE (internal only)
+	@dev_internal {
+		host dev.bardi.ch
+
+		# LAN IPv4 + IPv6
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+
+		# WireGuard IPv4 subnets (wg0–wg7)
+		remote_ip 10.0.0.0/24
+		remote_ip 10.1.0.0/24
+		remote_ip 10.2.0.0/24
+		remote_ip 10.3.0.0/24
+		remote_ip 10.4.0.0/24
+		remote_ip 10.5.0.0/24
+		remote_ip 10.6.0.0/24
+		remote_ip 10.7.0.0/24
+
+		# WireGuard IPv6 /128s (wg0–wg7)
+		remote_ip 2a01:8b81:4800:9c00:10::1/128
+		remote_ip 2a01:8b81:4800:9c00:11::1/128
+		remote_ip 2a01:8b81:4800:9c00:12::1/128
+		remote_ip 2a01:8b81:4800:9c00:13::1/128
+		remote_ip 2a01:8b81:4800:9c00:14::1/128
+		remote_ip 2a01:8b81:4800:9c00:15::1/128
+		remote_ip 2a01:8b81:4800:9c00:16::1/128
+		remote_ip 2a01:8b81:4800:9c00:17::1/128
+
+		# Tailscale CGNAT range
+		remote_ip 100.64.0.0/10
+	}
+	reverse_proxy @dev_internal 127.0.0.1:8080 {
+		header_up Host dev.bardi.ch
+	}
+
 	# DNS over HTTPS (external with IP whitelisting)
 	@doh_external {
 		host dns.bardi.ch
@@ -156,7 +191,7 @@ bardi.ch:8384 {
 	}
 
 	# Unknown host fallback
-	@unknown not host bardi.ch router.bardi.ch dns.bardi.ch vpn.bardi.ch derp.bardi.ch qnap.bardi.ch nas.bardi.ch
+	@unknown not host bardi.ch router.bardi.ch dns.bardi.ch vpn.bardi.ch derp.bardi.ch qnap.bardi.ch nas.bardi.ch dev.bardi.ch
 	respond @unknown "Not Found" 404
 
 
