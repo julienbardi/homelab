@@ -12,11 +12,16 @@
 # - Recipes must remain operator-safe: no secrets written to disk,
 #   ephemeral+non-reusable keys only, safe file ownership/permissions.
 # --------------------------------------------------------------------
-
 TS_BIN      ?= /usr/bin/tailscale
 HS_BIN      ?= /usr/bin/headscale
-HS_USER_FAM := $(shell sudo headscale users list --output json | jq -r '.[] | select(.name=="bardi-family") | .id')
-HS_USER_GUE := $(shell sudo headscale users list --output json | jq -r '.[] | select(.name=="bardi-guests") | .id')
+
+define headscale_user_id
+$(shell [ -x "$(HS_BIN)" ] && command -v jq >/dev/null 2>&1 && sudo "$(HS_BIN)" users list --output json \
+	| jq -r '.[] | select(.name=="$(1)") | .id' || true)
+endef
+
+HS_USER_FAM = $(call headscale_user_id,bardi-family)
+HS_USER_GUE = $(call headscale_user_id,bardi-guests)
 ACL_SRC     ?= /home/julie/src/homelab/config/headscale/acl.json
 ACL_DST     ?= /etc/headscale/acl.json
 SYSTEMD_SRC_DIR ?= /home/julie/src/homelab/config/systemd
