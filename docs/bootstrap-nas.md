@@ -119,10 +119,11 @@ Apply:
 
 ---
 
-# 6. Install Git (Safe on UGOS)
+# 6. Install Git (Safe on UGOS) and make (Required for `make deps`)
+UGOS does not ship with `git` and `make`.
 
 `sudo apt-get update`  
-`sudo apt-get install -y git --no-upgrade`
+`sudo apt-get install -y git make --no-upgrade`
 
 Clone repo:
 
@@ -153,17 +154,7 @@ Push workflow:
 
 ---
 
-# 7. Install `make` (Required for `make deps`)
-
-UGOS does not ship with `make`.
-
-Install:
-
-`sudo apt-get install -y make`
-
----
-
-# 8. Run `make deps` (Installs All Required Packages)
+# 7. Run `make deps` (Installs All Required Packages)
 
 From repo root:
 
@@ -182,7 +173,7 @@ This installs:
 
 ---
 
-# 9. Deploy Subnet Router
+# 8. Deploy Subnet Router
 
 `router-deploy`
 
@@ -203,7 +194,7 @@ Validate:
 
 ---
 
-# 10. Install VS Code Server (Manual UGOS Method)
+# 9. Install VS Code Server (Manual UGOS Method)
 
 Determine commit ID:
 
@@ -228,7 +219,7 @@ Reconnect from VS Code.
 
 ---
 
-# 11. Install code-server (Optional)
+# 10. Install code-server (Optional)
 
 `curl -fsSL https://code-server.dev/install.sh | sh`  
 `sudo systemctl enable --now code-server@$USER`
@@ -243,7 +234,7 @@ Set:
 
 ---
 
-# 12. Final Validation
+# 11. Final Validation
 
 `ssh -p2222 julie@10.89.12.4`
 `nft list ruleset`  
