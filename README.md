@@ -328,10 +328,7 @@ curl -L https://update.code.visualstudio.com/commit:994fd12f8d3a5aa16f17d42c041e
 #### 4. Extract the server into the correct folder
 tar -xzf vscode-server.tar.gz -C ~/.vscode-server/bin/994fd12f8d3a5aa16f17d42c041e5809167e845a --strip-components=1
 
-#### 5. Fix permissions
-chmod -R 755 ~/.vscode-server/bin/994fd12f8d3a5aa16f17d42c041e5809167e845a
-
-#### 6. Clean up
+#### 5. Clean up
 rm vscode-server.tar.gz
 
 #### 7. Reconnect from VS Code
