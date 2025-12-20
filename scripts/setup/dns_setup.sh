@@ -2,12 +2,12 @@
 # ============================================================
 # dns_setup.sh
 # ------------------------------------------------------------
-# Generation 0 script: validate and configure Unbound DNS
+# Health‑check script: validate Unbound runtime health
 # Host: 10.89.12.4 (NAS / VPN node)
 # Responsibilities:
 #   - Check Unbound service health
-#   - Refresh DNSSEC trust anchors
-#   - Restart Unbound if needed
+#   - Validate configuration syntax
+#   - Verify resolver functionality
 #   - Log degraded mode if Unbound is unreachable
 # ============================================================
 
@@ -16,8 +16,6 @@ source "/home/julie/src/homelab/scripts/common.sh"
 
 SERVICE_NAME="unbound"
 UNBOUND_CONF="/etc/unbound/unbound.conf"
-TRUST_ANCHORS="/var/lib/unbound/root.key"
-NAS_IP="10.89.12.4"
 
 # --- Check Unbound service ---
 log "Checking Unbound service..."
@@ -30,26 +28,14 @@ fi
 CONF_OUTPUT=$(timeout 10s unbound-checkconf "${UNBOUND_CONF}" 2>&1)
 log "Unbound config check: ${CONF_OUTPUT}"
 
-# --- Refresh DNSSEC trust anchors ---
-log "Refreshing DNSSEC trust anchors..."
-if ! run_as_root unbound-anchor -a "${TRUST_ANCHORS}"; then
-    log "ERROR: Failed to refresh trust anchors, continuing degraded"
-fi
-
 # --- Connectivity test ---
 log "Testing DNS resolution via Unbound..."
-if ! dig @"${NAS_IP}" . NS +short >/dev/null 2>&1; then
+if ! dig @127.0.0.1 -p 5335 . NS +short >/dev/null 2>&1; then
     log "ERROR: Unbound not resolving root NS records, continuing degraded"
 else
     log "OK: Unbound resolving correctly"
 fi
 
-# --- Restart service to apply changes ---
-log "Restarting Unbound service..."
-if ! run_as_root systemctl restart "${SERVICE_NAME}"; then
-    log "ERROR: Failed to restart Unbound after trust anchor refresh"
-fi
-
 # --- Footer logging ---
 COMMIT_HASH=$(git -C "/home/julie/src/homelab" rev-parse --short HEAD 2>/dev/null || echo "unknown")
-log "DNS setup complete (Unbound running on ${NAS_IP}:53). Commit=${COMMIT_HASH}"
+log "DNS setup complete (dnsmasq → unbound @ 127.0.0.1:5335). Commit=${COMMIT_HASH}"
