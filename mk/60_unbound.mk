@@ -147,8 +147,7 @@ install-unbound-tmpfiles:
 	@$(run_as_root) ./scripts/setup/setup-unbound-tmpfiles.sh
 
 # --- Full bootstrap: ensure systemd helper, then deploy and run DNS  ---
-dns-all: install-unbound-tmpfiles enable-systemd deploy-unbound install-unbound-systemd-dropin setup-unbound-control dns
-
+dns-all: install-unbound-tmpfiles enable-systemd deploy-unbound install-unbound-systemd-dropin setup-unbound-control dns dnsdist
 	@echo "🚀 [make] Full Unbound bootstrap complete (deploy → control → runtime)"
 
 # --- Reset + bootstrap ---

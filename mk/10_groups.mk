@@ -2,32 +2,53 @@
 # mk/groups.mk
 # ------------------------------------------------------------
 # Hardened group membership enforcement
-# Provides a generic macro `enforce-group` and specific targets
-# for sensitive groups. Each target documents its intent.
+#
+# - ADMIN_GROUPS: human-managed privilege groups
+# - SERVICE_GROUPS: system service groups (no human members)
+#
+# This file enforces group existence and membership invariants
+# in a Debian-compliant, upgrade-safe manner.
 # ============================================================
 
 AUTHORIZED_ADMINS = julie leona
-SENSITIVE_GROUPS = systemd-journal docker sudo adm headscale coredns dnscrypt
+
+# Groups that humans are allowed to be members of
+ADMIN_GROUPS = \
+	systemd-journal \
+	docker \
+	sudo \
+	adm \
+	dnscrypt
+
+# Groups owned exclusively by system services
+SERVICE_GROUPS = \
+	headscale \
+	coredns \
+	_dnsdist
 
 # Guard: only allow authorized admins to run these targets
 CURRENT_USER := $(shell id -un)
 
+# ------------------------------------------------------------
 # Harden all groups in one go
+# ------------------------------------------------------------
 harden-groups:
 	@if ! echo "$(AUTHORIZED_ADMINS)" | grep -qw "$(CURRENT_USER)"; then \
 		echo "❌ Current user $(CURRENT_USER) is not authorized to enforce groups"; \
 		exit 1; \
 	fi
+
 	@missing=""
 	@for u in $(AUTHORIZED_ADMINS); do \
 		if ! id -u $$u >/dev/null 2>&1; then \
-			$(call log,⚠️ User $$u does not exist, skipping all groups); \
+			$(call log,⚠️ User $$u does not exist, skipping admin membership); \
 			missing="$$missing $$u"; \
 		fi; \
-	done; \
-	for g in $(SENSITIVE_GROUPS); do \
+	done
+
+	@for g in $(ADMIN_GROUPS); do \
 		if ! getent group $$g >/dev/null 2>&1; then \
-			$(call log,➕ Creating group $$g); \
+			$(call log,➕ Creating admin group $$g); \
 			$(run_as_root) groupadd $$g; \
 		fi; \
 		for u in $(AUTHORIZED_ADMINS); do \
@@ -44,15 +65,26 @@ harden-groups:
 				   $(run_as_root) gpasswd -d $$u $$g || true ;; \
 			esac; \
 		done; \
-		echo "🎯 Group $$g membership enforced"; \
+		echo "🎯 Admin group $$g enforced"; \
 	done
 
+	@for g in $(SERVICE_GROUPS); do \
+		if ! getent group $$g >/dev/null 2>&1; then \
+			$(call log,➕ Creating service group $$g); \
+			$(run_as_root) groupadd --system $$g; \
+		fi; \
+		echo "🎯 Service group $$g ensured"; \
+	done
+
+# ------------------------------------------------------------
+# Inspection helper
+# ------------------------------------------------------------
 check-groups:
-	@for g in $(SENSITIVE_GROUPS); do \
+	@for g in $(ADMIN_GROUPS) $(SERVICE_GROUPS); do \
 		if getent group $$g >/dev/null 2>&1; then \
-			echo "🔎 Current members of $$g:"; \
+			echo "🔎 Members of $$g:"; \
 			getent group $$g | awk -F: '{print $$4}' | tr ',' ' '; \
 		else \
-			$(call log, ⚠️ Group $$g does not exist); \
+			$(call log,⚠️ Group $$g does not exist); \
 		fi; \
 	done

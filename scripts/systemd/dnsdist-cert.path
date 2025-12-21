@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch TLS certificates for dnsdist
+Unit=cert-reload@dnsdist.service
+
+[Path]
+PathChanged=/etc/dnsdist/certs/fullchain.pem
+PathChanged=/etc/dnsdist/certs/privkey.pem
+
+[Install]
+WantedBy=multi-user.target
