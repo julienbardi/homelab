@@ -22,15 +22,17 @@ HEADSCALE_CONFIG := /etc/headscale/config.yaml
 export HEADSCALE_CONFIG
 
 # --- Includes (ordered by prefix) ---
+include mk/00_prereqs.mk
 include mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
 include mk/31_setup-subnet-router.mk # Subnet router orchestration
 include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
+include 40_code-server.mk
 include mk/40_wireguard.mk   # Wireguard orchestration
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/60_unbound.mk     # Unbound DNS resolver setup
-#include mk/70_coredns.mk     # CoreDNS setup and deployment
+include mk/70_dnsdist.mk     # 
 include mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
 include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
 include mk/81_headscale.mk   # Headscale-specific targets (Noise key rotation, etc.)
@@ -210,16 +212,17 @@ CADDYFILE    := /etc/caddy/Caddyfile
 SRC_CADDYFILE:= $(HOMELAB_DIR)/config/caddy/Caddyfile
 
 .PHONY: caddy deploy-caddy
-caddy: gitcheck verify-caddy
+caddy: gitcheck verify-caddy build-caddy-custom
 	@set -euo pipefail; \
 	echo "📄⬇️ Installing Caddyfile"; \
+	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
 	$(run_as_root) install -m 0644 -o root -g root "$(SRC_CADDYFILE)" "$(CADDYFILE)"; \
 	echo "📦 Deploying custom Caddy binary with rate_limit plugin"; \
-	if [ -x "$(CADDY_BIN)" ] && [ ! -f "$(CADDY_BACKUP)" ]; then \
-		$(run_as_root) mv "$(CADDY_BIN)" "$(CADDY_BACKUP)"; \
-		echo "💾 Original Caddy backed up → $(CADDY_BACKUP)"; \
-	fi; \
-	$(run_as_root) install -m 0755 -o root -g root /tmp/caddy "$(CADDY_BIN)"; \
+	#if [ -x "$(CADDY_BIN)" ] && [ ! -f "$(CADDY_BACKUP)" ]; then \
+	#	$(run_as_root) mv "$(CADDY_BIN)" "$(CADDY_BACKUP)"; \
+	#	echo "💾 Original Caddy backed up → $(CADDY_BACKUP)"; \
+	#fi; \
+	#$(run_as_root) install -m 0755 -o root -g root /tmp/caddy "$(CADDY_BIN)"; \
 	echo "🔎 Verifying installed Caddy"; \
 	if ! "$(CADDY_BIN)" version >/dev/null 2>&1; then \
 		echo "❌ Installed Caddy not executable"; \
@@ -235,9 +238,14 @@ caddy: gitcheck verify-caddy
 	echo "✔ Caddy verified with rate_limit plugin: $$VERSION"; \
 	echo "version=$$VERSION installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee "$(STAMP_CADDY)" >/dev/null; \
-	echo "🔄 Reloading Caddy service"; \
-	$(run_as_root) systemctl reload caddy && echo "✅ Reload successful"
-
+	\
+	echo "🚀 Applying Caddy service"; \
+	$(run_as_root) systemctl enable caddy; \
+	if $(run_as_root) systemctl is-active --quiet caddy; then \
+    	$(run_as_root) systemctl reload caddy && echo "✅ Reload successful"; \
+	else \
+		$(run_as_root) systemctl start caddy && echo "✅ Started successfully"; \
+	fi
 
 # --- Default target ---
 all: harden-groups gitcheck gen0 gen1 gen2
@@ -246,6 +254,8 @@ all: harden-groups gitcheck gen0 gen1 gen2
 # --- Gen0: foundational services --- disabled: dnscrypt-proxy
 gen0: sysctl harden-groups ensure-known-hosts setup-subnet-router headscale tailscaled dns-all dns 
 	@echo "[make] Running gen0 foundational services..."
+
+gen1: caddy tailnet rotate wg-baseline code-server
 
 # --- Headscale orchestration ---
 headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deploy-headscale
@@ -256,11 +266,6 @@ headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deplo
 tailscaled: headscale tailscaled-family enable-tailscaled start-tailscaled tailscaled-status
 	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
 		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
-
-#.PHONY: coredns
-
-#coredns: deploy-coredns install-pkg-coredns
-#	@echo "[make] coredns : CoreDNS build and deploy complete"
 
 SYSTEMD_DIR = /etc/systemd/system
 REPO_SYSTEMD = config/systemd
