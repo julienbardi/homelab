@@ -11,11 +11,11 @@ set -euo pipefail
 source "/home/julie/src/homelab/config/homelab.env"
 source "/home/julie/src/homelab/scripts/common.sh"
 
-ACME="$HOME/.acme.sh/acme.sh"
+ACME="$ACME_HOME/acme.sh"
 
 usage() {
 	echo "Usage: $0 {issue|renew|prepare|deploy <service>|validate <service>|all <service>}"
-	echo "Services: caddy coredns headscale router diskstation qnap"
+	echo "Services: caddy coredns headscale dnsdist router diskstation qnap"
 	exit 1
 }
 
@@ -161,6 +161,49 @@ deploy_headscale() {
 	log "[deploy][headscale] complete"
 }
 
+deploy_dnsdist() {
+	log "[deploy][dnsdist] deploying DoH TLS material"
+
+	local DNSDIST_GROUP="_dnsdist"
+	local DNSDIST_BASE_DIR="/etc/dnsdist"
+	local DNSDIST_CERT_DIR="$DNSDIST_BASE_DIR/certs"
+
+	local SRC_CHAIN="$SSL_CANONICAL_DIR/fullchain_ecc.pem"
+	local SRC_KEY="$SSL_CANONICAL_DIR/privkey_ecc.pem"
+
+	require_file "$SRC_CHAIN"
+	require_file "$SRC_KEY"
+
+	# Ensure base directory exists and is traversable
+	install -d "$DNSDIST_BASE_DIR"
+	chown root:"$DNSDIST_GROUP" "$DNSDIST_BASE_DIR"
+	chmod 0750 "$DNSDIST_BASE_DIR"
+
+	# Ensure cert directory exists and is readable
+	install -d "$DNSDIST_CERT_DIR"
+	chown root:"$DNSDIST_GROUP" "$DNSDIST_CERT_DIR"
+	chmod 0750 "$DNSDIST_CERT_DIR"
+
+	local res1 res2
+	res1="$(atomic_install "$SRC_CHAIN" \
+		"$DNSDIST_CERT_DIR/fullchain.pem" \
+		"root:$DNSDIST_GROUP" 0644)"
+
+	res2="$(atomic_install "$SRC_KEY" \
+		"$DNSDIST_CERT_DIR/privkey.pem" \
+		"root:$DNSDIST_GROUP" 0640)"
+
+	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
+		log "[svc] restarting dnsdist (TLS material updated)"
+		systemctl restart dnsdist
+	else
+		log "[svc] dnsdist unchanged; no restart"
+	fi
+
+	log "[deploy][dnsdist] complete"
+}
+
+
 deploy_router() {
 	log "[deploy][router] ECC cert to Asus router"
 
@@ -222,7 +265,6 @@ deploy_diskstation() {
 	log "[deploy][diskstation] complete"
 	# DSM regenerates root.pem and short-chain.pem automatically.
 }
-
 
 deploy_qnap() {
 	log "[deploy][qnap] ECC cert to QNAP"
@@ -303,6 +345,7 @@ dispatch_deploy() {
 		caddy)        deploy_caddy ;;
 		coredns)      deploy_coredns ;;
 		headscale)    deploy_headscale ;;
+		dnsdist)      deploy_dnsdist ;;
 		router)       deploy_router ;;
 		diskstation)  deploy_diskstation ;;
 		qnap)         deploy_qnap ;;

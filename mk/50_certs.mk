@@ -5,8 +5,12 @@
 # CONTRACT:
 # - Defines run_as_root := ./bin/run-as-root
 # - All recipes must call $(run_as_root) with argv tokens.
-# - Do not wrap entire command in quotes.
-# - Escape operators (\>, \|, \&\&, \|\|) so they survive Make parsing.
+# - All recipes are executed by /bin/sh
+# - Escape $ → $$ (Make expands $ first)
+# - Do NOT escape shell operators: && || | > <
+# - Do not wrap entire commands in quotes
+# - Use line continuations (\) only for readability
+# - Keeps all cert watchers passive until a cert actually changes
 # --------------------------------------------------------------------
 SCRIPT_DIR := ${HOMELAB_DIR}/scripts
 DEPLOY     := $(SCRIPT_DIR)/setup/deploy_certificates.sh
@@ -195,42 +199,51 @@ all-%: renew prepare deploy-% validate-%
 
 # Cert watch setup targets
 setup-cert-watch-%:
-	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service /etc/systemd/system/cert-reload@.service \&& \
-	$(run_as_root) install -m 0644 scripts/systemd/$*-cert.path /etc/systemd/system/$*-cert.path \&& \
-	$(run_as_root) systemctl daemon-reload \&& \
-	$(run_as_root) systemctl enable --now $*-cert.path
+	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service \
+		/etc/systemd/system/cert-reload@.service && \
+	if [ "$*" = "dnsdist" ]; then \
+		$(run_as_root) install -d -m 0755 \
+			/etc/systemd/system/cert-reload@dnsdist.service.d && \
+		$(run_as_root) install -m 0644 \
+			scripts/systemd/cert-reload@dnsdist.service.d/override.conf \
+			/etc/systemd/system/cert-reload@dnsdist.service.d/override.conf ; \
+	fi && \
+	$(run_as_root) install -m 0644 \
+		scripts/systemd/$*-cert.path \
+		/etc/systemd/system/$*-cert.path && \
+	$(run_as_root) systemctl daemon-reload && \
+	$(run_as_root) systemctl enable $*-cert.path
 
+# FIX: remote machines are NOT local systemd services; remove them from watchers
 setup-cert-watch-all: \
 	setup-cert-watch-caddy \
+	setup-cert-watch-dnsdist \
 	setup-cert-watch-headscale \
-	setup-cert-watch-coredns \
-	setup-cert-watch-diskstation \
-	setup-cert-watch-qnap
+	setup-cert-watch-coredns
 
 # Bootstrap combos (pattern rule)
 bootstrap-%: setup-cert-watch-% all-%
 	@echo "[make] bootstrap-$* complete"
 
+# FIX: bootstrap-all wires only LOCAL watchers; no remote hosts here
 bootstrap-all: \
 	setup-cert-watch-caddy all-caddy \
-	setup-cert-watch-headscale all-headscale \
-	setup-cert-watch-coredns all-coredns \
-	setup-cert-watch-diskstation all-diskstation \
-	setup-cert-watch-qnap all-qnap
+	setup-cert-watch-headscale \
+	setup-cert-watch-coredns
 
 # Cert watch deploy targets
 deploy-cert-watch-%:
-	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service /etc/systemd/system/cert-reload@.service \&& \
-	$(run_as_root) install -m 0644 scripts/systemd/$*-cert.path /etc/systemd/system/$*-cert.path \&& \
-	$(run_as_root) systemctl daemon-reload \&& \
-	$(run_as_root) systemctl enable --now $*-cert.path
+	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service /etc/systemd/system/cert-reload@.service && \
+	$(run_as_root) install -m 0644 scripts/systemd/$*-cert.path /etc/systemd/system/$*-cert.path && \
+	$(run_as_root) systemctl daemon-reload && \
+	$(run_as_root) systemctl enable $*-cert.path
 
+# FIX: deploy only LOCAL watcher units; remove diskstation/qnap/router
 deploy-cert-watch-all:
-	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service /etc/systemd/system/cert-reload@.service \&& \
-	$(run_as_root) install -m 0644 scripts/systemd/caddy-cert.path /etc/systemd/system/caddy-cert.path \&& \
-	$(run_as_root) install -m 0644 scripts/systemd/headscale-cert.path /etc/systemd/system/headscale-cert.path \&& \
-	$(run_as_root) install -m 0644 scripts/systemd/coredns-cert.path /etc/systemd/system/coredns-cert.path \&& \
-	$(run_as_root) install -m 0644 scripts/systemd/diskstation-cert.path /etc/systemd/system/diskstation-cert.path \&& \
-	$(run_as_root) install -m 0644 scripts/systemd/qnap-cert.path /etc/systemd/system/qnap-cert.path \&& \
-	$(run_as_root) systemctl daemon-reload \&& \
-	$(run_as_root) systemctl enable --now caddy-cert.path headscale-cert.path coredns-cert.path diskstation-cert.path qnap-cert.path
+	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service /etc/systemd/system/cert-reload@.service && \
+	$(run_as_root) install -m 0644 scripts/systemd/caddy-cert.path /etc/systemd/system/caddy-cert.path && \
+	$(run_as_root) install -m 0644 scripts/systemd/dnsdist-cert.path /etc/systemd/system/dnsdist-cert.path && \
+	$(run_as_root) install -m 0644 scripts/systemd/headscale-cert.path /etc/systemd/system/headscale-cert.path && \
+	$(run_as_root) install -m 0644 scripts/systemd/coredns-cert.path /etc/systemd/system/coredns-cert.path && \
+	$(run_as_root) systemctl daemon-reload && \
+	$(run_as_root) systemctl enable caddy-cert.path dnsdist-cert.path headscale-cert.path coredns-cert.path
