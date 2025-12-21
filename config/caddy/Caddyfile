@@ -92,16 +92,17 @@ bardi.ch:8384 {
 	}
 	reverse_proxy @router_internal 10.89.12.1:8080
 
-	# DNS over HTTPS (internal only)
-	@dns_internal {
+	# DNS over HTTPS (DoH) → dnsdist backend
+	@doh {
 		host dns.bardi.ch
-		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
-		remote_ip 10.0.0.1/24 10.1.0.1/24 10.2.0.1/24 10.3.0.1/24 10.4.0.1/24 10.5.0.1/24 10.6.0.1/24 10.7.0.1/24
-		remote_ip 2a01:8b81:4800:9c00:10::1/128 2a01:8b81:4800:9c00:11::1/128 2a01:8b81:4800:9c00:12::1/128 2a01:8b81:4800:9c00:13::1/128
-		remote_ip 2a01:8b81:4800:9c00:14::1/128 2a01:8b81:4800:9c00:15::1/128 2a01:8b81:4800:9c00:16::1/128 2a01:8b81:4800:9c00:17::1/128
+		path /dns-query
 	}
-	reverse_proxy @dns_internal 127.0.0.1:8053
+	reverse_proxy @doh https://127.0.0.1:8443 {
+		transport http {
+			tls
+			tls_insecure_skip_verify
+		}
+	}
 
 	# Headscale control plane (external clients allowed)
 	@vpn {
@@ -110,7 +111,7 @@ bardi.ch:8384 {
 	reverse_proxy @vpn 127.0.0.1:8910 {
 		header_up Host vpn.bardi.ch
 		transport http {
-			versions h1
+			versions h2c
 			keepalive 5s
 		}
 		flush_interval 1s
@@ -154,7 +155,7 @@ bardi.ch:8384 {
 		remote_ip 10.6.0.0/24
 		remote_ip 10.7.0.0/24
 
-		# WireGuard IPv6 /128s (wg0–wg7)
+		# WireGuard IPv6 /128s
 		remote_ip 2a01:8b81:4800:9c00:10::1/128
 		remote_ip 2a01:8b81:4800:9c00:11::1/128
 		remote_ip 2a01:8b81:4800:9c00:12::1/128
@@ -171,30 +172,9 @@ bardi.ch:8384 {
 		header_up Host dev.bardi.ch
 	}
 
-	# DNS over HTTPS (external with IP whitelisting)
-	@doh_external {
-		host dns.bardi.ch
-		path /dns-query*
-	}
-	handle @doh_external {
-		rate_limit {
-			zone dns {
-				window 1m
-				events 100
-				key {remote_ip}
-				reject_status 429
-				reject_message "DNS query rate limit exceeded"
-			}
-		}
-		 # Forward to dnscrypt-proxy (plain HTTP listener on 127.0.0.1:53)
-		reverse_proxy 127.0.0.1:53
-	}
-
 	# Unknown host fallback
 	@unknown not host bardi.ch router.bardi.ch dns.bardi.ch vpn.bardi.ch derp.bardi.ch qnap.bardi.ch nas.bardi.ch dev.bardi.ch
 	respond @unknown "Not Found" 404
-
-
 
 	# log disabled to avoid disk spin
 }

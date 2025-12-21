@@ -1,7 +1,7 @@
 # mk/20_deps.mk
 # Package installation and build helpers
 
-GO_MODERN_VERSION := 1.22.0
+GO_MODERN_VERSION := 1.25.5
 GO_MODERN_PREFIX  := /usr/local/go
 GO_MODERN_BIN     := $(GO_MODERN_PREFIX)/bin/go
 STAMP_GO_MODERN   := $(STAMP_DIR)/go-modern.installed
@@ -189,9 +189,10 @@ remove-pkg-wireguard:
 .PHONY: install-pkg-caddy remove-pkg-caddy
 install-pkg-caddy:
 	@echo "📦 Installing Caddy"
+	@$(run_as_root) rm -f /etc/caddy/Caddyfile
 	$(call apt_install,caddy,caddy)
-	@$(run_as_root) systemctl enable --now caddy || true
-	@echo "✅ Caddy installed and enabled"
+	#@$(run_as_root) systemctl enable --now caddy || true
+	#@echo "✅ Caddy installed and enabled"
 
 remove-pkg-caddy:
 	$(call apt_remove,caddy)
@@ -382,7 +383,7 @@ remove-pkg-aspell:
 XCADDY_BIN := /usr/local/bin/xcaddy
 CADDY_BIN  := /usr/bin/caddy
 CADDY_BACKUP := /usr/bin/caddy.orig
-CADDY_VERSION := v2.8.0
+CADDY_VERSION := v2.10.2
 STAMP_CADDY := $(STAMP_DIR)/caddy.installed
 
 # Map uname -m to Debian-style arch names
@@ -390,7 +391,8 @@ ARCH := $(shell dpkg --print-architecture)
 
 .PHONY: install-pkg-xcaddy build-caddy-custom verify-caddy remove-pkg-xcaddy restore-caddy
 
-install-pkg-xcaddy:
+# depends on normal installation so that the service gets installed
+install-pkg-xcaddy: install-pkg-caddy
 	@echo "📦 Installing xcaddy (builder for custom Caddy)"
 	@if [ ! -x "$(XCADDY_BIN)" ]; then \
 		curl -sSL https://github.com/caddyserver/xcaddy/releases/download/v0.4.5/xcaddy_0.4.5_linux_$(ARCH).tar.gz \
@@ -402,6 +404,7 @@ install-pkg-xcaddy:
 		echo "ℹ️ xcaddy already present at $(XCADDY_BIN)"; \
 	fi
 
+#old line was --with github.com/mholt/caddy-ratelimit@v0.1.0
 build-caddy-custom: install-pkg-xcaddy install-pkg-go-modern
 	@export PATH="$(GO_MODERN_PREFIX)/bin:$$PATH"; \
 	set -euo pipefail; \
@@ -410,7 +413,7 @@ build-caddy-custom: install-pkg-xcaddy install-pkg-go-modern
 	trap 'rm -rf "$$BUILD_DIR"' EXIT; \
 	cd "$$BUILD_DIR"; \
 	"$(XCADDY_BIN)" build "$(CADDY_VERSION)" \
-		--with github.com/mholt/caddy-ratelimit@v0.1.0; \
+		--with github.com/mholt/caddy-ratelimit; \
 	echo "📦 Deploying custom Caddy binary"; \
 	if [ -x "$(CADDY_BIN)" ] && [ ! -f "$(CADDY_BACKUP)" ]; then \
 		sudo mv "$(CADDY_BIN)" "$(CADDY_BACKUP)"; \
@@ -419,7 +422,7 @@ build-caddy-custom: install-pkg-xcaddy install-pkg-go-modern
 	sudo install -m 0755 -o root -g root "$$BUILD_DIR/caddy" "$(CADDY_BIN)";
 
 verify-caddy:
-	echo "🔎 Verifying Caddy installation"; \
+	@echo "🔎 Verifying Caddy installation"; \
 	if ! "$(CADDY_BIN)" version >/dev/null 2>&1; then \
 		echo "❌ Installed Caddy not executable"; \
 		[ -f "$(CADDY_BACKUP)" ] && sudo mv "$(CADDY_BACKUP)" "$(CADDY_BIN)"; \
