@@ -244,3 +244,28 @@ If all succeed → NAS is fully bootstrapped.
 
 Note:
 - Caddy requires Go ≥ 1.21 and is installed under /usr/local/go via Makefile.
+
+# 12. acme.sh (one-time)
+
+Run as normal user (julie), not root:
+
+```
+curl https://get.acme.sh | sh
+```
+
+Infomaniak, click top right on your profiles, manage my account, then Developer, API tokens
+vi ~/.acme.sh/account.conf
+
+Add exactly this (replace the token):
+
+```env
+INFOMANIAK_API_TOKEN="YOUR_INFOMANIAK_API_TOKEN"
+```
+
+`chmod 600 ~/.acme.sh/account.conf`
+
+Then on NAS:
+```
+cd ~/src/homelab
+./scripts/setup/deploy_certificates.sh issue caddy
+```
