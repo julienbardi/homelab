@@ -8,13 +8,14 @@ DOMAINS_FILE="/etc/dns-warm/domains_v2.txt"
 STATE_FILE="/var/lib/dns-warm/state_v2.csv"
 CSV_URL="https://portal.switch.ch/open-data/top1000/latest.csv"
 
-WORKERS=2
+WORKERS=10
 PER_RUN=1000   # warm all domains in one run
 DIG_TIMEOUT=5
 DIG_TRIES=3
 LOCKFILE="/var/lock/dns-warm-rotate_v2.lock"
 
-mkdir -p "$(dirname "$STATE_FILE")"
+# ✅ Create required directories BEFORE anything else uses them
+install -d "$(dirname "$DOMAINS_FILE")" "$(dirname "$STATE_FILE")"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 
