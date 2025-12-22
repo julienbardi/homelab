@@ -28,7 +28,7 @@ include mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
 include mk/31_setup-subnet-router.mk # Subnet router orchestration
 include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
-include 40_code-server.mk
+include mk/40_code-server.mk
 include mk/40_wireguard.mk   # Wireguard orchestration
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/60_unbound.mk     # Unbound DNS resolver setup
