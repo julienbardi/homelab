@@ -26,6 +26,9 @@ SERVICE_GROUPS = \
 	coredns \
 	_dnsdist
 
+# Service accounts to create (one per service group)
+SERVICE_USERS = $(SERVICE_GROUPS)
+
 # Guard: only allow authorized admins to run these targets
 CURRENT_USER := $(shell id -un)
 
@@ -74,6 +77,13 @@ harden-groups:
 			$(run_as_root) groupadd --system $$g; \
 		fi; \
 		echo "🎯 Service group $$g ensured"; \
+	done
+
+	@for u in $(SERVICE_USERS); do \
+		if ! id -u $$u >/dev/null 2>&1; then \
+			$(call log,➕ Creating service user $$u with primary group $$u); \
+			$(run_as_root) useradd --system --gid $$u --shell /usr/sbin/nologin --home /nonexistent $$u; \
+		fi; \
 	done
 
 # ------------------------------------------------------------
