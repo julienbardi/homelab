@@ -19,6 +19,10 @@ usage() {
 	exit 1
 }
 
+service_exists() {
+	systemctl list-unit-files --type=service | grep -q "^$1.service"
+}
+
 days_left() {
 	local cert="$1"
 	local exp
@@ -110,6 +114,10 @@ deploy_caddy() {
 						  "$SSL_DEPLOY_DIR_CADDY/privkey.pem" \
 						  "caddy:caddy" 0640)
 
+	if ! service_exists caddy; then
+		log "[deploy][caddy] skipped — service not installed"
+		return 0
+	fi
 	# Reload if either changed
 	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
 		reload_service caddy /etc/caddy/Caddyfile
@@ -126,7 +134,10 @@ deploy_coredns() {
 	res=$(atomic_install "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
 						 "$SSL_CANONICAL_DIR/fullchain.pem" \
 						 "coredns:coredns" 0644)
-
+	if ! service_exists coredns; then
+		log "[deploy][coredns] skipped — service not installed"
+		return 0
+	fi
 	if [[ "$res" == "changed" ]]; then
 		reload_service coredns /etc/coredns/Corefile
 	else
@@ -140,7 +151,6 @@ deploy_headscale() {
 	log "[deploy][headscale] optional ECC certs into $SSL_DEPLOY_DIR_HEADSCALE"
 	sudo mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
 
-	# Capture results from atomic_install
 	local res1
 	res1=$(atomic_install "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
 						  "$SSL_DEPLOY_DIR_HEADSCALE/fullchain.pem" \
@@ -151,7 +161,10 @@ deploy_headscale() {
 						  "$SSL_DEPLOY_DIR_HEADSCALE/privkey.pem" \
 						  "headscale:headscale" 0640)
 
-	# Reload if either changed
+	if ! service_exists headscale; then
+		log "[deploy][headscale] skipped — service not installed"
+		return 0
+	fi
 	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
 		reload_service headscale /etc/headscale/config.yaml
 	else
@@ -193,8 +206,12 @@ deploy_dnsdist() {
 		"$DNSDIST_CERT_DIR/privkey.pem" \
 		"root:$DNSDIST_GROUP" 0640)"
 
+	if ! service_exists dnsdist; then
+		log "[deploy][dnsdist] skipped — service not installed"
+		return 0
+	fi
 	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
-		log "[svc] restarting dnsdist (TLS material updated)"
+		log "[svc] restarting dnsdist (TLS material updated, dnsdist cannot reload TLS material)"
 		systemctl restart dnsdist
 	else
 		log "[svc] dnsdist unchanged; no restart"
