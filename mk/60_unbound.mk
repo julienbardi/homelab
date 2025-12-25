@@ -5,7 +5,7 @@
 # --- Deployment ---
 .PHONY: install-unbound install-dnsutils \
 		deploy-unbound-config deploy-unbound-service deploy-unbound \
-		update-root-hints update-root-key
+		update-root-hints ensure-root-key
 
 install-unbound:
 	@$(call apt_install,unbound,unbound)
@@ -29,8 +29,8 @@ ensure-root-key:
 	@echo "🔑 [make] Ensuring DNSSEC trust anchor → /var/lib/unbound/root.key"
 	@$(run_as_root) mkdir -p /var/lib/unbound
 	@if [ ! -f /var/lib/unbound/root.key ]; then \
-		$(run_as_root) unbound-anchor -a /tmp/root.key || true; \
-		$(run_as_root) install -m 0644 -o root -g unbound /tmp/root.key /var/lib/unbound/root.key || true; \
+		$(run_as_root) unbound-anchor -a /tmp/root.key; \
+		$(run_as_root) install -m 0644 -o root -g unbound /tmp/root.key /var/lib/unbound/root.key; \
 	fi
 	@echo "✅ [make] root key present"
 
@@ -38,8 +38,6 @@ deploy-unbound-config: update-root-hints ensure-root-key
 	@echo "📄 [make] Deploying unbound.conf → /etc/unbound"
 	@$(run_as_root) install -d -m 0755 /etc/unbound
 	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_CONF_SRC) $(UNBOUND_CONF_DST)
-	@$(run_as_root) mkdir -p /run/unbound/unbound
-	@$(run_as_root) chown unbound:unbound /run/unbound/unbound
 	@$(run_as_root) unbound-checkconf $(UNBOUND_CONF_DST) || { echo "❌ invalid config"; exit 1; }
 	@echo "✅ [make] unbound.conf deployed"
 
@@ -83,13 +81,13 @@ setup-unbound-control:
 	@$(run_as_root) install -m 0640 -o root -g unbound /etc/unbound/unbound_{server,control}.{key,pem} /etc/unbound/
 	@echo "📝 [make] Writing client config → /etc/unbound/unbound-control.conf"
 	@$(run_as_root) sh -c 'printf "%s\n" \
-		"control-interface: /run/unbound.ctl" \
-		"server-key-file: /etc/unbound/unbound_server.key" \
-		"server-cert-file: /etc/unbound/unbound_server.pem" \
-		"control-key-file: /etc/unbound/unbound_control.key" \
-		"control-cert-file: /etc/unbound/unbound_control.pem" \
+		"remote-control:" \
+		"    control-interface: /run/unbound.ctl" \
+		"    server-key-file: /etc/unbound/unbound_server.key" \
+		"    server-cert-file: /etc/unbound/unbound_server.pem" \
+		"    control-key-file: /etc/unbound/unbound_control.key" \
+		"    control-cert-file: /etc/unbound/unbound_control.pem" \
 		> /etc/unbound/unbound-control.conf'
-	@$(run_as_root) install -m 0644 -o root -g root /etc/unbound/unbound-control.conf /etc/unbound/unbound-control.conf
 	@$(run_as_root) systemctl restart unbound || { echo "❌ restart failed"; exit 1; }
 	@echo "✅ [make] remote-control initialized"
 	@echo "🔎 [make] Testing connectivity..."
@@ -102,7 +100,7 @@ setup-unbound-control:
 	fi
 	@if [ -e /run/unbound.ctl ]; then \
 		echo "→ using unix socket /run/unbound.ctl"; \
-		$(run_as_root) /usr/sbin/unbound-control -c /etc/unbound/unbound.conf -s /run/unbound.ctl status || { echo "❌ unbound-control (socket) not responding"; exit 1; }; \
+		$(run_as_root) /usr/sbin/unbound-control -c /etc/unbound/unbound-control.conf -s /run/unbound.ctl status || { echo "❌ unbound-control (socket) not responding"; exit 1; }; \
 	else \
 		echo "❌ unix socket /run/unbound.ctl not present; please ensure Unbound is configured to use the socket and restart"; \
 		journalctl -u unbound -n 200 --no-pager | grep -i -E 'control|socket|error|refused' -n -C2 | sed -n '1,200p'; \
@@ -147,8 +145,11 @@ install-unbound-tmpfiles:
 	@$(run_as_root) ./scripts/setup/setup-unbound-tmpfiles.sh
 
 # --- Full bootstrap: ensure systemd helper, then deploy and run DNS  ---
-dns-all: install-unbound-tmpfiles enable-systemd deploy-unbound install-unbound-systemd-dropin setup-unbound-control dns dnsdist
-	@echo "🚀 [make] Full Unbound bootstrap complete (deploy → control → runtime)"
+dns-all: install-dnsmasq deploy-dnsmasq-config \
+		 install-unbound-tmpfiles enable-systemd \
+		 deploy-unbound install-unbound-systemd-dropin \
+		 setup-unbound-control dns dnsdist
+	@echo "🚀 [make] Full DNS bootstrap complete (dnsmasq → unbound → runtime)"
 
 # --- Reset + bootstrap ---
 dns-reset:
@@ -166,13 +167,16 @@ dns-reset:
 # --- Health check ---
 dns-health:
 	@echo "🩺 [make] Checking Unbound health and cache stats..."
-	@$(run_as_root) -u unbound sh -c 'unbound-control stats_noreset' | awk '\
-		/^num.queries/       {print "📊 Total queries: " $$2} \
-		/^num.cachehits/     {print "⚡ Cache hits: " $$2} \
-		/^num.cachemiss/     {print "🐢 Cache misses: " $$2} \
-		/^avg.response.time/ {print "⏱️ Avg response time: " $$2 " ms"} \
-	'
+	@sudo -u unbound unbound-control \
+		-c /etc/unbound/unbound-control.conf \
+		stats_noreset | awk '\
+			/^num.queries/       {print "📊 Total queries: " $$2} \
+			/^num.cachehits/     {print "⚡ Cache hits: " $$2} \
+			/^num.cachemiss/     {print "🐢 Cache misses: " $$2} \
+			/^avg.response.time/ {print "⏱️ Avg response time: " $$2 " ms"} \
+		'
 	@echo "✅ [make] dns-health check complete"
+
 
 # --- Live log watch ---
 dns-watch:
@@ -200,4 +204,3 @@ sysctl:
 	@sudo systemctl restart unbound
 	@echo "✔ Sysctl reload complete. Current buffer limits:"
 	@/sbin/sysctl -q net.core.rmem_max net.core.wmem_max
-
