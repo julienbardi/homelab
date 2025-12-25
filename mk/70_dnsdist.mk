@@ -14,7 +14,11 @@ DNSDIST_KEY        := $(DNSDIST_CERT_DIR)/privkey.pem
 
 .PHONY: dnsdist dnsdist-install deploy-dnsdist-certs \
 		dnsdist-config dnsdist-validate dnsdist-enable \
-		dnsdist-restart dnsdist-status dnsdist-systemd-dropin
+		dnsdist-restart dnsdist-status dnsdist-systemd-dropin \
+		install-kdig
+
+install-kdig:
+	@$(call apt_install,kdig,dnsutils)
 
 # --------------------------------------------------------------------
 # High-level target

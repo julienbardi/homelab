@@ -31,6 +31,7 @@ include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include mk/40_code-server.mk
 include mk/40_wireguard.mk   # Wireguard orchestration
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
+include mk/50_dnsmasq.mk
 include mk/60_unbound.mk     # Unbound DNS resolver setup
 include mk/70_dnsdist.mk     # 
 include mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
