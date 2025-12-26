@@ -39,6 +39,7 @@ include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
 include mk/81_headscale.mk   # Headscale-specific targets (Noise key rotation, etc.)
 include mk/82_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
 include mk/90_dns-health.mk  # DNS health checks and monitoring
+include mk/90_converge.mk
 include mk/99_lint.mk        # lint and safety checks (always last)
 
 # ============================================================
