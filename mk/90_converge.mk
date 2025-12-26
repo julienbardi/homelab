@@ -8,33 +8,34 @@
 # - reconciles kernel peer state
 # - reapplies nftables policy
 #
-# MUST be invoked with FORCE=1:
+# Intentionally state-rewriting. Requires FORCE=1.
 # sudo FORCE=1 make converge-network
+# Keeps bin/run-as-root unchanged (argv tokens contract).
 # ============================================================
 
 .PHONY: converge-network
 
 converge-network:
-	@if [ "$(FORCE)" != "1" ]; then \
-		echo "ERROR: converge-network requires FORCE=1"; \
-		echo "       This operation rewrites WireGuard state."; \
-		exit 1; \
-	fi
-	@echo "🚀 Converging full WireGuard + firewall state"
+    @if [ "$(FORCE)" != "1" ]; then \
+        echo "ERROR: converge-network requires FORCE=1"; \
+        echo "       (rewrites WireGuard state)"; \
+        exit 1; \
+    fi
+    @echo "🚀 Converging full WireGuard + firewall state"
 
-	$(run_as_root) $(MAKE) all-wg
+    $(run_as_root) $(MAKE) all-wg CONF_FORCE=1
 
-	$(run_as_root) FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg0
-	$(run_as_root) FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg1
-	$(run_as_root) FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg2
-	$(run_as_root) FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg3
-	$(run_as_root) FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg4
-	$(run_as_root) FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg5
-	$(run_as_root) FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg6
-	$(run_as_root) FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg7
+    $(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg0'
+    $(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg1'
+    $(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg2'
+    $(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg3'
+    $(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg4'
+    $(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg5'
+    $(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg6'
+    $(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg7'
 
-	$(run_as_root) $(MAKE) all-wg-up
-	$(run_as_root) $(MAKE) wg-add-peers
-	$(run_as_root) scripts/setup-subnet-router.nft.sh
+    $(run_as_root) $(MAKE) all-wg-up
+    $(run_as_root) $(MAKE) wg-add-peers
+    $(run_as_root) scripts/setup-subnet-router.nft.sh
 
-	@echo "✅ Network convergence complete"
+    @echo "✅ Network convergence complete"
