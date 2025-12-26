@@ -28,6 +28,8 @@ wg5	10.5.0.0/24	51425	101	LAN v4 + IPv6
 wg6	10.6.0.0/24	51426	110	Internet v4 + IPv6
 wg7	10.7.0.0/24	51427	111	LAN + Internet v4 + IPv6
 
+DNS must be available to all wg interfaces
+
 ## IPv6 addressing for WG clients
 Each WG interface has an IPv6 subnet:
 `wgX → 2a01:8b81:4800:9c00:1X::/64`

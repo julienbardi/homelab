@@ -455,6 +455,9 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 			else
 				printf 'Address = %s\n' "$ipv4"
 			fi
+			# Recursive DNS via dnsdist on the wg interface
+			printf 'DNS = %s.1\n' "$NET4"
+			printf 'DNS = %s1\n' "$NET6_PREFIX"
 		} > "$tmp"
 		atomic_move_as_root "$tmp" "$conf_file"
 	fi
