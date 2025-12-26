@@ -19,7 +19,7 @@ SERVER_HOST := vpn.bardi.ch
 # Per-interface data (index order must match)
 WG_IFACES := 0 1 2 3 4 5 6 7
 WG_PORTS  := 51420 51421 51422 51423 51424 51425 51426 51427
-WG_IPV4S  := 10.0.0.1/24 10.1.0.1/24 10.2.0.1/24 10.3.0.1/24 10.4.0.1/24 10.5.0.1/24 10.6.0.1/24 10.7.0.1/24
+WG_IPV4S  := 10.10.0.1/24 10.11.0.1/24 10.12.0.1/24 10.13.0.1/24 10.14.0.1/24 10.15.0.1/24 10.16.0.1/24 10.17.0.1/24
 WG_IPV6S  := 2a01:8b81:4800:9c00:10::1/128 2a01:8b81:4800:9c00:11::1/128 2a01:8b81:4800:9c00:12::1/128 2a01:8b81:4800:9c00:13::1/128 \
 			 2a01:8b81:4800:9c00:14::1/128 2a01:8b81:4800:9c00:15::1/128 2a01:8b81:4800:9c00:16::1/128 2a01:8b81:4800:9c00:17::1/128
 
@@ -40,7 +40,15 @@ CLIENTS := \
 	julie-omen30l:wg4 \
 	julie-omen30l:wg5 \
 	julie-omen30l:wg6 \
-	julie-omen30l:wg7
+	julie-omen30l:wg7 \
+	julie-acer:wg0 \
+	julie-acer:wg1 \
+	julie-acer:wg2 \
+	julie-acer:wg3 \
+	julie-acer:wg4 \
+	julie-acer:wg5 \
+	julie-acer:wg6 \
+	julie-acer:wg7
 
 .PHONY: ensure-wg-dir all-wg all-wg-up all-clients-generate wg-add-peers regen-clients client-list wg-reinstall-all
 
