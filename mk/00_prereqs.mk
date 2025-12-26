@@ -15,8 +15,9 @@ prereqs-tools:
 		jq \
 		git \
 		nftables \
-		iptables-legacy \
-		shellcheck
+		iptables \
+		shellcheck \
+		pup
 
 # ------------------------------------------------------------
 # DNS / networking diagnostics
