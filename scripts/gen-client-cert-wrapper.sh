@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # scripts/gen-client-cert-wrapper.sh
 # Usage: gen-client-cert-wrapper.sh <CN> <run_as_root> <script_dir> [--force]
-
+# NOTE:
+# This script is invoked by mk/50_certs.mk via gen-client-cert-wrapper.sh.
+# It is not intended to be run directly by operators.
 set -euo pipefail
 
 if [ $# -lt 3 ]; then
