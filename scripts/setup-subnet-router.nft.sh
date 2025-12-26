@@ -13,6 +13,18 @@ WG_IF_PREFIX="wg"
 GLOBAL_IPV6_PREFIX="2a01:8b81:4800:9c00"
 GLOBAL_PREFIX_LEN=64
 
+# --- WireGuard interface model (bitmask semantics) ---
+# 001 LAN only             -> wg1
+# 010 Internet v4 only     -> wg2
+# 011 LAN + Internet v4    -> wg3
+# 100 IPv6 only            -> wg4
+# 101 LAN + IPv6           -> wg5
+# 110 Internet v4 + IPv6   -> wg6
+# 111 LAN + v4 + IPv6      -> wg7
+WG_LAN_IFACES="1 3 5 7"
+WG_INET4_IFACES="2 3 6 7"
+WG_INET6_IFACES="4 5 6 7"
+
 # --- Require root ---
 if [[ $EUID -ne 0 ]]; then
 	log "ERROR: must run as root"
@@ -61,6 +73,27 @@ add_rule() {
 	else
 		log "Already present: $check"
 	fi
+}
+
+# --- Helper: delete rules in a chain that match a fixed string (by handle) ---
+delete_rules_matching_in_chain() {
+	local table="$1" chain="$2" needle="$3"
+	# Example output contains "... # handle 123"
+	local handles
+	handles="$(nft -a list chain "${table}" "${chain}" 2>/dev/null | grep -F "${needle}" | sed -n 's/.*# handle \([0-9]\+\).*/\1/p' || true)"
+	if [[ -n "${handles}" ]]; then
+		while IFS= read -r h; do
+			[[ -n "${h}" ]] || continue
+			log "Deleting rule in ${table} ${chain} matching '${needle}' (handle ${h})"
+			nft delete rule "${table}" "${chain}" handle "${h}" || true
+		done <<< "${handles}"
+	fi
+}
+
+iface_in_list() {
+	local i="$1"; shift
+	local list="$*"
+	[[ " ${list} " =~ " ${i} " ]]
 }
 
 # --- Conntrack baseline (ESTABLISHED,RELATED) ---
@@ -118,32 +151,61 @@ for i in $(seq 0 7); do
 	if ip link show "${WG_IF}" >/dev/null 2>&1; then
 		log "Configuring ${WG_IF} rules (subnets ${IPV4_SUBNET}, ${IPV6_SUBNET}, port ${PORT})"
 
-		# Host access from wgX
+		# Host access from wgX (kept broad: allows DoH/SSH/etc to the NAS itself)
 		add_rule "iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept" \
 			"nft add rule inet filter input iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept"
 		add_rule "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept" \
 			"nft add rule inet filter input iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept"
 
-		# Forwarding wgX ↔ LAN / other networks
-		add_rule "iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} forward-accept" \
-			"nft add rule inet filter forward iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept"
-		add_rule "oifname \"${WG_IF}\" ip daddr ${IPV4_SUBNET} forward-accept" \
-			"nft add rule inet filter forward oifname \"${WG_IF}\" ip daddr ${IPV4_SUBNET} accept"
-
-		add_rule "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} forward-accept" \
-			"nft add rule inet filter forward iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept"
-		add_rule "oifname \"${WG_IF}\" ip6 daddr ${IPV6_SUBNET} forward-accept" \
-			"nft add rule inet filter forward oifname \"${WG_IF}\" ip6 daddr ${IPV6_SUBNET} accept"
-
 		# Handshake path on LAN uplink: accept UDP port for this interface (no source restriction)
 		add_rule "iifname \"${LAN_IF}\" udp dport ${PORT} accept" \
 			"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport ${PORT} ct state new,established accept"
 
-		# Profile-based NAT for Internet egress (bitmask model)
-		if [[ "${i}" =~ ^(2|3|6|7)$ ]]; then
+		# --- Remove legacy overly-broad forwarding rules (so policy can converge) ---
+		# Old rules allowed wgX to forward anywhere, which defeats the bitmask model.
+		delete_rules_matching_in_chain "inet" "filter forward" "iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} forward-accept"
+		delete_rules_matching_in_chain "inet" "filter forward" "oifname \"${WG_IF}\" ip daddr ${IPV4_SUBNET} forward-accept"
+		delete_rules_matching_in_chain "inet" "filter forward" "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} forward-accept"
+		delete_rules_matching_in_chain "inet" "filter forward" "oifname \"${WG_IF}\" ip6 daddr ${IPV6_SUBNET} forward-accept"
+
+		# --- Bitmask-gated LAN access ---
+		# LAN means: can reach LAN_SUBNET + LAN_SUBNET_V6 through LAN_IF
+		if iface_in_list "${i}" "${WG_LAN_IFACES}"; then
+			# IPv4 LAN
+			add_rule "wg${i} -> LAN v4" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept"
+			add_rule "LAN v4 -> wg${i}" \
+				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept"
+
+			# IPv6 LAN
+			add_rule "wg${i} -> LAN v6" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept"
+			add_rule "LAN v6 -> wg${i}" \
+				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept"
+		else
+			log "LAN disabled for ${WG_IF} by bitmask"
+		fi
+
+		# --- Bitmask-gated Internet IPv4 (NAT) ---
+		if iface_in_list "${i}" "${WG_INET4_IFACES}"; then
+			# Allow forwarding out to LAN_IF for non-LAN destinations (internet v4)
+			add_rule "wg${i} -> inet v4" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr != ${LAN_SUBNET} accept"
+
+			# NAT (masquerade) out of LAN_IF for internet v4 profiles
 			add_rule "oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade" \
 				"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade"
-			# IPv6 forwarding already allowed above; no NAT66
+		else
+			log "IPv4 Internet disabled for ${WG_IF} by bitmask"
+		fi
+
+		# --- Bitmask-gated Internet IPv6 (routed, no NAT66) ---
+		if iface_in_list "${i}" "${WG_INET6_IFACES}"; then
+			# Allow forwarding out to LAN_IF for non-LAN IPv6 destinations (internet v6)
+			add_rule "wg${i} -> inet v6" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr != ${LAN_SUBNET_V6} accept"
+		else
+			log "IPv6 Internet disabled for ${WG_IF} by bitmask"
 		fi
 
 		log "✅ ${WG_IF} nft rules ensured."
