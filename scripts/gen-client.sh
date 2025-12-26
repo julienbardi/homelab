@@ -352,7 +352,7 @@ if ! diff -u "$TMP_OLD_MAP" "$TMP_NEW_MAP" > "$reassign_diff" 2>/dev/null; then
 		}
 	' "$TMP_OLD_MAP" "$TMP_NEW_MAP")"
 
-	if [ -n "$mismatches" ]; then
+	if [ -n "$mismatches" ] && [ "${FORCE_REASSIGN:-0}" -ne 1 ]; then
 		err "ERROR: allocation would reassign existing clients for $IFACE."
 		err "Reassignments detected (base,old_ipv4/ipv6,new_ipv4/ipv6):"
 		printf '%s\n' "$mismatches" | sed 's/^/  /'
