@@ -34,8 +34,8 @@ converge-network:
 	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg6'
 	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg7'
 
-	$(run_as_root) $(MAKE) all-wg-up
-	$(run_as_root) $(MAKE) wg-add-peers
-	$(run_as_root) scripts/setup-subnet-router.nft.sh
+    $(run_as_root) $(MAKE) all-wg-up
+    $(run_as_root) $(MAKE) wg-add-peers
+    $(run_as_root) scripts/setup-subnet-router.nft.sh
 
-	@echo "✅ Network convergence complete"
+    @echo "✅ Network convergence complete"
