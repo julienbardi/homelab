@@ -25,14 +25,13 @@ converge-network:
 
 	$(run_as_root) $(MAKE) all-wg CONF_FORCE=1
 
-	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg0'
-	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg1'
-	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg2'
-	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg3'
-	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg4'
-	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg5'
-	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg6'
-	$(run_as_root) /bin/sh -eu -c 'FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg7'
+	@echo "🔁 Regenerating client configs (parallel)"
+	$(run_as_root) /bin/sh -eu -c '\
+		set -o pipefail; \
+		for i in 0 1 2 3 4 5 6 7; do \
+			FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg$$i & \
+		done; \
+		wait'
 
 	$(run_as_root) $(MAKE) all-wg-up
 	$(run_as_root) $(MAKE) wg-add-peers
