@@ -144,7 +144,7 @@ add_rule "iifname \"${LAN_IF}\" udp dport 51420-51427 accept" \
 # --- WireGuard per-interface host + forward rules (wg0..wg7) ---
 for i in $(seq 0 7); do
 	WG_IF="${WG_IF_PREFIX}${i}"
-	IPV4_SUBNET="10.${i}.0.0/24"
+	IPV4_SUBNET="10.1${i}.0.0/24"
 	IPV6_SUBNET="${GLOBAL_IPV6_PREFIX}:1${i}::/64"
 	PORT=$((51420 + i))
 
