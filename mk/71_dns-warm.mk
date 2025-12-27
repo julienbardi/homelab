@@ -118,12 +118,12 @@ dns-warm-install-systemd:
 
 	@$(run_as_root) sh -c 'printf "%s\n" \
 "[Unit]" \
-"Description=Run DNS cache warmer every minute" \
+"Description=Run DNS cache warmer after previous run completes" \
 "" \
 "[Timer]" \
-"OnBootSec=1min" \
-"OnUnitActiveSec=1min" \
-"AccuracySec=1s" \
+"OnBootSec=2min" \
+"OnUnitInactiveSec=10min" \
+"AccuracySec=30s" \
 "" \
 "[Install]" \
 "WantedBy=timers.target" \
