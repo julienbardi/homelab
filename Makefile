@@ -33,7 +33,8 @@ include mk/40_wireguard.mk   # Wireguard orchestration
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/50_dnsmasq.mk
 include mk/60_unbound.mk     # Unbound DNS resolver setup
-include mk/70_dnsdist.mk     # 
+include mk/70_dnsdist.mk     #
+include mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
 include mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
 include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
 include mk/81_headscale.mk   # Headscale-specific targets (Noise key rotation, etc.)
@@ -117,6 +118,12 @@ help:
 	@echo ""
 	@echo "  DNS"
 	@echo "    make dns-all                    # Install + configure Unbound + dnscrypt-proxy"
+	@echo "    make dns-warm-install           # Install DNS cache warming service + timer"
+	@echo "    make dns-warm-enable            # Enable and start DNS cache warming (every minute)"
+	@echo "    make dns-warm-disable           # Disable DNS cache warming"
+	@echo "    make dns-warm-status            # Show dns-warm service + timer status"
+	@echo "    make dns-warm-uninstall         # Remove DNS cache warming service + timer"
+	@echo "    make dns-runtime                # Enable DNS runtime helpers (dnsdist + dns-warm)"
 	@echo "    DISABLED: make dnscrypt-proxy   # Install + configure dnscrypt-proxy (systemd unit, curated config)"
 	@echo ""
 	@echo "  Monitoring and system helpers"
