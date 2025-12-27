@@ -224,14 +224,14 @@ all_bases="$(printf '%s\n%s\n%s\n' "$existing_bases" "$map_bases" "$BASE" | sed 
 # ---------- Per-interface network base ----------
 iface_index="$(printf '%s' "$IFACE" | sed -n 's/^wg\([0-9]\+\)$/\1/p' || true)"
 case "$iface_index" in
-0) NET4="10.0.0"; NET6_PREFIX="2a01:8b81:4800:9c00:10::" ;;
-1) NET4="10.1.0"; NET6_PREFIX="2a01:8b81:4800:9c00:11::" ;;
-2) NET4="10.2.0"; NET6_PREFIX="2a01:8b81:4800:9c00:12::" ;;
-3) NET4="10.3.0"; NET6_PREFIX="2a01:8b81:4800:9c00:13::" ;;
-4) NET4="10.4.0"; NET6_PREFIX="2a01:8b81:4800:9c00:14::" ;;
-5) NET4="10.5.0"; NET6_PREFIX="2a01:8b81:4800:9c00:15::" ;;
-6) NET4="10.6.0"; NET6_PREFIX="2a01:8b81:4800:9c00:16::" ;;
-7) NET4="10.7.0"; NET6_PREFIX="2a01:8b81:4800:9c00:17::" ;;
+0) NET4="10.10.0"; NET6_PREFIX="2a01:8b81:4800:9c00:10::" ;;
+1) NET4="10.11.0"; NET6_PREFIX="2a01:8b81:4800:9c00:11::" ;;
+2) NET4="10.12.0"; NET6_PREFIX="2a01:8b81:4800:9c00:12::" ;;
+3) NET4="10.13.0"; NET6_PREFIX="2a01:8b81:4800:9c00:13::" ;;
+4) NET4="10.14.0"; NET6_PREFIX="2a01:8b81:4800:9c00:14::" ;;
+5) NET4="10.15.0"; NET6_PREFIX="2a01:8b81:4800:9c00:15::" ;;
+6) NET4="10.16.0"; NET6_PREFIX="2a01:8b81:4800:9c00:16::" ;;
+7) NET4="10.17.0"; NET6_PREFIX="2a01:8b81:4800:9c00:17::" ;;
 *) err "unsupported iface index: $iface_index"; exit 1 ;;
 esac
 
@@ -468,6 +468,14 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 		run_root "printf '%s\n' 'Address = ${ipv4}${ipv6:+, $ipv6}' >> '$conf_file'"
 	fi
 
+	# Before appending a new client-side [Peer] block,
+	# strip any existing [Peer] paragraphs to keep the config idempotent.
+	if run_root "grep -q '^\[Peer\]' '$conf_file' 2>/dev/null"; then
+        tmp_clean="$(mktemp "/tmp/${confname}.clean.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp_clean"
+        run_root "awk 'BEGIN{RS=\"\"; ORS=\"\n\n\"} !/^\[Peer\]/{print}' '$conf_file' > '$tmp_clean' && mv '$tmp_clean' '$conf_file'" || true
+		TMPFILES="$(printf '%s' "$TMPFILES" | sed "s# $tmp_clean##g" | sed "s#^$tmp_clean##g")"
+	fi
+
 	# NEW: append client-side [Peer] block pointing to server
 	SERVER_PUB=${SERVER_PUB:-$(run_root "cat /etc/wireguard/${IFACE}.pub 2>/dev/null" || true)}
 	SERVER_PORT=${SERVER_PORT:-$(run_root "wg show ${IFACE} listen-port 2>/dev/null" || true)}
@@ -475,7 +483,7 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 	tmp_peer_cli="$(mktemp "/tmp/${confname}.peercli.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp_peer_cli"
 	{
 		printf '\n[Peer]\n'
-		printf '# server for %s (added %s)\n' "${confname}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+		printf '# peer: %s\n' "${confname}"
 		[ -n "${SERVER_PUB}" ] && printf 'PublicKey = %s\n' "${SERVER_PUB}"
 		if [ -n "${SERVER_HOST}" ] && [ -n "${SERVER_PORT}" ]; then
 			printf 'Endpoint = %s:%s\n' "${SERVER_HOST}" "${SERVER_PORT}"
@@ -502,13 +510,13 @@ for b in $(printf '%s\n' "$to_create" | sed '/^[[:space:]]*$/d'); do
 
 			# Remove any existing peer paragraph that contains the client comment "# confname"
 			# Use awk paragraph mode to drop paragraphs containing the marker
-			run_root "awk -v name='${confname}' 'BEGIN{RS=\"\"; ORS=\"\\n\\n\"} index(\$0, \"# ${confname}\") {next} {print}' '${SERVER_CONF}' > '${SERVER_CONF}.tmp' && mv '${SERVER_CONF}.tmp' '${SERVER_CONF}'" || true
+			run_root "awk -v name='${confname}' 'BEGIN{RS=\"\"; ORS=\"\\n\\n\"} index(\$0, \"# peer: ${confname}\") {next} {print}' '${SERVER_CONF}' > '${SERVER_CONF}.tmp' && mv '${SERVER_CONF}.tmp' '${SERVER_CONF}'" || true
 
 			# Build the new peer block locally (avoid writing placeholders when SERVER_HOST unset)
 			tmp_peer="$(mktemp "/tmp/${confname}.peer.tmp.XXXXXX")"; TMPFILES="$TMPFILES $tmp_peer"
 			{
 				printf '\n[Peer]\n'
-				printf '# %s (added %s)\n' "${confname}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+				printf '# peer: %s\n' "${confname}"
 				printf 'PublicKey = %s\n' "${pubkey}"
 				if [ -n "${SERVER_HOST}" ]; then
 					printf 'Endpoint = %s:%s\n' "${SERVER_HOST}" "${SERVER_PORT}"
