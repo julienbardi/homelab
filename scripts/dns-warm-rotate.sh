@@ -10,7 +10,7 @@ SWITCH_CSV_URL="https://portal.switch.ch/open-data/top1000/latest.csv"
 TRANCO_URL="https://tranco-list.eu/download/8LPKV/1000000"
 
 WORKERS=15
-PER_RUN=6000
+PER_RUN=2400
 DIG_TIMEOUT=5
 DIG_TRIES=3
 DOMAIN_CACHE_TTL=$((12 * 60 * 60))
@@ -55,6 +55,7 @@ galaxus.ch
 ricardo.ch
 admin.ch
 bardi.ch
+jam9.synology.me
 sbb.ch
 migros.ch
 tagesanzeiger.ch
