@@ -1,87 +1,107 @@
-# 71_dns-warm.mk - self-contained installer for DNS warm rotate (no heredocs)
-# Usage:
-#   sudo make -f mk/71_dns-warm.mk install USER=dnswarm
-#   sudo make -f mk/71_dns-warm.mk enable USER=dnswarm
-#   sudo make -f mk/71_dns-warm.mk disable USER=dnswarm
-#   sudo make -f mk/71_dns-warm.mk uninstall USER=dnswarm
-#   sudo make -f mk/71_dns-warm.mk test USER=dnswarm (broken)
+# mk/71_dns-warm.mk
+# DNS cache warming automation (dns-warm-rotate)
 
-BIN_DIR ?= /usr/local/bin
-SCRIPT_NAME ?= dns-warm-rotate.sh
-SCRIPT_PATH ?= $(BIN_DIR)/$(SCRIPT_NAME)
-DOMAINS_DIR ?= /etc/dns-warm
-DOMAINS_FILE ?= $(DOMAINS_DIR)/domains.txt
-STATE_DIR ?= /var/lib/dns-warm
-STATE_FILE ?= $(STATE_DIR)/state.csv
-SYSTEMD_DIR ?= /etc/systemd/system
-SERVICE ?= dns-warm-rotate.service
-TIMER ?= dns-warm-rotate.timer
-SERVICE_PATH ?= $(SYSTEMD_DIR)/$(SERVICE)
-TIMER_PATH ?= $(SYSTEMD_DIR)/$(TIMER)
-USER ?= dnswarm
-GROUP ?= $(USER)
-RESOLVER ?= 127.0.0.1
+BIN_DIR        ?= /usr/local/bin
+SCRIPT_NAME    ?= dns-warm-rotate.sh
+SCRIPT_PATH    ?= $(BIN_DIR)/$(SCRIPT_NAME)
 
-.PHONY: install enable disable uninstall start stop status test create-user dirs \
-		install-script install-domains install-systemd install-deps
+DOMAINS_DIR    ?= /etc/dns-warm
+DOMAINS_FILE   ?= $(DOMAINS_DIR)/domains.txt
 
-all: install
+STATE_DIR      ?= /var/lib/dns-warm
+STATE_FILE     ?= $(STATE_DIR)/state.csv
 
-install: install-deps create-user dirs install-script install-domains install-systemd
-	@echo "Installed dns-warm components. Run 'sudo make -f mk/71_dns-warm.mk enable USER=$(USER)' to enable timer."
+SYSTEMD_DIR    ?= /etc/systemd/system
+SERVICE        ?= dns-warm-rotate.service
+TIMER          ?= dns-warm-rotate.timer
+SERVICE_PATH   ?= $(SYSTEMD_DIR)/$(SERVICE)
+TIMER_PATH     ?= $(SYSTEMD_DIR)/$(TIMER)
 
-install-deps:
-	@echo "Installing optional dependencies (pup, python bs4/requests, dnsutils)..."
-	@if command -v apt-get >/dev/null 2>&1; then \
-		apt-get update && apt-get install -y pup python3-requests python3-bs4 dnsutils || true; \
-	else \
-		echo "Please install 'pup', 'python3-requests', 'python3-bs4', and 'dnsutils' manually for full support."; \
-	fi
+USER           ?= dnswarm
+GROUP          ?= $(USER)
+RESOLVER       ?= 127.0.0.1
 
-create-user:
-	@echo "Creating system user/group '$(USER)' if missing..."
+.PHONY: \
+	dns-warm-install dns-warm-enable dns-warm-disable \
+	dns-warm-uninstall dns-warm-start dns-warm-stop dns-warm-status \
+	dns-warm-create-user dns-warm-dirs dns-warm-install-script \
+	dns-warm-install-domains dns-warm-install-systemd
+
+# -------------------------------------------------
+# Public targets
+# -------------------------------------------------
+
+dns-warm-install: \
+	dns-warm-create-user \
+	dns-warm-dirs \
+	dns-warm-install-script \
+	dns-warm-install-domains \
+	dns-warm-install-systemd
+	@echo "dns-warm installed. Enable with: make dns-warm-enable"
+
+dns-warm-enable:
+	@echo "Enabling dns-warm timer..."
+	systemctl enable --now $(TIMER)
+
+dns-warm-disable:
+	@echo "Disabling dns-warm timer..."
+	-systemctl disable --now $(TIMER)
+	-systemctl stop $(SERVICE)
+
+dns-warm-start:
+	systemctl start $(SERVICE)
+
+dns-warm-stop:
+	systemctl stop $(SERVICE)
+
+dns-warm-status:
+	systemctl status $(TIMER) --no-pager || true
+	systemctl status $(SERVICE) --no-pager || true
+
+dns-warm-uninstall: dns-warm-disable
+	@echo "Removing dns-warm components..."
+	rm -f $(SERVICE_PATH) $(TIMER_PATH) $(SCRIPT_PATH)
+	rm -f $(STATE_FILE) $(DOMAINS_FILE)
+	systemctl daemon-reload
+
+# -------------------------------------------------
+# Internal helper targets (also prefixed)
+# -------------------------------------------------
+
+dns-warm-create-user:
+	@echo "Ensuring system user/group '$(USER)' exists..."
 	@if ! getent group $(GROUP) >/dev/null 2>&1; then \
-		groupadd --system $(GROUP) || true; \
-	fi; \
-	if ! id -u $(USER) >/dev/null 2>&1; then \
-		useradd --system --no-create-home --shell /usr/sbin/nologin -g $(GROUP) --comment "dns warm rotate" $(USER) || true; \
+		groupadd --system $(GROUP); \
+	fi
+	@if ! id -u $(USER) >/dev/null 2>&1; then \
+		useradd --system --no-create-home --shell /usr/sbin/nologin \
+			-g $(GROUP) --comment "DNS cache warmer" $(USER); \
 	fi
 
-dirs:
-	@echo "Creating directories and setting ownership..."
-	mkdir -p $(BIN_DIR)
-	mkdir -p $(DOMAINS_DIR)
-	mkdir -p $(STATE_DIR)
-	chown -R $(USER):$(GROUP) $(DOMAINS_DIR) $(STATE_DIR) || true
-	chmod 750 $(STATE_DIR) || true
+dns-warm-dirs:
+	@echo "Creating runtime directories..."
+	mkdir -p $(DOMAINS_DIR) $(STATE_DIR)
+	chown -R $(USER):$(GROUP) $(DOMAINS_DIR) $(STATE_DIR)
+	chmod 750 $(STATE_DIR)
 
-install-script:
-	@echo "Installing warming script to $(SCRIPT_PATH)..."
-	@if [ -f $(HOMELAB_DIR)/scripts/$(SCRIPT_NAME) ]; then \
-		install -m 755 -D $(HOMELAB_DIR)/scripts/$(SCRIPT_NAME) $(SCRIPT_PATH); \
-		chown $(USER):$(GROUP) $(SCRIPT_PATH) || true; \
-		# syntax check the installed script to catch generator errors early \
-		if ! bash -n $(SCRIPT_PATH); then \
-			echo "ERROR: syntax error in $(SCRIPT_PATH)"; exit 1; \
-		fi; \
-	else \
-		echo "ERROR: $(HOMELAB_DIR)/scripts/$(SCRIPT_NAME) not found in repo. Please add it."; \
-		exit 1; \
-	fi
+dns-warm-install-script:
+	@echo "Installing dns-warm script..."
+	install -m 0755 scripts/$(SCRIPT_NAME) $(SCRIPT_PATH)
+	chown $(USER):$(GROUP) $(SCRIPT_PATH)
+	@bash -n $(SCRIPT_PATH)
 
-install-domains:
+dns-warm-install-domains:
 	@echo "Ensuring domains file exists..."
 	@if [ ! -f $(DOMAINS_FILE) ]; then \
 		install -m 644 /dev/null $(DOMAINS_FILE); \
 		chown $(USER):$(GROUP) $(DOMAINS_FILE); \
-		echo "Created empty domains file at $(DOMAINS_FILE). Edit it to add domains."; \
 	fi
 
-install-systemd:
+dns-warm-install-systemd:
 	@echo "Installing systemd service and timer..."
 	printf '%s\n' \
 '[Unit]' \
-'Description=DNS warm rotate job' \
+'Description=DNS cache warming job' \
 'After=network.target' \
 '' \
 '[Service]' \
@@ -90,15 +110,18 @@ install-systemd:
 'Group=$(GROUP)' \
 'ExecStart=/usr/bin/env bash $(SCRIPT_PATH) $(RESOLVER)' \
 'Nice=10' \
+'RuntimeMaxSec=55' \
+'WorkingDirectory=$(STATE_DIR)' \
 'Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
 '' \
 '[Install]' \
 'WantedBy=multi-user.target' \
-> $(SERVICE_PATH); \
-	chmod 644 $(SERVICE_PATH); \
+> $(SERVICE_PATH)
+	chmod 644 $(SERVICE_PATH)
+
 	printf '%s\n' \
 '[Unit]' \
-'Description=Run DNS warm rotate every minute' \
+'Description=Run DNS cache warmer every minute' \
 '' \
 '[Timer]' \
 'OnBootSec=1min' \
@@ -107,51 +130,7 @@ install-systemd:
 '' \
 '[Install]' \
 'WantedBy=timers.target' \
-> $(TIMER_PATH); \
-	chmod 644 $(TIMER_PATH); \
+> $(TIMER_PATH)
+	chmod 644 $(TIMER_PATH)
+
 	systemctl daemon-reload
-
-enable:
-	@echo "Enabling and starting timer..."
-	systemctl enable --now $(TIMER)
-
-start:
-	@echo "Starting service once..."
-	systemctl start $(SERVICE)
-
-stop:
-	@echo "Stopping service/timer..."
-	systemctl stop $(SERVICE) || true
-	systemctl stop $(TIMER) || true
-
-status:
-	@echo "Timer status:"
-	systemctl status $(TIMER) --no-pager || true
-	@echo "Service status:"
-	systemctl status $(SERVICE) --no-pager || true
-
-test:
-	@echo "Running one-off warm (test) as $(USER)..."
-	@if [ "$$(id -u)" -eq 0 ]; then \
-	  # We're root: run the script as the target user (use -- to stop sudo option parsing) \
-	  sudo -u $(USER) -- /usr/bin/env bash $(SCRIPT_PATH) $(RESOLVER); \
-	else \
-	  # Not root: run the script as the current user (no sudo) \
-	  /usr/bin/env bash $(SCRIPT_PATH) $(RESOLVER); \
-	fi
-
-disable:
-	@echo "Disabling and stopping timer/service..."
-	-@systemctl disable --now $(TIMER) 2>/dev/null || true
-	-@systemctl stop $(SERVICE) 2>/dev/null || true
-	-@systemctl stop $(TIMER) 2>/dev/null || true
-	@echo "Disabled."
-
-uninstall: disable
-	@echo "Removing installed files and reloading systemd..."
-	-@rm -f $(SERVICE_PATH) $(TIMER_PATH) $(SCRIPT_PATH) 2>/dev/null || true
-	-@rm -f $(STATE_DIR)/state.csv 2>/dev/null || true
-	-@rm -f $(DOMAINS_FILE) 2>/dev/null || true
-	@systemctl daemon-reload
-	@echo "Uninstalled."
-#last line
