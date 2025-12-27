@@ -14,7 +14,7 @@ PER_RUN=6000
 DIG_TIMEOUT=5
 DIG_TRIES=3
 DOMAIN_CACHE_TTL=$((12 * 60 * 60))
-LOCKFILE="/var/lock/dns-warm-rotate.lock"
+LOCKFILE="/var/lib/dns-warm/dns-warm-rotate.lock"
 
 install -d "$(dirname "$DOMAINS_FILE")" "$(dirname "$STATE_FILE")"
 
