@@ -116,7 +116,7 @@ reset-unbound-control:
 	@$(run_as_root) install -m 0640 -o root -g unbound /etc/unbound/unbound_{server,control}.{key,pem} /etc/unbound/
 
 # --- Runtime / Benchmark ---
-.PHONY: dns rotate dns-bench dns-all dns-reset dns-health dns-watch
+.PHONY: dns rotate dns-bench dns-all dns-reset dns-health dns-watch dns-runtime
 
 dns: install-unbound install-dnsutils
 	@echo "🔍 [make] Running dns_setup.sh"
@@ -148,8 +148,11 @@ install-unbound-tmpfiles:
 dns-all: install-dnsmasq deploy-dnsmasq-config \
 		 install-unbound-tmpfiles enable-systemd \
 		 deploy-unbound install-unbound-systemd-dropin \
-		 setup-unbound-control dns dnsdist
+		 setup-unbound-control dns dns-runtime
 	@echo "🚀 [make] Full DNS bootstrap complete (dnsmasq → unbound → runtime)"
+
+dns-runtime: dnsdist dns-warm-install dns-warm-enable
+	@echo "⚙️ [make] DNS runtime helpers ensured (dnsdist + dns-warm)"
 
 # --- Reset + bootstrap ---
 dns-reset:
