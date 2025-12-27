@@ -108,7 +108,6 @@ dns-warm-install-systemd:
 "Group=$(GROUP)" \
 "ExecStart=/usr/bin/env bash $(SCRIPT_PATH) $(RESOLVER)" \
 "Nice=10" \
-"RuntimeMaxSec=55" \
 "WorkingDirectory=$(STATE_DIR)" \
 "Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
 "" \
