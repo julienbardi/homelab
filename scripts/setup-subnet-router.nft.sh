@@ -13,6 +13,12 @@ WG_IF_PREFIX="wg"
 GLOBAL_IPV6_PREFIX="2a01:8b81:4800:9c00"
 GLOBAL_PREFIX_LEN=64
 
+# --- WireGuard IPv4/IPv6 subnets (static, aligned with mk/40_wireguard.mk) ---
+WG_IPV4S="10.10.0.0/24 10.11.0.0/24 10.12.0.0/24 10.13.0.0/24 10.14.0.0/24 10.15.0.0/24 10.16.0.0/24 10.17.0.0/24"
+
+WG_IPV6S="2a01:8b81:4800:9c01::/64 2a01:8b81:4800:9c02::/64 2a01:8b81:4800:9c03::/64 2a01:8b81:4800:9c04::/64 \
+2a01:8b81:4800:9c05::/64 2a01:8b81:4800:9c06::/64 2a01:8b81:4800:9c07::/64 2a01:8b81:4800:9c08::/64"
+
 # --- WireGuard interface model (bitmask semantics) ---
 # 001 LAN only             -> wg1
 # 010 Internet v4 only     -> wg2
@@ -144,8 +150,10 @@ add_rule "iifname \"${LAN_IF}\" udp dport 51420-51427 accept" \
 # --- WireGuard per-interface host + forward rules (wg0..wg7) ---
 for i in $(seq 0 7); do
 	WG_IF="${WG_IF_PREFIX}${i}"
-	IPV4_SUBNET="10.1${i}.0.0/24"
-	IPV6_SUBNET="${GLOBAL_IPV6_PREFIX}:1${i}::/64"
+	#IPV4_SUBNET="10.1${i}.0.0/24"
+	IPV4_SUBNET=$(echo "$WG_IPV4S" | cut -d' ' -f $((i+1)) | sed 's#/24##')
+	#IPV6_SUBNET="${GLOBAL_IPV6_PREFIX}:1${i}::/64"
+	IPV6_SUBNET=$(echo "$WG_IPV6S" | cut -d' ' -f $((i+1)) | sed 's#/128#/64#')
 	PORT=$((51420 + i))
 
 	if ip link show "${WG_IF}" >/dev/null 2>&1; then
@@ -186,6 +194,7 @@ for i in $(seq 0 7); do
 			log "LAN disabled for ${WG_IF} by bitmask"
 		fi
 
+		delete_rules_matching_in_chain "ip" "nat" "masquerade"
 		# --- Bitmask-gated Internet IPv4 (NAT) ---
 		if iface_in_list "${i}" "${WG_INET4_IFACES}"; then
 			# Allow forwarding out to LAN_IF for non-LAN destinations (internet v4)
