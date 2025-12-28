@@ -73,7 +73,17 @@ nft create chain ip nat postrouting '{ type nat hook postrouting priority 100; p
 add_rule() {
 	local check="$1"; shift
 	local cmd="$*"
-	if ! nft -a list ruleset | grep -F -q "$check"; then
+
+	# Exact match: extract rules from nft and compare normalized strings
+	if ! nft -a list ruleset | awk -v c="$check" '
+		{
+			# normalize whitespace
+			line=$0
+			gsub(/[ \t]+/, " ", line)
+			if (index(line, c) > 0) found=1
+		}
+		END { exit(found ? 0 : 1) }
+	'; then
 		log "Adding rule: $check"
 		eval "$cmd"
 	else
@@ -81,19 +91,27 @@ add_rule() {
 	fi
 }
 
+
 # --- Helper: delete rules in a chain that match a fixed string (by handle) ---
 delete_rules_matching_in_chain() {
 	local table="$1" chain="$2" needle="$3"
-	# Example output contains "... # handle 123"
-	local handles
-	handles="$(nft -a list chain "${table}" "${chain}" 2>/dev/null | grep -F "${needle}" | sed -n 's/.*# handle \([0-9]\+\).*/\1/p' || true)"
-	if [[ -n "${handles}" ]]; then
-		while IFS= read -r h; do
-			[[ -n "${h}" ]] || continue
-			log "Deleting rule in ${table} ${chain} matching '${needle}' (handle ${h})"
-			nft delete rule "${table}" "${chain}" handle "${h}" || true
-		done <<< "${handles}"
-	fi
+
+	nft -a list chain "$table" "$chain" 2>/dev/null \
+	| awk -v n="$needle" '
+		{
+			line=$0
+			gsub(/[ \t]+/, " ", line)
+			if (index(line, n) > 0) {
+				if (match(line, /# handle ([0-9]+)/, m)) {
+					print m[1]
+				}
+			}
+		}
+	' | while read -r h; do
+		[ -n "$h" ] || continue
+		log "Deleting rule in ${table} ${chain} matching '${needle}' (handle ${h})"
+		nft delete rule "$table" "$chain" handle "$h" || true
+	done
 }
 
 iface_in_list() {
@@ -103,7 +121,7 @@ iface_in_list() {
 }
 
 # --- Conntrack baseline (ESTABLISHED,RELATED) ---
-add_rule "ct state related,established accept" \
+add_rule "ct state established,related accept" \
 	"nft add rule inet filter input ct state related,established accept"
 add_rule "ct state related,established accept FORWARD" \
 	"nft add rule inet filter forward ct state related,established accept"
@@ -144,7 +162,7 @@ add_rule "udp dport 1900 accept" \
 
 # --- WireGuard handshake ports on LAN uplink ---
 # Accept UDP 51420-51427 on LAN_IF (IPv4 + IPv6 via inet table)
-add_rule "iifname \"${LAN_IF}\" udp dport 51420-51427 accept" \
+add_rule "iifname \"${LAN_IF}\" udp dport 51420-51427 ct state new,established accept" \
 	"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport {51420-51427} ct state new,established accept"
 
 # --- WireGuard per-interface host + forward rules (wg0..wg7) ---
