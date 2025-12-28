@@ -1,0 +1,17 @@
+#!/bin/sh
+
+
+if [ -x /opt/bin/tailscale ]; then tailscale down; tailscale up; fi # Added by TAILMON
+
+# Allow inbound IPv6 HTTPS to NAS (added on 2025-11-17 by julie)
+ip6tables -I FORWARD 4 -p tcp -d 2a01:8b81:4800:9c00::4 --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+
+# Inject static IPv6 routes for WireGuard VPN subnets
+ip -6 route add 2a01:8b81:4800:9c01::/64 via 2a01:8b81:4800:9c00::4 dev br0
+ip -6 route add 2a01:8b81:4800:9c02::/64 via 2a01:8b81:4800:9c00::4 dev br0
+ip -6 route add 2a01:8b81:4800:9c03::/64 via 2a01:8b81:4800:9c00::4 dev br0
+ip -6 route add 2a01:8b81:4800:9c04::/64 via 2a01:8b81:4800:9c00::4 dev br0
+ip -6 route add 2a01:8b81:4800:9c05::/64 via 2a01:8b81:4800:9c00::4 dev br0
+ip -6 route add 2a01:8b81:4800:9c06::/64 via 2a01:8b81:4800:9c00::4 dev br0
+ip -6 route add 2a01:8b81:4800:9c07::/64 via 2a01:8b81:4800:9c00::4 dev br0
+ip -6 route add 2a01:8b81:4800:9c08::/64 via 2a01:8b81:4800:9c00::4 dev br0

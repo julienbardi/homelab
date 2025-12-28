@@ -224,14 +224,14 @@ all_bases="$(printf '%s\n%s\n%s\n' "$existing_bases" "$map_bases" "$BASE" | sed 
 # ---------- Per-interface network base ----------
 iface_index="$(printf '%s' "$IFACE" | sed -n 's/^wg\([0-9]\+\)$/\1/p' || true)"
 case "$iface_index" in
-0) NET4="10.10.0"; NET6_PREFIX="2a01:8b81:4800:9c00:10::" ;;
-1) NET4="10.11.0"; NET6_PREFIX="2a01:8b81:4800:9c00:11::" ;;
-2) NET4="10.12.0"; NET6_PREFIX="2a01:8b81:4800:9c00:12::" ;;
-3) NET4="10.13.0"; NET6_PREFIX="2a01:8b81:4800:9c00:13::" ;;
-4) NET4="10.14.0"; NET6_PREFIX="2a01:8b81:4800:9c00:14::" ;;
-5) NET4="10.15.0"; NET6_PREFIX="2a01:8b81:4800:9c00:15::" ;;
-6) NET4="10.16.0"; NET6_PREFIX="2a01:8b81:4800:9c00:16::" ;;
-7) NET4="10.17.0"; NET6_PREFIX="2a01:8b81:4800:9c00:17::" ;;
+0) NET4="10.10.0"; NET6_PREFIX="2a01:8b81:4800:9c01::" ;;
+1) NET4="10.11.0"; NET6_PREFIX="2a01:8b81:4800:9c02::" ;;
+2) NET4="10.12.0"; NET6_PREFIX="2a01:8b81:4800:9c03::" ;;
+3) NET4="10.13.0"; NET6_PREFIX="2a01:8b81:4800:9c04::" ;;
+4) NET4="10.14.0"; NET6_PREFIX="2a01:8b81:4800:9c05::" ;;
+5) NET4="10.15.0"; NET6_PREFIX="2a01:8b81:4800:9c06::" ;;
+6) NET4="10.16.0"; NET6_PREFIX="2a01:8b81:4800:9c07::" ;;
+7) NET4="10.17.0"; NET6_PREFIX="2a01:8b81:4800:9c08::" ;;
 *) err "unsupported iface index: $iface_index"; exit 1 ;;
 esac
 
