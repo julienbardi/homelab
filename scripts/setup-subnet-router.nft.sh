@@ -148,6 +148,13 @@ add_rule "iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept" \
 add_rule "iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept" \
 	"nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept"
 
+# --- Trusted router WireGuard clients (10.6.0.0/24 + fd5e:d23d:70e:111::/64) ---
+add_rule "iifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 accept" \
+	"nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 accept"
+
+add_rule "iifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 accept" \
+	"nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 accept"
+
 # --- Essential service ports on host (DNS/SSH/HTTPS/UPnP/SMB/wsdd2/etc.) ---
 add_rule "tcp dport 443 accept" \
 	"nft add rule inet filter input tcp dport 443 accept"
@@ -180,6 +187,13 @@ add_rule "udp dport 1900 accept" \
 # Accept UDP 51420-51427 on LAN_IF (IPv4 + IPv6 via inet table)
 add_rule "iifname \"${LAN_IF}\" udp dport 51420-51427 ct state new,established accept" \
 	"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport {51420-51427} ct state new,established accept"
+
+# --- Trusted router WireGuard clients -> LAN (IPv4 + IPv6) ---
+add_rule "trusted router WG -> LAN v4" \
+	"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 ip daddr ${LAN_SUBNET} accept"
+
+add_rule "trusted router WG -> LAN v6" \
+	"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr ${LAN_SUBNET_V6} accept"
 
 # --- WireGuard per-interface host + forward rules (wg0..wg7) ---
 for i in $(seq 0 7); do
@@ -228,7 +242,16 @@ for i in $(seq 0 7); do
 			log "LAN disabled for ${WG_IF} by bitmask"
 		fi
 
+		# Clean up old NAT rules for this interface
 		delete_rules_matching_in_chain "ip" "nat" "masquerade"
+		delete_rules_matching_in_chain "ip" "nat" "oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade"
+
+		# --- Bitmask-gated Internet IPv4 (NAT) ---
+		if iface_in_list "${i}" "${WG_INET4_IFACES}"; then
+			add_rule "oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade" \
+				"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade"
+		fi
+
 		# --- Bitmask-gated Internet IPv4 (NAT) ---
 		if iface_in_list "${i}" "${WG_INET4_IFACES}"; then
 			# Allow forwarding out to LAN_IF for non-LAN destinations (internet v4)
