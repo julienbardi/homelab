@@ -20,13 +20,13 @@ WG_IPV6S="2a01:8b81:4800:9c01::/64 2a01:8b81:4800:9c02::/64 2a01:8b81:4800:9c03:
 2a01:8b81:4800:9c05::/64 2a01:8b81:4800:9c06::/64 2a01:8b81:4800:9c07::/64 2a01:8b81:4800:9c08::/64"
 
 # --- WireGuard interface model (bitmask semantics) ---
-# 001 LAN only             -> wg1
-# 010 Internet v4 only     -> wg2
-# 011 LAN + Internet v4    -> wg3
-# 100 IPv6 only            -> wg4
-# 101 LAN + IPv6           -> wg5
+# 001 LAN only			 -> wg1
+# 010 Internet v4 only	 -> wg2
+# 011 LAN + Internet v4	-> wg3
+# 100 IPv6 only			-> wg4
+# 101 LAN + IPv6		   -> wg5
 # 110 Internet v4 + IPv6   -> wg6
-# 111 LAN + v4 + IPv6      -> wg7
+# 111 LAN + v4 + IPv6	  -> wg7
 WG_LAN_IFACES="1 3 5 7"
 WG_INET4_IFACES="2 3 6 7"
 WG_INET6_IFACES="4 5 6 7"
@@ -96,23 +96,39 @@ add_rule() {
 delete_rules_matching_in_chain() {
 	local table="$1" chain="$2" needle="$3"
 
+	# List rules with handles, normalize whitespace, and match safely
 	nft -a list chain "$table" "$chain" 2>/dev/null \
-	| awk -v n="$needle" '
-		{
-			line=$0
-			gsub(/[ \t]+/, " ", line)
-			if (index(line, n) > 0) {
-				if (match(line, /# handle ([0-9]+)/, m)) {
-					print m[1]
-				}
-			}
-		}
-	' | while read -r h; do
-		[ -n "$h" ] || continue
-		log "Deleting rule in ${table} ${chain} matching '${needle}' (handle ${h})"
-		nft delete rule "$table" "$chain" handle "$h" || true
+	| while IFS= read -r line; do
+		# Normalize whitespace to avoid AWK crashes and substring mismatches
+		norm="$(printf '%s' "$line" | tr -s '[:space:]' ' ')"
+
+		# Skip table/chain headers
+		case "$norm" in
+			"table "* | "chain "* ) continue ;;
+		esac
+
+		# Match only real rules containing the needle
+		case "$norm" in
+			*"$needle"*)
+				# Extract handle safely
+				handle="$(printf '%s\n' "$norm" | awk '
+					{
+						if (match($0, /# handle ([0-9]+)/, m)) {
+							print m[1]
+						}
+					}
+				')"
+
+				if [[ -n "$handle" ]]; then
+					log "Deleting rule in ${table} ${chain} matching '${needle}' (handle ${handle})"
+					nft delete rule "$table" "$chain" handle "$handle" || true
+				fi
+				;;
+		esac
 	done
 }
+
+
 
 iface_in_list() {
 	local i="$1"; shift
