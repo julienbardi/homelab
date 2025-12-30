@@ -1,0 +1,21 @@
+[0;1;32m●[0m code-server.service - code-server
+     Loaded: loaded (]8;;file://DXP4800PLUS-A83/usr/lib/systemd/user/code-server.service/usr/lib/systemd/user/code-server.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Wed 2025-12-31 00:28:58 CET; 4min 20s ago
+   Main PID: 702560 (node)
+      Tasks: 22[0;38;5;245m (limit: 76725)[0m
+     Memory: 39.6M
+        CPU: 574ms
+     CGroup: /user.slice/user-1000.slice/user@1000.service/app.slice/code-server.service
+             ├─[0;38;5;245m702560 /usr/lib/code-server/lib/node /usr/lib/code-server[0m
+             └─[0;38;5;245m702577 /usr/lib/code-server/lib/node /usr/lib/code-server/out/node/entry[0m
+
+Dec 31 00:28:58 DXP4800PLUS-A83 systemd[69668]: Starting code-server.service - code-server...
+Dec 31 00:28:58 DXP4800PLUS-A83 systemd[69668]: Started code-server.service - code-server.
+Dec 31 00:28:59 DXP4800PLUS-A83 code-server[702560]: [2025-12-30T23:28:59.024Z] info  code-server 4.107.0 ac7322ce566a5dc99c60d92180375329f0bbd759
+Dec 31 00:28:59 DXP4800PLUS-A83 code-server[702560]: [2025-12-30T23:28:59.025Z] info  Using user-data-dir /home/julie/.local/share/code-server
+Dec 31 00:28:59 DXP4800PLUS-A83 code-server[702560]: [2025-12-30T23:28:59.037Z] info  Using config file /home/julie/.config/code-server/config.yaml
+Dec 31 00:28:59 DXP4800PLUS-A83 code-server[702560]: [2025-12-30T23:28:59.037Z] info  HTTP server listening on http://0.0.0.0:8080/
+Dec 31 00:28:59 DXP4800PLUS-A83 code-server[702560]: [2025-12-30T23:28:59.037Z] info    - Authentication is enabled
+Dec 31 00:28:59 DXP4800PLUS-A83 code-server[702560]: [2025-12-30T23:28:59.037Z] info      - Using password from /home/julie/.config/code-server/config.yaml
+Dec 31 00:28:59 DXP4800PLUS-A83 code-server[702560]: [2025-12-30T23:28:59.037Z] info    - Not serving HTTPS
+Dec 31 00:28:59 DXP4800PLUS-A83 code-server[702560]: [2025-12-30T23:28:59.038Z] info  Session server listening on /home/julie/.local/share/code-server/code-server-ipc.sock
