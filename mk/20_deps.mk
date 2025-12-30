@@ -472,6 +472,7 @@ install-pkg-code-server:
 		$(run_as_root) bash /tmp/code-server-install.sh; \
 		rm -f /tmp/code-server-install.sh; \
 	fi
+	@systemctl --user enable --now code-server
 	@$(MAKE) verify-pkg-code-server
 	@echo "version=$$($(CODE_SERVER_BIN) --version) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee "$(STAMP_CODE_SERVER)" >/dev/null
@@ -479,6 +480,8 @@ install-pkg-code-server:
 
 verify-pkg-code-server:
 	@echo "🔎 Verifying code-server installation"
+	@ss -ltn | grep -q ':8080' || \
+		{ echo "❌ code-server not listening on 8080"; exit 1; }
 	@if ! $(CODE_SERVER_BIN) --version >/dev/null 2>&1; then \
 		echo "❌ code-server not functional"; exit 1; \
 	else \
