@@ -1,4 +1,8 @@
 # ------------------------------------------------------------
+# SAFETY:
+# This Caddyfile MUST NOT bind to :80 or :443.
+# UGOS nginx requires those ports and will fail hard otherwise.
+#
 # a) CNAMEs to define
 #    - vpn.bardi.ch      → CNAME to bardi.ch   (Headscale control plane, proxied internally)
 #    - derp.vpn.bardi.ch → CNAME to bardi.ch   (Headscale DERP relay, exposed externally)
@@ -33,6 +37,9 @@
 # ------------------------------------------------------------
 
 # UGOS nginx is using port 80 for UGOS UI
+{
+	auto_https off
+}
 
 # Syncthing GUI
 bardi.ch:8384 {
@@ -81,25 +88,12 @@ bardi.ch:8384 {
 		header_up Host bardi.ch
 	}
 
-	# Router (internal only)
-	@router_internal {
-		host router.bardi.ch
-		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
-	}
-	reverse_proxy @router_internal 10.89.12.1:8080
-
 	# DNS over HTTPS (DoH) → dnsdist backend
 	@doh {
 		host dns.bardi.ch
-		path /dns-query
+		path_regexp doh ^/dns-query
 	}
-	reverse_proxy @doh https://127.0.0.1:8443 {
-		transport http {
-			tls
-			tls_insecure_skip_verify
-		}
-	}
+	reverse_proxy @doh 127.0.0.1:8053
 
 	# Headscale control plane (external clients allowed)
 	@vpn {
@@ -133,6 +127,14 @@ bardi.ch:8384 {
 		remote_ip 2a01:8b81:4800:9c00::/64
 	}
 	reverse_proxy @nas_internal 127.0.0.1:9999
+
+	# Router (internal only)
+	@router_internal {
+		host router.bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip 2a01:8b81:4800:9c00::/64
+	}
+	reverse_proxy @router_internal 10.89.12.1:8080
 
 	# Dev IDE (internal only)
 	@dev_internal {

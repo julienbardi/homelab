@@ -35,12 +35,12 @@ endif
 
 # install_script(src, name)
 define install_script
-	@$(run_as_root) install -o $(OWNER) -g $(GROUP) -m $(MODE) $(1) $(INSTALL_PATH)/$(2)
+	$(run_as_root) install -o $(OWNER) -g $(GROUP) -m $(MODE) $(1) $(INSTALL_PATH)/$(2)
 endef
 
 # uninstall_script(name)
 define uninstall_script
-	@$(run_as_root) rm -f $(INSTALL_PATH)/$(1)
+	$(run_as_root) rm -f $(INSTALL_PATH)/$(1)
 endef
 
 # --------------------------------------------------------------------
@@ -53,7 +53,7 @@ APT_UPDATE_STAMP ?= $(STAMP_DIR)/apt.update.stamp
 APT_UPDATE_MAX_AGE ?= 21600   # 6 hours in seconds
 
 define apt_update_if_needed
-	@$(run_as_root) mkdir -p --mode=0755 $(STAMP_DIR) >/dev/null 2>&1 || true; \
+	$(run_as_root) mkdir -p --mode=0755 $(STAMP_DIR) >/dev/null 2>&1 || true; \
 	if [ ! -f "$(APT_UPDATE_STAMP)" ] || [ $$(expr $$(date +%s) - $$(stat -c %Y "$(APT_UPDATE_STAMP)" 2>/dev/null || echo 0) ) -gt $(APT_UPDATE_MAX_AGE) ]; then \
 		echo "[make] Running apt-get update (stamp missing or older than $(APT_UPDATE_MAX_AGE)s)"; \
 		$(run_as_root) apt-get update; \
@@ -71,7 +71,7 @@ apt-update:
 # - $(1) is the command to check (e.g. curl)
 # - $(2) is the apt package(s) to install (e.g. curl)
 define apt_install
-	@if ! command -v $(1) >/dev/null 2>&1; then \
+	if ! command -v $(1) >/dev/null 2>&1; then \
 		echo "[make] $(1) not found, installing: $(2)"; \
 		$(call apt_update_if_needed); \
 		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold $(2); \
@@ -95,7 +95,7 @@ endef
 #   $(call apt_remove,packagename)                     -> remove package if present
 #   $(call apt_remove,packagename,/path/to/stamp.file) -> remove package and remove stamp; also apt-mark unhold
 define apt_remove
-	@echo "[make] Requested removal of $(1)..."; \
+	echo "[make] Requested removal of $(1)..."; \
 	if dpkg -s $(1) >/dev/null 2>&1; then \
 		echo "[make] $(1) is installed; removing..."; \
 		$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get remove -y -o Dpkg::Options::=--force-confold $(1) || echo "[make] apt-get remove returned non-zero"; \
@@ -109,8 +109,8 @@ define apt_remove
 endef
 
 define remove_cmd
-	@echo "[make] Removing $(1)..."
-	@$(run_as_root) sh -c '$(2)'
+	echo "[make] Removing $(1)..."
+	$(run_as_root) sh -c '$(2)'
 endef
 
 .PHONY: homelab-cleanup-deps
