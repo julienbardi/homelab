@@ -13,7 +13,7 @@ HOMELAB_DIR ?= $(CURDIR)
 # Fallback for recursive make (do not force; let make set it if present)
 MAKE ?= $(MAKE)
 
-run_as_root := ./bin/run-as-root
+run_as_root := $(HOMELAB_DIR)/bin/run-as-root
 
 INSTALL_PATH ?= /usr/local/bin
 OWNER ?= root
