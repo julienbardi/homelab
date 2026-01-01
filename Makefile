@@ -30,6 +30,7 @@ include mk/31_setup-subnet-router.mk # Subnet router orchestration
 include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include mk/40_code-server.mk
 include mk/40_wireguard.mk   # Wireguard orchestration
+include mk/40_caddy.mk
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/50_dnsmasq.mk
 include mk/60_unbound.mk     # Unbound DNS resolver setup
@@ -212,66 +213,6 @@ restart:
 test: logs
 	@echo "[make] Running run_as_root harness..."
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
-
-
-CADDY_BIN    := /usr/bin/caddy
-CADDY_BACKUP := /usr/bin/caddy.orig
-STAMP_CADDY  := $(STAMP_DIR)/caddy.installed
-
-CADDYFILE    := /etc/caddy/Caddyfile
-SRC_CADDYFILE:= $(HOMELAB_DIR)/config/caddy/Caddyfile
-
-.PHONY: caddy
-caddy: gitcheck
-	@set -euo pipefail; \
-	echo "📄⬇️ Installing Caddyfile"; \
-	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
-	$(run_as_root) install -m 0644 -o root -g root "$(SRC_CADDYFILE)" "$(CADDYFILE)"; \
-	echo "📦 Deploying custom Caddy binary with rate_limit plugin"; \
-	#if [ -x "$(CADDY_BIN)" ] && [ ! -f "$(CADDY_BACKUP)" ]; then \
-	#	$(run_as_root) mv "$(CADDY_BIN)" "$(CADDY_BACKUP)"; \
-	#	echo "💾 Original Caddy backed up → $(CADDY_BACKUP)"; \
-	#fi; \
-	#$(run_as_root) install -m 0755 -o root -g root /tmp/caddy "$(CADDY_BIN)"; \
-	echo "🔎 Verifying installed Caddy"; \
-	if ! "$(CADDY_BIN)" version >/dev/null 2>&1; then \
-		echo "❌ Installed Caddy not executable"; \
-		[ -f "$(CADDY_BACKUP)" ] && $(run_as_root) mv "$(CADDY_BACKUP)" "$(CADDY_BIN)"; \
-		exit 1; \
-	fi; \
-	if ! "$(CADDY_BIN)" list-modules | grep -q '^http.handlers.rate_limit$$'; then \
-		echo "❌ rate_limit plugin not found in installed binary"; \
-		[ -f "$(CADDY_BACKUP)" ] && $(run_as_root) mv "$(CADDY_BACKUP)" "$(CADDY_BIN)"; \
-		exit 1; \
-	fi; \
-	VERSION=$$("$(CADDY_BIN)" version); \
-	echo "✔ Caddy verified with rate_limit plugin: $$VERSION"; \
-	echo "version=$$VERSION installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| $(run_as_root) tee "$(STAMP_CADDY)" >/dev/null; \
-	\
-	echo "🚀 Applying Caddy service"; \
-	$(run_as_root) systemctl enable caddy; \
-	if $(run_as_root) systemctl is-active --quiet caddy; then \
-		$(run_as_root) systemctl reload caddy && echo "✅ Reload successful"; \
-	else \
-		$(run_as_root) systemctl start caddy && echo "✅ Started successfully"; \
-	fi
-	@$(MAKE) deploy-caddy
-
-.PHONY: caddy-validate caddy-fmt
-
-caddy-validate:
-	@if [ ! -f /etc/ssl/caddy/fullchain.pem ]; then \
-	  echo "[caddy] WARNING: certs missing; skipping full validation"; \
-	  echo "[caddy] Run 'make deploy-caddy' or 'make all-caddy' once to install certs."; \
-	  exit 0; \
-	fi
-	@echo "[caddy] validating Caddyfile"
-	@sudo caddy validate --config "$(SRC_CADDYFILE)"
-
-caddy-fmt:
-	@echo "[caddy] formatting Caddyfile"
-	@sudo caddy fmt --overwrite "$(SRC_CADDYFILE)"
 
 # --- Default target ---
 all: harden-groups gitcheck gen0 gen1 gen2

@@ -23,7 +23,7 @@ install-kdig:
 # --------------------------------------------------------------------
 # High-level target
 # --------------------------------------------------------------------
-dnsdist: install-kdig \
+dnsdist: harden-groups install-kdig \
 		dnsdist-install dnsdist-systemd-dropin deploy-dnsdist-certs \
 		dnsdist-config dnsdist-validate dnsdist-enable dnsdist-restart
 	@echo "🚀 [make] dnsdist DoH frontend ready"

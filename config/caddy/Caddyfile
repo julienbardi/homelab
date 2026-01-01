@@ -46,9 +46,21 @@ bardi.ch:8384 {
 	reverse_proxy 10.89.12.2:8384
 }
 
-# Consolidated HTTPS listener - UGOS nginx owns 80, 443, 9999, 8443 is a clean, conflict‑free internal HTTPS port
-:8443 {
+# Consolidated HTTPS listener - Control Panel>Device Connection>Portal Setting, be sure to disable Redirect port 443 to https port ! UGOS owns port 9999
+:443 {
 	tls /etc/ssl/caddy/fullchain.pem /etc/ssl/caddy/privkey.pem
+
+	# DNS over HTTPS (public)
+	@doh {
+		host dns.bardi.ch
+		path /dns-query
+	}
+	reverse_proxy @doh https://127.0.0.1:8053 {
+		transport http {
+			tls
+			tls_insecure_skip_verify
+		}
+	}
 
 	# DiskStation main HTTPS site (WAN)
 	@bardi_internal {
@@ -87,13 +99,6 @@ bardi.ch:8384 {
 	reverse_proxy @syno6690_internal 10.89.12.2:6690 {
 		header_up Host bardi.ch
 	}
-
-	# DNS over HTTPS (DoH) → dnsdist backend
-	@doh {
-		host dns.bardi.ch
-		path_regexp doh ^/dns-query
-	}
-	reverse_proxy @doh 127.0.0.1:8053
 
 	# Headscale control plane (external clients allowed)
 	@vpn {
