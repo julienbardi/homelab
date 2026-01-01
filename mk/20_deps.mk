@@ -215,9 +215,10 @@ install-pkg-checkmake: install-pkg-pandoc install-pkg-go
 	fi; \
 	mkdir -p $(HOME)/src; \
 	rm -rf $(HOME)/src/checkmake; \
-	git clone --depth 1 --branch v$(CHECKMAKE_VERSION) https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake; \
-	cd $(HOME)/src/checkmake && \
-	go build -o checkmake cmd/checkmake/main.go; \
+	git clone --quiet --depth 1 --branch v$(CHECKMAKE_VERSION) \
+		https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake >/dev/null 2>&1; \
+	cd $(HOME)/src/checkmake >/dev/null 2>&1 && \
+	go build -o checkmake cmd/checkmake/main.go >/dev/null 2>&1; \
 	$(run_as_root) install -m 0755 $(HOME)/src/checkmake/checkmake $(CHECKMAKE_BIN); \
 	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null
