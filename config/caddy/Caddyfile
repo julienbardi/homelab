@@ -32,10 +32,7 @@
 #        wg7 → udp://vpn.bardi.ch:51427
 # ------------------------------------------------------------
 
-# HTTP port for Let's Encrypt renewal
-bardi.ch:80 {
-	reverse_proxy 10.89.12.2:80
-}
+# UGOS nginx is using port 80 for UGOS UI
 
 # Syncthing GUI
 bardi.ch:8384 {
