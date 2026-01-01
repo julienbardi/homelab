@@ -23,7 +23,7 @@ RESOLVER       ?= 127.0.0.1
 
 # --- dns-warm domain policy (domain list generation) ---
 
-DNS_WARM_POLICY_SRC := $(HOMELAB_DIR)/scripts/dns-warm-update-domains.sh
+DNS_WARM_POLICY_SRC := $(HOMELAB_DIR)/scripts/setup/dns-warm-update-domains.sh
 DNS_WARM_POLICY_DST := /usr/local/bin/dns-warm-update-domains
 
 .PHONY: install-dns-warm-policy update-dns-warm-domains
