@@ -162,16 +162,9 @@ dns-bench: install-dnsutils
 	@dnsperf -s 10.89.12.4 -d /tmp/opendns-top-domains.txt -l 30 -q 1000
 	@echo "✅ [make] DNS benchmark complete"
 
-.PHONY: install-unbound-tmpfiles
-
-install-unbound-tmpfiles:
-	@echo "🔧 [make] Ensuring unbound tmpfiles entry is installed"
-	@test -x scripts/setup/setup-unbound-tmpfiles.sh || chmod +x scripts/setup/setup-unbound-tmpfiles.sh
-	@$(run_as_root) ./scripts/setup/setup-unbound-tmpfiles.sh
-
 # --- Full bootstrap: ensure systemd helper, then deploy and run DNS  ---
 dns-all: install-dnsmasq deploy-dnsmasq-config \
-		 install-unbound-tmpfiles enable-systemd \
+		 enable-systemd \
 		 deploy-unbound install-unbound-systemd-dropin \
 		 setup-unbound-control dns dns-runtime
 	@echo "🚀 [make] Full DNS bootstrap complete (dnsmasq → unbound → runtime)"
