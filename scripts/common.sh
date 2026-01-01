@@ -77,48 +77,64 @@ atomic_install() {
 	local mode="$4"
 	local host="${5:-localhost}"   # optional fifth argument
 
-	# Always compute local source hash for audit
+	# Always compute local source hash for audit (for syslog)
 	local src_hash
-	src_hash=$(sudo sha256sum "$src" | awk '{print $1}')
+	src_hash=$(sha256sum "$src" | awk '{print $1}')
 
+	# ------------------------------------------------------------
+	# Localhost case — simplified, clean, fast
+	# ------------------------------------------------------------
 	if [[ "$host" == "localhost" ]]; then
-		# Local case
-		if ! sudo test -f "$dest" || ! sudo cmp -s "$src" "$dest"; then
-			local dest_hash=""
-			if sudo test -f "$dest"; then
-				dest_hash=$(sudo sha256sum "$dest" | awk '{print $1}')
-				log "Atomic install: ${src} → localhost:${dest} (owner=${owner_group}, mode=${mode})"
-				log "DETAILS: src hash=${src_hash}, dest hash=${dest_hash} (different)"
-			else
-				log "Atomic install: ${src} → localhost:${dest} (owner=${owner_group}, mode=${mode})"
-				log "DETAILS: src hash=${src_hash}, dest missing"
-			fi
-			sudo install -o "${owner_group%%:*}" -g "${owner_group##*:}" -m "${mode}" "$src" "$dest"
+		# Compare files; cmp -s returns 0 if identical
+		if ! cmp -s "$src" "$dest" 2>/dev/null; then
+			# Short on-screen log
+			log "Atomic install: ${src} → ${dest} (changed)"
+
+			# Full detail only in syslog
+			logger -t "${SCRIPT_NAME:-${0##*/}}" \
+				"$(date '+%Y-%m-%d %H:%M:%S') DETAILS: src=${src}, dest=${dest}, src_hash=${src_hash}"
+
+			# Install with owner/mode
+			install -o "${owner_group%%:*}" -g "${owner_group##*:}" -m "${mode}" "$src" "$dest"
+
 			echo "changed"
-			return 0   # success
 		else
-			log "Atomic install: ${src} → localhost:${dest} unchanged (binary identical, hash=${src_hash})"
+			# Short on-screen log
+			log "Atomic install: ${src} → ${dest} (unchanged)"
+
+			# Full detail only in syslog
+			logger -t "${SCRIPT_NAME:-${0##*/}}" \
+				"$(date '+%Y-%m-%d %H:%M:%S') DETAILS: unchanged src=${src}, dest=${dest}, hash=${src_hash}"
+
 			echo "unchanged"
-			return 0   # success
 		fi
-	else
-		# Remote case
-		if ! ssh "$host" test -f "$dest" || ! ssh "$host" cmp -s "$dest" < "$src"; then
-			log "Atomic install: ${src} → ${host}:${dest} (owner=${owner_group}, mode=${mode})"
-			log "DETAILS: src hash=${src_hash}, dest different/missing"
-			scp "$src" "$host:$dest"
-			# shellcheck disable=SC2029
-			ssh "$host" sudo chown "${owner_group%%:*}:${owner_group##*:}" "$dest"
-			# shellcheck disable=SC2029
-			ssh "$host" sudo chmod "$mode" "$dest"
-			echo "changed"
-			return 0   # success
-		else
-			log "Atomic install: ${src} → ${host}:${dest} unchanged (binary identical, hash=${src_hash})"
-			echo "unchanged"
-			return 0   # success
-		fi
+		return 0
 	fi
+
+	# ------------------------------------------------------------
+	# Remote case — unchanged (still needs remote sudo)
+	# ------------------------------------------------------------
+	if ! ssh "$host" test -f "$dest" || ! ssh "$host" cmp -s "$dest" < "$src"; then
+		log "Atomic install: ${src} → ${host}:${dest} (changed)"
+		logger -t "${SCRIPT_NAME:-${0##*/}}" \
+			"$(date '+%Y-%m-%d %H:%M:%S') DETAILS: remote src=${src}, dest=${dest}, src_hash=${src_hash}"
+
+		scp "$src" "$host:$dest"
+		# shellcheck disable=SC2029
+		ssh "$host" sudo chown "${owner_group%%:*}:${owner_group##*:}" "$dest"
+		# shellcheck disable=SC2029
+		ssh "$host" sudo chmod "$mode" "$dest"
+
+		echo "changed"
+	else
+		log "Atomic install: ${src} → ${host}:${dest} (unchanged)"
+		logger -t "${SCRIPT_NAME:-${0##*/}}" \
+			"$(date '+%Y-%m-%d %H:%M:%S') DETAILS: remote unchanged src=${src}, dest=${dest}, hash=${src_hash}"
+
+		echo "unchanged"
+	fi
+
+	return 0
 }
 
 # Restart service only if cert changed
