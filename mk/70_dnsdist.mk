@@ -36,8 +36,8 @@ dnsdist-install:
 		echo "[make] dnsdist binary present"; \
 	else \
 		echo "[make] Installing dnsdist"; \
-		sudo apt-get update; \
-		sudo apt-get install -y dnsdist; \
+		$(call apt_update_if_needed); \
+		$(call apt_install,dnsdist,dnsdist); \
 	fi
 
 # --------------------------------------------------------------------
@@ -51,8 +51,8 @@ deploy-dnsdist-certs:
 # --------------------------------------------------------------------
 dnsdist-config:
 	@echo "📄 [make] Deploying dnsdist.conf → $(DNSDIST_CONF_DST)"
-	@sudo install -d -m 0750 -o root -g _dnsdist /etc/dnsdist
-	@sudo install -m 0644 -o root -g root \
+	@$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist
+	@$(run_as_root) install -m 0644 -o root -g root \
 		$(DNSDIST_CONF_SRC) $(DNSDIST_CONF_DST)
 
 # --------------------------------------------------------------------
@@ -60,32 +60,32 @@ dnsdist-config:
 # --------------------------------------------------------------------
 dnsdist-validate:
 	@echo "🔍 [make] Validating dnsdist configuration"
-	@sudo $(DNSDIST_BIN) --check-config
+	@$(run_as_root) $(DNSDIST_BIN) --check-config
 
 # --------------------------------------------------------------------
 # Enable dnsdist service (no start yet)
 # --------------------------------------------------------------------
 dnsdist-enable:
 	@echo "⚙️ [make] Enabling dnsdist service"
-	@sudo systemctl enable $(DNSDIST_UNIT)
+	@$(run_as_root) systemctl enable $(DNSDIST_UNIT)
 
 # --------------------------------------------------------------------
 # Restart dnsdist cleanly
 # --------------------------------------------------------------------
 dnsdist-restart:
 	@echo "🔄 [make] Restarting dnsdist"
-	@sudo systemctl restart $(DNSDIST_UNIT)
+	@$(run_as_root) systemctl restart $(DNSDIST_UNIT)
 
 # --------------------------------------------------------------------
 # Status helper
 # --------------------------------------------------------------------
 dnsdist-status:
-	@sudo systemctl status $(DNSDIST_UNIT) --no-pager || true
+	@$(run_as_root) systemctl status $(DNSDIST_UNIT) --no-pager || true
 
 dnsdist-systemd-dropin:
 	@echo "⚙️ [make] Installing dnsdist systemd drop-in"
-	@sudo install -d /etc/systemd/system/dnsdist.service.d
-	@sudo install -m 0644 \
+	@$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d
+	@$(run_as_root) install -m 0644 \
 		$(HOMELAB_DIR)/scripts/systemd/dnsdist.service.d/10-no-port53.conf \
 		/etc/systemd/system/dnsdist.service.d/10-no-port53.conf
-	@sudo systemctl daemon-reload
+	@$(run_as_root) systemctl daemon-reload
