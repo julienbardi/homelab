@@ -21,7 +21,7 @@ DNSMASQ_CONF_DST := /etc/dnsmasq.d/unbound.conf
 
 # Aggregate deps target
 deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
-	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard build-caddy-custom verify-caddy \
+	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard \
 	install-dnsmasq-unbound-config \
 	install-pkg-ndppd \
 	install-pkg-shellcheck install-pkg-codespell install-pkg-aspell \
