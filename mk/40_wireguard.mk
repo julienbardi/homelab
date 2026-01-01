@@ -6,7 +6,7 @@
 # - All privileged actions go through $(run_as_root)
 # ============================================================
 
-run_as_root := ./bin/run-as-root
+# run_as_root inherited from mk/01_common.mk
 WG_DIR := /etc/wireguard
 MAP_FILE := /etc/wireguard/client-map.csv
 WG_BIN := /usr/bin/wg

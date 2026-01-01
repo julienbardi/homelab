@@ -3,7 +3,7 @@
 # ============================================================
 # --------------------------------------------------------------------
 # CONTRACT:
-# - Defines run_as_root := ./bin/run-as-root
+# - Uses run_as_root inherited from mk/01_common.mk
 # - All recipes must call $(run_as_root) with argv tokens.
 # - All recipes are executed by /bin/sh
 # - Escape $ → $$ (Make expands $ first)
@@ -33,14 +33,15 @@ certs-create:
 	@if [ -f "$(CA_KEY)" -a -f "$(CA_PUB)" ]; then \
 	  echo "[certs] CA already exists: $(CA_PUB)"; \
 	else \
-	  sudo mkdir -p /etc/ssl/private/ca; sudo chmod 700 /etc/ssl/private/ca; \
+	  $(run_as_root) mkdir -p /etc/ssl/private/ca; \
+	  $(run_as_root) chmod 700 /etc/ssl/private/ca; \
 	  echo "[certs] generating CA private key $(CA_KEY)"; \
-	  sudo openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -out "$(CA_KEY)"; \
-	  sudo chmod 0600 "$(CA_KEY)"; \
+	  $(run_as_root) openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -out "$(CA_KEY)"; \
+	  $(run_as_root) chmod 0600 "$(CA_KEY)"; \
 	  echo "[certs] generating CA public cert $(CA_PUB)"; \
-	  sudo openssl req -x509 -new -key "$(CA_KEY)" -days 3650 -sha256 \
+	  $(run_as_root) openssl req -x509 -new -key "$(CA_KEY)" -days 3650 -sha256 \
 		-subj "/CN=homelab-bardi-CA/O=bardi.ch/OU=homelab" -out "$(CA_PUB)"; \
-	  sudo chmod 0644 "$(CA_PUB)"; \
+	  $(run_as_root) chmod 0644 "$(CA_PUB)"; \
 	fi
 
 .PHONY: gen-client-cert
@@ -56,12 +57,12 @@ gen-client-cert:
 # Deploy CA public cert into canonical store and caddy deploy dir (idempotent)
 certs-deploy: certs-create
 	@echo "[certs] deploying CA public cert to canonical store and caddy"
-	@sudo mkdir -p "$(SSL_CANONICAL_DIR)"; \
-	  sudo install -m 0644 "$(CA_PUB)" "$(CANON_CA)"; \
-	  sudo chown root:root "$(CANON_CA)"; \
-	  sudo mkdir -p "$(CADDY_DEPLOY_DIR)"; \
-	  sudo install -m 0644 "$(CANON_CA)" "$(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem"; \
-	  sudo chown root:root "$(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem"; \
+	@$(run_as_root) mkdir -p "$(SSL_CANONICAL_DIR)"; \
+	  $(run_as_root) install -m 0644 "$(CA_PUB)" "$(CANON_CA)"; \
+	  $(run_as_root) chown root:root "$(CANON_CA)"; \
+	  $(run_as_root) mkdir -p "$(CADDY_DEPLOY_DIR)"; \
+	  $(run_as_root) install -m 0644 "$(CANON_CA)" "$(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem"; \
+	  $(run_as_root) chown root:root "$(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem"; \
 	  echo "[certs] deployed to $(CANON_CA) and $(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem"
 
 # Ensure CA exists and is deployed (used by other Makefiles)
@@ -80,8 +81,8 @@ certs-status:
 certs-expiry:
 	@if [ -f "$(CA_PUB)" ]; then \
 	  echo "[certs] CA public cert: $(CA_PUB)"; \
-	  sudo openssl x509 -in "$(CA_PUB)" -noout -enddate -subject; \
-	  expiry=$$(sudo openssl x509 -in "$(CA_PUB)" -noout -enddate | cut -d= -f2); \
+	  $(run_as_root) openssl x509 -in "$(CA_PUB)" -noout -enddate -subject; \
+	  expiry=$$($(run_as_root) openssl x509 -in "$(CA_PUB)" -noout -enddate | cut -d= -f2); \
 	  expiry_ts=$$(date -d "$$expiry" +%s); now_ts=$$(date +%s); \
 	  days_left=$$(( (expiry_ts - now_ts) / 86400 )); \
 	  echo "[certs] days until CA expiry: $$days_left"; \
@@ -95,7 +96,7 @@ certs-rotate:
 	@echo "[certs] ROTATE CA - this will create a new CA and invalidate existing client certs"; \
 	read -p "Type YES to proceed: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1); \
 	# exclusive lock to avoid concurrent runs
-	sudo bash -c 'exec 9>/var/lock/certs-rotate.lock || exit 1; flock -n 9 || { echo "another certs-rotate is running"; exit 1; }; \
+	$(run_as_root) bash -c 'exec 9>/var/lock/certs-rotate.lock || exit 1; flock -n 9 || { echo "another certs-rotate is running"; exit 1; }; \
 	set -euo pipefail; \
 	# vars
 	CA_KEY="$(CA_KEY)"; CA_PUB="$(CA_PUB)"; CANON_CA="$(CANON_CA)"; CLIENT_DIR="/etc/ssl/caddy/clients"; BACKUP_DIR="/root/ca-backups"; TAG="certs-rotate"; \
@@ -133,7 +134,7 @@ certs-rotate:
 		logger -t "$$TAG" -p user.info "Reissuing clients"; \
 		for u in $$clients; do \
 		  logger -t "$$TAG" -p user.info "Reissuing $$u"; \
-		  if [ -x "$(SCRIPT_DIR)/generate-client-cert.sh" ]; then sudo "$(SCRIPT_DIR)/generate-client-cert.sh" "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; else sudo scripts/generate-client-cert.sh "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; fi; \
+		  if [ -x "$(SCRIPT_DIR)/generate-client-cert.sh" ]; then $(run_as_root) "$(SCRIPT_DIR)/generate-client-cert.sh" "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; else $(run_as_root) scripts/generate-client-cert.sh "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; fi; \
 		done; \
 		logger -t "$$TAG" -p user.info "Automatic reissue complete; admin must securely deliver new .p12 files to users"; \
 	  fi; \
