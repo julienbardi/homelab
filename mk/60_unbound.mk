@@ -63,7 +63,7 @@ install-unbound-systemd-dropin:
 	@$(run_as_root) systemctl restart unbound || true
 	@echo "✅ [make] unbound systemd drop-in installed"
 
-deploy-unbound: deploy-unbound-config deploy-unbound-service
+deploy-unbound: install-pkg-unbound deploy-unbound-config deploy-unbound-service
 	@echo "🔄 [make] Restarting unbound service"
 	@$(run_as_root) systemctl enable --now unbound || { echo "❌ failed to enable"; exit 1; }
 	@$(run_as_root) systemctl restart unbound || { echo "❌ failed to restart"; exit 1; }
