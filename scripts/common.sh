@@ -15,10 +15,14 @@ SCRIPT_NAME="$(basename "$0" .sh)"
 
 # shellcheck disable=SC2317
 log() {
-	local msg
-	msg="$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME:-${0##*/}}] $*"
-	echo "$msg" >&2
-	logger -t "${SCRIPT_NAME:-${0##*/}}" "$msg"
+	local screen_msg="[${SCRIPT_NAME:-${0##*/}}] $*"
+	local syslog_msg="$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME:-${0##*/}}] $*"
+
+	# Human-friendly output: no timestamp
+	echo "$screen_msg" >&2
+
+	# Syslog: keep timestamp for auditability
+	logger -t "${SCRIPT_NAME:-${0##*/}}" "$syslog_msg"
 }
 
 # shellcheck source=./scripts/lib/run_as_root.sh
