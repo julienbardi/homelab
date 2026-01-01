@@ -16,5 +16,5 @@ set -euo pipefail
 if [ "$(id -u)" -eq 0 ]; then
 	exec "$@"
 else
-	exec sudo -- "$@"
+	exec sudo --preserve-env=DEBIAN_FRONTEND -- "$@"
 fi
