@@ -138,7 +138,7 @@ main() {
 	done
 
 	wait || true
-	kill "$progress_pid" 2>/dev/null
+	kill "$progress_pid" 2>/dev/null || true
 
 	printf '%s\n' "${to_warm[@]}" | update_state
 	log "Warming complete; updated state for ${#to_warm[@]} domains"
