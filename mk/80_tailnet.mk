@@ -11,13 +11,13 @@ DEVICE_NAME ?= $(shell hostname)
 
 tailnet:
 	@echo "Registering device $(DEVICE_NAME) into tailnet..."
-	sudo ${HOME}/src/homelab/scripts/helpers/tailnet.sh $(DEVICE_NAME)
+	$(run_as_root) ${HOME}/src/homelab/scripts/helpers/tailnet.sh $(DEVICE_NAME)
 
 .PHONY: tailnet-menu-deploy
 
 tailnet-menu-deploy:
 	@echo "Deploying tailnet-menu.sh to /usr/local/bin..."
-	@$(run_as_roots) cp scripts/helpers/tailnet-menu.sh /usr/local/bin/tailnet-menu
-	@$(run_as_roots) chown root:root /usr/local/bin/tailnet-menu
-	@$(run_as_roots) chmod 755 /usr/local/bin/tailnet-menu
+	@$(run_as_root) cp scripts/helpers/tailnet-menu.sh /usr/local/bin/tailnet-menu
+	@$(run_as_root) chown root:root /usr/local/bin/tailnet-menu
+	@$(run_as_root) chmod 755 /usr/local/bin/tailnet-menu
 	@echo "Done. Run 'tailnet-menu' from anywhere."
