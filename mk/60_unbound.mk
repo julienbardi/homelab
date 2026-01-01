@@ -60,14 +60,24 @@ install-unbound-systemd-dropin:
 	@$(run_as_root) install -d /etc/systemd/system/unbound.service.d
 	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_DROPIN_SRC) $(UNBOUND_DROPIN_DST)
 	@$(run_as_root) systemctl daemon-reload
-	@$(run_as_root) systemctl restart unbound || true
+	@echo "[make] Restarting unbound service (drop-in)"
+	@$(run_as_root) systemctl restart unbound
+	@$(run_as_root) systemctl is-active --quiet unbound || \
+		( echo "❌ unbound failed to start after drop-in install"; \
+		  $(run_as_root) systemctl status --no-pager unbound; \
+		  exit 1 )
+	@echo "✅ unbound running (drop-in applied)"
 	@echo "✅ [make] unbound systemd drop-in installed"
 
 deploy-unbound: install-pkg-unbound deploy-unbound-config deploy-unbound-service
 	@echo "🔄 [make] Restarting unbound service"
-	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || { echo "❌ failed to enable";  exit 1; }
-	@$(run_as_root) systemctl restart      unbound >/dev/null 2>&1 || { echo "❌ failed to restart"; exit 1; }
-	@$(run_as_root) systemctl status --no-pager unbound
+	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || { echo "❌ failed to enable unbound";  exit 1; }
+	@$(run_as_root) systemctl restart unbound
+	@$(run_as_root) systemctl is-active --quiet unbound || \
+		( echo "❌ unbound failed to start"; \
+		  $(run_as_root) systemctl status --no-pager unbound; \
+		  exit 1 )
+	@echo "✅ unbound running"
 
 # --- Remote control ---
 .PHONY: setup-unbound-control
@@ -88,8 +98,13 @@ setup-unbound-control:
 		"    control-key-file: /etc/unbound/unbound_control.key" \
 		"    control-cert-file: /etc/unbound/unbound_control.pem" \
 		> /etc/unbound/unbound-control.conf'
+	@echo "[make] Restarting unbound service (remote-control)"
 	@$(run_as_root) systemctl restart unbound || { echo "❌ restart failed"; exit 1; }
-	@echo "✅ [make] remote-control initialized"
+	@$(run_as_root) systemctl is-active --quiet unbound || \
+		( echo "❌ unbound failed to start after remote-control setup"; \
+		  $(run_as_root) systemctl status --no-pager unbound; \
+		  exit 1 )
+	@echo "✅ unbound running (remote-control enabled)"
 	@echo "🔎 [make] Testing connectivity..."
 	@sleep 2
 	@if [ -e /run/unbound.ctl ] && ! ss -lxpn | grep -q '/run/unbound.ctl'; then \
@@ -191,7 +206,7 @@ dns-watch:
 
 sysctl:
 	@echo "📄 Ensuring /etc/sysctl.d/99-unbound-buffers.conf exists and is correct..."
-	@if ! [ -f /etc/sysctl.d/99-unbound-buffers.conf ] || \
+	@if ! [ -f /etc/sysctl.d/99-unbound-buffers.conf] || \
 	   ! grep -q "net.core.rmem_max = 8388608" /etc/sysctl.d/99-unbound-buffers.conf || \
 	   ! grep -q "net.core.wmem_max = 8388608" /etc/sysctl.d/99-unbound-buffers.conf; then \
 		echo "# Increase socket buffer sizes for Unbound DNS resolver" | $(run_as_root) tee /etc/sysctl.d/99-unbound-buffers.conf >/dev/null; \
@@ -205,5 +220,9 @@ sysctl:
 	@$(run_as_root) /sbin/sysctl --system >/dev/null
 	@echo "🔄 Restarting Unbound to apply new buffer sizes..."
 	@$(run_as_root) systemctl restart unbound
+	@$(run_as_root) systemctl is-active --quiet unbound || \
+		( echo "❌ unbound failed to start after sysctl reload"; \
+		  $(run_as_root) systemctl status --no-pager unbound; \
+		  exit 1 )
 	@echo "✔ Sysctl reload complete. Current buffer limits:"
 	@/sbin/sysctl -q net.core.rmem_max net.core.wmem_max
