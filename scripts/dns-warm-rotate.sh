@@ -6,82 +6,17 @@ IFS=$'\n\t'
 RESOLVER="${1:-127.0.0.1}"
 DOMAINS_FILE="/etc/dns-warm/domains.txt"
 STATE_FILE="/var/lib/dns-warm/state.csv"
-SWITCH_CSV_URL="https://portal.switch.ch/open-data/top1000/latest.csv"
-TRANCO_URL="https://tranco-list.eu/download/8LPKV/1000000"
 
 WORKERS=15
 PER_RUN=2400
 DIG_TIMEOUT=5
 DIG_TRIES=3
-DOMAIN_CACHE_TTL=$((12 * 60 * 60))
+
 LOCKFILE="/var/lib/dns-warm/dns-warm-rotate.lock"
 
 install -d "$(dirname "$DOMAINS_FILE")" "$(dirname "$STATE_FILE")"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
-
-fetch_domains() {
-	local now mtime age
-	now=$(date +%s)
-
-	if [ -f "$DOMAINS_FILE" ]; then
-		mtime=$(stat -c %Y "$DOMAINS_FILE")
-		age=$((now - mtime))
-		if [ "$age" -lt "$DOMAIN_CACHE_TTL" ]; then
-			log "Using cached domain list (age: $((age / 3600))h)"
-			return
-		fi
-	fi
-
-	log "Refreshing domain list (cache expired)"
-
-	local tmp_switch tmp_tranco tmp_all
-	tmp_switch="$(mktemp)"
-	tmp_tranco="$(mktemp)"
-	tmp_all="$(mktemp)"
-
-	curl -fsSL "$SWITCH_CSV_URL" \
-		| awk -F, 'NR>1 {print $1}' > "$tmp_switch"
-
-	curl -fsSL "$TRANCO_URL" \
-		| awk 'NF {print $1}' > "$tmp_tranco"
-
-	awk '!seen[$0]++' \
-		<(cat <<'HOT'
-srf.ch
-20min.ch
-blick.ch
-galaxus.ch
-ricardo.ch
-admin.ch
-bardi.ch
-jam9.synology.me
-sbb.ch
-migros.ch
-tagesanzeiger.ch
-watson.ch
-digitec.ch
-post.ch
-rts.ch
-google.ch
-google.com
-youtube.com
-amazon.de
-netflix.com
-github.com
-linkedin.com
-spotify.com
-wikipedia.org
-HOT
-		) \
-		"$tmp_switch" \
-		"$tmp_tranco" \
-		> "$tmp_all"
-
-	mv "$tmp_all" "$DOMAINS_FILE"
-	chmod 644 "$DOMAINS_FILE"
-	rm -f "$tmp_switch" "$tmp_tranco"
-}
 
 init_state() {
 	[ -f "$STATE_FILE" ] && return
@@ -102,7 +37,7 @@ update_state() {
 	tmp="$(mktemp)"
 	warmed_file="$(mktemp)"
 
-	printf '%s\n' $1 > "$warmed_file"
+	cat > "$warmed_file"
 
 	awk -F, -v now="$now" -v warmed="$warmed_file" '
 		BEGIN { while ((getline < warmed) > 0) w[$1]=1 }
@@ -168,7 +103,11 @@ main() {
 	exec 9>"$LOCKFILE"
 	flock -n 9 || { log "Another instance is running; exiting"; exit 0; }
 
-	fetch_domains
+	[ -s "$DOMAINS_FILE" ] || {
+		log "ERROR: $DOMAINS_FILE missing or empty"
+		exit 1
+	}
+
 	init_state
 
 	mapfile -t to_warm < <(select_oldest)
@@ -181,21 +120,18 @@ main() {
 	progress_pid=$!
 
 	sem=0
-	warmed_list=""
 
 	for d in "${to_warm[@]}"; do
 		warm_domain "$d" &
 		((sem++))
-		warmed_list="$warmed_list $d"
-
 		[ "$sem" -ge "$WORKERS" ] && { wait -n || true; sem=$((sem-1)); }
 	done
 
 	wait || true
 	kill "$progress_pid" 2>/dev/null
 
-	update_state "$warmed_list"
+	printf '%s\n' "${to_warm[@]}" | update_state
 	log "Warming complete; updated state for ${#to_warm[@]} domains"
 }
 
-main || true
+main

@@ -21,11 +21,28 @@ USER           ?= dnswarm
 GROUP          ?= $(USER)
 RESOLVER       ?= 127.0.0.1
 
+# --- dns-warm domain policy (domain list generation) ---
+
+DNS_WARM_POLICY_SRC := $(HOMELAB_DIR)/scripts/dns-warm-update-domains.sh
+DNS_WARM_POLICY_DST := /usr/local/bin/dns-warm-update-domains
+
+.PHONY: install-dns-warm-policy update-dns-warm-domains
+
+install-dns-warm-policy:
+	@echo "📄 [make] Installing dns-warm domain policy script"
+	@$(run_as_root) install -m 0755 $(DNS_WARM_POLICY_SRC) $(DNS_WARM_POLICY_DST)
+
+update-dns-warm-domains: install-dns-warm-policy dns-warm-dirs
+	@echo "🌐 [make] Updating dns-warm domain list"
+	@$(run_as_root) $(DNS_WARM_POLICY_DST)
+	@$(run_as_root) chown root:root $(DOMAINS_FILE)
+	@$(run_as_root) chmod 0644 $(DOMAINS_FILE)
+
 .PHONY: \
 	dns-warm-install dns-warm-enable dns-warm-disable \
 	dns-warm-uninstall dns-warm-start dns-warm-stop dns-warm-status \
 	dns-warm-create-user dns-warm-dirs dns-warm-install-script \
-	dns-warm-install-domains dns-warm-install-systemd
+	dns-warm-install-systemd
 
 # -------------------------------------------------
 # Public targets
@@ -34,8 +51,9 @@ RESOLVER       ?= 127.0.0.1
 dns-warm-install: \
 	dns-warm-create-user \
 	dns-warm-dirs \
+	install-dns-warm-policy \
+	update-dns-warm-domains \
 	dns-warm-install-script \
-	dns-warm-install-domains \
 	dns-warm-install-systemd
 	@echo "dns-warm installed. Enable with: make dns-warm-enable"
 
@@ -61,7 +79,7 @@ dns-warm-status:
 
 dns-warm-uninstall: dns-warm-disable
 	@echo "Removing dns-warm components..."
-	@$(run_as_root) rm -f $(SERVICE_PATH) $(TIMER_PATH) $(SCRIPT_PATH)
+	@$(run_as_root) rm -f $(SERVICE_PATH) $(TIMER_PATH) $(SCRIPT_PATH) $(DNS_WARM_POLICY_DST)
 	@$(run_as_root) rm -f $(STATE_FILE) $(DOMAINS_FILE)
 	@$(run_as_root) systemctl daemon-reload
 
@@ -88,13 +106,6 @@ dns-warm-install-script:
 	@$(run_as_root) install -m 0755 scripts/$(SCRIPT_NAME) $(SCRIPT_PATH)
 	@$(run_as_root) chown $(USER):$(GROUP) $(SCRIPT_PATH)
 	@$(run_as_root) bash -n $(SCRIPT_PATH)
-
-dns-warm-install-domains:
-	@echo "Ensuring domains file exists..."
-	@if [ ! -f $(DOMAINS_FILE) ]; then \
-		$(run_as_root) install -m 644 /dev/null $(DOMAINS_FILE); \
-		$(run_as_root) chown $(USER):$(GROUP) $(DOMAINS_FILE); \
-	fi
 
 dns-warm-install-systemd:
 	@echo "Installing systemd service and timer..."
