@@ -76,7 +76,15 @@ define apt_install
 		$(call apt_update_if_needed); \
 		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold $(2); \
 	else \
-		VER_STR=$$( { $(1) version 2>&1 || $(1) --version 2>&1 || $(1) -v 2>&1 || echo "unknown"; } | head -n1 ); \
+		VER_STR=$$( \
+  			if [ "$(1)" = "strace" ]; then \
+				strace -V 2>&1 | head -n1; \
+			elif [ "$(1)" = "vnstat" ]; then \
+				vnstat --version 2>&1 | head -n1; \
+			else \
+    			{ $(1) --version 2>&1 || $(1) version 2>&1 || $(1) -v 2>&1 || echo "unknown"; } | head -n1; \
+  			fi \
+		);
 		echo "$$(date '+%Y-%m-%d %H:%M:%S') [make] $(1) version: $$VER_STR"; \
 	fi
 endef

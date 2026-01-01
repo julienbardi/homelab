@@ -19,13 +19,14 @@ DNSMASQ_CONF_DST := /etc/dnsmasq.d/unbound.conf
 	install-pkg-dnsmasq remove-pkg-dnsmasq \
 	install-dnsmasq-unbound-config remove-dnsmasq-unbound-config
 
+# ------------------------------------------------------------
 # Aggregate deps target
+# ------------------------------------------------------------
 deps: prereqs \
 	install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
 	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard \
 	install-dnsmasq-unbound-config \
-	enable-ndppd \
-	install-pkg-code-server
+	enable-ndppd
 
 # ------------------------------------------------------------
 # dnsmasq
@@ -33,13 +34,13 @@ deps: prereqs \
 install-pkg-dnsmasq:
 	@echo "📦 Installing dnsmasq"
 	$(call apt_install,dnsmasq,dnsmasq)
-	@$(run_as_root) systemctl enable --now dnsmasq || true
+	@$(run_as_root) systemctl enable --now dnsmasq >/dev/null 2>&1 || true
 	@echo "✅ dnsmasq installed and enabled"
 
 remove-pkg-dnsmasq:
 	@echo "🗑️ Removing dnsmasq"
-	@$(run_as_root) systemctl stop dnsmasq || true
-	@$(run_as_root) systemctl disable dnsmasq || true
+	@$(run_as_root) systemctl stop dnsmasq >/dev/null 2>&1 || true
+	@$(run_as_root) systemctl disable dnsmasq >/dev/null 2>&1 || true
 	$(call apt_remove,dnsmasq)
 	@echo "✅ dnsmasq removed"
 
@@ -55,13 +56,13 @@ install-dnsmasq-unbound-config: install-pkg-dnsmasq deploy-unbound require-unbou
 	fi
 	@$(run_as_root) install -o root -g root -m 0644 \
 		"$(DNSMASQ_CONF_SRC)" "$(DNSMASQ_CONF_DST)"
-	@$(run_as_root) systemctl restart dnsmasq
+	@$(run_as_root) systemctl restart dnsmasq >/dev/null 2>&1 || true
 	@echo "✅ dnsmasq now forwards DNS to Unbound (127.0.0.1:5335)"
 
 remove-dnsmasq-unbound-config:
 	@echo "🗑️ Removing dnsmasq → Unbound forwarding config"
 	@$(run_as_root) rm -f "$(DNSMASQ_CONF_DST)"
-	@$(run_as_root) systemctl restart dnsmasq || true
+	@$(run_as_root) systemctl restart dnsmasq >/dev/null 2>&1 || true
 	@echo "✅ dnsmasq forwarding config removed"
 
 # ------------------------------------------------------------
@@ -78,7 +79,7 @@ tailscale-repo:
 	@$(run_as_root) install -d -m 0755 /usr/share/keyrings
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg \
 		| $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_KEYRING)
-	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).tailscale-keyring.list \
+	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).list \
 		| $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
 	@$(call apt_update_if_needed)
 	@echo "✅ Tailscale repository configured"
@@ -86,8 +87,7 @@ tailscale-repo:
 install-pkg-tailscale: tailscale-repo
 	@echo "📦 Installing Tailscale (client + daemon)"
 	@$(call apt_install,tailscale,tailscale)
-	@$(run_as_root) systemctl enable tailscaled
-	@$(run_as_root) systemctl start tailscaled
+	@$(run_as_root) systemctl enable --now tailscaled >/dev/null 2>&1 || true
 	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) verify-pkg-tailscale
 	@echo "✅ Tailscale installed and running"
 
@@ -95,14 +95,14 @@ upgrade-pkg-tailscale: tailscale-repo
 	@echo "⬆️ Upgrading Tailscale to latest stable"
 	@$(call apt_update_if_needed)
 	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y tailscale
-	@$(run_as_root) systemctl restart tailscaled
+	@$(run_as_root) systemctl restart tailscaled >/dev/null 2>&1
 	@$(MAKE) verify-pkg-tailscale
 	@echo "✅ Tailscale upgraded"
 
 remove-pkg-tailscale:
 	@echo "🗑️ Removing Tailscale"
-	@$(run_as_root) systemctl stop tailscaled || true
-	@$(run_as_root) systemctl disable tailscaled || true
+	@$(run_as_root) systemctl stop tailscaled >/dev/null 2>&1 || true
+	@$(run_as_root) systemctl disable tailscaled >/dev/null 2>&1 || true
 	@$(call apt_remove,tailscale)
 	@echo "✅ Tailscale removed"
 
@@ -128,38 +128,6 @@ remove-pkg-go:
 	$(call apt_remove,golang-go)
 
 # ------------------------------------------------------------
-# Go (modern toolchain)
-# ------------------------------------------------------------
-.PHONY: install-pkg-go-modern remove-pkg-go-modern verify-pkg-go-modern
-
-install-pkg-go-modern:
-	@echo "📦 Installing Go $(GO_MODERN_VERSION) under $(GO_MODERN_PREFIX)"
-	@if [ -x "$(GO_MODERN_BIN)" ]; then \
-		CUR_VER=$$($(GO_MODERN_BIN) version | awk '{print $$3}' | sed 's/go//'); \
-		if [ "$$CUR_VER" = "$(GO_MODERN_VERSION)" ]; then \
-			echo "✔ Go $(GO_MODERN_VERSION) already installed"; \
-			exit 0; \
-		fi; \
-	fi
-	@tmp=$$(mktemp -d); \
-	trap 'rm -rf "$$tmp"' EXIT; \
-	curl -fsSL https://go.dev/dl/go$(GO_MODERN_VERSION).linux-amd64.tar.gz \
-		-o "$$tmp/go.tar.gz"; \
-	$(run_as_root) rm -rf "$(GO_MODERN_PREFIX)"; \
-	$(run_as_root) tar -C /usr/local -xzf "$$tmp/go.tar.gz"; \
-	echo "version=$(GO_MODERN_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| $(run_as_root) tee "$(STAMP_GO_MODERN)" >/dev/null
-	@echo "✅ Go $(GO_MODERN_VERSION) installed"
-
-verify-pkg-go-modern:
-	@$(GO_MODERN_BIN) version
-
-remove-pkg-go-modern:
-	@echo "🗑️ Removing Go $(GO_MODERN_PREFIX)"
-	@$(run_as_root) rm -rf "$(GO_MODERN_PREFIX)"
-	@$(run_as_root) rm -f "$(STAMP_GO_MODERN)"
-
-# ------------------------------------------------------------
 # vnstat
 # ------------------------------------------------------------
 install-pkg-vnstat:
@@ -169,7 +137,7 @@ install-pkg-vnstat:
 	@if ! $(run_as_root) vnstat --iflist | grep -q tailscale0; then \
 		$(run_as_root) vnstat --add -i tailscale0; \
 	fi
-	@$(run_as_root) systemctl enable --now vnstat || true
+	@$(run_as_root) systemctl enable --now vnstat >/dev/null 2>&1 || true
 	@echo "[make] vnstat installed and initialized for tailscale0"
 
 remove-pkg-vnstat:
@@ -180,8 +148,8 @@ remove-pkg-vnstat:
 # ------------------------------------------------------------
 install-pkg-nftables:
 	@echo "📦 Installing nftables"
-	$(call apt_install,nftables,nftables)
-	@$(run_as_root) systemctl enable --now nftables || true
+	$(call apt_install,nft,nftables)
+	@$(run_as_root) systemctl enable --now nftables >/dev/null 2>&1 || true
 	@echo "✅ nftables installed and service enabled"
 
 remove-pkg-nftables:
@@ -192,7 +160,7 @@ remove-pkg-nftables:
 # ------------------------------------------------------------
 install-pkg-wireguard:
 	@echo "📦 Installing WireGuard"
-	$(call apt_install,wireguard,wireguard wireguard-tools)
+	$(call apt_install,wg,wireguard wireguard-tools)
 	@echo "✅ WireGuard packages installed"
 
 remove-pkg-wireguard:
@@ -215,7 +183,7 @@ remove-pkg-caddy:
 install-pkg-unbound:
 	@echo "📦 Installing Unbound"
 	$(call apt_install,unbound,unbound)
-	@$(run_as_root) systemctl enable --now unbound || true
+	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true
 	@echo "✅ Unbound installed and enabled"
 
 remove-pkg-unbound:
@@ -226,7 +194,7 @@ remove-pkg-unbound:
 # ------------------------------------------------------------
 enable-ndppd: prereqs
 	@echo "📦 Enabling ndppd service"
-	@$(run_as_root) systemctl enable --now ndppd || true
+	@$(run_as_root) systemctl enable --now ndppd >/dev/null 2>&1 || true
 	@echo "✅ ndppd enabled"
 
 # ------------------------------------------------------------
@@ -238,12 +206,12 @@ STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
 
 install-pkg-checkmake: install-pkg-pandoc install-pkg-go
 	@echo "[make] Installing checkmake (v$(CHECKMAKE_VERSION))"
-	@if [ -x "$(CHECKMAKE_BIN)" ]; then \
-	  INST_VER=$$($(CHECKMAKE_BIN) --version 2>/dev/null | awk '{print $$2}' || true); \
-	  if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
-		echo "[make] checkmake $(CHECKMAKE_VERSION) already installed; skipping"; \
-		exit 0; \
-	  fi; \
+	@if [ -f "$(STAMP_CHECKMAKE)" ]; then \
+		INST_VER=$$(grep '^version=' "$(STAMP_CHECKMAKE)" | cut -d= -f2); \
+		if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
+			echo "[make] checkmake $(CHECKMAKE_VERSION) already installed; skipping"; \
+			exit 0; \
+		fi; \
 	fi; \
 	mkdir -p $(HOME)/src; \
 	rm -rf $(HOME)/src/checkmake; \
@@ -254,7 +222,6 @@ install-pkg-checkmake: install-pkg-pandoc install-pkg-go
 	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null
 	@echo "[make] Installed checkmake $(CHECKMAKE_VERSION)"
-	@$(CHECKMAKE_BIN) --version
 
 remove-pkg-checkmake:
 	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake && rm -f $(STAMP_CHECKMAKE))
@@ -338,4 +305,6 @@ upgrade-pkg-pandoc: $(STAMP_PANDOC)
 
 remove-pkg-pandoc:
 	@echo "[make] Removing pandoc..."
-	@if dpkg -s pandoc >/dev/null 2>&1
+	@if dpkg -s pandoc >/dev/null 2>&1; then \
+		$(run_as_root) apt-get remove -y pandoc; \
+	fi
