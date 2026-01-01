@@ -221,8 +221,8 @@ STAMP_CADDY  := $(STAMP_DIR)/caddy.installed
 CADDYFILE    := /etc/caddy/Caddyfile
 SRC_CADDYFILE:= $(HOMELAB_DIR)/config/caddy/Caddyfile
 
-.PHONY: caddy deploy-caddy
-caddy: gitcheck deploy-caddy
+.PHONY: caddy
+caddy: gitcheck
 	@set -euo pipefail; \
 	echo "📄⬇️ Installing Caddyfile"; \
 	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
@@ -252,10 +252,26 @@ caddy: gitcheck deploy-caddy
 	echo "🚀 Applying Caddy service"; \
 	$(run_as_root) systemctl enable caddy; \
 	if $(run_as_root) systemctl is-active --quiet caddy; then \
-    	$(run_as_root) systemctl reload caddy && echo "✅ Reload successful"; \
+		$(run_as_root) systemctl reload caddy && echo "✅ Reload successful"; \
 	else \
 		$(run_as_root) systemctl start caddy && echo "✅ Started successfully"; \
 	fi
+	@$(MAKE) deploy-caddy
+
+.PHONY: caddy-validate caddy-fmt
+
+caddy-validate:
+	@if [ ! -f /etc/ssl/caddy/fullchain.pem ]; then \
+	  echo "[caddy] WARNING: certs missing; skipping full validation"; \
+	  echo "[caddy] Run 'make deploy-caddy' or 'make all-caddy' once to install certs."; \
+	  exit 0; \
+	fi
+	@echo "[caddy] validating Caddyfile"
+	@sudo caddy validate --config "$(SRC_CADDYFILE)"
+
+caddy-fmt:
+	@echo "[caddy] formatting Caddyfile"
+	@sudo caddy fmt --overwrite "$(SRC_CADDYFILE)"
 
 # --- Default target ---
 all: harden-groups gitcheck gen0 gen1 gen2

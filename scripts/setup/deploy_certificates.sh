@@ -83,19 +83,31 @@ renew() {
 prepare() {
 	log "[prepare] canonical store: $SSL_CANONICAL_DIR"
 	sudo mkdir -p "$SSL_CANONICAL_DIR"
+
 	for t in ecc rsa; do
-	if [[ "$t" == "ecc" ]]; then
-		require_file "$SSL_CERT_ECC"; require_file "$SSL_CHAIN_ECC"; require_file "$SSL_KEY_ECC"
-		sudo cp -f "$SSL_CHAIN_ECC" "$SSL_CANONICAL_DIR/fullchain_ecc.pem"
-		sudo cp -f "$SSL_KEY_ECC"   "$SSL_CANONICAL_DIR/privkey_ecc.pem"
-	else
-		require_file "$SSL_CERT_RSA"; require_file "$SSL_CHAIN_RSA"; require_file "$SSL_KEY_RSA"
-		sudo cp -f "$SSL_CHAIN_RSA" "$SSL_CANONICAL_DIR/fullchain_rsa.pem"
-		sudo cp -f "$SSL_KEY_RSA"   "$SSL_CANONICAL_DIR/privkey_rsa.pem"
-	fi
+		if [[ "$t" == "ecc" ]]; then
+			# ECC must exist — fail loudly if missing
+			require_file "$SSL_CERT_ECC"  || { log "[prepare] ❌ missing ECC cert:   $SSL_CERT_ECC";  exit 1; }
+			require_file "$SSL_CHAIN_ECC" || { log "[prepare] ❌ missing ECC chain:  $SSL_CHAIN_ECC"; exit 1; }
+			require_file "$SSL_KEY_ECC"   || { log "[prepare] ❌ missing ECC key:    $SSL_KEY_ECC";   exit 1; }
+
+			sudo cp -f "$SSL_CHAIN_ECC" "$SSL_CANONICAL_DIR/fullchain_ecc.pem"
+			sudo cp -f "$SSL_KEY_ECC"   "$SSL_CANONICAL_DIR/privkey_ecc.pem"
+
+		else
+			# RSA must exist — fail loudly if missing
+			require_file "$SSL_CERT_RSA"  || { log "[prepare] ❌ missing RSA cert:   $SSL_CERT_RSA";  exit 1; }
+			require_file "$SSL_CHAIN_RSA" || { log "[prepare] ❌ missing RSA chain:  $SSL_CHAIN_RSA"; exit 1; }
+			require_file "$SSL_KEY_RSA"   || { log "[prepare] ❌ missing RSA key:    $SSL_KEY_RSA";   exit 1; }
+
+			sudo cp -f "$SSL_CHAIN_RSA" "$SSL_CANONICAL_DIR/fullchain_rsa.pem"
+			sudo cp -f "$SSL_KEY_RSA"   "$SSL_CANONICAL_DIR/privkey_rsa.pem"
+		fi
 	done
+
 	sudo chmod 0600 "$SSL_CANONICAL_DIR"/privkey_*.pem || true
 	sudo chmod 0644 "$SSL_CANONICAL_DIR"/fullchain_*.pem || true
+
 	log "[prepare] updated ECC+RSA in canonical store"
 }
 
