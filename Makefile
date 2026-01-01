@@ -222,7 +222,7 @@ CADDYFILE    := /etc/caddy/Caddyfile
 SRC_CADDYFILE:= $(HOMELAB_DIR)/config/caddy/Caddyfile
 
 .PHONY: caddy deploy-caddy
-caddy: gitcheck verify-caddy build-caddy-custom deploy-caddy
+caddy: gitcheck deploy-caddy
 	@set -euo pipefail; \
 	echo "📄⬇️ Installing Caddyfile"; \
 	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
