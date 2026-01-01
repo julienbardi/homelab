@@ -23,7 +23,7 @@ install -d "$(dirname "$DOMAINS_FILE")"
 
 now=$(date +%s)
 
-if [ -f "$DOMAINS_FILE" ]; then
+if [ -s "$DOMAINS_FILE" ]; then
 	mtime=$(stat -c %Y "$DOMAINS_FILE")
 	age=$((now - mtime))
 	if [ "$age" -lt "$DOMAIN_CACHE_TTL" ]; then

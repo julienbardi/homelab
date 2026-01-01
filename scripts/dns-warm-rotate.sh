@@ -19,11 +19,21 @@ install -d "$(dirname "$DOMAINS_FILE")" "$(dirname "$STATE_FILE")"
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 
 init_state() {
-	[ -f "$STATE_FILE" ] && return
-	log "Initializing state file (one-time operation)"
+	if [ -s "$STATE_FILE" ]; then
+		return
+	fi
+
+	log "Initializing state file from domain policy"
 	awk '{print $0 ",0"}' "$DOMAINS_FILE" > "$STATE_FILE"
+
+	if [ ! -s "$STATE_FILE" ]; then
+		log "ERROR: failed to initialize state from $DOMAINS_FILE"
+		exit 1
+	fi
+
 	chmod 640 "$STATE_FILE"
 }
+
 
 select_oldest() {
 	awk -F, '{print $2","$1}' "$STATE_FILE" \
