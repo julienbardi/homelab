@@ -74,7 +74,7 @@ define apt_install
 	@if ! command -v $(1) >/dev/null 2>&1; then \
 		echo "[make] $(1) not found, installing: $(2)"; \
 		$(call apt_update_if_needed); \
-		$(run_as_root) apt-get install -y --no-install-recommends $(2); \
+		$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold $(2); \
 	else \
 		VER_STR=$$( { $(1) version 2>&1 || $(1) --version 2>&1 || $(1) -v 2>&1 || echo "unknown"; } | head -n1 ); \
 		echo "$$(date '+%Y-%m-%d %H:%M:%S') [make] $(1) version: $$VER_STR"; \
