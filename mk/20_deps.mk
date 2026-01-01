@@ -40,7 +40,12 @@ remove-pkg-dnsmasq:
 	$(call apt_remove,dnsmasq)
 	@echo "✅ dnsmasq removed"
 
-install-dnsmasq-unbound-config: install-pkg-dnsmasq
+.PHONY: require-unbound-running
+require-unbound-running:
+	@systemctl is-active --quiet unbound || { \
+		echo "❌ Unbound is not running"; exit 1; }
+
+install-dnsmasq-unbound-config: install-pkg-dnsmasq deploy-unbound require-unbound-running
 	@echo "📂 Installing dnsmasq → Unbound forwarding config"
 	@if [ ! -f "$(DNSMASQ_CONF_SRC)" ]; then \
 		echo "❌ Missing $(DNSMASQ_CONF_SRC)"; exit 1; \
