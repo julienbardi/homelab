@@ -190,8 +190,6 @@ prepare: renew fix-acme-perms
 deploy-%: prepare
 	@$(run_as_root) $(DEPLOY) deploy $* || { echo "[make] ❌ deploy-$* failed"; exit 1; }
 
-deploy-caddy: prepare
-
 # Validate targets (pattern rule)
 validate-%:
 	@$(run_as_root) $(DEPLOY) validate $* || { echo "[make] ❌ validate-$* failed"; exit 1; }
