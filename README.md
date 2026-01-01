@@ -235,7 +235,7 @@ Successful login should occur without a password prompt.
 ## Install git
 ### 1. Install git
 ```
-sudo apt-get install git --no-upgrade
+sudo apt-get update && sudo apt-get install git --no-upgrade
 ```
 This ensures:
 - Git is installed
