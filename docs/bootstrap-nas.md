@@ -120,12 +120,12 @@ Apply:
 ---
 
 # 6. Install Git (Safe on UGOS), make (for `make deps`), unbound-anchor(for Unbound)
-UGOS does not ship with `git`, `make`, `unbound-anchor`.
+UGOS does not ship with `git`, `make`, `unbound-anchor`, so install them first.
 
 `sudo apt-get update`  
 `sudo apt-get install -y git make unbound-anchor --no-upgrade`
 
-Clone repo:
+Clone the homelab repo:
 
 ```
 mkdir -p ~/src
@@ -134,21 +134,46 @@ git clone git@gitlab.com:jbardi/homelab.git
 cd homelab
 ```
 
-Configure identity:
+Configure Git identity:
 ```
 git config --global user.name "Jambo15"
 git config --global user.email "Jambo15@users.noreply.github.com"
 ```
 
-Set dual remotes:
-```
+🔀 Configure dual remotes (GitLab primary, GitHub mirror)
+Your repo currently clones from GitLab, so origin already points to GitLab.
+
+Rename it to github and re‑add GitLab as the primary,  set upstream tracking, verify
+
+```bash
 git remote rename origin github
 git remote add origin git@gitlab.com:jbardi/homelab.git
 git branch --set-upstream-to=origin/main
+git remote -v
+```
+You should see:
+```Code
+origin  git@gitlab.com:jbardi/homelab.git (fetch)
+origin  git@gitlab.com:jbardi/homelab.git (push)
+github  git@github.com:Jambo15/homelab.git (fetch)
+github  git@github.com:Jambo15/homelab.git (push)
 ```
 
-Push workflow:
+🚀 Push workflow:
+GitLab (origin) is primary. GitHub is a mirror.
+
 `git push;git push github main`
+
+If you want a single command later, you can add:
+
+```bash
+git config alias.pushboth '!git push && git push github main'
+```
+Then:
+
+```bash
+git pushboth
+```
 
 ---
 
