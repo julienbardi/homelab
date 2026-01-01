@@ -20,11 +20,11 @@ DNSMASQ_CONF_DST := /etc/dnsmasq.d/unbound.conf
 	install-dnsmasq-unbound-config remove-dnsmasq-unbound-config
 
 # Aggregate deps target
-deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
+deps: prereqs \
+	install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
 	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard \
 	install-dnsmasq-unbound-config \
-	install-pkg-ndppd \
-	install-pkg-shellcheck install-pkg-codespell install-pkg-aspell \
+	enable-ndppd \
 	install-pkg-code-server
 
 # ------------------------------------------------------------
@@ -224,14 +224,10 @@ remove-pkg-unbound:
 # ------------------------------------------------------------
 # ndppd
 # ------------------------------------------------------------
-install-pkg-ndppd:
-	@echo "📦 Installing ndppd"
-	$(call apt_install,ndppd,ndppd)
+enable-ndppd: prereqs
+	@echo "📦 Enabling ndppd service"
 	@$(run_as_root) systemctl enable --now ndppd || true
-	@echo "✅ ndppd installed and enabled"
-
-remove-pkg-ndppd:
-	$(call apt_remove,ndppd)
+	@echo "✅ ndppd enabled"
 
 # ------------------------------------------------------------
 # checkmake
