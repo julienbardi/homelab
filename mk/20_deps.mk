@@ -19,7 +19,7 @@ DNSMASQ_CONF_DST := /etc/dnsmasq.d/unbound.conf
 	install-pkg-dnsmasq remove-pkg-dnsmasq \
 	install-dnsmasq-unbound-config remove-dnsmasq-unbound-config
 
-# Aggregate deps target, not used: install-pkg-caddy. Do not use install-pkg-unbound, it is too early, see mk/60_unbound.mk
+# Aggregate deps target
 deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
 	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard build-caddy-custom verify-caddy \
 	install-dnsmasq-unbound-config \
@@ -27,6 +27,9 @@ deps: install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace
 	install-pkg-shellcheck install-pkg-codespell install-pkg-aspell \
 	install-pkg-code-server
 
+# ------------------------------------------------------------
+# dnsmasq
+# ------------------------------------------------------------
 install-pkg-dnsmasq:
 	@echo "📦 Installing dnsmasq"
 	$(call apt_install,dnsmasq,dnsmasq)
@@ -61,10 +64,9 @@ remove-dnsmasq-unbound-config:
 	@$(run_as_root) systemctl restart dnsmasq || true
 	@echo "✅ dnsmasq forwarding config removed"
 
-
-
-# Tailscale (client + daemon) via apt repository
-
+# ------------------------------------------------------------
+# Tailscale repository
+# ------------------------------------------------------------
 DEBIAN_CODENAME ?= bookworm
 TS_REPO_KEYRING := /usr/share/keyrings/tailscale-archive-keyring.gpg
 TS_REPO_LIST    := /etc/apt/sources.list.d/tailscale.list
@@ -73,44 +75,42 @@ TS_REPO_LIST    := /etc/apt/sources.list.d/tailscale.list
 
 tailscale-repo:
 	@echo "📦 Adding Tailscale apt repository (Debian $(DEBIAN_CODENAME))"
-	@sudo mkdir -p --mode=0755 /usr/share/keyrings
+	@$(run_as_root) install -d -m 0755 /usr/share/keyrings
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg \
-		| sudo install -m 0644 -o root -g root /dev/stdin $(TS_REPO_KEYRING)
+		| $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_KEYRING)
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).tailscale-keyring.list \
-		| sudo install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
-
-	@# Update apt cache (use cached helper to avoid repeated full updates)
-	@sudo apt-get update
+		| $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
+	@$(call apt_update_if_needed)
 	@echo "✅ Tailscale repository configured"
 
 install-pkg-tailscale: tailscale-repo
 	@echo "📦 Installing Tailscale (client + daemon)"
-	@sudo apt-get install -y tailscale
-	@sudo systemctl enable tailscaled
-	@sudo systemctl start tailscaled
+	@$(call apt_install,tailscale,tailscale)
+	@$(run_as_root) systemctl enable tailscaled
+	@$(run_as_root) systemctl start tailscaled
 	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) verify-pkg-tailscale
 	@echo "✅ Tailscale installed and running"
 
 upgrade-pkg-tailscale: tailscale-repo
 	@echo "⬆️ Upgrading Tailscale to latest stable"
 	@$(call apt_update_if_needed)
-	@sudo apt-get install -y --only-upgrade tailscale
-	@sudo systemctl restart tailscaled
+	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y tailscale
+	@$(run_as_root) systemctl restart tailscaled
 	@$(MAKE) verify-pkg-tailscale
 	@echo "✅ Tailscale upgraded"
 
 remove-pkg-tailscale:
 	@echo "🗑️ Removing Tailscale"
-	@sudo systemctl stop tailscaled || true
-	@sudo systemctl disable tailscaled || true
-	@sudo apt-get remove --purge -y tailscale || true
+	@$(run_as_root) systemctl stop tailscaled || true
+	@$(run_as_root) systemctl disable tailscaled || true
+	@$(call apt_remove,tailscale)
 	@echo "✅ Tailscale removed"
 
 verify-pkg-tailscale:
 	@echo "🔎 Verifying Tailscale installation"
 	@bash -c 'set -e; \
 		CLI_VER=$$(tailscale version | head -n1); \
-		DS_VER=$$(sudo tailscaled --version | head -n1); \
+		DS_VER=$$($(run_as_root) tailscaled --version | head -n1); \
 		echo "CLI: $$CLI_VER"; echo "DAEMON: $$DS_VER"; \
 		if [ "$${CLI_VER}" != "$${DS_VER}" ]; then \
 			echo "❌ Version mismatch"; exit 1; \
@@ -118,14 +118,18 @@ verify-pkg-tailscale:
 		echo "✔ Versions aligned" \
 	'
 
-# Use apt_install macro from mk/01_common.mk
+# ------------------------------------------------------------
+# Go (Debian package)
+# ------------------------------------------------------------
 install-pkg-go:
 	$(call apt_install,go,golang-go)
 
 remove-pkg-go:
 	$(call apt_remove,golang-go)
 
-# Caddy requires Go >= 1.21; install isolated toolchain under /usr/local/go
+# ------------------------------------------------------------
+# Go (modern toolchain)
+# ------------------------------------------------------------
 .PHONY: install-pkg-go-modern remove-pkg-go-modern verify-pkg-go-modern
 
 install-pkg-go-modern:
@@ -141,10 +145,10 @@ install-pkg-go-modern:
 	trap 'rm -rf "$$tmp"' EXIT; \
 	curl -fsSL https://go.dev/dl/go$(GO_MODERN_VERSION).linux-amd64.tar.gz \
 		-o "$$tmp/go.tar.gz"; \
-	sudo rm -rf "$(GO_MODERN_PREFIX)"; \
-	sudo tar -C /usr/local -xzf "$$tmp/go.tar.gz"; \
+	$(run_as_root) rm -rf "$(GO_MODERN_PREFIX)"; \
+	$(run_as_root) tar -C /usr/local -xzf "$$tmp/go.tar.gz"; \
 	echo "version=$(GO_MODERN_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| sudo tee "$(STAMP_GO_MODERN)" >/dev/null
+		| $(run_as_root) tee "$(STAMP_GO_MODERN)" >/dev/null
 	@echo "✅ Go $(GO_MODERN_VERSION) installed"
 
 verify-pkg-go-modern:
@@ -152,12 +156,14 @@ verify-pkg-go-modern:
 
 remove-pkg-go-modern:
 	@echo "🗑️ Removing Go $(GO_MODERN_PREFIX)"
-	@sudo rm -rf "$(GO_MODERN_PREFIX)"
-	@sudo rm -f "$(STAMP_GO_MODERN)"
+	@$(run_as_root) rm -rf "$(GO_MODERN_PREFIX)"
+	@$(run_as_root) rm -f "$(STAMP_GO_MODERN)"
 
-# vnstat (network traffic monitor)
+# ------------------------------------------------------------
+# vnstat
+# ------------------------------------------------------------
 install-pkg-vnstat:
-	@echo "📦 Installing vnstat (network traffic monitor)"
+	@echo "📦 Installing vnstat"
 	$(call apt_install,vnstat,vnstat)
 	@echo "[make] Initializing vnstat database for tailscale0..."
 	@if ! $(run_as_root) vnstat --iflist | grep -q tailscale0; then \
@@ -169,8 +175,9 @@ install-pkg-vnstat:
 remove-pkg-vnstat:
 	$(call apt_remove,vnstat)
 
-# nftables (kernel userspace tools)
-.PHONY: install-pkg-nftables remove-pkg-nftables
+# ------------------------------------------------------------
+# nftables
+# ------------------------------------------------------------
 install-pkg-nftables:
 	@echo "📦 Installing nftables"
 	$(call apt_install,nftables,nftables)
@@ -180,30 +187,31 @@ install-pkg-nftables:
 remove-pkg-nftables:
 	$(call apt_remove,nftables)
 
-# WireGuard (tools + kernel module helpers)
-.PHONY: install-pkg-wireguard remove-pkg-wireguard
+# ------------------------------------------------------------
+# WireGuard
+# ------------------------------------------------------------
 install-pkg-wireguard:
-	@echo "📦 Installing WireGuard (tools + kernel modules)"
+	@echo "📦 Installing WireGuard"
 	$(call apt_install,wireguard,wireguard wireguard-tools)
 	@echo "✅ WireGuard packages installed"
 
 remove-pkg-wireguard:
 	$(call apt_remove,wireguard wireguard-tools)
 
-# Caddy (web server)
-.PHONY: install-pkg-caddy remove-pkg-caddy
+# ------------------------------------------------------------
+# Caddy
+# ------------------------------------------------------------
 install-pkg-caddy:
 	@echo "📦 Installing Caddy"
 	@$(run_as_root) rm -f /etc/caddy/Caddyfile
 	$(call apt_install,caddy,caddy)
-	#@$(run_as_root) systemctl enable --now caddy || true
-	#@echo "✅ Caddy installed and enabled"
 
 remove-pkg-caddy:
 	$(call apt_remove,caddy)
 
-# Unbound (DNS resolver)
-.PHONY: install-pkg-unbound remove-pkg-unbound
+# ------------------------------------------------------------
+# Unbound
+# ------------------------------------------------------------
 install-pkg-unbound:
 	@echo "📦 Installing Unbound"
 	$(call apt_install,unbound,unbound)
@@ -213,10 +221,11 @@ install-pkg-unbound:
 remove-pkg-unbound:
 	$(call apt_remove,unbound)
 
-# ndppd (NDP proxy for IPv6 delegated prefixes)
-.PHONY: install-pkg-ndppd remove-pkg-ndppd
+# ------------------------------------------------------------
+# ndppd
+# ------------------------------------------------------------
 install-pkg-ndppd:
-	@echo "📦 Installing ndppd (NDP proxy)"
+	@echo "📦 Installing ndppd"
 	$(call apt_install,ndppd,ndppd)
 	@$(run_as_root) systemctl enable --now ndppd || true
 	@echo "✅ ndppd installed and enabled"
@@ -224,18 +233,19 @@ install-pkg-ndppd:
 remove-pkg-ndppd:
 	$(call apt_remove,ndppd)
 
-
-# checkmake (build from upstream Makefile)
+# ------------------------------------------------------------
+# checkmake
+# ------------------------------------------------------------
 CHECKMAKE_VERSION := 0.2.2
 CHECKMAKE_BIN := /usr/local/bin/checkmake
 STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
 
 install-pkg-checkmake: install-pkg-pandoc install-pkg-go
-	@echo "[make] Installing checkmake (v$(CHECKMAKE_VERSION)) via direct Go build..."
+	@echo "[make] Installing checkmake (v$(CHECKMAKE_VERSION))"
 	@if [ -x "$(CHECKMAKE_BIN)" ]; then \
 	  INST_VER=$$($(CHECKMAKE_BIN) --version 2>/dev/null | awk '{print $$2}' || true); \
 	  if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
-		echo "[make] checkmake $(CHECKMAKE_VERSION) already installed; skipping build"; \
+		echo "[make] checkmake $(CHECKMAKE_VERSION) already installed; skipping"; \
 		exit 0; \
 	  fi; \
 	fi; \
@@ -244,24 +254,27 @@ install-pkg-checkmake: install-pkg-pandoc install-pkg-go
 	git clone --depth 1 --branch v$(CHECKMAKE_VERSION) https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake; \
 	cd $(HOME)/src/checkmake && \
 	go build -o checkmake cmd/checkmake/main.go; \
-	sudo install -m 0755 $(HOME)/src/checkmake/checkmake $(CHECKMAKE_BIN); \
-	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" | sudo tee "$(STAMP_CHECKMAKE)" >/dev/null
-
+	$(run_as_root) install -m 0755 $(HOME)/src/checkmake/checkmake $(CHECKMAKE_BIN); \
+	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		| $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null
 	@echo "[make] Installed checkmake $(CHECKMAKE_VERSION)"
 	@$(CHECKMAKE_BIN) --version
-
 
 remove-pkg-checkmake:
 	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake && rm -f $(STAMP_CHECKMAKE))
 
-# strace (used for debugging)
+# ------------------------------------------------------------
+# strace
+# ------------------------------------------------------------
 install-pkg-strace:
 	$(call apt_install,strace,strace)
 
 remove-pkg-strace:
 	$(call apt_remove,strace)
 
-# Headscale build (remote install fallback to upstream release)
+# ------------------------------------------------------------
+# Headscale
+# ------------------------------------------------------------
 HEADSCALE_VERSION ?= v0.27.1
 
 headscale-build: install-pkg-go
@@ -277,29 +290,26 @@ headscale-build: install-pkg-go
 		command -v headscale >/dev/null 2>&1 && headscale version; \
 	fi
 
-# ---------------------------------------------------------------------
-# Pinned upstream pandoc .deb install (safer, atomic, stamp file)
-# see https://github.com/jgm/pandoc/releases
-# ---------------------------------------------------------------------
+# ------------------------------------------------------------
+# Pandoc (pinned .deb)
+# ------------------------------------------------------------
 PANDOC_VERSION := 3.8.2.1
 PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.8.2.1/pandoc-3.8.2.1-1-amd64.deb
 PANDOC_SHA256 := 5d4ecbf9c616360a9046e14685389ff2898088847e5fb260eedecd023453995a
 PANDOC_DEB := /tmp/pandoc-$(PANDOC_VERSION)-amd64.deb
 STAMP_PANDOC := $(STAMP_DIR)/pandoc.installed
 
-.PHONY: install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc
-
 .SILENT: install-pkg-pandoc
 
 install-pkg-pandoc:
-	@sudo mkdir -p $(STAMP_DIR); \
+	@$(run_as_root) install -d -m 0755 $(STAMP_DIR); \
 	installed_bin=$$(command -v pandoc 2>/dev/null || true); \
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
 	installed_version_base=$${installed_version%%-*}; \
 	if [ -n "$$installed_bin" ] && [ -f "$(PANDOC_DEB)" ] && \
 	   [ "$$(sha256sum "$(PANDOC_DEB)" | cut -d' ' -f1)" = "$(PANDOC_SHA256)" ] && \
 	   [ "$$installed_version_base" = "$(PANDOC_VERSION)" ]; then \
-		echo "[make] pandoc $(PANDOC_VERSION) already installed and binary checksum matches; nothing to do"; \
+		echo "[make] pandoc $(PANDOC_VERSION) already installed"; \
 		exit 0; \
 	fi; \
 	rm -f $(PANDOC_DEB); \
@@ -307,196 +317,29 @@ install-pkg-pandoc:
 	trap 'rm -f "$(PANDOC_DEB)";' EXIT; \
 	curl -fsSL "$(PANDOC_DEB_URL)" -o "$(PANDOC_DEB)"; \
 	echo "$(PANDOC_SHA256)  $(PANDOC_DEB)" | sha256sum -c - >/dev/null; \
-	#echo "[make] Checksum OK"; \
-	DEBIAN_FRONTEND=noninteractive sudo dpkg -i "$(PANDOC_DEB)" >/dev/null 2>&1 || true; \
-	DEBIAN_FRONTEND=noninteractive sudo apt-get -y -f install --no-install-recommends >/dev/null; \
-	sudo apt-mark hold pandoc >/dev/null; \
+	DEBIAN_FRONTEND=noninteractive $(run_as_root) dpkg -i "$(PANDOC_DEB)" >/dev/null 2>&1 || true; \
+	$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get -y -f install --no-install-recommends >/dev/null; \
+	$(run_as_root) apt-mark hold pandoc >/dev/null; \
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
 	installed_version_base=$${installed_version%%-*}; \
-	#echo "[make] installed_version='$$installed_version' installed_version_base='$$installed_version_base'"; \
 	if [ "$$installed_version_base" != "$(PANDOC_VERSION)" ]; then \
-	  echo "[make] ERROR: pandoc not found or wrong version after install (installed=$$installed_version)"; rm -f "$(PANDOC_DEB)"; trap - EXIT; exit 1; \
+	  echo "[make] ERROR: pandoc wrong version (installed=$$installed_version)"; rm -f "$(PANDOC_DEB)"; trap - EXIT; exit 1; \
 	fi; \
-	echo "version=$$installed_version sha256=$(PANDOC_SHA256) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" | sudo tee "$(STAMP_PANDOC)" >/dev/null; \
-	#rm -f "$(PANDOC_DEB)"; \
+	echo "version=$$installed_version sha256=$(PANDOC_SHA256) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		| $(run_as_root) tee "$(STAMP_PANDOC)" >/dev/null; \
 	trap - EXIT; \
-	echo "[make] pandoc $(PANDOC_VERSION) installed and recorded in $(STAMP_PANDOC)"
-
+	echo "[make] pandoc $(PANDOC_VERSION) installed"
 
 upgrade-pkg-pandoc: $(STAMP_PANDOC)
-	@echo "[make] Upgrading pandoc only if previously installed by Makefile..."
+	@echo "[make] Upgrading pandoc..."
 	@$(call apt_update_if_needed)
-	@DEBIAN_FRONTEND=noninteractive sudo apt-get install --only-upgrade -y pandoc || true
+	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
 	@tmp=$$(mktemp); dpkg-query -W -f='${Version}\n' pandoc > "$$tmp" 2>/dev/null || echo "unknown" > "$$tmp"; \
-	echo "version=$$(cat $$tmp) upgraded_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" | sudo tee $(STAMP_PANDOC) >/dev/null; \
+	echo "version=$$(cat $$tmp) upgraded_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		| $(run_as_root) tee $(STAMP_PANDOC) >/dev/null; \
 	rm -f "$$tmp"
-	@echo "[make] pandoc upgrade complete; stamp updated"
+	@echo "[make] pandoc upgrade complete"
 
 remove-pkg-pandoc:
-	@echo "[make] Requested removal of pandoc..."; \
-	if dpkg -s pandoc >/dev/null 2>&1; then \
-		echo "[make] pandoc is installed; removing..."; \
-		DEBIAN_FRONTEND=noninteractive sudo apt-get remove -y --allow-change-held-packages -o Dpkg::Options::=--force-confold pandoc || echo "[make] apt-get remove returned non-zero"; \
-		DEBIAN_FRONTEND=noninteractive sudo apt-get autoremove -y || true; \
-		if [ -f "$(STAMP_PANDOC)" ]; then \
-			sudo apt-mark unhold pandoc || true; \
-			sudo rm -f "$(STAMP_PANDOC)"; \
-			echo "[make] Removed stamp $(STAMP_PANDOC)"; \
-			stampdir=$$(dirname "$(STAMP_PANDOC)"); \
-			if [ -d "$$stampdir" ] && [ -z "$$(ls -A "$$stampdir")" ]; then \
-				sudo rmdir "$$stampdir" 2>/dev/null && echo "[make] Removed empty stamp dir $$stampdir" || true; \
-			fi; \
-		else \
-			echo "[make] Stamp $(STAMP_PANDOC) not present"; \
-		fi; \
-	else \
-		echo "[make] pandoc not installed; nothing to do"; \
-	fi
-
-.PHONY: install-pkg-shellcheck remove-pkg-shellcheck \
-		install-pkg-codespell remove-pkg-codespell \
-		install-pkg-aspell remove-pkg-aspell
-
-# ShellCheck (shell script linter)
-install-pkg-shellcheck:
-	@echo "📦 Installing shellcheck (shell script linter)"
-	$(call apt_install,shellcheck,shellcheck)
-	@echo "[make] shellcheck version: $$(shellcheck --version | head -n1)"
-
-remove-pkg-shellcheck:
-	$(call apt_remove,shellcheck)
-
-# codespell (common typo finder)
-install-pkg-codespell:
-	@echo "📦 Installing codespell (typo finder)"
-	$(call apt_install,codespell,codespell)
-	@echo "[make] codespell version: $$(codespell --version 2>/dev/null || echo 'unknown')"
-
-remove-pkg-codespell:
-	$(call apt_remove,codespell)
-
-# aspell (spell checker)
-install-pkg-aspell:
-	@echo "📦 Installing aspell (spell checker)"
-	$(call apt_install,aspell,aspell)
-	@echo "[make] aspell version: $$(aspell --version 2>/dev/null | head -n1 || echo 'unknown')"
-
-remove-pkg-aspell:
-	$(call apt_remove,aspell)
-
-# xcaddy + custom Caddy build with rate_limit plugin
-XCADDY_BIN := /usr/local/bin/xcaddy
-CADDY_BIN  := /usr/bin/caddy
-CADDY_BACKUP := /usr/bin/caddy.orig
-CADDY_VERSION := v2.10.2
-STAMP_CADDY := $(STAMP_DIR)/caddy.installed
-
-# Map uname -m to Debian-style arch names
-ARCH := $(shell dpkg --print-architecture)
-
-.PHONY: install-pkg-xcaddy build-caddy-custom verify-caddy remove-pkg-xcaddy restore-caddy
-
-# depends on normal installation so that the service gets installed
-install-pkg-xcaddy: install-pkg-caddy
-	@echo "📦 Installing xcaddy (builder for custom Caddy)"
-	@if [ ! -x "$(XCADDY_BIN)" ]; then \
-		curl -sSL https://github.com/caddyserver/xcaddy/releases/download/v0.4.5/xcaddy_0.4.5_linux_$(ARCH).tar.gz \
-			-o /tmp/xcaddy.tar.gz; \
-		sudo tar -xzf /tmp/xcaddy.tar.gz -C /usr/local/bin xcaddy; \
-		rm -f /tmp/xcaddy.tar.gz; \
-		echo "✅ xcaddy installed at $(XCADDY_BIN)"; \
-	else \
-		echo "ℹ️ xcaddy already present at $(XCADDY_BIN)"; \
-	fi
-
-#old line was --with github.com/mholt/caddy-ratelimit@v0.1.0
-build-caddy-custom: install-pkg-xcaddy install-pkg-go-modern
-	@export PATH="$(GO_MODERN_PREFIX)/bin:$$PATH"; \
-	set -euo pipefail; \
-	echo "🔨 Building Caddy $(CADDY_VERSION) with rate_limit plugin..."; \
-	BUILD_DIR=$$(mktemp -d /tmp/caddy-build.XXXXXX); \
-	trap 'rm -rf "$$BUILD_DIR"' EXIT; \
-	cd "$$BUILD_DIR"; \
-	"$(XCADDY_BIN)" build "$(CADDY_VERSION)" \
-		--with github.com/mholt/caddy-ratelimit; \
-	echo "📦 Deploying custom Caddy binary"; \
-	if [ -x "$(CADDY_BIN)" ] && [ ! -f "$(CADDY_BACKUP)" ]; then \
-		sudo mv "$(CADDY_BIN)" "$(CADDY_BACKUP)"; \
-		echo "💾 Original Caddy backed up to $(CADDY_BACKUP)"; \
-	fi; \
-	sudo install -m 0755 -o root -g root "$$BUILD_DIR/caddy" "$(CADDY_BIN)";
-
-verify-caddy:
-	@echo "🔎 Verifying Caddy installation"; \
-	if ! "$(CADDY_BIN)" version >/dev/null 2>&1; then \
-		echo "❌ Installed Caddy not executable"; \
-		[ -f "$(CADDY_BACKUP)" ] && sudo mv "$(CADDY_BACKUP)" "$(CADDY_BIN)"; \
-		exit 1; \
-	fi; \
-	if ! "$(CADDY_BIN)" list-modules | grep -q '^http.handlers.rate_limit$$'; then \
-		echo "❌ rate_limit plugin not found in installed binary"; \
-		[ -f "$(CADDY_BACKUP)" ] && sudo mv "$(CADDY_BACKUP)" "$(CADDY_BIN)"; \
-		exit 1; \
-	fi; \
-	VERSION=$$("$(CADDY_BIN)" version); \
-	echo "✅ Caddy verified with rate_limit plugin: $$VERSION"; \
-	echo "version=$$VERSION installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| sudo tee "$(STAMP_CADDY)" >/dev/null
-
-
-remove-pkg-xcaddy:
-	@echo "🗑️ Removing xcaddy"
-	@sudo rm -f $(XCADDY_BIN)
-	@echo "✅ xcaddy removed"
-
-restore-caddy:
-	@echo "♻️ Restoring original Caddy binary"
-	@if [ -f "$(CADDY_BACKUP)" ]; then \
-		sudo mv $(CADDY_BACKUP) $(CADDY_BIN); \
-		echo "✅ Original Caddy restored"; \
-	else \
-		echo "⚠️ No backup found at $(CADDY_BACKUP)"; \
-	fi
-
-# ============================================================
-# code-server (browser-based VS Code)
-# ============================================================
-
-CODE_SERVER_BIN := /usr/bin/code-server
-STAMP_CODE_SERVER := $(STAMP_DIR)/code-server.installed
-
-.PHONY: install-pkg-code-server remove-pkg-code-server verify-pkg-code-server
-
-install-pkg-code-server:
-	@echo "📦 Installing code-server (VS Code in browser)"
-	@if [ -x "$(CODE_SERVER_BIN)" ]; then \
-		echo "[make] code-server already installed; skipping"; \
-	else \
-		echo "[make] Running official code-server installer"; \
-		curl -fsSL https://code-server.dev/install.sh -o /tmp/code-server-install.sh; \
-		$(run_as_root) bash /tmp/code-server-install.sh; \
-		rm -f /tmp/code-server-install.sh; \
-	fi
-	@systemctl --user enable --now code-server
-	@$(MAKE) verify-pkg-code-server
-	@echo "version=$$($(CODE_SERVER_BIN) --version) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| $(run_as_root) tee "$(STAMP_CODE_SERVER)" >/dev/null
-	@echo "✅ code-server installed"
-
-verify-pkg-code-server:
-	@echo "🔎 Verifying code-server installation"
-	@ss -ltn | grep -q ':8080' || \
-		{ echo "❌ code-server not listening on 8080"; exit 1; }
-	@if ! $(CODE_SERVER_BIN) --version >/dev/null 2>&1; then \
-		echo "❌ code-server not functional"; exit 1; \
-	else \
-		echo "✔ code-server version: $$($(CODE_SERVER_BIN) --version)"; \
-	fi
-
-remove-pkg-code-server:
-	@echo "🗑️ Removing code-server"
-	@if dpkg -s code-server >/dev/null 2>&1; then \
-		$(run_as_root) apt-get remove -y code-server; \
-	fi
-	@$(run_as_root) rm -f "$(STAMP_CODE_SERVER)" || true
-	@echo "✅ code-server removed"
+	@echo "[make] Removing pandoc..."
+	@if dpkg -s pandoc >/dev/null 2>&1
