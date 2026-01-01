@@ -39,8 +39,8 @@ bardi.ch:8384 {
 	reverse_proxy 10.89.12.2:8384
 }
 
-# Consolidated HTTPS listener
-:443 {
+# Consolidated HTTPS listener - UGOS nginx owns 80, 443, 9999, 8443 is a clean, conflict‑free internal HTTPS port
+:8443 {
 	tls /etc/ssl/caddy/fullchain.pem /etc/ssl/caddy/privkey.pem
 
 	# DiskStation main HTTPS site (WAN)
@@ -175,15 +175,24 @@ bardi.ch:8384 {
 
 	# log disabled to avoid disk spin
 }
-# After modification run
-# 1. Check the config first (dry run):
-#    sudo caddy validate --config /home/julie/src/homelab/config/caddy/Caddyfile
-#    sudo caddy fmt --overwrite   /home/julie/src/homelab/config/caddy/Caddyfile
-# 2. Deploy the file
-#    sudo cp /home/julie/src/homelab/config/caddy/Caddyfile /etc/caddy/Caddyfile
-# 3. Reload gracefully:
-#    sudo caddy reload --config /etc/caddy/Caddyfile
-# 4. If running as a systemd service:
-#    sudo systemctl reload caddy
-# Don’t use systemctl restart caddy unless you want a hard restart — that will drop connections.
-# Don’t kill the process manually; you’ll interrupt traffic.
+# ------------------------------------------------------------
+# After modifying this file:
+#
+# 1. Validate and format (optional but recommended):
+#      make caddy-validate
+#      make caddy-fmt
+#
+# 2. Deploy the updated Caddyfile and reload Caddy safely:
+#      make caddy
+#
+# The 'make caddy' recipe:
+#   - installs the Caddyfile into /etc/caddy/Caddyfile
+#   - deploys fresh certificates via deploy-caddy
+#   - verifies the installed Caddy binary and plugins
+#   - reloads the systemd caddy service gracefully
+#
+# Notes:
+#   - Do NOT use 'systemctl restart caddy' unless you want a hard restart.
+#   - Do NOT kill the Caddy process manually; it will interrupt traffic.
+#   - All privileged operations are routed through the Makefile for safety.
+# ------------------------------------------------------------
