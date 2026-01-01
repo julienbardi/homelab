@@ -4,7 +4,9 @@
 
 # --- Deployment ---
 .PHONY: install-unbound install-dnsutils \
-		deploy-unbound-config deploy-unbound-service deploy-unbound \
+		deploy-unbound-config \
+		deploy-unbound-service deploy-unbound \
+		deploy-unbound-control-config \
 		update-root-hints ensure-root-key
 
 install-unbound:
@@ -15,6 +17,9 @@ install-dnsutils:
 
 UNBOUND_CONF_SRC := $(HOMELAB_DIR)/config/unbound/unbound.conf
 UNBOUND_CONF_DST := /etc/unbound/unbound.conf
+
+UNBOUND_CONTROL_CONF_SRC := $(HOMELAB_DIR)/config/unbound/unbound-control.conf
+UNBOUND_CONTROL_CONF_DST := /etc/unbound/unbound-control.conf
 
 # --- Root hints ---
 update-root-hints:
@@ -40,6 +45,11 @@ deploy-unbound-config: update-root-hints ensure-root-key
 	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_CONF_SRC) $(UNBOUND_CONF_DST)
 	@$(run_as_root) unbound-checkconf $(UNBOUND_CONF_DST) || { echo "❌ invalid config"; exit 1; }
 	@echo "✅ [make] unbound.conf deployed"
+
+deploy-unbound-control-config:
+	@echo "📄 [make] Deploying unbound-control.conf → /etc/unbound"
+	@$(run_as_root) install -m 0644 -o root -g root \
+		$(UNBOUND_CONTROL_CONF_SRC) $(UNBOUND_CONTROL_CONF_DST)
 
 UNBOUND_SERVICE_SRC := $(HOMELAB_DIR)/config/systemd/unbound.service
 UNBOUND_SERVICE_DST := /etc/systemd/system/unbound.service
@@ -69,7 +79,7 @@ install-unbound-systemd-dropin:
 	@echo "✅ unbound running (drop-in applied)"
 	@echo "✅ [make] unbound systemd drop-in installed"
 
-deploy-unbound: install-pkg-unbound deploy-unbound-config deploy-unbound-service
+deploy-unbound: install-pkg-unbound deploy-unbound-config deploy-unbound-service deploy-unbound-control-config
 	@echo "🔄 [make] Restarting unbound service"
 	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || { echo "❌ failed to enable unbound";  exit 1; }
 	@$(run_as_root) systemctl restart unbound
@@ -183,17 +193,26 @@ dns-reset:
 	@echo "✅ [make] DNS reset + bootstrap complete"
 
 # --- Health check ---
-dns-health:
+dns-health: assert-unbound-control
 	@echo "🩺 [make] Checking Unbound health and cache stats..."
-	@$(run_as_root) -u unbound unbound-control \
+	sudo -u unbound unbound-control \
 		-c /etc/unbound/unbound-control.conf \
-		stats_noreset | awk '\
+		stats_noreset 2>/dev/null | awk '\
 			/^num.queries/       {print "📊 Total queries: " $$2} \
 			/^num.cachehits/     {print "⚡ Cache hits: " $$2} \
 			/^num.cachemiss/     {print "🐢 Cache misses: " $$2} \
 			/^avg.response.time/ {print "⏱️ Avg response time: " $$2 " ms"} \
 		'
 	@echo "✅ [make] dns-health check complete"
+
+.PHONY: assert-unbound-control
+assert-unbound-control:
+	@test -f /etc/unbound/unbound-control.conf || \
+		( echo "❌ unbound-control not configured. Run: make setup-unbound-control"; exit 1 )
+	@sudo -u unbound unbound-control \
+		-c /etc/unbound/unbound-control.conf \
+		status >/dev/null 2>/dev/null || \
+		( echo "❌ unbound-control not responding"; exit 1 )
 
 
 # --- Live log watch ---

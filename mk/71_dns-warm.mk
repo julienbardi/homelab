@@ -39,9 +39,10 @@ dns-warm-install: \
 	dns-warm-install-systemd
 	@echo "dns-warm installed. Enable with: make dns-warm-enable"
 
-dns-warm-enable:
+dns-warm-enable: dns-warm-install
 	@echo "Enabling dns-warm timer..."
 	@$(run_as_root) systemctl enable --now $(TIMER)
+	@$(MAKE) dns-warm-status
 
 dns-warm-disable:
 	@echo "Disabling dns-warm timer..."

@@ -61,7 +61,7 @@ caddy-fmt:
 
 .PHONY: assert-caddy-ports-free
 assert-caddy-ports-free:
-	@conflict=$$(ss -H -tlnp '( sport = :80 or sport = :443 )' | grep -v caddy || true); \
+	@conflict=$$($(run_as_root) ss -H -tlnp '( sport = :80 or sport = :443 )' | grep -v caddy || true); \
 	if [ -n "$$conflict" ]; then \
 		echo "❌ ERROR: Port 80 or 443 is already in use:"; \
 		echo "$$conflict"; \
