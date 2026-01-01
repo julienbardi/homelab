@@ -9,15 +9,9 @@ prereqs: prereqs-tools prereqs-dns prereqs-dev
 # ------------------------------------------------------------
 prereqs-tools:
 	@echo "[make] Ensuring base tools"
-	@sudo apt-get update
-	@sudo apt-get install -y \
-		curl \
-		jq \
-		git \
-		nftables \
-		iptables \
-		shellcheck \
-		pup
+	@$(call apt_update_if_needed)
+	@$(call apt_install,core-tools, \
+        curl jq git nftables iptables shellcheck pup)
 
 # ------------------------------------------------------------
 # DNS / networking diagnostics
@@ -27,7 +21,7 @@ prereqs-dns:
 	@if command -v kdig >/dev/null 2>&1; then \
 		echo "[make] kdig already installed"; \
 	else \
-		sudo apt-get install -y knot-dnsutils; \
+		$(call apt_install,knot-dnsutils,knot-dnsutils); \
 	fi
 
 # ------------------------------------------------------------
@@ -35,6 +29,4 @@ prereqs-dns:
 # ------------------------------------------------------------
 prereqs-dev:
 	@echo "[make] Ensuring admin helpers"
-	@sudo apt-get install -y \
-		iperf3 \
-		qrencode
+	@$(call apt_install,admin-helpers,iperf3 qrencode)
