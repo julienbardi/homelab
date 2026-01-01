@@ -2,7 +2,7 @@
 # mk/31_setup-subnet-router.mk — Subnet router orchestration
 # ============================================================
 # CONTRACT:
-# - Uses run_as_root := ./bin/run-as-root
+# - Uses run_as_root inherited from mk/01_common.mk
 # - All recipes call $(run_as_root) with argv tokens.
 # - Operators (> | && ||) must be escaped when invoked from Make.
 # ============================================================
