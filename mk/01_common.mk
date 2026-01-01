@@ -88,7 +88,7 @@ define apt_remove
 	@echo "[make] Requested removal of $(1)..."; \
 	if dpkg -s $(1) >/dev/null 2>&1; then \
 		echo "[make] $(1) is installed; removing..."; \
-		DEBIAN_FRONTEND=noninteractive $(run_as_root) apt-get remove -y -o Dpkg::Options::=--force-confold $(1) || echo "[make] apt-get remove returned non-zero"; \
+		$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get remove -y -o Dpkg::Options::=--force-confold $(1) || echo "[make] apt-get remove returned non-zero"; \
 		if [ -n "$(2)" ]; then \
 			$(run_as_root) apt-mark unhold $(1) >/dev/null 2>&1 || true; \
 			$(run_as_root) rm -f $(2) >/dev/null 2>&1 || true; \
@@ -106,7 +106,7 @@ endef
 .PHONY: homelab-cleanup-deps
 homelab-cleanup-deps: ; # clear any built-in recipe
 	@echo "[make] Cleaning up unused dependencies..."
-	@DEBIAN_FRONTEND=noninteractive $(run_as_root) apt-get autoremove -y || true
+	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get autoremove -y || true
 
 # simple prereq check target (useful in CI)
 .PHONY: check-prereqs
