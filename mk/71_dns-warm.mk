@@ -54,10 +54,10 @@ dns-warm-install: \
 	install-dns-warm-policy \
 	update-dns-warm-domains \
 	dns-warm-install-script \
-	dns-warm-install-systemd
-	@echo "dns-warm installed. Enable with: make dns-warm-enable"
+	dns-warm-install-systemd \
+	dns-warm-enable
 
-dns-warm-enable: dns-warm-install
+dns-warm-enable:
 	@echo "Enabling dns-warm timer..."
 	@$(run_as_root) systemctl enable --now $(TIMER)
 	@$(MAKE) dns-warm-status
@@ -102,7 +102,7 @@ dns-warm-dirs:
 	@$(run_as_root) chown -R $(USER):$(GROUP) $(DOMAINS_DIR) $(STATE_DIR)
 	@$(run_as_root) chmod 750 $(STATE_DIR)
 
-dns-warm-install-script:
+dns-warm-install-script: dns-warm-async-install
 	@$(run_as_root) install -m 0755 scripts/$(SCRIPT_NAME) $(SCRIPT_PATH)
 	@$(run_as_root) chown $(USER):$(GROUP) $(SCRIPT_PATH)
 	@$(run_as_root) bash -n $(SCRIPT_PATH)
@@ -130,11 +130,11 @@ dns-warm-install-systemd:
 
 	@$(run_as_root) sh -c 'printf "%s\n" \
 "[Unit]" \
-"Description=Run DNS cache warmer after previous run completes" \
+"Description=Run DNS cache warmer after previous run completes with wait time of 10s" \
 "" \
 "[Timer]" \
 "OnBootSec=2min" \
-"OnUnitInactiveSec=10min" \
+"OnUnitInactiveSec=10s" \
 "AccuracySec=30s" \
 "" \
 "[Install]" \
@@ -143,3 +143,13 @@ dns-warm-install-systemd:
 	@$(run_as_root) chmod 644 $(TIMER_PATH)
 
 	@$(run_as_root) systemctl daemon-reload
+
+# ------------------------------------------------------------
+# Async DNS cache warmer (c-ares based)
+# ------------------------------------------------------------
+dns-warm-async: $(HOMELAB_DIR)/scripts/dns-warm-async.c prereqs
+	$(CC) -O2 -Wall -Wextra -o $@ $< -lcares
+
+.PHONY: dns-warm-async-install
+dns-warm-async-install: dns-warm-async
+	sudo install -m 0755 dns-warm-async /usr/local/bin/dns-warm-async
