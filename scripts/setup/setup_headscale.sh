@@ -161,13 +161,25 @@ fi
 
 # --- Ensure DB directory and file ---
 log "Ensuring DB directory ${DB_DIR} and file ${DB_FILE}"
+
+# Directory must be writable by headscale for SQLite journaling
 run_as_root install -d -o "${HEADSCALE_USER}" -g "${HEADSCALE_USER}" -m 0770 "${DB_DIR}"
+
+# Ensure correct ownership even if directory existed from earlier runs
+run_as_root chown "${HEADSCALE_USER}:${HEADSCALE_USER}" "${DB_DIR}"
+run_as_root chmod 0770 "${DB_DIR}"
+
 if [ ! -f "${DB_FILE}" ]; then
-  run_as_root touch "${DB_FILE}"
-  log "Created DB file ${DB_FILE}"
+	run_as_root touch "${DB_FILE}"
+	log "Created DB file ${DB_FILE}"
 fi
-run_as_root chmod 660 "${DB_FILE}" || true
+
+run_as_root chown "${HEADSCALE_USER}:${HEADSCALE_USER}" "${DB_FILE}"
+run_as_root chmod 0660 "${DB_FILE}"
+
+# Clean up stale SQLite artifacts
 run_as_root rm -f "${DB_DIR}"/db.sqlite-* || true
+
 
 # --- Runtime directory and socket cleanup ---
 log "Preparing runtime directory ${RUNTIME_DIR}"
@@ -179,18 +191,17 @@ fi
 
 # --- Noise private key generation ---
 if [ ! -f "${CONFIG_DIR}/noise_private.key" ]; then
-  run_as_root --preserve env HS_BIN="${HS_BIN}" CONFIG_DIR="${CONFIG_DIR}" \
-	bash -s _ "$HS_BIN" "$CONFIG_DIR" <<'INNER'
-umask 077
-exec "$1" generate private-key > "$2/noise_private.key"
-INNER
-  if [ -f "${CONFIG_DIR}/noise_private.key" ]; then
-	log "Noise private key created at ${CONFIG_DIR}/noise_private.key"
-	run_as_root chown "${HEADSCALE_USER}":"${HEADSCALE_USER}" "${CONFIG_DIR}/noise_private.key"
+	log "Generating Noise private key"
+
+	run_as_root bash -c "
+		umask 077
+		${HS_BIN} generate private-key > '${CONFIG_DIR}/noise_private.key'
+	"
+
+	run_as_root chown "${HEADSCALE_USER}:${HEADSCALE_USER}" "${CONFIG_DIR}/noise_private.key"
 	run_as_root chmod 600 "${CONFIG_DIR}/noise_private.key"
-  else
-	log "ERROR: failed to generate Noise private key"
-  fi
+
+	log "Noise private key created at ${CONFIG_DIR}/noise_private.key"
 fi
 
 # --- Systemd unit ---

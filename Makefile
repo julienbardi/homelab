@@ -38,8 +38,12 @@ include mk/70_dnsdist.mk     #
 include mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
 include mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
 include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
-include mk/81_headscale.mk   # Headscale-specific targets (Noise key rotation, etc.)
-include mk/82_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
+include mk/81_headscale.mk              # Headscale service + binary + systemd
+include mk/82_headscale-namespaces.mk   # Namespaces (bardi-lan, bardi-wan) ← NEW
+include mk/83_headscale-users.mk        # Users (future)
+include mk/84_headscale-acls.mk         # ACLs (future)
+include mk/85_tailscaled.mk             # Client onboarding (renamed from 82)
+include mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
 include mk/90_dns-health.mk  # DNS health checks and monitoring
 include mk/90_converge.mk
 include mk/99_lint.mk        # lint and safety checks (always last)
@@ -96,6 +100,14 @@ help:
 	@echo "    make ensure-known-hosts         # Ensure SSH known_hosts entries (interactive)"
 	@echo "    make gitcheck                   # Ensure homelab repo present"
 	@echo "    make update                     # Pull latest homelab repo"
+	@echo ""
+	@echo "  Tailnet / Headscale"
+	@echo "    make headscale-stack          # Ensure Headscale service, namespaces, users, and ACLs"
+	@echo "    make tailscaled               # Full Tailscale orchestration (LAN role by default)"
+	@echo "    make tailscaled-lan           # Enroll this host as LAN-capable node (exit-node + subnet)"
+	@echo "    make tailscaled-wan           # Enroll this host as WAN-only node (internet access)"
+	@echo "    make tailscaled-status        # Show tailscaled health, traffic, and versions"
+	@echo "    make tailscaled-logs          # Tail tailscaled + role unit logs"
 	@echo ""
 	@echo "  Orchestration and services"
 	@echo "    make wireguard                  # Full WireGuard orchestration (requires router setup)"
@@ -186,15 +198,15 @@ update: gitcheck
 	@git -C $(HOMELAB_DIR) pull --rebase
 	@echo "[make] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
 
-.PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake headscale-build
+.PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake
 .PHONY: setup-subnet-router
 .PHONY: test logs clean-soft
 
 .PHONY: clean
 clean:
 	@echo "[make] Removing tailscaled role units..."
-	@$(run_as_root) systemctl disable tailscaled-family.service tailscaled || true
-	@$(run_as_root) rm -f /etc/systemd/system/tailscaled-family.service || true
+	@$(run_as_root) systemctl disable tailscaled-lan.service tailscaled || true
+	@$(run_as_root) rm -f /etc/systemd/system/tailscaled-lan.service || true
 	@$(run_as_root) systemctl daemon-reload
 	@echo "[make] ✅ Cleaned tailscaled units and disabled services"
 
@@ -205,10 +217,8 @@ reload:
 
 .PHONY: restart
 restart:
-	@$(run_as_root) systemctl restart tailscaled tailscaled-family.service
+	@$(run_as_root) systemctl restart tailscaled tailscaled-lan.service
 	@echo "[make] 🔁 Restarted tailscaled + family + guest services"
-
-
 
 test: logs
 	@echo "[make] Running run_as_root harness..."
@@ -218,21 +228,39 @@ test: logs
 all: harden-groups gitcheck gen0 gen1 gen2
 	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
 
+.PHONY: headscale-stack
+
+headscale-stack: \
+	headscale \
+	headscale-namespaces \
+	headscale-users \
+	headscale-acls
+	@echo "[make] Headscale control plane ready"
+
+.PHONY: tailscaled
+
+tailscaled: \
+	headscale-stack \
+	tailscaled-lan \
+	enable-tailscaled \
+	start-tailscaled \
+	tailscaled-status
+	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
+		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
+
 # --- Gen0: foundational services --- disabled: dnscrypt-proxy
-gen0: sysctl harden-groups ensure-known-hosts setup-subnet-router headscale tailscaled dns-all dns 
+gen0: \
+	sysctl \
+	harden-groups \
+	ensure-known-hosts \
+	setup-subnet-router \
+	headscale-stack \
+	tailscaled \
+	dns-all \
+	dns
 	@echo "[make] Running gen0 foundational services..."
 
 gen1: caddy tailnet rotate wg-baseline code-server
-
-# --- Headscale orchestration ---
-headscale: harden-groups config/headscale.yaml config/derp.yaml deploy-headscale
-	@echo "[make] Running Headscale setup script..."
-	@$(run_as_root) bash scripts/setup/setup_headscale.sh
-
-.PHONY: tailscaled
-tailscaled: headscale tailscaled-family enable-tailscaled start-tailscaled tailscaled-status
-	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
-		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
 SYSTEMD_DIR = /etc/systemd/system
 REPO_SYSTEMD = config/systemd
@@ -289,3 +317,4 @@ wireguard: setup-subnet-router
 	@echo "[make] Running wireguard orchestration (all-start)"
 	@$(run_as_root) $(MAKE) -C $(HOMELAB_DIR) all-start FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) || true
 	@echo "[make] wireguard orchestration complete"
+
