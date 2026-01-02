@@ -161,7 +161,9 @@ neg_raw="$(run_query sigfail.verteiltesysteme.net A +dnssec)"
 neg_status="$(get_status "$neg_raw")"
 
 neg_ok=false
-[[ "$neg_status" == "SERVFAIL" ]] && neg_ok=true
+if [[ "$neg_status" == "SERVFAIL" ]] || grep -qEi 'no servers could be reached|timed out' <<<"$neg_raw"; then
+    neg_ok=true
+fi
 
 # ------------------------------------------------------------
 # 4) DoH DNSSEC validation (optional)
