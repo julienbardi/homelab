@@ -39,10 +39,8 @@ include mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
 include mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
 include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
 include mk/81_headscale.mk              # Headscale service + binary + systemd
-include mk/82_headscale-namespaces.mk   # Namespaces (bardi-lan, bardi-wan) ← NEW
 include mk/83_headscale-users.mk        # Users (future)
 include mk/84_headscale-acls.mk         # ACLs (future)
-include mk/85_tailscaled.mk             # Client onboarding (renamed from 82)
 include mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
 include mk/90_dns-health.mk  # DNS health checks and monitoring
 include mk/90_converge.mk
@@ -195,7 +193,7 @@ gitcheck:
 
 update: gitcheck
 	@echo "[make] Updating homelab repo..."
-	@git -C $(HOMELAB_DIR) pull --rebase
+	@git -C $(HOMELAB_DIR) pull --rebase || true
 	@echo "[make] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake
@@ -232,7 +230,6 @@ all: harden-groups gitcheck gen0 gen1 gen2
 
 headscale-stack: \
 	headscale \
-	headscale-namespaces \
 	headscale-users \
 	headscale-acls
 	@echo "[make] Headscale control plane ready"

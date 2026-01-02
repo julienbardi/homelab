@@ -51,8 +51,6 @@ tailscaled-lan: tailscaled-check-deps
 		--login-server=https://vpn.bardi.ch \
 		--authkey=$$($(run_as_root) $(HS_BIN) preauthkeys create \
 			--user $(HS_USER_LAN) \
-			--ephemeral=false \
-			--reusable=false \
 			--output json | jq -r '.key') \
 		--advertise-exit-node \
 		--advertise-routes=10.89.12.0/24 \
@@ -72,7 +70,6 @@ tailscaled-wan: tailscaled-check-deps
 		--authkey=$$($(run_as_root) $(HS_BIN) preauthkeys create \
 			--user $(HS_USER_WAN) \
 			--ephemeral=true \
-			--reusable=false \
 			--output json | jq -r '.key') \
 		--accept-dns=true
 	@echo "✅ WAN client configured (internet-only)"

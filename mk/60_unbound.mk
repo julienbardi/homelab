@@ -218,7 +218,7 @@ dns-watch:
 
 sysctl:
 	@echo "📄 Ensuring /etc/sysctl.d/99-unbound-buffers.conf exists and is correct..."
-	@if ! [ -f /etc/sysctl.d/99-unbound-buffers.conf] || \
+	@if ! [ -f /etc/sysctl.d/99-unbound-buffers.conf ] || \
 	   ! grep -q "net.core.rmem_max = 8388608" /etc/sysctl.d/99-unbound-buffers.conf || \
 	   ! grep -q "net.core.wmem_max = 8388608" /etc/sysctl.d/99-unbound-buffers.conf; then \
 		echo "# Increase socket buffer sizes for Unbound DNS resolver" | $(run_as_root) tee /etc/sysctl.d/99-unbound-buffers.conf >/dev/null; \

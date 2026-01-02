@@ -302,6 +302,18 @@ if ip link show "${TS_IF}" >/dev/null 2>&1; then
 	add_rule "oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} forward-accept" \
 		"nft add rule inet filter forward oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} accept"
 
+	# NEW: Tailscale IPv6 -> LAN IPv6
+	add_rule "TS -> LAN v6" \
+		"nft add rule inet filter forward iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr ${LAN_SUBNET_V6} accept"
+
+	# NEW: LAN IPv6 -> Tailscale IPv6
+	add_rule "LAN -> TS v6" \
+		"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${TS_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${TS_SUBNET_V6} accept"
+
+	# NEW: Tailscale IPv6 -> Internet IPv6 (non-LAN)
+	add_rule "TS -> inet v6" \
+		"nft add rule inet filter forward iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr != ${LAN_SUBNET_V6} accept"
+
 	log "Tailscale nft rules applied."
 else
 	log "Tailscale interface ${TS_IF} not found, skipping Tailscale rules."
