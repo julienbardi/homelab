@@ -10,7 +10,7 @@
 SHELL := /bin/bash
 
 HEADSCALE_BIN := /usr/local/bin/headscale
-HEADSCALE_URL := https://github.com/juanfont/headscale/releases/latest/download/headscale-linux-amd64
+HEADSCALE_URL := https://github.com/juanfont/headscale/releases/download/v0.28.0-beta.1/headscale_0.28.0-beta.1_linux_amd64
 
 .PHONY: ensure-run-as-root
 ensure-run-as-root:
@@ -52,3 +52,22 @@ rotate-noise-key: ensure-run-as-root headscale-bin
 headscale-logs: ensure-run-as-root
 	@echo "[make] Tailing headscale logs (Ctrl-C to exit)..."
 	@$(run_as_root) journalctl -u headscale -f -n 100
+
+# --------------------------------------------------------------------
+# Headscale provisioning prerequisites (parallel-safe)
+# --------------------------------------------------------------------
+.PHONY: headscale-prereqs
+headscale-prereqs: \
+	harden-groups \
+	config/headscale.yaml \
+	config/derp.yaml \
+	deploy-headscale \
+	headscale-bin
+
+# --------------------------------------------------------------------
+# Headscale orchestration (serialized)
+# --------------------------------------------------------------------
+.PHONY: headscale
+headscale: headscale-prereqs
+	@echo "[make] Running Headscale setup script..."
+	@$(run_as_root) bash scripts/setup/setup_headscale.sh
