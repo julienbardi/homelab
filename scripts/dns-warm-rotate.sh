@@ -9,7 +9,7 @@ set -euo pipefail
 # ----------------------------
 DOMAINS_FILE="/etc/dns-warm/domains.txt"
 STATE_FILE="/var/lib/dns-warm/state.csv"
-PER_RUN=4000
+PER_RUN=10000
 WORKERS=10      # legacy only
 RESOLVER="127.0.0.1"
 
