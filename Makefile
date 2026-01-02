@@ -30,6 +30,7 @@ include mk/31_setup-subnet-router.mk # Subnet router orchestration
 include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include mk/40_code-server.mk
 include mk/40_wireguard.mk   # Wireguard orchestration
+include mk/41_wireguard-status.mk
 include mk/40_caddy.mk
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/50_dnsmasq.mk
