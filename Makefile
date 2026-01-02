@@ -225,7 +225,7 @@ gen0: sysctl harden-groups ensure-known-hosts setup-subnet-router headscale tail
 gen1: caddy tailnet rotate wg-baseline code-server
 
 # --- Headscale orchestration ---
-headscale: harden-groups install-go config/headscale.yaml config/derp.yaml deploy-headscale
+headscale: harden-groups config/headscale.yaml config/derp.yaml deploy-headscale
 	@echo "[make] Running Headscale setup script..."
 	@$(run_as_root) bash scripts/setup/setup_headscale.sh
 
