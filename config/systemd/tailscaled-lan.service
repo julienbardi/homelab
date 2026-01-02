@@ -1,6 +1,6 @@
-# tailscaled-family.service
+# tailscaled-lan.service
 [Unit]
-Description=Tailscale family role (exit node + LAN route)
+Description=Tailscale lan role (exit node + LAN route)
 After=network-online.target tailscaled.service
 Wants=network-online.target
 Requires=tailscaled.service
