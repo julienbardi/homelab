@@ -1,147 +1,98 @@
 #!/usr/bin/env bash
 # scripts/dns-warm-rotate.sh
+# to deploy, use
+#   make dns-warm-install
 set -euo pipefail
-IFS=$'\n\t'
 
-RESOLVER="${1:-127.0.0.1}"
+# ----------------------------
+# Configuration
+# ----------------------------
 DOMAINS_FILE="/etc/dns-warm/domains.txt"
 STATE_FILE="/var/lib/dns-warm/state.csv"
+PER_RUN=4000
+WORKERS=10      # legacy only
+RESOLVER="127.0.0.1"
 
-WORKERS=15
-PER_RUN=2400
-DIG_TIMEOUT=5
-DIG_TRIES=3
+DNSMASQ_CONF_DIR="/usr/ugreen/etc/dnsmasq/dnsmasq.d"
+DNS_FORWARD_MAX=$(grep -Rhs '^dns-forward-max=' "$DNSMASQ_CONF_DIR" | tail -n1 | cut -d= -f2)
+DNS_FORWARD_MAX=${DNS_FORWARD_MAX:-default}
 
-LOCKFILE="/var/lib/dns-warm/dns-warm-rotate.lock"
+# ----------------------------
+# Logging
+# ----------------------------
+log() {
+	printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
+}
 
-install -d "$(dirname "$DOMAINS_FILE")" "$(dirname "$STATE_FILE")"
-
-log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
-
+# ----------------------------
+# State initialization
+# ----------------------------
 init_state() {
 	if [ -s "$STATE_FILE" ]; then
 		return
 	fi
 
-	log "Initializing state file from domain policy"
-	awk '{print $0 ",0"}' "$DOMAINS_FILE" > "$STATE_FILE"
-
-	if [ ! -s "$STATE_FILE" ]; then
-		log "ERROR: failed to initialize state from $DOMAINS_FILE"
+	if [ ! -s "$DOMAINS_FILE" ]; then
+		log "dns-warm ERROR: domain policy file missing or empty"
 		exit 1
 	fi
 
+	awk '{print $0 ",0"}' "$DOMAINS_FILE" >"$STATE_FILE"
 	chmod 640 "$STATE_FILE"
 }
 
-
+# ----------------------------
+# Domain selection
+# ----------------------------
 select_oldest() {
-	awk -F, '{print $2","$1}' "$STATE_FILE" \
-	| sort -n \
-	| awk -F, -v n="$PER_RUN" 'NR<=n {print $2}'
+	sort -t, -k2,2n "$STATE_FILE" 2>/dev/null | head -n "$PER_RUN" | cut -d, -f1
 }
 
-update_state() {
-	local now tmp warmed_file
-	now="$(date +%s)"
-	tmp="$(mktemp)"
-	warmed_file="$(mktemp)"
-
-	cat > "$warmed_file"
-
-	awk -F, -v now="$now" -v warmed="$warmed_file" '
-		BEGIN { while ((getline < warmed) > 0) w[$1]=1 }
-		{ if ($1 in w) print $1 "," now; else print }
-	' "$STATE_FILE" > "$tmp"
-
-	mv "$tmp" "$STATE_FILE"
-	rm -f "$warmed_file"
-}
-
-COUNTER_DONE="$(mktemp)"
-COUNTER_ACTIVE="$(mktemp)"
-echo 0 > "$COUNTER_DONE"
-echo 0 > "$COUNTER_ACTIVE"
-
-progress() {
-	local start=$(date +%s)
-	local total=${#to_warm[@]}
-	local start_str=$(date '+%Y-%m-%d %H:%M:%S')
-
-	while true; do
-		sleep 1
-		local now elapsed done active rate
-		now=$(date +%s)
-		elapsed=$((now - start))
-		done=$(cat "$COUNTER_DONE")
-		active=$(cat "$COUNTER_ACTIVE")
-
-		rate="0.00"
-		[ "$elapsed" -gt 0 ] && rate=$(awk -v d="$done" -v e="$elapsed" 'BEGIN{printf "%.2f", d/e}')
-
-		printf '\rActive: %d | Done: %d/%d | start %s | elapsed %ds | rate %s req/s' \
-			"$active" "$done" "$total" "$start_str" "$elapsed" "$rate"
-
-		[ "$done" -ge "$total" ] && { printf '\n'; break; }
-	done
-}
-
-warm_domain() {
-	local d="$1"
-
-	(
-		flock -x 201
-		echo $(( $(<"$COUNTER_ACTIVE") + 1 )) > "$COUNTER_ACTIVE"
-	) 201>"$COUNTER_ACTIVE.lock"
-
-	dig @"$RESOLVER" +time="$DIG_TIMEOUT" +tries="$DIG_TRIES" +noall +answer "$d" A >/dev/null 2>&1 || true
-	dig @"$RESOLVER" +time="$DIG_TIMEOUT" +tries="$DIG_TRIES" +noall +answer "$d" AAAA >/dev/null 2>&1 || true
-	dig @"$RESOLVER" +time="$DIG_TIMEOUT" +tries="$DIG_TRIES" +noall +answer "$d" NS >/dev/null 2>&1 || true
-
-	(
-		flock -x 201
-		echo $(( $(<"$COUNTER_ACTIVE") - 1 )) > "$COUNTER_ACTIVE"
-	) 201>"$COUNTER_ACTIVE.lock"
-
-	(
-		flock -x 200
-		echo $(( $(<"$COUNTER_DONE") + 1 )) > "$COUNTER_DONE"
-	) 200>"$COUNTER_DONE.lock"
-}
-
+# ----------------------------
+# Main
+# ----------------------------
 main() {
-	exec 9>"$LOCKFILE"
-	flock -n 9 || { log "Another instance is running; exiting"; exit 0; }
-
-	[ -s "$DOMAINS_FILE" ] || {
-		log "ERROR: $DOMAINS_FILE missing or empty"
-		exit 1
-	}
+	start_ts=$(date +%s)
 
 	init_state
+	mapfile -t DOMAINS < <(select_oldest)
 
-	mapfile -t to_warm < <(select_oldest)
+	if [ "${#DOMAINS[@]}" -eq 0 ]; then
+		log "dns-warm: domains=0 (nothing to do)"
+		exit 0
+	fi
 
-	log "Workers: $WORKERS"
-	log "Resolver: $RESOLVER"
-	log "Domains selected this run: ${#to_warm[@]}"
+	if command -v dns-warm-async >/dev/null; then
+		tmpfile=$(mktemp)
+		printf '%s\n' "${DOMAINS[@]}" >"$tmpfile"
+		/usr/local/bin/dns-warm-async "$tmpfile" >/dev/null
+		rm -f "$tmpfile"
+	else
+		printf '%s\n' "${DOMAINS[@]}" |
+			xargs -P"$WORKERS" -I{} \
+				dig @"$RESOLVER" {} +timeout=1 +tries=1 >/dev/null || true
+	fi
 
-	progress &
-	progress_pid=$!
+	now=$(date +%s)
+	awk -F, -v now="$now" '
+		BEGIN { OFS="," }
+		NR==FNR { warmed[$1]=1; next }
+		{
+			if ($1 in warmed) print $1, now
+			else print
+		}
+	' <(printf '%s\n' "${DOMAINS[@]}") "$STATE_FILE" >"$STATE_FILE.tmp"
 
-	sem=0
+	mv "$STATE_FILE.tmp" "$STATE_FILE"
 
-	for d in "${to_warm[@]}"; do
-		warm_domain "$d" &
-		((sem++))
-		[ "$sem" -ge "$WORKERS" ] && { wait -n || true; sem=$((sem-1)); }
-	done
+	end_ts=$(date +%s)
+	duration=$(awk "BEGIN { printf \"%.1f\", $end_ts - $start_ts }")
 
-	wait || true
-	kill "$progress_pid" 2>/dev/null || true
-
-	printf '%s\n' "${to_warm[@]}" | update_state
-	log "Warming complete; updated state for ${#to_warm[@]} domains"
+	if command -v dns-warm-async >/dev/null; then
+		log "dns-warm-async: resolver=$RESOLVER domains=${#DOMAINS[@]} duration=${duration}s"
+	else
+		log "dns-warm: workers=$WORKERS resolver=$RESOLVER domains=${#DOMAINS[@]} dns-forward-max=$DNS_FORWARD_MAX duration=${duration}s"
+	fi
 }
 
-main
+main "$@"
