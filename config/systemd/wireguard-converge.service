@@ -1,0 +1,34 @@
+# wireguard-converge.service
+[Unit]
+Description=WireGuard converge from authoritative homelab config
+Documentation=man:wg(8)
+After=network-online.target
+Wants=network-online.target
+
+# If this fails, we do NOT want to block boot
+# Last-known-good state remains active
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+
+# Hard fail on errors inside scripts
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
+# Compile authoritative intent
+ExecStart=/volume1/homelab/wireguard/scripts/wg-compile.sh
+
+# Deploy atomically if compile succeeded
+ExecStart=/volume1/homelab/wireguard/scripts/wg-deploy.sh
+
+# Never tear down existing WG state on failure
+RemainAfterExit=yes
+
+# Log clearly but do not spam
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
