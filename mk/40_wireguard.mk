@@ -18,15 +18,12 @@ WG_CHECK_SCRIPT   := $(SCRIPTS)/wg-check.sh
 # Discover interfaces from CSV (single source of truth)
 WG_IFACES := $(shell awk -F, 'NR>1 && $$3 != "iface" {gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$3); if ($$3!="") print $$3}' $(WG_CSV) | sort -u)
 
-# Server public keys are required inputs
-WG_SERVER_PUBS := $(addprefix /etc/wireguard/,$(addsuffix .pub,$(WG_IFACES)))
-
 .PHONY: wg-validate wg-apply wg-compile wg-deploy wg-status wg-client-export wg-check
 
 # ------------------------------------------------------------
 # Compile intent → artifacts (no deployment)
 # ------------------------------------------------------------
-wg-compile: $(WG_CSV) $(WG_COMPILE_SCRIPT) $(WG_SERVER_PUBS)
+wg-compile: $(WG_CSV) $(WG_COMPILE_SCRIPT)
 	@echo "▶ compiling WireGuard intent"
 	@$(WG_COMPILE_SCRIPT)
 
@@ -40,7 +37,8 @@ wg-deploy: $(WG_DEPLOY_SCRIPT)
 # ------------------------------------------------------------
 # Full workflow: compile → deploy
 # ------------------------------------------------------------
-wg-apply: wg-compile wg-deploy
+wg-apply: wg-compile wg-deploy wg-client-export
+
 	@echo "✅ WireGuard converged successfully"
 
 # ------------------------------------------------------------

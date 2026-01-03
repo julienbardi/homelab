@@ -6,8 +6,8 @@ set -euo pipefail
 # Reads:
 #   /volume1/homelab/wireguard/compiled/plan.tsv
 #   /volume1/homelab/wireguard/compiled/alloc.csv
-#   /etc/wireguard/wgX.pub (server public keys)
-#   /etc/wireguard/<base>-<iface>.key (client private keys created by wg-deploy)
+#   /volume1/homelab/wireguard/compiled/server-pubkeys/wgX.pub
+#   /volume1/homelab/wireguard/compiled/client-keys/<base>-<iface>.key
 #
 # Writes (default):
 #   /volume1/homelab/wireguard/export/clients/<base>/<iface>.conf
@@ -21,11 +21,9 @@ ROOT="/volume1/homelab/wireguard"
 PLAN="$ROOT/compiled/plan.tsv"
 ALLOC="$ROOT/compiled/alloc.csv"
 
-WG_DIR="/etc/wireguard"
+WG_PUBDIR="$ROOT/compiled/server-pubkeys"
+WG_KEYDIR="$ROOT/compiled/client-keys"
 OUT_ROOT="$ROOT/export/clients"
-
-WG_IPV6S="2a01:8b81:4800:9c00:10::1/128 2a01:8b81:4800:9c00:11::1/128 2a01:8b81:4800:9c00:12::1/128 2a01:8b81:4800:9c00:13::1/128 \
-		  2a01:8b81:4800:9c00:14::1/128 2a01:8b81:4800:9c00:15::1/128 2a01:8b81:4800:9c00:16::1/128 2a01:8b81:4800:9c00:17::1/128"
 
 die() { echo "wg-client-export: ERROR: $*" >&2; exit 1; }
 need() { [ -e "$1" ] || die "missing required path: $1"; }
@@ -44,24 +42,28 @@ umask 077
 # alloc.csv: base,hostid
 alloc_lookup() {
   local base="$1"
-  awk -F, -v b="$base" '($1==b){print $2; found=1} END{exit found?0:1}' "$ALLOC"
+  awk -F, -v b="$base" 'NR>1 && ($1==b){print $2; found=1} END{exit found?0:1}' "$ALLOC"
 }
 
-# plan.tsv: base iface hostid
-while IFS="$(printf '\t')" read -r base iface hid; do
-  [ -n "${base:-}" ] || continue
+# plan.tsv: base iface hostid dns allowed endpoint
+while read -r base iface hid dns allowed endpoint; do
+
+  [[ -z "${base:-}" || "$base" == \#* || "$base" == "base" ]] && continue
+
   [ -n "${iface:-}" ] || die "plan.tsv: missing iface for base=$base"
   [ -n "${hid:-}" ]  || die "plan.tsv: missing hostid for base=$base iface=$iface"
 
-  srv="$iface"                   # e.g. wg6
-  srv_pub="$WG_DIR/$srv.pub"      # e.g. /etc/wireguard/wg6.pub
-  cli_key="$WG_DIR/$base-$srv.key"
+  [ -n "${WG_ENDPOINT:-$endpoint}" ] || die "no endpoint available for $base $iface"
+
+  srv="$iface"
+  srv_pub="$WG_PUBDIR/$srv.pub"
+  cli_key="$WG_KEYDIR/$base-$srv.key"
 
   need "$srv_pub"
   need "$cli_key"
 
-  server_public="$(cat "$srv_pub")"
-  client_private="$(cat "$cli_key")"
+  server_public="$(tr -d '\r\n' <"$srv_pub")"
+  client_private="$(tr -d '\r\n' <"$cli_key")"
 
   if ! hostid="$(alloc_lookup "$base")"; then
 	die "alloc.csv: no allocation for base=$base"
@@ -72,30 +74,6 @@ while IFS="$(printf '\t')" read -r base iface hid; do
 	BEGIN { printf "10.%d.0.%d/32", 10+i, h }
   ')"
 
-  # IPv6 derived deterministically from hostid for IPv6-capable interfaces
-  iface_id="${srv#wg}"
-  case "$srv" in
-	wg4|wg5|wg6|wg7)
-		ipv6_prefix="$(awk -v n=$((iface_id+1)) '{print $n}' <<<"$WG_IPV6S")"
-		client_ipv6="$(sed 's/::1$//' <<<"${ipv6_prefix%/*}")::${hostid}/128"
-		;;
-	*)
-		client_ipv6=""
-		;;
-  esac
-
-  case "$srv" in
-	wg0) allowed="10.0.0.0/32" ;;
-	wg1) allowed="10.89.12.0/24" ;;
-	wg2) allowed="0.0.0.0/0" ;;
-	wg3) allowed="10.89.12.0/24, 0.0.0.0/0" ;;
-	wg4) allowed="::/0" ;;
-	wg5) allowed="10.89.12.0/24, ::/0" ;;
-	wg6) allowed="0.0.0.0/0, ::/0" ;;
-	wg7) allowed="10.89.12.0/24, 0.0.0.0/0, ::/0" ;;
-	*) die "unknown iface $srv" ;;
-  esac
-
   out_dir="$OUT_ROOT/$base"
   mkdir -p "$out_dir"
   out="$out_dir/$srv.conf"
@@ -105,8 +83,8 @@ while IFS="$(printf '\t')" read -r base iface hid; do
 	echo
 	echo "[Interface]"
 	echo "PrivateKey = $client_private"
-	echo "Address = $client_ipv4${client_ipv6:+, $client_ipv6}"
-	[ -n "$WG_DNS" ] && echo "DNS = $WG_DNS"
+	echo "Address = $client_ipv4"
+	echo "DNS = ${WG_DNS:-$dns}"
 	echo
 	echo "# DNS options:"
 	echo "#   - Leave unset to use local / ISP / mobile DNS (often fastest)"
@@ -121,7 +99,7 @@ while IFS="$(printf '\t')" read -r base iface hid; do
 	echo "[Peer]"
 	echo "PublicKey = $server_public"
 	echo "AllowedIPs = $allowed"
-	[ -n "$WG_ENDPOINT" ] && echo "Endpoint = $WG_ENDPOINT"
+	echo "Endpoint = ${WG_ENDPOINT:-$endpoint}"
 	echo "PersistentKeepalive = $WG_PERSISTENT_KEEPALIVE"
 } >"$out"
 

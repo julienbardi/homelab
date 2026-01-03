@@ -16,18 +16,18 @@
 #   HOMELAB_DIR is set above and ROUTER_REPO_SYSTEMD := config/systemd
 #   run_as_root is provided by mk/01_common.mk
 # --------------------------------------------------------------------
+# NOTE:
+# IPv4 NAT rules are persistent via iptables-persistent.
+# This target enforces convergence; it is intentionally NOT a systemd service.
 
 ROUTER_SYSTEMD_DIR := /etc/systemd/system
 ROUTER_REPO_SYSTEMD := $(HOMELAB_DIR)/config/systemd
 ROUTER_REPO_SCRIPTS := $(HOMELAB_DIR)/scripts
 
-# Services that must start after firewall/router units
-WG_UNITS := $(foreach i,0 1 2 3 4 5 6 7, wg-quick@wg$(i).service)
-FW_DEP_SERVICES := caddy.service tailscaled.service unbound.service headscale.service $(WG_UNITS)
-
 .PHONY: install-router-systemd enable-router-systemd uninstall-router-systemd
 
-install-router-systemd: ## Install router/firewall scripts and systemd units from repo (idempotent)
+# Install router policy artifacts (scripts + units), but do not enforce policy
+install-router-systemd:
 	@echo "[make] Installing router/firewall scripts and units from $(ROUTER_REPO_SYSTEMD)..."
 	@if [ ! -d "$(ROUTER_REPO_SYSTEMD)" ]; then \
 		echo "[make] ERROR: $(ROUTER_REPO_SYSTEMD) not found"; exit 1; \
@@ -36,7 +36,7 @@ install-router-systemd: ## Install router/firewall scripts and systemd units fro
 	@$(run_as_root) mkdir -p /usr/local/bin
 
 	# install scripts only if changed
-	@for s in setup-subnet-router.nft.sh firewall-nft.sh; do \
+	@for s in setup-subnet-router.nft.sh firewall-nft.sh setup-wg-nat.sh; do \
 	  src="$(ROUTER_REPO_SCRIPTS)/$$s"; dest="/usr/local/bin/$$s"; \
 	  if [ -f "$$src" ]; then \
 		if ! cmp -s "$$src" "$$dest" 2>/dev/null; then \
@@ -109,25 +109,30 @@ uninstall-router-systemd:
 	@$(run_as_root) systemctl stop --now setup-subnet-router.service firewall-nft.service || true
 	@$(run_as_root) systemctl disable setup-subnet-router.service firewall-nft.service || true
 	@$(run_as_root) rm -f $(ROUTER_SYSTEMD_DIR)/setup-subnet-router.service $(ROUTER_SYSTEMD_DIR)/firewall-nft.service || true
-	@$(run_as_root) rm -f /usr/local/bin/setup-subnet-router.nft.sh /usr/local/bin/firewall-nft.sh || true
+	@$(run_as_root) rm -f \
+	/usr/local/bin/setup-subnet-router.nft.sh \
+	/usr/local/bin/firewall-nft.sh \
+	/usr/local/bin/setup-wg-nat.sh || true
 	@$(run_as_root) systemctl daemon-reload
 	@echo "[make] Uninstalled router units and scripts."
 
+.PHONY: router-nat
+# Enforce IPv4 NAT invariants for WireGuard profiles with IPv4+Internet enabled
+router-nat:
+	@echo "[make] Applying WireGuard IPv4 NAT policy (iptables-nft)..."
+	@$(run_as_root) /usr/local/bin/setup-wg-nat.sh
+
 .PHONY: bootstrap-router
-bootstrap-router: ## Install repo units/scripts, then enable/start router+firewall
+bootstrap-router:
 	@echo "[make] bootstrap-router: installing repo units/scripts"
 	@$(MAKE) install-router-systemd || true
 	@echo "[make] bootstrap-router: enabling and starting router units"
 	@$(MAKE) enable-router-systemd || true
+	@echo "[make] bootstrap-router: applying NAT policy"
+	@$(MAKE) router-nat || true
 	@echo "[make] bootstrap-router: done"
 
-
-.PHONY: install-wireguard-tools setup-subnet-router router-deploy router-logs
-# --- WireGuard prerequisites ---
-install-wireguard-tools:
-	@echo "[make] Installing WireGuard kernel module + tools"
-	@$(run_as_root) apt-get update
-	@$(run_as_root) apt-get install -y wireguard wireguard-tools netfilter-persistent iptables-persistent ethtool
+.PHONY: setup-subnet-router router-deploy router-logs
 
 # --- Subnet router deployment ---
 SCRIPT_SRC  := $(HOMELAB_DIR)/scripts/setup-subnet-router.nft.sh
@@ -135,7 +140,7 @@ SCRIPT_DST  := /usr/local/bin/setup-subnet-router
 UNIT_SRC    := $(HOMELAB_DIR)/config/systemd/subnet-router.service
 UNIT_DST    := /etc/systemd/system/subnet-router.service
 
-setup-subnet-router: update install-wireguard-tools | $(SCRIPT_SRC) $(UNIT_SRC)
+setup-subnet-router: update prereqs-network | $(SCRIPT_SRC) $(UNIT_SRC)
 	@echo "[make] Deploying subnet router script + service..."
 	@if [ ! -f "$(SCRIPT_SRC)" ]; then \
 		echo "[make] ERROR: $(SCRIPT_SRC) not found"; exit 1; \
