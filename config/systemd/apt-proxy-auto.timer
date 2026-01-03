@@ -1,0 +1,12 @@
+# apt-proxy-auto.timer
+[Unit]
+Description=Periodically check whether APT proxy should be enabled
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=5m
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
