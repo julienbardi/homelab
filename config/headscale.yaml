@@ -87,12 +87,18 @@ log:
 
 dns:
   override_local_dns: true
+  magic_dns: true
+  base_domain: tailnet.bardi.ch
+
   nameservers:
     global:
       - 10.89.12.4
       - 10.89.12.1
-  magic_dns: true
-  base_domain: tailnet.bardi.ch
+
+  extra_records:
+    - name: apt.bardi.ch
+      type: A
+      value: 10.89.12.4
 
 # unix_socket: /var/run/headscale/headscale.sock
 # unix_socket_permission: "0770"
