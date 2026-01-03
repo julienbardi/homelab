@@ -119,6 +119,10 @@ uninstall-router-systemd:
 .PHONY: router-nat
 # Enforce IPv4 NAT invariants for WireGuard profiles with IPv4+Internet enabled
 router-nat:
+	@test -x /usr/local/bin/setup-wg-nat.sh || { \
+		echo "ERROR: setup-wg-nat.sh not installed. Run make install-router-systemd first."; \
+		exit 1; \
+	}
 	@echo "[make] Applying WireGuard IPv4 NAT policy (iptables-nft)..."
 	@$(run_as_root) /usr/local/bin/setup-wg-nat.sh
 
