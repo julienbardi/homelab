@@ -1,0 +1,9 @@
+# apt-proxy-auto.service
+[Unit]
+Description=Auto-enable APT proxy when reachable
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/apt-proxy-auto

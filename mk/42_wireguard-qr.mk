@@ -1,0 +1,30 @@
+# mk/42_wireguard-qr.mk
+# ============================================================
+# WireGuard client display helpers
+# ============================================================
+
+WG_EXPORT_ROOT := /volume1/homelab/wireguard/export/clients
+
+.PHONY: wg-show wg-qr
+
+# Show client config + QR
+# Usage: make wg-show BASE=julie-s22 IFACE=wg7
+wg-show:
+	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
+		echo "Usage: make wg-show BASE=<base> IFACE=<wgX>"; exit 1; \
+	fi
+	@conf="$(WG_EXPORT_ROOT)/$(BASE)/$(IFACE).conf"; \
+	[ -f "$$conf" ] || { echo "Missing $$conf"; exit 1; }; \
+	cat "$$conf"; \
+	echo ""; \
+	scripts/wg-qr.sh "$$conf" "$${conf%.conf}.png"
+
+# Show QR only
+# Usage: make wg-qr BASE=julie-s22 IFACE=wg7
+wg-qr:
+	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
+		echo "Usage: make wg-qr BASE=<base> IFACE=<wgX>"; exit 1; \
+	fi
+	@conf="$(WG_EXPORT_ROOT)/$(BASE)/$(IFACE).conf"; \
+	[ -f "$$conf" ] || { echo "Missing $$conf"; exit 1; }; \
+	scripts/wg-qr.sh "$$conf" "$${conf%.conf}.png"
