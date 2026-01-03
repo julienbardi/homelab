@@ -5,6 +5,22 @@
 # - Does not use heredoc to write files (uses printf | tee)
 # - All privileged actions go through $(run_as_root)
 # ============================================================
+WG_DIR := /etc/wireguard
+WG_BIN := /usr/bin/wg
+
+.PHONY: wg-clients
+
+wg-clients:
+	@printf "%-8s %-12s %-5s %s\n" "USER" "MACHINE" "IFACE" "COMMAND"
+	@printf "%-8s %-12s %-5s %s\n" "--------" "------------" "-----" "---------------------------------------------"
+	@awk '\
+		$$1 !~ /^#/ && $$1 != "base" { \
+			split($$1, a, "-"); \
+			user=a[1]; machine=a[2]; iface=$$2; \
+			printf "%-8s %-12s %-5s make wg-show BASE=%s IFACE=%s\n", \
+				user, machine, iface, $$1, iface \
+		}' /volume1/homelab/wireguard/compiled/plan.tsv
+
 
 
 # --- Dashboard: list users, machines, and interfaces (space-delimited) ---
@@ -37,7 +53,7 @@ client-dashboard: client-dashboard-status
 			done; \
 			printf "%-8s %-10s %-3s %-3s %-3s %-3s %-3s %-3s %-3s %-3s\n" "$${row[0]}" "$${row[1]}" "$${row[2]}" "$${row[3]}" "$${row[4]}" "$${row[5]}" "$${row[6]}" "$${row[7]}" "$${row[8]}" "$${row[9]}"; \
 		done < "$$TMP"; \
-		rm -f "$$TMP"' 
+		rm -f "$$TMP"'
 
 # --- wg-status: space-delimited interface table (no private key) ---
 .PHONY: wg-status
@@ -47,7 +63,7 @@ wg-status:
 	@printf "%-6s %-12s %-44s %-6s %-8s %-s\n" "------" "------------" "--------------------------------------------" "------" "------" "--------------------"
 	@$(run_as_root) sh -c '\
 		for i in $(WG_IFACES); do \
-			dev=wg$$i; conf="$(WG_DIR)/$$dev.conf"; \
+			dev=$$i; conf="$(WG_DIR)/$$dev.conf"; \
 			# link state (brief) \
 			link_line=$$(ip -brief link show "$$dev" 2>/dev/null || echo "not-present"); \
 			# pick a concise link token (UP/DOWN/UNKNOWN/not-present) \
@@ -76,7 +92,7 @@ wg-status:
 		echo ""'
 
 .PHONY: wg-summary
-wg-summary: 
+wg-summary:
 	@sudo scripts/wg-summary.sh
 
 .PHONY: wg-runtime

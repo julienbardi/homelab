@@ -1,0 +1,20 @@
+#!/bin/sh
+# setup-wg-nat.sh
+# IPv4 NAT for WireGuard Internet profiles (iptables-nft owned)
+
+set -euo pipefail
+
+WAN_IF="eth0"
+
+# IPv4-Internet bitmask profiles only
+WG_INET4_SUBNETS="
+10.12.0.0/24   # wg2
+10.13.0.0/24   # wg3
+10.16.0.0/24   # wg6
+10.17.0.0/24   # wg7
+"
+
+for subnet in $WG_INET4_SUBNETS; do
+	iptables -t nat -C POSTROUTING -s "$subnet" -o "$WAN_IF" -j MASQUERADE 2>/dev/null || \
+	iptables -t nat -A POSTROUTING -s "$subnet" -o "$WAN_IF" -j MASQUERADE
+done
