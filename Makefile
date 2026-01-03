@@ -21,8 +21,20 @@ export BUILDER_EMAIL
 HEADSCALE_CONFIG := /etc/headscale/config.yaml
 export HEADSCALE_CONFIG
 
+INTERNAL_HOSTS := \
+	router.bardi.ch \
+	dns.bardi.ch \
+	vpn.bardi.ch \
+	derp.bardi.ch \
+	qnap.bardi.ch \
+	nas.bardi.ch \
+	dev.bardi.ch \
+	apt.bardi.ch
+
 # --- Includes (ordered by prefix) ---
 include mk/00_prereqs.mk
+#include mk/01_common.mk
+include mk/05_bootstrap_wireguard.mk
 include mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
@@ -31,6 +43,7 @@ include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include mk/40_code-server.mk
 include mk/40_wireguard.mk   # Wireguard orchestration
 include mk/41_wireguard-status.mk
+include mk/42_wireguard-qr.mk
 include mk/40_caddy.mk
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/50_dnsmasq.mk
@@ -38,6 +51,7 @@ include mk/60_unbound.mk     # Unbound DNS resolver setup
 include mk/70_dnsdist.mk     #
 include mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
 include mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
+include mk/70_apt_proxy_auto.mk
 include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
 include mk/81_headscale.mk              # Headscale service + binary + systemd
 include mk/83_headscale-users.mk        # Users (future)
@@ -113,6 +127,15 @@ help:
 	@echo "    make wg-validate                # Validate and compile only (no deployment)"
 	@echo "    make wg-status                  # Show WireGuard interface and peer status"
 	@echo ""
+	@echo "  WireGuard (⚠️  DESTRUCTIVE OPERATIONS ⚠️)"
+	@echo "                                   # Use ONLY when fixing structural config or rotating keys"
+	@echo "    make wg-rebuild-all            # FULL rebuild: stop WG, wipe configs + keys, regenerate, deploy"
+	@echo "    make wg-reinstall-all          # DESTRUCTIVE: wipe and recreate WG state (interactive)"
+	@echo "                                   #     - Rotates ALL server keys"
+	@echo "                                   #     - Invalidates ALL existing clients"
+	@echo "                                   #     - Rebuilds from authoritative CSV"
+	@echo "                                   #     - Requires explicit confirmation delay"
+	@echo ""
 	@echo "    Authoritative input:"
 	@echo "      /volume1/homelab/wireguard/input/clients.csv"
 	@echo "      (user,machine,iface ; comments allowed with '#')"
@@ -130,7 +153,7 @@ help:
 	@echo "    make wg-clean-list-<N>          # Preview files that would be removed for wgN"
 	@echo "    make all-wg                     # Ensure all wgN configs (wg0..wg7)"
 	@echo "    make all-wg-up                  # Bring up all wg interfaces"
-	@echo "    make wg-reinstall-all           # DESTRUCTIVE: wipe and recreate WG state (interactive)"
+	@echo "    make wg-reinstall-all           # LEGACY: destructive WG reset (superseded by wg-rebuild-all)"
 	@echo ""
 	@echo "  Client management"
 	@echo "    make client-<name>              # Generate client config (name may include -wgN or use IFACE=wgN)"

@@ -2,10 +2,70 @@
 # mk/50_dnsmasq.mk — dnsmasq orchestration
 # ============================================================
 
+# ------------------------------------------------------------
+# DNS policy & split-horizon invariants
+# ------------------------------------------------------------
+# Contract:
+# - INTERNAL_HOSTS defines all hostnames treated as internal by Caddy
+# - Every INTERNAL_HOST must resolve via Unbound to a private IP
+# - Public DNS must never expose private IPs
+# - dns-preflight enforces these invariants
+
+INTERNAL_HOSTS := \
+	router.bardi.ch \
+	dns.bardi.ch \
+	vpn.bardi.ch \
+	derp.bardi.ch \
+	qnap.bardi.ch \
+	nas.bardi.ch \
+	dev.bardi.ch \
+	apt.bardi.ch
+
 DNSMASQ_CONF_SRC_DIR := $(HOMELAB_DIR)/config/dnsmasq
 DNSMASQ_CONF_FILES := $(wildcard $(DNSMASQ_CONF_SRC_DIR)/*.conf)
 
 DNSMASQ_CONF_DIR := /usr/ugreen/etc/dnsmasq/dnsmasq.d
+
+.PHONY: check-public-dns check-internal-dns dns-preflight
+
+check-public-dns:
+	@echo "[check] Verifying public DNS CNAMEs"
+	@cname=$$(dig +short apt.bardi.ch CNAME | sed 's/\.$$//'); \
+	if [ "$$cname" != "bardi.ch" ]; then \
+		echo "❌ apt.bardi.ch must be a CNAME to bardi.ch"; \
+		exit 1; \
+	fi
+
+check-internal-dns:
+	@echo "[check] Verifying internal DNS coverage"
+	@for host in $(INTERNAL_HOSTS); do \
+		count=$$(dig @10.89.12.4 +short $$host A | wc -l); \
+		if [ "$$count" -ne 1 ]; then \
+			echo "❌ $$host must resolve to exactly one internal A record"; \
+			echo "👉 Add or fix it in config/unbound/local-internal.conf"; \
+			exit 1; \
+		fi; \
+	done
+
+dns-preflight: check-public-dns check-internal-dns check-caddy-internal-hosts
+	@echo "✅ DNS preflight checks passed"
+
+CADDY_INTERNAL_HOSTS_FILE := $(HOMELAB_DIR)/config/caddy/internal-hosts.txt
+
+.PHONY: check-caddy-internal-hosts
+
+check-caddy-internal-hosts:
+	@echo "[check] Verifying Caddy internal host restrictions"
+	@test -f $(CADDY_INTERNAL_HOSTS_FILE) || \
+		( echo "❌ Missing $(CADDY_INTERNAL_HOSTS_FILE)"; exit 1 )
+	@for host in $(INTERNAL_HOSTS); do \
+		if ! grep -qx "$$host" $(CADDY_INTERNAL_HOSTS_FILE); then \
+			echo "❌ $$host is internal but not restricted in Caddy"; \
+			echo "👉 Add it to config/caddy/internal-hosts.txt"; \
+			exit 1; \
+		fi; \
+	done
+	@echo "✅ All internal hosts are explicitly restricted in Caddy"
 
 .PHONY: install-dnsmasq deploy-dnsmasq-config \
 		check-dnsmasq-udp-buffers restore-dnsmasq-udp-buffers

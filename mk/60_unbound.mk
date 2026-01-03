@@ -60,6 +60,20 @@ deploy-unbound-service:
 	@$(run_as_root) systemctl daemon-reload
 	@echo "✅ [make] unbound.service deployed"
 
+UNBOUND_LOCAL_INTERNAL_SRC := $(HOMELAB_DIR)/config/unbound/local-internal.conf
+UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
+
+.PHONY: deploy-unbound-local-internal
+deploy-unbound-local-internal:
+	@echo "📄 [make] Deploying internal DNS overrides → unbound"
+	@$(run_as_root) install -m 0644 -o root -g root \
+		$(UNBOUND_LOCAL_INTERNAL_SRC) \
+		$(UNBOUND_LOCAL_INTERNAL_DST)
+	@$(run_as_root) unbound-checkconf || \
+		( echo "❌ invalid unbound configuration after installing internal overrides"; exit 1 )
+	@$(run_as_root) systemctl reload unbound
+	@echo "✅ [make] Internal DNS overrides active"
+
 # --- Systemd drop-in for fixing /run/unbound.ctl ownership ---
 UNBOUND_DROPIN_SRC := $(HOMELAB_DIR)/config/systemd/unbound.service.d/99-fix-unbound-ctl.conf
 UNBOUND_DROPIN_DST := /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.conf
@@ -79,7 +93,12 @@ install-unbound-systemd-dropin:
 	@echo "✅ unbound running (drop-in applied)"
 	@echo "✅ [make] unbound systemd drop-in installed"
 
-deploy-unbound: install-pkg-unbound deploy-unbound-config deploy-unbound-service deploy-unbound-control-config
+deploy-unbound: dns-preflight \
+				install-pkg-unbound \
+				deploy-unbound-config \
+				deploy-unbound-local-internal \
+				deploy-unbound-service \
+				deploy-unbound-control-config
 	@echo "🔄 [make] Restarting unbound service"
 	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || { echo "❌ failed to enable unbound";  exit 1; }
 	@$(run_as_root) systemctl restart unbound

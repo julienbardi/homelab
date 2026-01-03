@@ -75,10 +75,14 @@ wg-status:
 		done; \
 		echo ""'
 
-.PHONY: wg-status2
-wg-status2:
-	@echo "WireGuard peer status (resolved names from /etc/wireguard/client-map.csv)"
-	@$(SHELL) scripts/wg-status2.sh
+.PHONY: wg-summary
+wg-summary: 
+	@sudo scripts/wg-summary.sh
+
+.PHONY: wg-runtime
+wg-runtime:
+	@echo "WireGuard peer status (authoritative runtime view)"
+	@$(SHELL) scripts/wg-runtime.sh
 
 .PHONY: client-remove
 client-remove:
