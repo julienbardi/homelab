@@ -118,3 +118,6 @@ __pycache__/
 # Future site/dashboard build artifacts
 gen2/site/node_modules/
 gen2/site/dist/
+
+# Wireguard runtime artifacts (secrets)
+/out/
