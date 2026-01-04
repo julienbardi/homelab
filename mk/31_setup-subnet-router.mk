@@ -126,6 +126,46 @@ router-nat:
 	@echo "[make] Applying WireGuard IPv4 NAT policy (iptables-nft)..."
 	@$(run_as_root) /usr/local/bin/setup-wg-nat.sh
 
+.PHONY: check-network
+check-network:
+	@echo "[check] Verifying WireGuard routing and NAT invariants..."
+
+	@echo "[check] No legacy /24 NAT rules allowed"
+	@sudo /sbin/iptables -t nat -S | grep -E '10\.[0-9]+\.0\.0/24' && { \
+		echo "❌ ERROR: legacy /24 NAT rule detected"; exit 1; \
+	} || echo "✅ OK: no /24 NAT rules"
+
+	@echo "[check] /16 NAT rules must exist"
+	@sudo /sbin/iptables -t nat -S | grep -E '10\.[0-9]+\.0\.0/16' >/dev/null || { \
+		echo "❌ ERROR: missing /16 NAT rules"; exit 1; \
+	}
+	@echo "✅ OK: /16 NAT rules present"
+
+	@echo "[check] IPv4 internet reachability"
+	@curl -4 -s --max-time 5 https://ifconfig.me >/dev/null || { \
+		echo "❌ ERROR: no IPv4 internet connectivity"; exit 1; \
+	}
+	@echo "✅ Network invariants satisfied"
+
+	@echo "[check] IPv6: no legacy 9cNN:: prefixes allowed (except 9c00)"
+	@ip -6 route show | grep -E '9c(0[1-9]|[1-9][0-9])::' && { \
+		echo "❌ ERROR: legacy IPv6 prefix detected"; exit 1; \
+	} || echo "✅ OK: no legacy IPv6 prefixes"
+
+	@echo "[check] IPv6: NAS must not install WireGuard /64 routes"
+	@ip -6 route show | grep -E '9c00:[0-9]+::/64' && { \
+		echo "❌ ERROR: unexpected WireGuard IPv6 route on NAS"; exit 1; \
+	} || echo "✅ OK: no WireGuard IPv6 routes on NAS (correct)"
+
+
+	@echo "[check] IPv6 internet reachability"
+	@curl -6 -s --max-time 5 https://ifconfig.me >/dev/null || { \
+		echo "❌ ERROR: no IPv6 internet connectivity"; exit 1; \
+	}
+	@echo "✅ OK: IPv6 internet reachable"
+
+
+
 .PHONY: bootstrap-router
 bootstrap-router:
 	@echo "[make] bootstrap-router: installing repo units/scripts"

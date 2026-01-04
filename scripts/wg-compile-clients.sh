@@ -2,8 +2,16 @@
 #
 # scripts/wg-compile-clients.sh
 #
-# Deterministic client + server peer generation from authoritative CSV.
+# Render deterministic client + server peer configs from compiled plan.tsv.
 # One worker per interface (parallel-safe).
+#
+# Input (authoritative for rendering):
+#   /volume1/homelab/wireguard/compiled/plan.tsv
+#
+# This script MUST be a dumb renderer:
+# - no address math
+# - no policy decisions
+# - no AllowedIPs computation
 #
 
 set -euo pipefail
@@ -11,146 +19,178 @@ IFS=$'\n\t'
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-: "${WG_INPUT_DIR:?WG_INPUT_DIR not set}"
-CSV="${WG_INPUT_DIR}/clients.csv"
+: "${WG_ROOT:?WG_ROOT not set}"
 
-OUT_CLIENT="${SCRIPT_DIR}/../out/clients"
-OUT_SERVER="${SCRIPT_DIR}/../out/server/peers"
+PLAN="${WG_ROOT}/compiled/plan.tsv"
+KEYS="${WG_ROOT}/compiled/keys.tsv"
 
-WG_DNS4="127.0.0.1"
-WG_DNS6="::1"
-
-WG_ENDPOINT_HOST="${WG_ENDPOINT_HOST:-vpn.bardi.ch}"
-WG_PORT_BASE="${WG_PORT_BASE:-51420}"
+OUT_CLIENT="${WG_ROOT}/out/clients"
+OUT_SERVER="${WG_ROOT}/out/server/peers"
 
 KEY_WIDTH=16
 
 mkdir -p "$OUT_CLIENT" "$OUT_SERVER"
+chmod 700 "$OUT_CLIENT" "$OUT_SERVER" 2>/dev/null || true
 
-if [ ! -f "$CSV" ]; then
-	echo "ERROR: missing clients.csv at $CSV" >&2
+[ -f "$PLAN" ] || { echo "ERROR: missing plan.tsv at $PLAN" >&2; exit 1; }
+[ -f "$KEYS" ] || { echo "ERROR: missing keys.tsv at $KEYS" >&2; exit 1; }
+
+# --------------------------------------------------------------------
+# Validate strict TSV header
+# --------------------------------------------------------------------
+awk -F'\t' '
+	/^#/ { next }
+	/^[[:space:]]*$/ { next }
+	!seen {
+		seen=1
+		if ($1=="base" &&
+			$2=="iface" &&
+			$3=="slot" &&
+			$4=="dns" &&
+			$5=="client_addr4" &&
+			$6=="client_addr6" &&
+			$7=="AllowedIPs_client" &&
+			$8=="AllowedIPs_server" &&
+			$9=="endpoint") exit 0
+		exit 1
+	}
+' "$PLAN" || {
+	echo "ERROR: plan.tsv header does not match strict TSV contract" >&2
 	exit 1
-fi
+}
 
 compile_iface() {
 	local iface="$1"
 	local ifnum="${iface#wg}"
 
-	if ! [[ "$ifnum" =~ ^[0-9]+$ ]]; then
+	[[ "$ifnum" =~ ^[0-9]+$ ]] || {
 		echo "ERROR: invalid iface '$iface'" >&2
 		exit 1
-	fi
+	}
 
-	local server_pub="/etc/wireguard/${iface}.pub"
-	if [ ! -f "$server_pub" ]; then
+	local server_pub="${WG_ROOT}/server-keys/${iface}.pub"
+	[ -f "$server_pub" ] || {
 		echo "ERROR: missing server public key $server_pub" >&2
 		exit 1
-	fi
+	}
 
 	local server_pubkey
 	server_pubkey="$(tr -d '\r\n' <"$server_pub")"
 
-	local port="$((WG_PORT_BASE + ifnum))"
+	mkdir -p "$OUT_SERVER/$iface"
+	echo "rendering interface $iface"
 
-	echo "compiling interface $iface"
-
-	awk -F',' \
+	awk -F'\t' \
+		-v KEYS="$KEYS" \
 		-v IFACE="$iface" \
-		-v IFNUM="$ifnum" \
 		-v OUTC="$OUT_CLIENT" \
 		-v OUTS="$OUT_SERVER" \
 		-v SERVER_PUB="$server_pubkey" \
-		-v ENDPOINT="$WG_ENDPOINT_HOST" \
-		-v PORT="$port" \
-		-v DNS4="$WG_DNS4" \
-		-v DNS6="$WG_DNS6" \
 		-v KEYW="$KEY_WIDTH" '
-		function trim(s) {
-			sub(/^[[:space:]]+/, "", s)
-			sub(/[[:space:]]+$/, "", s)
-			return s
-		}
-
 		function kv(file, key, val) {
 			printf "%-*s = %s\n", KEYW, key, val >> file
 		}
 
-		NR == 1 { next }
-		$0 ~ /^[[:space:]]*$/ { next }
+		BEGIN {
+			while ((getline < KEYS) > 0) {
+				if ($0 ~ /^[[:space:]]*$/) continue
+				if ($1=="base" && $2=="iface") continue
+
+				key = $1 SUBSEP $2
+				if (key in priv) {
+					printf "ERROR: duplicate key entry for base=%s iface=%s\n", $1, $2 > "/dev/stderr"
+					exit 1
+				}
+
+				pub[key]  = $3
+				priv[key] = $4
+			}
+			close(KEYS)
+		}
+
+		/^#/ { next }
+		/^[[:space:]]*$/ { next }
+
+		# Skip header row
+		$1=="base" &&
+		$2=="iface" &&
+		$3=="slot" &&
+		$4=="dns" &&
+		$5=="client_addr4" &&
+		$6=="client_addr6" &&
+		$7=="AllowedIPs_client" &&
+		$8=="AllowedIPs_server" &&
+		$9=="endpoint" { next }
 
 		{
-			user    = trim($1)
-			machine = trim($2)
-			iface   = trim($3)
+			if ($2 != IFACE) next
 
-			if (iface != IFACE) next
-
-			client_pub  = trim($4)
-			client_priv = trim($5)
-			allowed     = trim($6)
-			profile     = trim($7)
-
-			if (user == "" || machine == "" || client_pub == "" || client_priv == "") next
-
-			idx++
-
-			# IPv4 tunnel address
-			ipv4 = sprintf("10.4.%d.%d", IFNUM, 10 + idx)
-			addr4 = ipv4 "/32"
-
-			# IPv6 tunnel address (single ::, deterministic)
-			ipv6 = sprintf("2a01:8b81:4800:9c00:%d::%d", IFNUM, 10 + idx)
-			addr6 = ipv6 "/128"
+			key = $1 SUBSEP $2
+			if (!(key in priv) || !(key in pub)) {
+				printf "ERROR: missing keys for base=%s iface=%s\n", $1, $2 > "/dev/stderr"
+				exit 2
+			}
 
 			ts = strftime("%Y-%m-%dT%H:%M:%SZ", systime())
 
-			base = user "-" machine "-" iface
+			client_file = OUTC "/" $1 "-" $2 ".conf"
+			server_file = OUTS "/" $2 "/" $1 ".conf"
 
-			client_file = OUTC "/" base ".conf"
-			server_file = OUTS "/" iface "/" user "-" machine ".conf"
-
-			# ---- client config ----
-			print "# " base                          >  client_file
-			print "# Interface: " iface              >> client_file
-			print "# Profile: " profile              >> client_file
-			print "# Generated: " ts                 >> client_file
-			print ""                                 >> client_file
-			print "[Interface]"                      >> client_file
-			kv(client_file, "PrivateKey", client_priv)
-			kv(client_file, "Address", addr4 ", " addr6)
-			kv(client_file, "DNS", DNS4 ", " DNS6)
-			print ""                                 >> client_file
-			print "[Peer]"                           >> client_file
-			print "# Server: homelab-" iface         >> client_file
+			print "# " $1 "-" $2              >  client_file
+			print "# Interface: " $2          >> client_file
+			print "# Slot: " $3               >> client_file
+			print "# Generated: " ts          >> client_file
+			print ""                          >> client_file
+			print "[Interface]"               >> client_file
+			kv(client_file, "PrivateKey", priv[key])
+			kv(client_file, "Address", $5 ", " $6)
+			kv(client_file, "DNS", $4)
+			print ""                          >> client_file
+			print "[Peer]"                    >> client_file
+			print "# Server: homelab-" $2     >> client_file
 			kv(client_file, "PublicKey", SERVER_PUB)
-			kv(client_file, "Endpoint", ENDPOINT ":" PORT)
-			kv(client_file, "AllowedIPs", allowed "   # Client: What traffic should I send into the tunnel?")
+			kv(client_file, "Endpoint", $9)
+			kv(client_file, "AllowedIPs", $7)
 			kv(client_file, "PersistentKeepalive", "25")
 			close(client_file)
 
-			# ---- server peer fragment ----
-			print "# " base                          >  server_file
-			print "# Interface: " iface              >> server_file
-			print "# Profile: " profile              >> server_file
-			print "# Generated: " ts                 >> server_file
-			print ""                                 >> server_file
-			print "[Peer]"                           >> server_file
-			print "# " base                          >> server_file
-			kv(server_file, "PublicKey", client_pub)
-			kv(server_file, "AllowedIPs", addr4 ", " addr6 "   # Server: What IPs am I willing to route to this peer?")
+			print "# " $1 "-" $2              >  server_file
+			print "# Interface: " $2          >> server_file
+			print "# Slot: " $3               >> server_file
+			print "# Generated: " ts          >> server_file
+			print ""                          >> server_file
+			print "[Peer]"                    >> server_file
+			kv(server_file, "PublicKey", pub[key])
+			kv(server_file, "AllowedIPs", $8)
 			close(server_file)
 		}
-	' "$CSV"
+	' "$PLAN"
 }
 
 mapfile -t IFACES < <(
-	awk -F',' 'NR>1 {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3); if ($3!="") print $3}' "$CSV" | sort -u
+	awk -F'\t' '
+		/^#/ { next }
+		/^[[:space:]]*$/ { next }
+
+		# Skip header row
+		$1=="base" &&
+		$2=="iface" &&
+		$3=="slot" &&
+		$4=="dns" &&
+		$5=="client_addr4" &&
+		$6=="client_addr6" &&
+		$7=="AllowedIPs_client" &&
+		$8=="AllowedIPs_server" &&
+		$9=="endpoint" { next }
+
+		{ print $2 }
+	' "$PLAN" | sort -u
 )
 
-if [ "${#IFACES[@]}" -eq 0 ]; then
-	echo "ERROR: no interfaces found in clients.csv" >&2
+[ "${#IFACES[@]}" -gt 0 ] || {
+	echo "ERROR: no interfaces found in plan.tsv" >&2
 	exit 1
-fi
+}
 
 pids=()
 for iface in "${IFACES[@]}"; do

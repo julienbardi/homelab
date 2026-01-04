@@ -3,23 +3,17 @@ set -euo pipefail
 
 WG_DIR="/etc/wireguard"
 ROOT="/volume1/homelab/wireguard"
+
 PLAN="$ROOT/compiled/plan.tsv"
-ALLOC="$ROOT/compiled/alloc.csv"
+KEYS="$ROOT/compiled/keys.tsv"
 
 WG_BIN="/usr/bin/wg"
 WG_QUICK="/usr/bin/wg-quick"
 
-WG_IFACES="0 1 2 3 4 5 6 7"
-WG_PORTS="51420 51421 51422 51423 51424 51425 51426 51427"
-WG_IPV4S="10.10.0.1/24 10.11.0.1/24 10.12.0.1/24 10.13.0.1/24 10.14.0.1/24 10.15.0.1/24 10.16.0.1/24 10.17.0.1/24"
-WG_IPV6S="2a01:8b81:4800:9c00:10::1/128 2a01:8b81:4800:9c00:11::1/128 2a01:8b81:4800:9c00:12::1/128 2a01:8b81:4800:9c00:13::1/128 \
-										2a01:8b81:4800:9c00:14::1/128 2a01:8b81:4800:9c00:15::1/128 2a01:8b81:4800:9c00:16::1/128 2a01:8b81:4800:9c00:17::1/128"
-
-PUBDIR="$ROOT/compiled/server-pubkeys"
+SERVER_KEYS_DIR="$ROOT/server-keys"
 CLIENT_KEYDIR="$ROOT/compiled/client-keys"
-mkdir -p "$PUBDIR" "$CLIENT_KEYDIR"
 
-die() { echo "wg-deploy: ERROR: $*" >&2; exit 1; }
+die()  { echo "wg-deploy: ERROR: $*" >&2; exit 1; }
 need() { [ -e "$1" ] || die "missing required path: $1"; }
 
 LOCKFILE="/run/wg-apply.lock"
@@ -27,7 +21,63 @@ exec {LOCKFD}>"$LOCKFILE" || die "cannot create lock file $LOCKFILE (must run as
 flock -n "$LOCKFD" || die "another wg-apply is already running"
 
 need "$PLAN"
-need "$ALLOC"
+need "$KEYS"
+need "$SERVER_KEYS_DIR"
+
+# plan.tsv is strict TSV emitted by wg-compile.sh.
+# Columns:
+#   1 base
+#   2 iface
+#   3 slot
+#   4 dns
+#   5 client_addr4
+#   6 client_addr6
+#   7 AllowedIPs_client
+#   8 AllowedIPs_server
+#   9 endpoint
+#
+# Validate the first non-comment, non-empty line is the expected header.
+awk -F'\t' '
+	/^#/ { next }
+	/^[[:space:]]*$/ { next }
+	!seen {
+		seen=1
+		if ($1=="base" &&
+			$2=="iface" &&
+			$3=="slot" &&
+			$4=="dns" &&
+			$5=="client_addr4" &&
+			$6=="client_addr6" &&
+			$7=="AllowedIPs_client" &&
+			$8=="AllowedIPs_server" &&
+			$9=="endpoint") exit 0
+		exit 1
+	}
+' "$PLAN" || die "plan.tsv: unexpected header (not strict TSV contract)"
+
+mapfile -t ACTIVE_IFACES < <(
+	awk -F'\t' '
+		/^#/ { next }
+		/^[[:space:]]*$/ { next }
+
+		$1=="base" &&
+		$2=="iface" &&
+		$3=="slot" &&
+		$4=="dns" &&
+		$5=="client_addr4" &&
+		$6=="client_addr6" &&
+		$7=="AllowedIPs_client" &&
+		$8=="AllowedIPs_server" &&
+		$9=="endpoint" { next }
+
+		{ if ($2 != "") print $2 }
+	' "$PLAN" | sort -u
+)
+
+[ "${#ACTIVE_IFACES[@]}" -gt 0 ] || die "no interfaces found in plan.tsv"
+
+mkdir -p "$CLIENT_KEYDIR"
+chmod 700 "$CLIENT_KEYDIR" 2>/dev/null || true
 
 umask 077
 
@@ -40,29 +90,58 @@ OLD="$BASE/$NAME.old.$PID"
 
 mkdir "$NEW"
 
-nth() { echo "$1" | awk -v n="$2" '{print $n}'; }
-
-alloc_lookup() {
-	local base="$1"
-	awk -F, -v b="$base" 'NR>1 && $1==b {print $2; found=1} END{exit(found?0:1)}' "$ALLOC"
+client_pub_lookup() {
+	local base="$1" iface="$2"
+	awk -F'\t' '
+		BEGIN { found=0 }
+		/^[[:space:]]*$/ { next }
+		$1=="base" && $2=="iface" { next }
+		{
+			b=$1; i=$2; pub=$3;
+			if (b==B && i==I) { print pub; found=1; exit 0 }
+		}
+		END { exit(found?0:1) }
+	' B="$base" I="$iface" "$KEYS"
 }
 
-for i in $WG_IFACES; do
-	idx=$((i+1))
-	dev="wg$i"
-	port="$(nth "$WG_PORTS" "$idx")"
-	ipv4="$(nth "$WG_IPV4S" "$idx")"
-	ipv6="$(nth "$WG_IPV6S" "$idx")"
+client_priv_lookup() {
+	local base="$1" iface="$2"
+	awk -F'\t' '
+		BEGIN { found=0 }
+		/^[[:space:]]*$/ { next }
+		$1=="base" && $2=="iface" { next }
+		{
+			b=$1; i=$2; priv=$4;
+			if (b==B && i==I) { print priv; found=1; exit 0 }
+		}
+		END { exit(found?0:1) }
+	' B="$base" I="$iface" "$KEYS"
+}
 
-	key="$WG_DIR/$dev.key"
-	pub="$WG_DIR/$dev.pub"
+# --------------------------------------------------------------------
+# Build server interface configs in NEW/, consuming authoritative server keys
+# --------------------------------------------------------------------
+for dev in "${ACTIVE_IFACES[@]}"; do
+	case "$dev" in
+		wg[0-9]|wg1[0-5]) ;;
+		*) die "invalid iface '$dev'" ;;
+	esac
 
-	if [ ! -f "$key" ] || [ ! -f "$pub" ]; then
-		$WG_BIN genkey | tee "$key" | $WG_BIN pubkey >"$pub"
-		chmod 600 "$key" "$pub"
-	fi
+	i="${dev#wg}"
 
-	priv="$(cat "$key")"
+	port=$((51420 + i))
+	ipv4="10.${i}.0.1/16"
+	ipv6="2a01:8b81:4800:9c00:${i}::1/128"
+
+	key_src="$SERVER_KEYS_DIR/$dev.key"
+	pub_src="$SERVER_KEYS_DIR/$dev.pub"
+	need "$key_src"
+	need "$pub_src"
+
+	install -m 600 "$key_src" "$NEW/$dev.key"
+	install -m 644 "$pub_src" "$NEW/$dev.pub"
+
+	priv="$(tr -d '\r\n' <"$key_src")"
 
 	cat >"$NEW/$dev.conf" <<EOF
 [Interface]
@@ -76,75 +155,56 @@ EOF
 	esac
 
 	chmod 600 "$NEW/$dev.conf"
-
-	install -m 644 "$pub" "$PUBDIR/$dev.pub"
 done
 
-while IFS=$' \t' read -r base iface hid dns allowed endpoint; do
-	[ -n "$base" ] || continue
-	[[ "$base" == \#* ]] && continue
-	[ "$base" = "base" ] && continue
+# --------------------------------------------------------------------
+# Append peer stanzas to per-interface configs (strict TSV consumption)
+# --------------------------------------------------------------------
+awk -F'\t' '
+	/^#/ { next }
+	/^[[:space:]]*$/ { next }
 
+	$1=="base" &&
+	$2=="iface" &&
+	$3=="slot" &&
+	$4=="dns" &&
+	$5=="client_addr4" &&
+	$6=="client_addr6" &&
+	$7=="AllowedIPs_client" &&
+	$8=="AllowedIPs_server" &&
+	$9=="endpoint" { next }
+
+	{ print $1 "\t" $2 "\t" $8 }
+' "$PLAN" | while IFS=$'\t' read -r base iface allowed_srv; do
 	conf="$NEW/$iface.conf"
+	[ -f "$conf" ] || die "plan.tsv references iface '$iface' but $conf was not generated"
 
-	ckey="$WG_DIR/$base-$iface.key"
-	cpub="$WG_DIR/$base-$iface.pub"
+	pub="$(client_pub_lookup "$base" "$iface")" || die "keys.tsv: missing public key for base=$base iface=$iface"
+	priv="$(client_priv_lookup "$base" "$iface")" || die "keys.tsv: missing private key for base=$base iface=$iface"
 
-	if [ ! -f "$ckey" ] || [ ! -f "$cpub" ]; then
-		$WG_BIN genkey | tee "$ckey" | $WG_BIN pubkey >"$cpub"
-		chmod 600 "$ckey" "$cpub"
-	fi
+	printf "%s\n" "$priv" >"$CLIENT_KEYDIR/$base-$iface.key"
+	chown root:root "$CLIENT_KEYDIR/$base-$iface.key" 2>/dev/null || true
+	chmod 600 "$CLIENT_KEYDIR/$base-$iface.key" 2>/dev/null || true
 
-	# Export client private keys for client config generation on the NAS
-	install -m 640 "$ckey" "$CLIENT_KEYDIR/$(basename "$ckey")"
-
-	pub="$(cat "$cpub")"
-
-	hostid="$(alloc_lookup "$base")" || die "alloc.csv: no allocation for base=$base"
-
-	ifnum="${iface#wg}"
-	peer_v4="$(awk -v h="$hostid" -v i="$ifnum" 'BEGIN{printf "10.%d.0.%d/32", 10+i, h}')"
-	peer_v6="$(awk -v h="$hostid" -v i="$ifnum" 'BEGIN{printf "2a01:8b81:4800:9c00:%d::%d/128", 10+i, h}')"
-
-	# NOTE FOR OPERATORS:
-	# -------------------
-	# On the SERVER, AllowedIPs defines which source IPs are accepted from a peer
-	# and which routes are installed *towards* that peer.
-	#
-	# It MUST contain ONLY the peer's tunnel IP (/32, /128).
-	#
-	# Full-tunnel routing (0.0.0.0/0, ::/0) belongs ONLY on the CLIENT.
-	# Putting 0.0.0.0/0 here will break routing for all peers.
 	cat >>"$conf" <<EOF
 
 [Peer]
 # $base-$iface
 PublicKey = $pub
-AllowedIPs = $peer_v4, $peer_v6
+AllowedIPs = $allowed_srv
 EOF
-done <"$PLAN"
+done
 
+# --------------------------------------------------------------------
+# Keep-list
+# --------------------------------------------------------------------
 KEEP="$NEW/keep.list"
 : >"$KEEP"
 
-for i in $WG_IFACES; do
-	echo "wg$i.conf" >>"$KEEP"
-	echo "wg$i.key"  >>"$KEEP"
-	echo "wg$i.pub"  >>"$KEEP"
-done
-
-while IFS=$' \t' read -r base iface hid dns allowed endpoint; do
-	[ -n "$base" ] || continue
-	[[ "$base" == \#* ]] && continue
-	[ "$base" = "base" ] && continue
-
-	echo "$base-$iface.key" >>"$KEEP"
-	echo "$base-$iface.pub" >>"$KEEP"
-done <"$PLAN"
-
-for f in "$WG_DIR"/*.key "$WG_DIR"/*.pub; do
-	[ -f "$f" ] || continue
-	cp -a "$f" "$NEW/"
+for dev in "${ACTIVE_IFACES[@]}"; do
+	echo "$dev.conf" >>"$KEEP"
+	echo "$dev.key"  >>"$KEEP"
+	echo "$dev.pub"  >>"$KEEP"
 done
 
 echo "🚀 deploying WireGuard configs atomically"
@@ -166,12 +226,11 @@ done
 
 rm -rf "$OLD"
 
-for i in $WG_IFACES; do
-	dev="wg$i"
+for dev in "${ACTIVE_IFACES[@]}"; do
 	if ip link show "$dev" >/dev/null 2>&1; then
-		$WG_BIN syncconf "$dev" <($WG_QUICK strip "$dev")
+		"$WG_BIN" syncconf "$dev" <("$WG_QUICK" strip "$dev")
 	else
-		$WG_QUICK up "$dev"
+		"$WG_QUICK" up "$dev"
 	fi
 done
 
