@@ -3,22 +3,8 @@
 #
 # IPv4 NAT for WireGuard Internet profiles on UGOS.
 #
-# IMPORTANT ARCHITECTURE OVERVIEW
-#
-# UGOS already implements host policy routing internally:
-#
-# | Traffic type        | Routing table / handler |
-# |---------------------|-------------------------|
-# | Host → LAN          | main                    |
-# | Host → anything     | table_eth0 (UGOS)       |
-# | Tailscale traffic   | table 52                |
-# | WireGuard clients   | NAT only (this script)  |
-#
-# DO NOT add host policy routing here.
-# DO NOT override UGOS routing tables.
-#
-# This script is intentionally limited to NAT only.
-# It is safe to run repeatedly and will not affect SSH or LAN access.
+# This script enforces NAT only.
+# It must not modify routing tables or policy rules.
 
 set -eu
 
@@ -28,12 +14,12 @@ set -eu
 
 WAN_IF="eth0"
 
-# WireGuard client subnets
+# WireGuard client subnets (LOCKED CONTRACT: /16 per interface)
 WG_SUBNETS="
-10.12.0.0/24
-10.13.0.0/24
-10.16.0.0/24
-10.17.0.0/24
+10.12.0.0/16
+10.13.0.0/16
+10.16.0.0/16
+10.17.0.0/16
 "
 
 # ----------------------------
@@ -65,7 +51,6 @@ ip link show dev "$WAN_IF" >/dev/null 2>&1 || {
 # ----------------------------
 
 ensure_nat() {
-	# -w 2 avoids xtables lock stalls on busy systems
 	iptables -w 2 -t nat -C POSTROUTING "$@" 2>/dev/null || \
 	iptables -w 2 -t nat -A POSTROUTING "$@"
 }

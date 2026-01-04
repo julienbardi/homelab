@@ -1,110 +1,215 @@
 # ============================================================
-# mk/41_wireguard-status.mk — WireGuard status orchestration (no heredoc)
-# - Production-ready, minimal duplication, robust shell usage
-# - Avoids make-level word() expansion; computes per-iface values at runtime
-# - Does not use heredoc to write files (uses printf | tee)
-# - All privileged actions go through $(run_as_root)
+# mk/41_wireguard-status.mk — WireGuard status & inspection
+#
+# Architecture-aligned status views:
+# - Intent view:     $(WG_ROOT)/compiled/plan.tsv (authoritative)
+# - Compiled view:   $(WG_ROOT)/compiled/* (keys, pubkeys, exports)
+# - Deployed view:   /etc/wireguard (installed configs/keys)
+# - Runtime view:    wg show (kernel state)
+#
+# Notes:
+# - No hard-coded iface ranges.
+# - plan.tsv is treated as strict TSV; comments/blank/header are skipped.
+# - All privileged actions go through $(run_as_root).
 # ============================================================
-WG_DIR := /etc/wireguard
-WG_BIN := /usr/bin/wg
 
-.PHONY: wg-clients
+WG_DIR ?= /etc/wireguard
+WG_BIN ?= /usr/bin/wg
+
+PLAN := $(WG_ROOT)/compiled/plan.tsv
+
+SERVER_PUBDIR := $(WG_ROOT)/compiled/server-pubkeys
+CLIENT_KEYDIR := $(WG_ROOT)/compiled/client-keys
+EXPORT_DIR    := $(WG_ROOT)/export/clients
+
+SCRIPTS := $(CURDIR)/scripts
+
+.PHONY: \
+	wg-clients wg-show-client-key \
+	wg-intent wg-intent-ifaces wg-intent-bases \
+	wg-compiled wg-deployed \
+	wg-status wg-runtime \
+	wg-dashboard \
+	wg-remove-client
+
+# ------------------------------------------------------------
+# Helpers (kept in Make for portability, but still dumb)
+# ------------------------------------------------------------
+
+# Emit plan.tsv rows as strict TSV, skipping comments/blanks/header.
+# Columns (contract):
+# 1 base 2 iface 3 hostid 4 dns 5 client_addr4 6 client_addr6
+# 7 AllowedIPs_client 8 AllowedIPs_server 9 endpoint
+define WG_PLAN_ROWS
+awk -F'\t' '\
+	/^#/ { next } \
+	/^[[:space:]]*$$/ { next } \
+	$$1=="base" && $$2=="iface" && $$3=="hostid" { next } \
+	{ print } \
+' "$(PLAN)"
+endef
+
+# ------------------------------------------------------------
+# Intent view (authoritative)
+# ------------------------------------------------------------
+
+wg-intent:
+	@printf "%-24s %-6s %-8s %-18s %-s\n" "BASE" "IFACE" "HOSTID" "ADDR4" "ENDPOINT"
+	@printf "%-24s %-6s %-8s %-18s %-s\n" "------------------------" "------" "--------" "------------------" "------------------------------"
+	@$(WG_PLAN_ROWS) | awk -F'\t' '{ \
+		printf "%-24s %-6s %-8s %-18s %s\n", $$1, $$2, $$3, $$5, $$9 \
+	}'
+
+wg-intent-ifaces:
+	@$(SCRIPTS)/wg-plan-ifaces.sh "$(PLAN)"
+
+wg-intent-bases:
+	@$(WG_PLAN_ROWS) | awk -F'\t' '{print $$1}' | sort -u
+
+# ------------------------------------------------------------
+# Keep: wg-clients (command generator for client inspection)
+#
+# This is intent-driven. It does NOT inspect /etc/wireguard.
+# It prints commands you can copy-paste.
+# ------------------------------------------------------------
 
 wg-clients:
-	@printf "%-8s %-12s %-5s %s\n" "USER" "MACHINE" "IFACE" "COMMAND"
-	@printf "%-8s %-12s %-5s %s\n" "--------" "------------" "-----" "---------------------------------------------"
-	@awk '\
-		$$1 !~ /^#/ && $$1 != "base" { \
-			split($$1, a, "-"); \
-			user=a[1]; machine=a[2]; iface=$$2; \
-			printf "%-8s %-12s %-5s make wg-show BASE=%s IFACE=%s\n", \
-				user, machine, iface, $$1, iface \
-		}' /volume1/homelab/wireguard/compiled/plan.tsv
+	@printf "%-8s %-12s %-6s %-s\n" "USER" "MACHINE" "IFACE" "COMMAND"
+	@printf "%-8s %-12s %-6s %-s\n" "--------" "------------" "------" "----------------------------------------------"
+	@$(WG_PLAN_ROWS) | awk -F'\t' '\
+		{ \
+			base=$$1; iface=$$2; \
+			n=split(base,a,"-"); user=a[1]; machine=(n>=2?a[2]:""); \
+			printf "%-8s %-12s %-6s make wg-show-client-key BASE=%s IFACE=%s\n", \
+				user, machine, iface, base, iface \
+		}'
 
+# Show the compiled private key for a client (from compiled artifacts).
+# Usage: make wg-show-client-key BASE=foo-bar IFACE=wg3
+wg-show-client-key:
+	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
+		echo "Usage: make wg-show-client-key BASE=<base> IFACE=<iface>" >&2; \
+		exit 1; \
+	fi
+	@$(MAKE) --no-print-directory wg-show BASE=$(BASE) IFACE=$(IFACE)
 
+# ------------------------------------------------------------
+# Compiled artifacts view
+# ------------------------------------------------------------
 
-# --- Dashboard: list users, machines, and interfaces (space-delimited) ---
-.PHONY: client-dashboard client-dashboard-status
-client-dashboard-status:
-	@true
+wg-compiled:
+	@echo "Compiled artifacts:"
+	@echo "  plan:        $(PLAN)"
+	@echo "  server pubs: $(SERVER_PUBDIR)"
+	@echo "  client keys: $(CLIENT_KEYDIR)"
+	@echo "  exports:     $(EXPORT_DIR)"
+	@echo
+	@echo "Interfaces (from intent):"
+	@$(MAKE) --no-print-directory wg-intent-ifaces | sed 's/^/  - /'
+	@echo
+	@echo "Server pubkeys present:"
+	@ls -1 "$(SERVER_PUBDIR)"/*.pub 2>/dev/null | sed 's|.*/|  - |' || echo "  (none)"
+	@echo
+	@echo "Client keys present:"
+	@ls -1 "$(CLIENT_KEYDIR)"/*.key 2>/dev/null | sed 's|.*/|  - |' || echo "  (none)"
+	@echo
+	@echo "Exported client configs present:"
+	@ls -1 "$(EXPORT_DIR)"/*/*.conf 2>/dev/null | sed 's|.*/|  - |' || echo "  (none)"
 
-client-dashboard: client-dashboard-status
-	@printf "%-8s %-10s %-3s %-3s %-3s %-3s %-3s %-3s %-3s %-3s\n" "USER" "MACHINE" "wg0" "wg1" "wg2" "wg3" "wg4" "wg5" "wg6" "wg7"
-	@printf "%-8s %-10s %-3s %-3s %-3s %-3s %-3s %-3s %-3s %-3s\n" "--------" "----------" "---" "---" "---" "---" "---" "---" "---" "---"
+# ------------------------------------------------------------
+# Deployed view (filesystem in /etc/wireguard)
+# ------------------------------------------------------------
+
+wg-deployed:
+	@echo "Deployed /etc/wireguard view:"
 	@$(run_as_root) sh -c '\
-		TMP=$$(mktemp); \
-		for f in $(WG_DIR)/*-wg*.conf; do \
-			[ -f "$$f" ] || continue; \
-			name=$$(basename "$$f" .conf); \
-			base=$$(echo "$$name" | sed -n '\''s/-wg[0-7]$$//p'\''); \
-			[ -n "$$base" ] && echo "$$base" >> "$$TMP"; \
-		done; \
-		if [ ! -s "$$TMP" ]; then \
-			echo "No client configs found."; rm -f "$$TMP"; exit 0; \
-		fi; \
-		sort -u "$$TMP" -o "$$TMP"; \
-		while read -r base; do \
-			user=$$(echo "$$base" | awk -F- '\''{print $$1}'\''); \
-			machine=$$(echo "$$base" | awk -F- '\''{print $$2}'\''); \
-			row=( "$$user" "$$machine" ); \
-			for i in 0 1 2 3 4 5 6 7; do \
-				if [ -f "$(WG_DIR)/$$base-wg$$i.conf" ]; then val="✅ "; else val="-"; fi; \
-				row+=( "$$val" ); \
-			done; \
-			printf "%-8s %-10s %-3s %-3s %-3s %-3s %-3s %-3s %-3s %-3s\n" "$${row[0]}" "$${row[1]}" "$${row[2]}" "$${row[3]}" "$${row[4]}" "$${row[5]}" "$${row[6]}" "$${row[7]}" "$${row[8]}" "$${row[9]}"; \
-		done < "$$TMP"; \
-		rm -f "$$TMP"'
+		ls -la "$(WG_DIR)" 2>/dev/null || { echo "missing $(WG_DIR)"; exit 1; }; \
+		echo ""; \
+		echo "Configs:"; \
+		ls -1 "$(WG_DIR)"/*.conf 2>/dev/null || echo "  (none)"; \
+		echo ""; \
+		echo "Keys:"; \
+		ls -1 "$(WG_DIR)"/*.key "$(WG_DIR)"/*.pub 2>/dev/null || echo "  (none)"; \
+	'
 
-# --- wg-status: space-delimited interface table (no private key) ---
-.PHONY: wg-status
+# ------------------------------------------------------------
+# Runtime view (kernel state, intent-scoped)
+# ------------------------------------------------------------
+
+wg-runtime:
+	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" "$(SCRIPTS)/wg-runtime.sh"
+
+
+# A compact runtime summary per iface derived from intent (no WG_IFACES var).
 wg-status:
-	@echo "WireGuard status summary:"
-	@printf "%-6s %-12s %-44s %-6s %-8s %-s\n" "IFACE" "LINK" "PUBLIC_KEY(short)" "PORT" "PEERS" "SAMPLE_ALLOWEDIPS"
-	@printf "%-6s %-12s %-44s %-6s %-8s %-s\n" "------" "------------" "--------------------------------------------" "------" "------" "--------------------"
+	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS" "PUBLIC_KEY(short)"
+	@printf "%-6s %-12s %-18s %-8s %-s\n" "------" "------------" "------------------" "--------" "----------------"
 	@$(run_as_root) sh -c '\
-		for i in $(WG_IFACES); do \
-			dev=$$i; conf="$(WG_DIR)/$$dev.conf"; \
-			# link state (brief) \
+		set -e; \
+		IFACES="$$( "$(SCRIPTS)/wg-plan-ifaces.sh" "$(PLAN)" )"; \
+		for dev in $$IFACES; do \
 			link_line=$$(ip -brief link show "$$dev" 2>/dev/null || echo "not-present"); \
-			# pick a concise link token (UP/DOWN/UNKNOWN/not-present) \
 			link_state=$$(printf "%s" "$$link_line" | awk '\''{print ($$2 ? $$2 : $$1)}'\''); \
-			# gather wg output if present \
 			wg_out=$$($(WG_BIN) show "$$dev" 2>/dev/null || true); \
 			if [ -n "$$wg_out" ]; then \
 				pub=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*public key:[[:space:]]*//p'\'' | head -n1); \
 				port=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*listening port:[[:space:]]*//p'\'' | head -n1); \
-				peer_count=$$(printf "%s" "$$wg_out" | grep -c '^peer:' || true); \
-				sample_allowed=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*AllowedIPs[[:space:]]*=[[:space:]]*//Ip'\'' | head -n1 | tr -d \"\\n\" ); \
+				peer_count=$$(printf "%s" "$$wg_out" | grep -c "^peer:" || true); \
 			else \
-				pub="(none)"; port="-"; peer_count=0; sample_allowed="-"; \
+				pub=""; port="-"; peer_count=0; \
 			fi; \
-			# shorten public key for display (first 8 + ... + last 8) \
-			if [ "$$pub" != "(none)" ] && [ -n "$$pub" ]; then \
+			if [ -n "$$pub" ]; then \
 				pub_short=$$(printf "%s" "$$pub" | awk '\''{s=$$0; printf substr(s,1,8) "..." substr(s,length(s)-7)}'\''); \
 			else \
 				pub_short="(none)"; \
 			fi; \
-			# note if config file missing \
-			if [ ! -f "$$conf" ]; then cfg_note="(no-conf)"; else cfg_note=""; fi; \
-			# print aligned space-delimited row \
-			printf "%-6s %-12s %-44s %-6s %-8s %-s\n" "$$dev" "$$link_state$$cfg_note" "$$pub_short" "$$port" "$$peer_count" "$$sample_allowed"; \
-		done; \
-		echo ""'
+			printf "%-6s %-12s %-18s %-8s %s\n" "$$dev" "$$link_state" "$$port" "$$peer_count" "$$pub_short"; \
+		done \
+	'
 
-.PHONY: wg-summary
-wg-summary:
-	@sudo scripts/wg-summary.sh
+# ------------------------------------------------------------
+# Dashboard (explicitly intent-based)
+# Shows which base has which ifaces in plan.tsv (no /etc/wireguard probing).
+# ------------------------------------------------------------
 
-.PHONY: wg-runtime
-wg-runtime:
-	@echo "WireGuard peer status (authoritative runtime view)"
-	@$(SHELL) scripts/wg-runtime.sh
+wg-dashboard:
+	@printf "%-24s %s\n" "BASE" "IFACES"
+	@printf "%-24s %s\n" "------------------------" "------------------------------"
+	@$(WG_PLAN_ROWS) | awk -F'\t' '\
+		{ seen[$$1]=seen[$$1] " " $$2 } \
+		END { for (b in seen) printf "%-24s%s\n", b, seen[b] } \
+	' | sort
 
-.PHONY: client-remove
-client-remove:
-	@# Usage: make client-remove BASE=<base> IFACE=<iface>
+# ------------------------------------------------------------
+# Client removal (kept as-is)
+# ------------------------------------------------------------
+
+wg-remove-client:
+	@# Usage: make wg-remove-client BASE=<base> IFACE=<iface>
 	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
-		echo "Usage: make client-remove BASE=<base> IFACE=<iface>"; exit 1; \
+		echo "Usage: make wg-remove-client BASE=<base> IFACE=<iface>"; exit 1; \
 	fi
-	@echo "🗑 removing client $(BASE) on $(IFACE)"
-	$(run_as_root) "$(CURDIR)/scripts/remove-client.sh" "$(BASE)" "$(IFACE)"
+	@echo "removing client $(BASE) on $(IFACE)"
+	@$(run_as_root) "$(CURDIR)/scripts/wg-remove-client.sh" "$(BASE)" "$(IFACE)"
+
+.PHONY: wg-check-ports
+
+wg-check-ports:
+	@echo "Checking WireGuard UDP ports..."
+	@$(CURDIR)/scripts/wg-plan-ifaces.sh "$(WG_ROOT)/compiled/plan.tsv" | sort -u | while read iface; do \
+		port="$$(sudo wg show $$iface listen-port 2>/dev/null || true)"; \
+		if [ -z "$$port" ]; then \
+			printf "⚠️ %-5s UDP (unknown) : INTERFACE NOT FOUND \n" "$$iface"; \
+		elif [ "$$port" = "0" ]; then \
+			printf "🔕 %-5s UDP 0         : NOT LISTENING (outbound-only)\n" "$$iface"; \
+		else \
+			printf "✅  %-5s UDP %-5s : LISTENING \n" "$$iface" "$$port"; \
+			if [ "$$port" -lt 51420 ] || [ "$$port" -gt 51451 ]; then \
+				printf "        ⚠️  Port %s is outside forwarded range (UDP 51420–51451)\n" "$$port"; \
+			fi; \
+		fi; \
+	done
+
+
+
+

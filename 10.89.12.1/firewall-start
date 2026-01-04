@@ -16,23 +16,28 @@ IP_ENTWARE="/opt/sbin/ip"
 NAS4="10.89.12.4"
 NAS6="2a01:8b81:4800:9c00::4"
 
+WG_V4_PREFIXLEN="16"
+WG_V6_PREFIXLEN="64"
+WG_IF_MIN="0"
+WG_IF_MAX="15"
+
 #
 # Policy routing exception:
 # Ensure router-originated traffic to LAN uses the LAN routing table
 #
 if [ -x "$IP_ENTWARE" ]; then
-    LAN_TABLE="$($IP_ENTWARE route show table all | awk '
-        /10\.89\.12\.0\/24/ && /dev br0/ && /table/ {
-            for (i=1;i<=NF;i++) if ($i=="table") {print $(i+1); exit}
-        }
-    ')"
+	LAN_TABLE="$($IP_ENTWARE route show table all | awk '
+		/10\.89\.12\.0\/24/ && /dev br0/ && /table/ {
+			for (i=1;i<=NF;i++) if ($i=="table") {print $(i+1); exit}
+		}
+	')"
 
-    if [ -n "$LAN_TABLE" ]; then
-        if ! $IP_ENTWARE rule show | grep -q "^5206:.*from 10\.89\.12\.1 .*lookup $LAN_TABLE"; then
-            $IP_ENTWARE rule del priority 5206 2>/dev/null
-            $IP_ENTWARE rule add priority 5206 from 10.89.12.1 lookup "$LAN_TABLE"
-        fi
-    fi
+	if [ -n "$LAN_TABLE" ]; then
+		if ! $IP_ENTWARE rule show | grep -q "^5206:.*from 10\.89\.12\.1 .*lookup $LAN_TABLE"; then
+			$IP_ENTWARE rule del priority 5206 2>/dev/null
+			$IP_ENTWARE rule add priority 5206 from 10.89.12.1 lookup "$LAN_TABLE"
+		fi
+	fi
 fi
 
 #
@@ -45,42 +50,42 @@ fi
 # Allow inbound services to NAS (LAN + Tailscale), idempotent
 #
 if ! iptables -C FORWARD -p tcp -d "$NAS4" --dport 443 \
-    -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
-    iptables -I FORWARD -p tcp -d "$NAS4" --dport 443 \
-        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+	-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+	iptables -I FORWARD -p tcp -d "$NAS4" --dport 443 \
+		-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 fi
 
 if ! iptables -C FORWARD -p tcp -d "$NAS4" --dport 2222 \
-    -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
-    iptables -I FORWARD -p tcp -d "$NAS4" --dport 2222 \
-        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+	-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+	iptables -I FORWARD -p tcp -d "$NAS4" --dport 2222 \
+		-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 fi
 
 #
 # IPv6 firewall invariant:
 # Allow inbound HTTPS to NAS (idempotent)
 #
-if ! ip6tables -C FORWARD -p tcp -d "$NAS6" --dport 443 \
-    -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
-    ip6tables -I FORWARD 4 -p tcp -d "$NAS6" --dport 443 \
-        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+if command -v ip6tables >/dev/null 2>&1; then
+	if ! ip6tables -C FORWARD -p tcp -d "$NAS6" --dport 443 \
+		-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+		ip6tables -I FORWARD 4 -p tcp -d "$NAS6" --dport 443 \
+			-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+	fi
 fi
 
 #
-# IPv4 routing invariants:
-# Static routes for WireGuard VPN subnets (self-healing)
+# IPv4 + IPv6 routing invariants:
+# Static routes for WireGuard VPN subnets (self-healing, kept in sync)
 #
-for n in 0 1 2 3 4 5 6 7; do
-    ip route replace "10.${n}.0.0/24" via "$NAS4" dev br0
-done
+n="$WG_IF_MIN"
+while [ "$n" -le "$WG_IF_MAX" ]; do
+	# IPv4: 10.<n>.0.0/16
+	ip route replace "10.${n}.0.0/${WG_V4_PREFIXLEN}" via "$NAS4" dev br0
 
-#
-# IPv6 routing invariants:
-# Static routes for WireGuard VPN subnets (self-healing)
-#
-for n in 01 02 03 04 05 06 07 08; do
-    ip -6 route replace "2a01:8b81:4800:9c${n}::/64" \
-        via "$NAS6" dev br0
+	# IPv6: 2a01:8b81:4800:9c00:<n>::/64
+	ip -6 route replace "2a01:8b81:4800:9c00:${n}::/${WG_V6_PREFIXLEN}" via "$NAS6" dev br0
+
+	n=$((n + 1))
 done
 
 #
@@ -88,8 +93,8 @@ done
 # Tailscale is best-effort and must not affect routing correctness
 #
 if [ -x /opt/bin/tailscale ]; then
-    tailscale down >/dev/null 2>&1 || :
-    tailscale up   >/dev/null 2>&1 || :
+	tailscale down >/dev/null 2>&1 || :
+	tailscale up   >/dev/null 2>&1 || :
 fi
 
 #
@@ -97,26 +102,25 @@ fi
 # Detect duplicated FORWARD rules (IPv4 / IPv6)
 #
 
-
 DUP4="$(iptables -S FORWARD | sort | uniq -c | awk '$1 > 1')"
 if command -v ip6tables >/dev/null 2>&1; then
-    DUP6="$(ip6tables -S FORWARD | sort | uniq -c | awk '$1 > 1')"
+	DUP6="$(ip6tables -S FORWARD | sort | uniq -c | awk '$1 > 1')"
 else
-    DUP6=""
+	DUP6=""
 fi
 
 if [ -n "$DUP4" ] || [ -n "$DUP6" ]; then
-    echo "❌ Firewall invariant violated: duplicated FORWARD rules detected"
+	echo "❌ Firewall invariant violated: duplicated FORWARD rules detected"
 
-    if [ -n "$DUP4" ]; then
-        echo "⚠️  IPv4 duplicates:"
-        echo "$DUP4"
-    fi
+	if [ -n "$DUP4" ]; then
+		echo "⚠️  IPv4 duplicates:"
+		echo "$DUP4"
+	fi
 
-    if [ -n "$DUP6" ]; then
-        echo "⚠️  IPv6 duplicates:"
-        echo "$DUP6"
-    fi
-#else
-#    echo "✅ Firewall audit: no duplicated FORWARD rules"
+	if [ -n "$DUP6" ]; then
+		echo "⚠️  IPv6 duplicates:"
+		echo "$DUP6"
+	fi
+# else
+#     echo "✅ Firewall audit: no duplicated FORWARD rules"
 fi

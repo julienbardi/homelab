@@ -21,7 +21,8 @@ prereqs-network:
 		wireguard-tools \
 		netfilter-persistent \
 		iptables-persistent \
-		ethtool
+		ethtool \
+		tcpdump
 
 # everything else
 prereqs: prereqs-network
