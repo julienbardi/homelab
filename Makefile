@@ -44,6 +44,7 @@ include mk/40_code-server.mk
 include mk/40_wireguard.mk   # Wireguard orchestration
 include mk/41_wireguard-status.mk
 include mk/42_wireguard-qr.mk
+include mk/43_wireguard-runtime.mk
 include mk/40_caddy.mk
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/50_dnsmasq.mk
@@ -122,10 +123,16 @@ help:
 	@echo "    make tailscaled-status        # Show tailscaled health, traffic, and versions"
 	@echo "    make tailscaled-logs          # Tail tailscaled + role unit logs"
 	@echo ""
-	@echo "  WireGuard (authoritative workflow)"
-	@echo "    make wg-apply                   # Validate authoritative CSV, compile, deploy atomically"
-	@echo "    make wg-validate                # Validate and compile only (no deployment)"
-	@echo "    make wg-status                  # Show WireGuard interface and peer status"
+	@echo "  WireGuard (recommended workflow)"
+	@echo "    make wg                     # Apply intent (if changed) + show full status"
+	@echo "    make wg-apply               # Compile + deploy only"
+	@echo "    make wg-status              # Quick runtime summary"
+	@echo "    make wg-runtime             # Detailed runtime view"
+	@echo ""
+	@echo "  WireGuard (client operations)"
+	@echo "    make wg-show BASE=<b> IFACE=<wgX>   # Show client config + QR"
+	@echo "    make wg-qr   BASE=<b> IFACE=<wgX>   # Show QR only"
+	@echo "    make wg-remove-client BASE=<b> IFACE=<wgX>"
 	@echo ""
 	@echo "  WireGuard (⚠️  DESTRUCTIVE OPERATIONS ⚠️)"
 	@echo "                                   # Use ONLY when fixing structural config or rotating keys"
@@ -282,6 +289,10 @@ tailscaled: \
 	tailscaled-status
 	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
 		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
+
+.PHONY: wg
+
+wg: wg-apply wg-intent wg-dashboard wg-status wg-runtime wg-clients
 
 # --- Gen0: foundational services --- disabled: dnscrypt-proxy
 gen0: \
