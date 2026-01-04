@@ -6,7 +6,7 @@ WG_DIR="/etc/wireguard"
 
 mkdir -p "$(dirname "$REGISTRY")"
 
-# Create registry with header if missing
+# Create registry with header if missing (explicit TSV)
 if [ ! -f "$REGISTRY" ]; then
 	cat >"$REGISTRY" <<'EOF'
 # --------------------------------------------------------------------
@@ -35,8 +35,11 @@ for pub in "$WG_DIR"/wg*.pub; do
 
 	iface="$(basename "$pub" .pub)"
 
-	# Compute stable fingerprint
-	fp="$(wg pubkey <"$pub" | wg pubkey | sha256sum | awk '{print "SHA256:"$1}')"
+	# Stable fingerprint = hash of public key file
+	fp="$(sha256sum "$pub" | awk '{print "SHA256:"$1}')"
+
+	# Idempotence: skip if already recorded
+	grep -qF "$fp" "$REGISTRY" && continue
 
 	printf "%s\t%s\t%s\t%s\t%s\n" \
 		"wireguard" \

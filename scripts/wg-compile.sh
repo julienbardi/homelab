@@ -1,19 +1,39 @@
 #!/bin/sh
 set -eu
 
-# wg-compile.sh — validate staged CSV, allocate stable host IDs, render a plan snapshot
+# wg-compile.sh — validate staged CSV, allocate deterministic slots, render a plan snapshot
+#
+# Addressing contract (LOCKED):
+#   - Interface wgN uses IPv4 prefix: 10.N.0.0/16
+#   - Server on wgN:                10.N.0.1/16
+#   - Clients on wgN:               10.N.A.B/16
+#       A in [1..253], B in [2..254]
+#       (never .0/.255, never .0.1 for clients)
+#   - (A,B) is deterministic per base and identical across all interfaces
+#
+# IPv6 is symmetric and embeds the same (A,B):
+#   2a01:8b81:4800:9c00:N::A:B
+#
 # Authoritative input:
 #   /volume1/homelab/wireguard/input/clients.csv   (user,machine,iface)
 #
 # Compiled outputs (atomic):
 #   /volume1/homelab/wireguard/compiled/clients.lock.csv
-#   /volume1/homelab/wireguard/compiled/alloc.csv
+#   /volume1/homelab/wireguard/compiled/alloc.csv   (base,slot)
 #   /volume1/homelab/wireguard/compiled/plan.tsv   (NON-AUTHORITATIVE, derived)
 #
 # Notes:
-# - iface is the profile (wg0..wg7). No tags/overrides.
-# - Deterministic hostid: stateful allocator in alloc.csv, never changes once assigned.
-# - Fails loudly; does not modify deployed state.
+# - Deterministic allocator with collision resolution.
+# - alloc.csv is authoritative and never rewritten silently.
+# - Fails loudly on any contract violation.
+
+# --------------------------------------------------------------------
+
+# WireGuard profile bitmask model (wg0..wg15)
+BIT_LAN=0
+BIT_V4=1
+BIT_V6=2
+BIT_FULL=3
 
 ROOT="/volume1/homelab/wireguard"
 IN_DIR="$ROOT/input"
@@ -24,181 +44,156 @@ ALLOC="$OUT_DIR/alloc.csv"
 LOCK="$OUT_DIR/clients.lock.csv"
 PLAN="$OUT_DIR/plan.tsv"
 
-# DNS selection rationale:
-#
-# Clients always send DNS queries through the WireGuard tunnel.
-# The primary resolver is the WireGuard server itself (127.0.0.1).
-#
-# Fallback behavior depends on client profile:
-#
-#   - LAN clients:
-#       Primary:  127.0.0.1        (WG server local resolver)
-#       Fallback: 10.89.12.1       (LAN router DNS)
-#
-#   - Non-LAN / roaming clients:
-#       Primary:  127.0.0.1        (WG server local resolver)
-#       Fallback: 9.9.9.9          (public resolver)
-#
-# IPv6 follows the same model with equivalent addresses.
-#
-# Resolver order is explicit; clients will try entries in order.
-# IPv4 vs IPv6 preference is left to the client OS resolver policy.
 ENDPOINT_HOST_BASE="vpn.bardi.ch"
 ENDPOINT_PORT_BASE="51420"
 
+TAB="$(printf '\t')"
 STAGE="$OUT_DIR/.staging.$$"
 umask 077
 
 die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
 
+# --------------------------------------------------------------------
+# Deterministic allocator helpers
+
+SLOT_SPACE=$((253 * 253))   # 64009
+
+hex8_from_sha256() {
+	printf "%s" "$1" | sha256sum | awk '{print substr($1,1,8)}'
+}
+
+slot_from_base() {
+	h="$(hex8_from_sha256 "$1")"
+	v=$((16#$h))
+	printf "%s\n" $((v % SLOT_SPACE))
+}
+
+ab_from_slot() {
+	s="$1"
+	[ "$s" -ge 0 ] && [ "$s" -lt "$SLOT_SPACE" ] || die "invalid slot '$s'"
+	A=$(( (s / 253) + 1 ))   # 1..253
+	B=$(( (s % 253) + 2 ))   # 2..254
+	printf "%s %s\n" "$A" "$B"
+}
+
+server_addr4_for_ifnum() { printf "10.%s.0.1/16\n" "$1"; }
+server_addr6_for_ifnum() { printf "2a01:8b81:4800:9c00:%s::1/128\n" "$1"; }
+
+# --------------------------------------------------------------------
+
 mkdir -p "$IN_DIR" "$OUT_DIR"
 [ -f "$IN_CSV" ] || die "missing input CSV: $IN_CSV"
 
-# Ensure allocator exists
+# Ensure allocator exists and schema is correct
 if [ ! -f "$ALLOC" ]; then
-	printf "%s\n" "base,hostid" >"$ALLOC"
+	printf "%s\n" "base,slot" >"$ALLOC"
 	chmod 600 "$ALLOC"
+else
+	hdr="$(head -n 1 "$ALLOC")"
+	[ "$hdr" = "base,slot" ] || die "alloc.csv uses legacy schema '$hdr' — migrate manually"
 fi
 
 mkdir -p "$STAGE"
 trap 'rm -rf "$STAGE"' EXIT INT HUP TERM
 
+# --------------------------------------------------------------------
+# Normalize input
 
-# --- normalization + allocation (required producers for plan rendering) ---
-
-# 1) Normalize clients.csv into a TSV used by the plan renderer:
-#    user<TAB>machine<TAB>iface<TAB>base
 NORM="$STAGE/clients.norm.tsv"
 awk -F',' '
-		BEGIN { OFS="\t" }
-
-		# Skip comments
-		/^[[:space:]]*#/ { next }
-
-		# Skip CSV header wherever it appears
-		$1=="user" && $2=="machine" && $3=="iface" { next }
-
-		# Skip malformed rows
-		NF < 3 { next }
-
-		{
-				user=$1
-				machine=$2
-				iface=$3
-
-				gsub(/^[[:space:]]+|[[:space:]]+$/, "", user)
-				gsub(/^[[:space:]]+|[[:space:]]+$/, "", machine)
-				gsub(/^[[:space:]]+|[[:space:]]+$/, "", iface)
-
-				base=user "-" machine
-				print user, machine, iface, base
-		}
+	BEGIN { OFS="\t" }
+	/^[[:space:]]*#/ { next }
+	$1=="user" && $2=="machine" && $3=="iface" { next }
+	NF < 3 { next }
+	{
+		gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1)
+		gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
+		gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3)
+		base=$1 "-" $2
+		print $1, $2, $3, base
+	}
 ' "$IN_CSV" | sort -u >"$NORM"
 
-
-# 2) Lock file (authoritative snapshot of normalized intent, CSV)
+# Lock file
 LOCK_TMP="$STAGE/clients.lock.csv"
 {
-	printf "%s\n" "user,machine,iface"
-	awk -F'\t' 'BEGIN{OFS=","} {print $1,$2,$3}' "$NORM"
+	printf "user,machine,iface\n"
+	awk -F'\t' 'BEGIN{OFS=","}{print $1,$2,$3}' "$NORM"
 } >"$LOCK_TMP"
 
-# 3) Allocator merge: ensure every base has a stable hostid
-#    Existing allocator: $ALLOC (CSV: base,hostid)
-#    New merged allocator output path is fixed by later mv:
-#      mv -f "$STAGE/alloc.merged.csv" "$ALLOC"
-ALLOC_MERGED="$STAGE/alloc.merged.csv"
+# --------------------------------------------------------------------
+# Allocator merge
 
-# Seed merged allocator with header + existing rows
+ALLOC_MERGED="$STAGE/alloc.merged.csv"
 {
-	printf "%s\n" "base,hostid"
-	awk -F',' 'NR==1{next} NF==2{print $1","$2}' "$ALLOC"
+	printf "base,slot\n"
+	awk -F',' 'NR>1{print}' "$ALLOC"
 } >"$ALLOC_MERGED"
 
-# Determine next hostid
-next_id="$(awk -F',' 'NR>1{if($2>m)m=$2} END{print (m==""?1:m+1)}' "$ALLOC_MERGED")"
-
-# Add any missing bases
-awk -F'\t' '{print $4}' "$NORM" | sort -u | while IFS= read -r base; do
-	[ -n "$base" ] || continue
+awk -F'\t' '{print $4}' "$NORM" | sort -u | while read -r base; do
 	if ! awk -F',' -v b="$base" 'NR>1 && $1==b{found=1} END{exit(found?0:1)}' "$ALLOC_MERGED"; then
-		printf "%s,%s\n" "$base" "$next_id" >>"$ALLOC_MERGED"
-		next_id=$((next_id + 1))
+		slot="$(slot_from_base "$base")"
+		while awk -F',' -v s="$slot" 'NR>1 && $2==s{found=1} END{exit(found?0:1)}' "$ALLOC_MERGED"; do
+			slot=$(( (slot + 1) % SLOT_SPACE ))
+		done
+		printf "%s,%s\n" "$base" "$slot" >>"$ALLOC_MERGED"
 	fi
 done
 
-# TSV view for lookups in the plan loop: base<TAB>hostid
-ALLOC_NEW="$STAGE/alloc.new.tsv"
-awk -F',' 'NR==1{next} {printf "%s\t%s\n",$1,$2}' "$ALLOC_MERGED" >"$ALLOC_NEW"
+awk -F',' 'NR>1{printf "%s\t%s\n",$1,$2}' "$ALLOC_MERGED" >"$STAGE/alloc.tsv"
 
-# Default DNS label for plan output (you can refine per iface later)
-DNS_DEFAULT="127.0.0.1"
+# --------------------------------------------------------------------
+# Emit plan.tsv
 
-# Emit plan.tsv (derived, padded, non-authoritative)
 PLAN_TMP="$STAGE/plan.tsv"
-
 {
-	cat <<'EOF'
-# --------------------------------------------------------------------
-# GENERATED FILE — NOT AUTHORITATIVE
-#
-# This file is a compiled view of WireGuard intent.
-# DO NOT EDIT.
-#
-# Authoritative sources:
-#   - /volume1/homelab/wireguard/input/clients.csv
-#   - scripts/wg-compile.sh
-#
-# This file exists for human verification and audit only.
-# --------------------------------------------------------------------
-EOF
-
-	printf "%-18s %-6s %-8s %-15s %-22s %-22s\n" \
-		"base" "iface" "hostid" "dns" "allowed_ips" "endpoint"
+	printf "# GENERATED FILE — DO NOT EDIT\n"
+	printf "base\tiface\tslot\tdns\tclient_addr4\tclient_addr6\tAllowedIPs_client\tAllowedIPs_server\tendpoint\n"
 
 	while IFS=$'\t' read -r user machine iface base; do
-			[ -n "$base" ] || continue
+		ifnum="${iface#wg}"
 
-			case "$iface" in wg[0-7]) : ;; *)
-					die "invalid iface '$iface' for base=$base"
-			esac
+		slot="$(awk -F'\t' -v b="$base" '$1==b{print $2}' "$STAGE/alloc.tsv")"
+		set -- $(ab_from_slot "$slot")
+		A="$1"; B="$2"
 
-			ifnum="${iface#wg}"
-			endpoint="${ENDPOINT_HOST_BASE}:$((ENDPOINT_PORT_BASE + ifnum))"
+		client_addr4="10.${ifnum}.${A}.${B}/16"
+		client_addr6="2a01:8b81:4800:9c00:${ifnum}::${A}:${B}/128"
 
-			hid="$(awk -F'\t' -v b="$base" '$1==b{print $2}' "$ALLOC_NEW" | head -n1)"
-			[ -n "$hid" ] || die "no hostid for base=$base"
+		server_addr4="$(server_addr4_for_ifnum "$ifnum")"
+		server_addr6="$(server_addr6_for_ifnum "$ifnum")"
 
-			case "$iface" in
-					wg6|wg7)
-							allowed="0.0.0.0/0,::/0"
-							;;
-					*)
-							allowed="10.89.12.0/24"
-							;;
-			esac
+		allowed_server="${client_addr4}, ${client_addr6}"
 
-			printf "%-18s %-6s %-8s %-15s %-22s %-22s\n" \
-					"$base" "$iface" "$hid" "$DNS_DEFAULT" "$allowed" "$endpoint"
+		has_lan=$(( (ifnum >> BIT_LAN) & 1 ))
+		has_v4=$(( (ifnum >> BIT_V4) & 1 ))
+		has_v6=$(( (ifnum >> BIT_V6) & 1 ))
+		is_full=$(( (ifnum >> BIT_FULL) & 1 ))
 
-done <"$NORM"
+		allowed_client=""
+		if [ "$is_full" -eq 1 ]; then
+			[ "$has_v4" -eq 1 ] && allowed_client="0.0.0.0/0"
+			[ "$has_v6" -eq 1 ] && allowed_client="${allowed_client:+$allowed_client, }::/0"
+		else
+			[ "$has_lan" -eq 1 ] && allowed_client="10.89.12.0/24"
+		fi
 
+		[ "$ifnum" -eq 0 ] && allowed_client="${server_addr4}, ${server_addr6}"
 
+		endpoint="${ENDPOINT_HOST_BASE}:$((ENDPOINT_PORT_BASE + ifnum))"
+
+		printf "%s\t%s\t%s\t127.0.0.1\t%s\t%s\t%s\t%s\t%s\n" \
+			"$base" "$iface" "$slot" \
+			"$client_addr4" "$client_addr6" \
+			"$allowed_client" "$allowed_server" \
+			"$endpoint"
+	done <"$NORM"
 } >"$PLAN_TMP"
 
-# Commit compiled outputs atomically
 mv -f "$PLAN_TMP" "$PLAN"
-chmod 600 "$PLAN"
-
-# (clients.lock.csv and alloc.csv unchanged)
 mv -f "$LOCK_TMP" "$LOCK"
-chmod 600 "$LOCK"
+mv -f "$ALLOC_MERGED" "$ALLOC"
 
-mv -f "$STAGE/alloc.merged.csv" "$ALLOC"
-chmod 600 "$ALLOC"
+chmod 600 "$PLAN" "$LOCK" "$ALLOC"
 
 echo "wg-compile: OK"
-echo "  input:    $IN_CSV"
-echo "  lock:     $LOCK"
-echo "  alloc:    $ALLOC"
-echo "  plan:     $PLAN"

@@ -1,18 +1,30 @@
 #!/usr/bin/env bash
 # scripts/wg-runtime.sh
-# Authoritative WireGuard runtime status (kernel truth only)
+# Authoritative WireGuard runtime status (kernel truth only, intent-scoped)
 
 set -euo pipefail
 IFS=$'\n\t'
+
+WG_ROOT="${WG_ROOT:?WG_ROOT must be set}"
+PLAN="${PLAN:-$WG_ROOT/compiled/plan.tsv}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 printf '%-6s %-44s %-8s %-22s %-18s %-18s %-30s\n' \
   "Iface" "Peer public key" "Port" "Endpoint" "Last handshake" "RX / TX" "Allowed IPs"
 printf '%-6s %-44s %-8s %-22s %-18s %-18s %-30s\n' \
   "------" "--------------------------------------------" "--------" "----------------------" "------------------" "------------------" "------------------------------"
 
-mapfile -t IFACES < <(ip -o link show type wireguard 2>/dev/null | awk -F': ' '{print $2}')
+# Interfaces derived from intent (single authoritative accessor)
+mapfile -t IFACES < <("$SCRIPT_DIR/wg-plan-ifaces.sh" "$PLAN")
 
 for ifa in "${IFACES[@]}"; do
+  # Interface declared but not present in kernel
+  if ! ip link show "$ifa" >/dev/null 2>&1; then
+	printf '%-6s %-44s %-8s %-22s %-18s %-18s %-30s\n' \
+	  "$ifa" "(not present)" "-" "-" "-" "-" "-"
+	continue
+  fi
+
   listen="$(wg show "$ifa" listen-port 2>/dev/null || echo "-")"
 
   # Output format here (as observed):
@@ -39,8 +51,7 @@ for ifa in "${IFACES[@]}"; do
 	  }
 
 	  printf "%-6s %-44s %-8s %-22s %-18s %-18s %-30s\n",
-	  	IFACE, pub, PORT, endpoint, hs, rx " / " tx, allowed
-
+		IFACE, pub, PORT, endpoint, hs, rx " / " tx, allowed
 	}
   '
 done

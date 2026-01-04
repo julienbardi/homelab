@@ -5,32 +5,56 @@
 # ============================================================
 
 WG_ROOT := /volume1/homelab/wireguard
+export WG_ROOT
+
 WG_INPUT := $(WG_ROOT)/input
 WG_CSV   := $(WG_INPUT)/clients.csv
 
 SCRIPTS := $(CURDIR)/scripts
 
 WG_COMPILE_SCRIPT := $(SCRIPTS)/wg-compile.sh
+WG_KEYS_SCRIPT    := $(SCRIPTS)/wg-compile-keys.sh
+WG_SERVER_KEYS_SCRIPT := $(SCRIPTS)/wg-ensure-server-keys.sh
+WG_RENDER_SCRIPT  := $(SCRIPTS)/wg-compile-clients.sh
 WG_EXPORT_SCRIPT  := $(SCRIPTS)/wg-client-export.sh
 WG_DEPLOY_SCRIPT  := $(SCRIPTS)/wg-deploy.sh
 WG_CHECK_SCRIPT   := $(SCRIPTS)/wg-check.sh
 
-# Discover interfaces from CSV (single source of truth)
-WG_IFACES := $(shell awk -F, 'NR>1 && $$3 != "iface" {gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$3); if ($$3!="") print $$3}' $(WG_CSV) | sort -u)
-
 .PHONY: wg-validate wg-apply wg-compile wg-deploy wg-status wg-client-export wg-check
 
 # ------------------------------------------------------------
-# Compile intent → artifacts (no deployment)
+# Compile intent → plan.tsv
 # ------------------------------------------------------------
-wg-compile: $(WG_CSV) $(WG_COMPILE_SCRIPT)
+wg-compile-intent: $(WG_CSV) $(WG_COMPILE_SCRIPT)
 	@echo "▶ compiling WireGuard intent"
 	@$(WG_COMPILE_SCRIPT)
+
+wg-ensure-server-keys: wg-compile-intent $(WG_SERVER_KEYS_SCRIPT)
+	@echo "▶ ensuring WireGuard server keys exist"
+	@$(WG_SERVER_KEYS_SCRIPT)
+# ------------------------------------------------------------
+# Generate client keys → keys.tsv
+# ------------------------------------------------------------
+wg-compile-keys: wg-compile-intent $(WG_KEYS_SCRIPT)
+	@echo "▶ generating WireGuard client keys"
+	@$(WG_KEYS_SCRIPT)
+
+# ------------------------------------------------------------
+# Render client + server configs from plan.tsv + keys.tsv
+# ------------------------------------------------------------
+wg-render: wg-compile-intent wg-compile-keys wg-ensure-server-keys $(WG_RENDER_SCRIPT)
+	@echo "▶ rendering WireGuard client configs"
+	@$(WG_RENDER_SCRIPT)
+
+# ------------------------------------------------------------
+# Compile everything (no deployment)
+# ------------------------------------------------------------
+wg-compile: wg-compile-intent wg-compile-keys wg-render
 
 # ------------------------------------------------------------
 # Deploy compiled state (requires successful compile)
 # ------------------------------------------------------------
-wg-deploy: $(WG_DEPLOY_SCRIPT)
+wg-deploy: wg-compile $(WG_DEPLOY_SCRIPT)
 	@echo "▶ deploying WireGuard state"
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
 
@@ -50,7 +74,7 @@ wg-validate: wg-compile
 # ------------------------------------------------------------
 # Client config export (depends on compiled state)
 # ------------------------------------------------------------
-wg-client-export: $(WG_CSV) $(WG_EXPORT_SCRIPT)
+wg-client-export: wg-render $(WG_EXPORT_SCRIPT)
 	@echo "▶ exporting WireGuard client configs"
 	@$(WG_EXPORT_SCRIPT)
 
