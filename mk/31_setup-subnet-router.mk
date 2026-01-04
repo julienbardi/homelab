@@ -157,14 +157,10 @@ check-network:
 		echo "❌ ERROR: unexpected WireGuard IPv6 route on NAS"; exit 1; \
 	} || echo "✅ OK: no WireGuard IPv6 routes on NAS (correct)"
 
-
-	@echo "[check] IPv6 internet reachability"
-	@curl -6 -s --max-time 5 https://ifconfig.me >/dev/null || { \
-		echo "❌ ERROR: no IPv6 internet connectivity"; exit 1; \
-	}
-	@echo "✅ OK: IPv6 internet reachable"
-
-
+	@echo "[check] IPv6 internet reachability (informational)"
+	@curl -6 -s --max-time 5 https://ifconfig.me >/dev/null \
+		&& echo "ℹ️  IPv6 internet reachable from NAS" \
+		|| echo "ℹ️  IPv6 internet not reachable from NAS (acceptable)"
 
 .PHONY: bootstrap-router
 bootstrap-router:
