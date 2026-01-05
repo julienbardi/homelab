@@ -8,11 +8,11 @@
 
 # sudo ss -tulnp | grep 8912
 
-# Public URL clients will use
-server_url: https://vpn.bardi.ch
+# Public URL clients will use (caddy handles TLS termination)
+server_url: http://vpn.bardi.ch
 
-# Headscale API (internal only, proxied via Caddy)
-listen_addr: 127.0.0.1:8910
+# Headscale API (internal only, proxied via Caddy, must NOT be 127.0.0.1 due to UGOS limitation, see note in Caddyfile)
+listen_addr: :8910
 # grpc_listen_addr: 0.0.0.0:5000
 # metrics_listen_addr: 127.0.0.1:9090
 

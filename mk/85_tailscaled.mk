@@ -45,6 +45,7 @@ tailscaled-check-deps:
 # --------------------------------------------------------------------
 # LAN client (trusted: LAN + exit-node)
 # --------------------------------------------------------------------
+# do not use --accept-dns=true as it hijacks DNS entries in /etc/resolv.conf
 tailscaled-lan: tailscaled-check-deps
 	@echo "🔑 Enrolling LAN client (bardi-lan / lan)"
 	@$(run_as_root) $(TS_BIN) up --reset \
@@ -54,7 +55,7 @@ tailscaled-lan: tailscaled-check-deps
 			--output json | jq -r '.key') \
 		--advertise-exit-node \
 		--advertise-routes=10.89.12.0/24 \
-		--accept-dns=true \
+		--accept-dns=false \
 		--accept-routes=true
 	@echo "📡 LAN exit-node + subnet route advertised"
 	@$(run_as_root) $(TS_BIN) status --json | jq '.Self.Capabilities'

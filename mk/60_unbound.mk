@@ -2,24 +2,56 @@
 # mk/60_unbound.mk — Unbound orchestration
 # ============================================================
 
+.PHONY: enable-unbound install-pkg-unbound remove-pkg-unbound
+enable-unbound: \
+	install-pkg-unbound \
+	deploy-unbound-config \
+	deploy-unbound-local-internal \
+	deploy-unbound-service \
+	deploy-unbound-control-config
+	@echo "🔄 Restarting Unbound with homelab configuration"
+	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true
+	@$(run_as_root) systemctl restart unbound
+	@$(run_as_root) systemctl is-active --quiet unbound || \
+		( echo "❌ Unbound failed to start"; \
+		  $(run_as_root) systemctl status --no-pager unbound; \
+		  exit 1 )
+	@echo "✅ Unbound enabled and running"
+
+# ------------------------------------------------------------
+# Unbound
+# ------------------------------------------------------------
+install-pkg-unbound:
+	@echo "📦 Installing Unbound"
+	$(call apt_install,unbound,unbound)
+	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true
+	@echo "✅ Unbound installed and enabled"
+
+remove-pkg-unbound:
+	$(call apt_remove,unbound)
+
 # --- Deployment ---
-.PHONY: install-unbound install-dnsutils \
-		deploy-unbound-config \
-		deploy-unbound-service deploy-unbound \
-		deploy-unbound-control-config \
-		update-root-hints ensure-root-key
-
-install-unbound:
-	@$(call apt_install,unbound,unbound)
-
-install-dnsutils:
-	@$(call apt_install,dig,dnsutils)
+.PHONY: \
+	deploy-unbound-config \
+	deploy-unbound-service \
+	deploy-unbound \
+	deploy-unbound-control-config \
+	update-root-hints ensure-root-key
 
 UNBOUND_CONF_SRC := $(HOMELAB_DIR)/config/unbound/unbound.conf
 UNBOUND_CONF_DST := /etc/unbound/unbound.conf
 
 UNBOUND_CONTROL_CONF_SRC := $(HOMELAB_DIR)/config/unbound/unbound-control.conf
 UNBOUND_CONTROL_CONF_DST := /etc/unbound/unbound-control.conf
+
+.PHONY: assert-unbound-tools
+assert-unbound-tools:
+	@command -v unbound >/dev/null || \
+		( echo "❌ unbound not installed. Run: make prereqs"; exit 1 )
+	@command -v dig >/dev/null || \
+		( echo "❌ dig not installed. Run: make prereqs"; exit 1 )
+	@command -v unbound-control >/dev/null || \
+		( echo "❌ unbound-control not installed. Run: make prereqs"; exit 1 )
 
 # --- Root hints ---
 update-root-hints:
@@ -159,10 +191,15 @@ reset-unbound-control:
 	@$(run_as_root) unbound-control-setup
 	@$(run_as_root) install -m 0640 -o root -g unbound /etc/unbound/unbound_{server,control}.{key,pem} /etc/unbound/
 
+.PHONY: dns-runtime-check
+dns-runtime-check: assert-unbound-running
+	@dig @127.0.0.1 -p 5335 . NS +short >/dev/null || \
+		( echo "❌ Unbound not resolving root NS"; exit 1 )
+
 # --- Runtime / Benchmark ---
 .PHONY: dns rotate dns-bench dns-all dns-reset dns-health dns-watch dns-runtime
 
-dns: install-unbound install-dnsutils
+dns:
 	@echo "🔍 [make] Running dns_setup.sh"
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/setup/dns_setup.sh
 
@@ -170,7 +207,7 @@ rotate:
 	@echo "🔄 [make] Refreshing DNSSEC trust anchors"
 	@$(run_as_root) bash scripts/helpers/rotate-unbound-rootkeys.sh
 
-dns-bench: install-dnsutils
+dns-bench:
 	@echo "🌐 [make] Downloading OpenDNS top domains list..."
 	@curl -s -o /tmp/opendns-top-domains.txt https://raw.githubusercontent.com/opendns/public-domain-lists/master/opendns-top-domains.txt
 	@echo "⚡ [make] Priming Unbound cache..."
@@ -181,18 +218,16 @@ dns-bench: install-dnsutils
 	@dnsperf -s 10.89.12.4 -d /tmp/opendns-top-domains.txt -l 30 -q 1000
 	@echo "✅ [make] DNS benchmark complete"
 
-# --- Full bootstrap: ensure systemd helper, then deploy and run DNS  ---
-dns-all: install-dnsmasq deploy-dnsmasq-config \
-		 enable-systemd \
-		 deploy-unbound install-unbound-systemd-dropin \
-		 setup-unbound-control dns dns-runtime
-	@echo "🚀 [make] Full DNS bootstrap complete (dnsmasq → unbound → runtime)"
-
-dns-runtime: dnsdist dns-warm-install dns-warm-enable
+dns-runtime: \
+	enable-systemd \
+	install-unbound-systemd-dropin \
+	dnsdist \
+	dns-warm-install \
+	dns-warm-enable
 	@echo "⚙️ [make] DNS runtime helpers ensured (dnsdist + dns-warm)"
 
 # --- Reset + bootstrap ---
-dns-reset:
+dns-reset: assert-unbound-tools
 	@echo "🧹 [make] Stopping Unbound and clearing state..."
 	@$(run_as_root) systemctl stop unbound || true
 	@$(run_as_root) rm -rf /run/unbound /var/lib/unbound/* || true
@@ -205,7 +240,7 @@ dns-reset:
 	@echo "✅ [make] DNS reset + bootstrap complete"
 
 # --- Health check ---
-dns-health: assert-unbound-control
+dns-health: assert-unbound-tools assert-unbound-control
 	@echo "🩺 [make] Checking Unbound health and cache stats..."
 	sudo -u unbound unbound-control \
 		-c /etc/unbound/unbound-control.conf \

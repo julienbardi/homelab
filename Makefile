@@ -37,6 +37,7 @@ include mk/00_prereqs.mk
 include mk/05_bootstrap_wireguard.mk
 include mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include mk/20_deps.mk        # package dependencies (apt installs, base tools)
+include mk/30_config_validation.mk
 include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
 include mk/31_setup-subnet-router.mk # Subnet router orchestration
 include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
@@ -49,6 +50,7 @@ include mk/40_caddy.mk
 include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include mk/50_dnsmasq.mk
 include mk/60_unbound.mk     # Unbound DNS resolver setup
+include mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
 include mk/70_dnsdist.mk     #
 include mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
 include mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
@@ -73,7 +75,7 @@ help:
 	@echo ""
 	@echo "  Package and preflight"
 	@echo "	   make prereqs            # Install prerequisite tools (curl, jq, git, nftables, ndppd, dns utils, admin helpers)"
-	@echo "    make deps               # Install system dependencies (services, builds, Tailscale, WireGuard, dnsmasq, Unbound, etc.)"
+	@echo "    make deps               # Install developer tooling (go, pandoc, checkmake, strace, vnstat)"
 	@echo "    make apt-update         # Force refresh apt cache (normally cached for $(APT_UPDATE_MAX_AGE)s)"
 	@echo "    make check-prereqs      # Verify required host commands (sudo, apt-get, git, ip, wg, etc.)"
 	@echo ""
@@ -171,7 +173,7 @@ help:
 	@echo "    make client-dashboard           # Emoji table of users/machines vs interfaces"
 	@echo ""
 	@echo "  DNS"
-	@echo "    make dns-all                    # Install + configure Unbound + dnscrypt-proxy"
+	@echo "    make dns-stack                  # Install + configure dnsmasq + Unbound (split-horizon baseline)"
 	@echo "    make dns-warm-install           # Install DNS cache warming service + timer"
 	@echo "    make dns-warm-enable            # Enable and start DNS cache warming (every minute)"
 	@echo "    make dns-warm-disable           # Disable DNS cache warming"
@@ -267,9 +269,37 @@ test: logs
 	@echo "[make] Running run_as_root harness..."
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
 
-# --- Default target ---
+# --- all targets (legacy) ---
 all: harden-groups gitcheck gen0 gen1 gen2
 	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
+
+# -- all targets
+.PHONY: bootstrap
+bootstrap: \
+	deps \
+	vpn-stack \
+	dns-stack \
+	dns-runtime
+	@echo "Consider make firewall-stack"
+
+.PHONY: firewall-stack
+firewall-stack: \
+	install-pkg-nftables \
+	enable-nftables \
+	enable-ndppd
+
+.PHONY: dns-stack
+dns-stack: \
+	install-pkg-dnsmasq \
+	deploy-dnsmasq-config \
+	enable-unbound \
+	dnsdist \
+	dns-runtime
+
+.PHONY: vpn-stack
+vpn-stack: \
+	install-pkg-wireguard \
+	install-pkg-tailscale
 
 .PHONY: headscale-stack
 
@@ -302,8 +332,8 @@ gen0: \
 	setup-subnet-router \
 	headscale-stack \
 	tailscaled \
-	dns-all \
-	dns
+	dns-stack \
+	dns-runtime
 	@echo "[make] Running gen0 foundational services..."
 
 gen1: caddy tailnet rotate wg-baseline code-server
