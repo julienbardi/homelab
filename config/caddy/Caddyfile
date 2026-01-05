@@ -1,4 +1,30 @@
 # ------------------------------------------------------------
+# NOTE: UGOS LOOPBACK ISOLATION (IMPORTANT)
+#
+# On UGOS-based systems (Ugreen / NAS-class OS), TCP connections
+# over 127.0.0.1 between system services are NOT reliable.
+#
+# Observed behavior:
+#   - Some loopback services work (e.g. HTTPS DoH backends)
+#   - Others silently blackhole (e.g. plain HTTP control APIs)
+#   - ss/netstat may show LISTEN, but connections hang
+#   - Reverse proxies report "dial tcp 127.0.0.1:<port>: i/o timeout"
+#
+# This appears to depend on:
+#   - protocol (HTTPS vs HTTP)
+#   - service class (network service vs system daemon)
+#   - connection lifetime (short vs long-lived)
+#
+# Rule:
+#   DO NOT rely on 127.0.0.1 for inter-service proxying on UGOS.
+#
+# Correct pattern:
+#   - Bind backend services to the LAN IP (e.g. 10.89.12.4)
+#   - Proxy to the LAN IP, even on the same host
+#
+# This avoids silent blackholes, reload hangs, and false 502s.
+# ------------------------------------------------------------
+# ------------------------------------------------------------
 # SAFETY:
 # This Caddyfile MUST NOT bind to :80 or :443.
 # UGOS nginx requires those ports and will fail hard otherwise.
@@ -104,14 +130,14 @@ bardi.ch:8384 {
 	@vpn {
 		host vpn.bardi.ch
 	}
-	reverse_proxy @vpn 127.0.0.1:8910 {
+	reverse_proxy @vpn 10.89.12.4:8910 {
 		header_up Host vpn.bardi.ch
 		header_up X-Forwarded-Proto https
 	}
 
 	# DERP relay (external)
 	@derp host derp.bardi.ch
-	reverse_proxy @derp 127.0.0.1:8912
+	reverse_proxy @derp 10.89.12.4:8912
 
 	# QNAP (internal only)
 	@qnap_internal {

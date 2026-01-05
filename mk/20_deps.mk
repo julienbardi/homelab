@@ -6,9 +6,6 @@ GO_MODERN_PREFIX  := /usr/local/go
 GO_MODERN_BIN     := $(GO_MODERN_PREFIX)/bin/go
 STAMP_GO_MODERN   := $(STAMP_DIR)/go-modern.installed
 
-DNSMASQ_CONF_SRC := $(HOMELAB_DIR)/config/dnsmasq/unbound.conf
-DNSMASQ_CONF_DST := /etc/dnsmasq.d/unbound.conf
-
 .PHONY: deps install-pkg-go remove-pkg-go \
 	install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc \
 	install-pkg-checkmake remove-pkg-checkmake \
@@ -16,54 +13,13 @@ DNSMASQ_CONF_DST := /etc/dnsmasq.d/unbound.conf
 	install-pkg-vnstat remove-pkg-vnstat \
 	install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale \
 	headscale-build \
-	install-pkg-dnsmasq remove-pkg-dnsmasq \
-	install-dnsmasq-unbound-config remove-dnsmasq-unbound-config
+	remove-pkg-dnsmasq
 
 # ------------------------------------------------------------
 # Aggregate deps target
 # ------------------------------------------------------------
 deps: prereqs \
-	install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat \
-	install-pkg-tailscale install-pkg-nftables install-pkg-wireguard \
-	install-dnsmasq-unbound-config deploy-dnsmasq-config \
-	enable-ndppd
-
-# ------------------------------------------------------------
-# dnsmasq
-# ------------------------------------------------------------
-install-pkg-dnsmasq:
-	@echo "📦 Installing dnsmasq"
-	$(call apt_install,dnsmasq,dnsmasq)
-	@$(run_as_root) systemctl enable --now dnsmasq >/dev/null 2>&1 || true
-	@echo "✅ dnsmasq installed and enabled"
-
-remove-pkg-dnsmasq:
-	@echo "🗑️ Removing dnsmasq"
-	@$(run_as_root) systemctl stop dnsmasq >/dev/null 2>&1 || true
-	@$(run_as_root) systemctl disable dnsmasq >/dev/null 2>&1 || true
-	$(call apt_remove,dnsmasq)
-	@echo "✅ dnsmasq removed"
-
-.PHONY: require-unbound-running
-require-unbound-running:
-	@systemctl is-active --quiet unbound || { \
-		echo "❌ Unbound is not running"; exit 1; }
-
-install-dnsmasq-unbound-config: install-pkg-dnsmasq deploy-unbound require-unbound-running
-	@echo "📂 Installing dnsmasq → Unbound forwarding config"
-	@if [ ! -f "$(DNSMASQ_CONF_SRC)" ]; then \
-		echo "❌ Missing $(DNSMASQ_CONF_SRC)"; exit 1; \
-	fi
-	@$(run_as_root) install -o root -g root -m 0644 \
-		"$(DNSMASQ_CONF_SRC)" "$(DNSMASQ_CONF_DST)"
-	@$(run_as_root) systemctl restart dnsmasq >/dev/null 2>&1 || true
-	@echo "✅ dnsmasq now forwards DNS to Unbound (127.0.0.1:5335)"
-
-remove-dnsmasq-unbound-config:
-	@echo "🗑️ Removing dnsmasq → Unbound forwarding config"
-	@$(run_as_root) rm -f "$(DNSMASQ_CONF_DST)"
-	@$(run_as_root) systemctl restart dnsmasq >/dev/null 2>&1 || true
-	@echo "✅ dnsmasq forwarding config removed"
+	install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat
 
 # ------------------------------------------------------------
 # Tailscale repository
@@ -178,18 +134,6 @@ remove-pkg-caddy:
 	$(call apt_remove,caddy)
 
 # ------------------------------------------------------------
-# Unbound
-# ------------------------------------------------------------
-install-pkg-unbound:
-	@echo "📦 Installing Unbound"
-	$(call apt_install,unbound,unbound)
-	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true
-	@echo "✅ Unbound installed and enabled"
-
-remove-pkg-unbound:
-	$(call apt_remove,unbound)
-
-# ------------------------------------------------------------
 # ndppd
 # ------------------------------------------------------------
 enable-ndppd: prereqs
@@ -282,7 +226,7 @@ install-pkg-pandoc:
 	curl -fsSL "$(PANDOC_DEB_URL)" -o "$(PANDOC_DEB)"; \
 	echo "$(PANDOC_SHA256)  $(PANDOC_DEB)" | sha256sum -c - >/dev/null; \
 	DEBIAN_FRONTEND=noninteractive $(run_as_root) dpkg -i "$(PANDOC_DEB)" >/dev/null 2>&1 || true; \
-	$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get -y -f install --no-install-recommends >/dev/null; \
+	$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get -y -f install --no-install-recommends >/dev/null; \
 	$(run_as_root) apt-mark hold pandoc >/dev/null; \
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
 	installed_version_base=$${installed_version%%-*}; \
@@ -297,7 +241,7 @@ install-pkg-pandoc:
 upgrade-pkg-pandoc: $(STAMP_PANDOC)
 	@echo "[make] Upgrading pandoc..."
 	@$(call apt_update_if_needed)
-	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
+	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
 	@tmp=$$(mktemp); dpkg-query -W -f='${Version}\n' pandoc > "$$tmp" 2>/dev/null || echo "unknown" > "$$tmp"; \
 	echo "version=$$(cat $$tmp) upgraded_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee $(STAMP_PANDOC) >/dev/null; \

@@ -89,3 +89,19 @@ dnsdist-systemd-dropin:
 		$(HOMELAB_DIR)/scripts/systemd/dnsdist.service.d/10-no-port53.conf \
 		/etc/systemd/system/dnsdist.service.d/10-no-port53.conf
 	@$(run_as_root) systemctl daemon-reload
+
+.PHONY: assert-dnsdist-running
+assert-dnsdist-running:
+	@systemctl is-active --quiet dnsdist || \
+		( echo "❌ dnsdist is not running"; exit 1 )
+
+.PHONY: check-dnsdist-doh-local
+check-dnsdist-doh-local:
+	@curl -fsS \
+		--connect-timeout 2 \
+		--max-time 5 \
+		-H 'accept: application/dns-message' \
+		--data-binary @/dev/null \
+		http://127.0.0.1:8053/dns-query >/dev/null || \
+		( echo "❌ dnsdist DoH endpoint not responding locally within 5s"; exit 1 )
+
