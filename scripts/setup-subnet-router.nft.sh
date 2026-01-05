@@ -3,33 +3,154 @@
 # Idempotent nft conversion of setup-subnet-router.sh
 set -euo pipefail
 
-log() { printf '%s %s\n' "$(date -Iseconds)" "$*"; }
+CLEANUP_LEGACY=${CLEANUP_LEGACY:-0}
 
-# --- Topology (adjust if needed) ---
+# --- Topology (adjust if needed: probably eth0, eth1 or br0) ---
 LAN_IF="eth0"
 LAN_SUBNET="10.89.12.0/24"
 LAN_SUBNET_V6="2a01:8b81:4800:9c00::/64"
 WG_IF_PREFIX="wg"
+
 GLOBAL_IPV6_PREFIX="2a01:8b81:4800:9c00"
-GLOBAL_PREFIX_LEN=64
+GLOBAL_PREFIX_LEN=60 # exactly 16 /64 subnets (1 for LAN and 15 for wireguard) out of the 256 delegated by ISP. 56 is future proof
 
-# --- WireGuard IPv4/IPv6 subnets (static, aligned with mk/40_wireguard.mk) ---
-WG_IPV4S="10.10.0.0/24 10.11.0.0/24 10.12.0.0/24 10.13.0.0/24 10.14.0.0/24 10.15.0.0/24 10.16.0.0/24 10.17.0.0/24"
+# WireGuard profile bitmask model (wg1..wg15)
+BIT_LAN=0   # LAN access
+BIT_V4=1    # Internet IPv4
+BIT_V6=2    # Internet IPv6
+# BIT_FULL intentionally omitted here: only used in wg-compile for AllowedIPs_client
 
-WG_IPV6S="2a01:8b81:4800:9c01::/64 2a01:8b81:4800:9c02::/64 2a01:8b81:4800:9c03::/64 2a01:8b81:4800:9c04::/64 \
-2a01:8b81:4800:9c05::/64 2a01:8b81:4800:9c06::/64 2a01:8b81:4800:9c07::/64 2a01:8b81:4800:9c08::/64"
+# Canonical functions (duplicated from wg-compile.sh)
+wg_hextet_from_ifnum() {
+	n="$1"
+	[ "$n" -ge 1 ] && [ "$n" -le 15 ] || {
+		log "ERROR: invalid wg interface index '$n' (expected 1..15)"
+		exit 1
+	}
+	printf "9c0%x" "$n"
+}
 
-# --- WireGuard interface model (bitmask semantics) ---
-# 001 LAN only			 -> wg1
-# 010 Internet v4 only	 -> wg2
-# 011 LAN + Internet v4	-> wg3
-# 100 IPv6 only			-> wg4
-# 101 LAN + IPv6		   -> wg5
-# 110 Internet v4 + IPv6   -> wg6
-# 111 LAN + v4 + IPv6	  -> wg7
-WG_LAN_IFACES="1 3 5 7"
-WG_INET4_IFACES="2 3 6 7"
-WG_INET6_IFACES="4 5 6 7"
+wg_ipv6_subnet_for_ifnum() {
+	n="$1"
+	hextet="$(wg_hextet_from_ifnum "$n")"
+	printf "2a01:8b81:4800:%s::/64" "$hextet"
+}
+
+
+# --- Helper: delete rules in a chain that match a fixed string (by handle) ---
+delete_rules_matching_in_chain() {
+	local table="$1" chain="$2" needle="$3"
+
+	# List rules with handles, normalize whitespace, and match safely
+	nft -a list chain "$table" "$chain" 2>/dev/null \
+	| while IFS= read -r line; do
+		# Normalize whitespace to avoid AWK crashes and substring mismatches
+		norm="$(printf '%s' "$line" | tr -s '[:space:]' ' ')"
+
+		# Skip table/chain headers
+		case "$norm" in
+			"table "* | "chain "* ) continue ;;
+		esac
+
+		# Match only real rules containing the needle
+		case "$norm" in
+			*"$needle"*)
+				# Extract handle safely
+				handle="$(printf '%s\n' "$norm" | awk '
+					{
+						if (match($0, /# handle ([0-9]+)/, m)) {
+							print m[1]
+						}
+					}
+				')"
+
+				if [[ -n "$handle" ]]; then
+					log "Deleting rule in ${table} ${chain} matching '${needle}' (handle ${handle})"
+					nft delete rule "$table" "$chain" handle "$handle" || true
+				fi
+				;;
+		esac
+	done
+}
+
+cleanup_wg_ipv6_noncanonical_in_chain() {
+  local chain="$1" wg_if="$2" canon="$3"
+  nft -a list chain inet filter "$chain" 2>/dev/null \
+  | tr -s '[:space:]' ' ' \
+  | while IFS= read -r line; do
+	  case "$line" in
+		*"iifname \"${wg_if}\""*ip6*" saddr "*)
+		  case "$line" in
+			*"ip6 saddr ${canon}"*) : ;;
+			*)
+			  handle="$(printf '%s\n' "$line" | awk 'match($0,/ # handle ([0-9]+)/,m){print m[1]}')"
+			  [ -n "$handle" ] && nft delete rule inet filter "$chain" handle "$handle" || true
+			  ;;
+		  esac
+		  ;;
+	  esac
+	done
+}
+
+cleanup_legacy_rules() {
+	log "Running legacy nft cleanup..."
+
+	# 1. Remove any wg0 rules (wg0 is forbidden)
+	delete_rules_matching_in_chain inet filter input  'iifname "wg0"'
+	delete_rules_matching_in_chain inet filter forward 'iifname "wg0"'
+	delete_rules_matching_in_chain inet filter forward 'oifname "wg0"'
+
+	# 2. Remove old /64 NDP proxying
+	delete_rules_matching_in_chain inet filter forward '9c00::/64'
+
+	# 3. Remove old overly-broad forward-accept rules
+	delete_rules_matching_in_chain inet filter forward 'forward-accept'
+
+	# 4. Remove legacy NAT rules not tied to current LAN_IF
+	delete_rules_matching_in_chain ip nat postrouting "oifname \"${LAN_IF}\""
+
+	#delete_rules_matching_in_chain ip nat postrouting 'masquerade'
+
+	# 5. Remove WRONG decimal-based IPv6 subnets for wg10..wg15
+	# Correct model uses hex (9c0a..9c0f), not decimal (10..15)
+	for i in $(seq 10 15); do
+		# Match any rule containing :<decimal>:: which is invalid
+		delete_rules_matching_in_chain inet filter input  ":${i}::"
+		delete_rules_matching_in_chain inet filter forward ":${i}::"
+		delete_rules_matching_in_chain inet filter output ":${i}::"
+
+		# Also clean NAT table just in case
+		delete_rules_matching_in_chain ip nat postrouting ":${i}::"
+	done
+
+	# 6. Remove any IPv6 rules on wg1..wg15 that do NOT match the canonical subnet
+	for i in $(seq 1 15); do
+		WG_IF="${WG_IF_PREFIX}${i}"
+		CANON_V6="$(wg_ipv6_subnet_for_ifnum "$i")"
+
+		# Delete any IPv6 rule on wgX that does not reference the canonical subnet
+		cleanup_wg_ipv6_noncanonical_in_chain input "$WG_IF" "$CANON_V6"
+		cleanup_wg_ipv6_noncanonical_in_chain forward "$WG_IF" "$CANON_V6"
+	done
+
+	delete_rules_matching_in_chain inet filter input 'udp dport 51420'
+	delete_rules_matching_in_chain inet filter input 'udp dport 51420-51427'
+	delete_rules_matching_in_chain inet filter forward 'ct state established,related'
+
+	log "Legacy nft cleanup complete."
+}
+
+log() { printf '%s %s\n' "$(date -Iseconds)" "$*"; }
+
+dump_rules_snapshot() {
+	mkdir -p "${HOMELAB_DIR}/config"
+
+	nft list table inet filter \
+	| sed -E 's/ counter packets [0-9]+ bytes [0-9]+//g; s/ # handle [0-9]+//g' \
+	> "${HOMELAB_DIR}/config/nft.inet-filter.txt"
+
+	log "nft inet filter snapshot written to ${HOMELAB_DIR}/config/nft.inet-filter.txt"
+}
 
 # --- Require root ---
 if [[ $EUID -ne 0 ]]; then
@@ -41,6 +162,12 @@ fi
 if ! ip link show "${LAN_IF}" | grep -q "state UP"; then
 	log "ERROR: Interface ${LAN_IF} not found or not UP, aborting."
 	exit 1
+fi
+
+if [ "$CLEANUP_LEGACY" -eq 1 ]; then
+	cleanup_legacy_rules
+else
+	log "Legacy cleanup disabled (CLEANUP_LEGACY=0)"
 fi
 
 # --- Kernel tuning: IPv4/IPv6 forwarding ---
@@ -91,51 +218,6 @@ add_rule() {
 	fi
 }
 
-
-# --- Helper: delete rules in a chain that match a fixed string (by handle) ---
-delete_rules_matching_in_chain() {
-	local table="$1" chain="$2" needle="$3"
-
-	# List rules with handles, normalize whitespace, and match safely
-	nft -a list chain "$table" "$chain" 2>/dev/null \
-	| while IFS= read -r line; do
-		# Normalize whitespace to avoid AWK crashes and substring mismatches
-		norm="$(printf '%s' "$line" | tr -s '[:space:]' ' ')"
-
-		# Skip table/chain headers
-		case "$norm" in
-			"table "* | "chain "* ) continue ;;
-		esac
-
-		# Match only real rules containing the needle
-		case "$norm" in
-			*"$needle"*)
-				# Extract handle safely
-				handle="$(printf '%s\n' "$norm" | awk '
-					{
-						if (match($0, /# handle ([0-9]+)/, m)) {
-							print m[1]
-						}
-					}
-				')"
-
-				if [[ -n "$handle" ]]; then
-					log "Deleting rule in ${table} ${chain} matching '${needle}' (handle ${handle})"
-					nft delete rule "$table" "$chain" handle "$handle" || true
-				fi
-				;;
-		esac
-	done
-}
-
-
-
-iface_in_list() {
-	local i="$1"; shift
-	local list="$*"
-	[[ " ${list} " =~ " ${i} " ]]
-}
-
 # --- Conntrack baseline (ESTABLISHED,RELATED) ---
 add_rule "ct state established,related accept" \
 	"nft add rule inet filter input ct state related,established accept"
@@ -171,22 +253,23 @@ add_rule "tcp dport 9999 accept" \
 add_rule "tcp dport 9443 accept" \
 	"nft add rule inet filter input tcp dport 9443 accept"
 
-# SMB
-add_rule "tcp dport 445 accept" \
-	"nft add rule inet filter input tcp dport 445 accept"
+# --- Allow Unbound DNS replies (loopback, UDP/TCP source port 5335) ---
+add_rule "iifname \"lo\" udp sport 5335 accept" "nft add rule inet filter output iifname \"lo\" udp sport 5335 accept"
+add_rule "iifname \"lo\" tcp sport 5335 accept" "nft add rule inet filter output iifname \"lo\" tcp sport 5335 accept"
 
-# wsdd2
-add_rule "udp dport 3702 accept" \
-	"nft add rule inet filter input udp dport 3702 accept"
+# --- Allow DNS queries to Unbound (loopback, UDP/TCP source port 5335)---
+add_rule "iifname \"lo\" udp dport 5335 accept" "nft add rule inet filter input iifname \"lo\" udp dport 5335 accept"
+add_rule "iifname \"lo\" tcp dport 5335 accept" "nft add rule inet filter input iifname \"lo\" tcp dport 5335 accept"
 
-# UPnP/SSDP
-add_rule "udp dport 1900 accept" \
-	"nft add rule inet filter input udp dport 1900 accept"
+
+add_rule "tcp dport 445 accept" "nft add rule inet filter input tcp dport 445 accept"  # SMB
+add_rule "udp dport 3702 accept" "nft add rule inet filter input udp dport 3702 accept" # wsdd2
+add_rule "udp dport 1900 accept" "nft add rule inet filter input udp dport 1900 accept" # UPnP/SSDP
 
 # --- WireGuard handshake ports on LAN uplink ---
-# Accept UDP 51420-51427 on LAN_IF (IPv4 + IPv6 via inet table)
-add_rule "iifname \"${LAN_IF}\" udp dport 51420-51427 ct state new,established accept" \
-	"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport {51420-51427} ct state new,established accept"
+# Accept UDP 51420-51435 on LAN_IF (IPv4 + IPv6 via inet table)
+add_rule "iifname \"${LAN_IF}\" udp dport 51420-51435 ct state new,established accept" \
+	"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport {51420-51435} ct state new,established accept"
 
 # --- Trusted router WireGuard clients -> LAN (IPv4 + IPv6) ---
 add_rule "trusted router WG -> LAN v4" \
@@ -196,64 +279,55 @@ add_rule "trusted router WG -> LAN v6" \
 	"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr ${LAN_SUBNET_V6} accept"
 
 # --- WireGuard per-interface host + forward rules (wg0..wg7) ---
-for i in $(seq 0 7); do
+for i in $(seq 1 15); do
 	WG_IF="${WG_IF_PREFIX}${i}"
-	#IPV4_SUBNET="10.1${i}.0.0/24"
-	IPV4_SUBNET=$(echo "$WG_IPV4S" | cut -d' ' -f $((i+1)) | sed 's#/24##')
-	#IPV6_SUBNET="${GLOBAL_IPV6_PREFIX}:1${i}::/64"
-	IPV6_SUBNET=$(echo "$WG_IPV6S" | cut -d' ' -f $((i+1)) | sed 's#/128#/64#')
+
+	# Bitmask evaluation (same as wg-compile.sh)
+	has_lan=$(( (i >> BIT_LAN) & 1 ))
+	has_v4=$(( (i >> BIT_V4) & 1 ))
+	has_v6=$(( (i >> BIT_V6) & 1 ))
+
+	#IPV4_SUBNET=$(echo "$WG_IPV4S" | cut -d' ' -f $((i+1)) | sed 's#/24##') # old rule
+	IPV4_SUBNET="10.${i}.0.0/16"
+	
+	#IPV6_SUBNET=$(echo "$WG_IPV6S" | cut -d' ' -f $((i+1)) | sed 's#/128#/64#') # old rule
+	IPV6_SUBNET="$(wg_ipv6_subnet_for_ifnum "$i")"
+
 	PORT=$((51420 + i))
 
 	if ip link show "${WG_IF}" >/dev/null 2>&1; then
 		log "Configuring ${WG_IF} rules (subnets ${IPV4_SUBNET}, ${IPV6_SUBNET}, port ${PORT})"
 
 		# Host access from wgX (kept broad: allows DoH/SSH/etc to the NAS itself)
-		add_rule "iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept" \
-			"nft add rule inet filter input iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept"
-		add_rule "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept" \
-			"nft add rule inet filter input iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept"
+		add_rule "iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept" "nft add rule inet filter input iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept"
+		add_rule "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept" "nft add rule inet filter input iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept"
 
 		# Handshake path on LAN uplink: accept UDP port for this interface (no source restriction)
 		add_rule "iifname \"${LAN_IF}\" udp dport ${PORT} accept" \
 			"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport ${PORT} ct state new,established accept"
 
-		# --- Remove legacy overly-broad forwarding rules (so policy can converge) ---
-		# Old rules allowed wgX to forward anywhere, which defeats the bitmask model.
-		delete_rules_matching_in_chain "inet" "filter forward" "iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} forward-accept"
-		delete_rules_matching_in_chain "inet" "filter forward" "oifname \"${WG_IF}\" ip daddr ${IPV4_SUBNET} forward-accept"
-		delete_rules_matching_in_chain "inet" "filter forward" "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} forward-accept"
-		delete_rules_matching_in_chain "inet" "filter forward" "oifname \"${WG_IF}\" ip6 daddr ${IPV6_SUBNET} forward-accept"
-
 		# --- Bitmask-gated LAN access ---
 		# LAN means: can reach LAN_SUBNET + LAN_SUBNET_V6 through LAN_IF
-		if iface_in_list "${i}" "${WG_LAN_IFACES}"; then
+		if [ "$has_lan" -eq 1 ]; then
 			# IPv4 LAN
-			add_rule "wg${i} -> LAN v4" \
-				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept"
-			add_rule "LAN v4 -> wg${i}" \
-				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept"
+			add_rule "wg${i} -> LAN v4" "nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept"
+			add_rule "LAN v4 -> wg${i}" "nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept"
 
 			# IPv6 LAN
-			add_rule "wg${i} -> LAN v6" \
-				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept"
-			add_rule "LAN v6 -> wg${i}" \
-				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept"
+			add_rule "wg${i} -> LAN v6" "nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept"
+			add_rule "LAN v6 -> wg${i}" "nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept"
 		else
 			log "LAN disabled for ${WG_IF} by bitmask"
 		fi
 
-		# Clean up old NAT rules for this interface
-		delete_rules_matching_in_chain "ip" "nat" "masquerade"
-		delete_rules_matching_in_chain "ip" "nat" "oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade"
-
 		# --- Bitmask-gated Internet IPv4 (NAT) ---
-		if iface_in_list "${i}" "${WG_INET4_IFACES}"; then
+		if [ "$has_v4" -eq 1 ]; then
 			add_rule "oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade" \
 				"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade"
 		fi
 
 		# --- Bitmask-gated Internet IPv4 (NAT) ---
-		if iface_in_list "${i}" "${WG_INET4_IFACES}"; then
+		if [ "$has_v4" -eq 1 ]; then
 			# Allow forwarding out to LAN_IF for non-LAN destinations (internet v4)
 			add_rule "wg${i} -> inet v4" \
 				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr != ${LAN_SUBNET} accept"
@@ -266,7 +340,7 @@ for i in $(seq 0 7); do
 		fi
 
 		# --- Bitmask-gated Internet IPv6 (routed, no NAT66) ---
-		if iface_in_list "${i}" "${WG_INET6_IFACES}"; then
+		if [ "$has_v6" -eq 1 ]; then
 			# Allow forwarding out to LAN_IF for non-LAN IPv6 destinations (internet v6)
 			add_rule "wg${i} -> inet v6" \
 				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr != ${LAN_SUBNET_V6} accept"
@@ -327,11 +401,16 @@ else
 	log "WARN: Failed to disable GRO on ${LAN_IF}"
 fi
 
-# --- Configure NDP proxying (ndppd required, no auto-install) ---
-log "Configuring NDP proxying for ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN}..."
-if command -v ndppd >/dev/null 2>&1; then
-	log "ndppd found; writing configuration and restarting service..."
-	cat > /etc/ndppd.conf <<EOF
+# --- Configure NDP proxying (idempotent) ---
+log "Ensuring NDP proxying for ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN}..."
+
+if ! command -v ndppd >/dev/null 2>&1; then
+	log "ERROR: ndppd is not installed. IPv6 routing for WireGuard/Tailscale clients will FAIL."
+	log "ERROR: Install ndppd via 'make deps' (install-pkg-ndppd) and re-run this script."
+	exit 1
+fi
+
+DESIRED_NDPPD_CONF=$(cat <<EOF
 route-ttl 300
 proxy ${LAN_IF} {
 	router yes
@@ -342,14 +421,33 @@ proxy ${LAN_IF} {
 	}
 }
 EOF
-	systemctl daemon-reload || true
-	systemctl enable --now ndppd.service || true
-	systemctl restart ndppd.service || true
-	log "ndppd configured."
+)
+
+# Write config only if changed
+if [ ! -f /etc/ndppd.conf ] || ! diff -q <(printf "%s" "$DESIRED_NDPPD_CONF") /etc/ndppd.conf >/dev/null; then
+	log "Updating /etc/ndppd.conf..."
+	printf "%s\n" "$DESIRED_NDPPD_CONF" > /etc/ndppd.conf
+	ndppd_needs_restart=1
 else
-	log "ERROR: ndppd is not installed. IPv6 routing for WireGuard/Tailscale clients will FAIL."
-	log "ERROR: Install ndppd via 'make deps' (install-pkg-ndppd) and re-run this script."
-	exit 1
+	log "/etc/ndppd.conf already up to date."
+	ndppd_needs_restart=0
+fi
+
+# Enable service if needed
+if ! systemctl is-enabled ndppd.service >/dev/null 2>&1; then
+	log "Enabling ndppd.service..."
+	systemctl enable ndppd.service
+fi
+
+# Start or restart service if needed
+if ! systemctl is-active ndppd.service >/dev/null 2>&1; then
+	log "Starting ndppd.service..."
+	systemctl start ndppd.service
+elif [ "$ndppd_needs_restart" -eq 1 ]; then
+	log "Restarting ndppd.service due to config change..."
+	systemctl restart ndppd.service
+else
+	log "ndppd.service already running with correct config."
 fi
 
 # Ensure kernel route for the /64 is present (idempotent)
@@ -361,3 +459,6 @@ log "Local route for ${GLOBAL_IPV6_PREFIX}::/${GLOBAL_PREFIX_LEN} ensured."
 log "Persisting nft ruleset to /etc/nftables.conf..."
 nft list ruleset > /etc/nftables.conf
 log "Subnet router nft configuration complete."
+
+# --- Snapshot inet filter rules for git tracking ---
+dump_rules_snapshot

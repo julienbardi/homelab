@@ -1,53 +1,21 @@
 #!/usr/bin/env bash
 # scripts/wg-plan-ifaces.sh
-# Canonical WireGuard intent accessor: emit active ifaces from plan.tsv
+# Emit unique WireGuard interface names from canonical plan reader
 
 set -euo pipefail
 
-PLAN="$1"
-[ -f "$PLAN" ] || { echo "wg-plan-ifaces: ERROR: missing plan: $PLAN" >&2; exit 2; }
+: "${WG_ROOT:?WG_ROOT not set}"
 
-# --------------------------------------------------------------------
-# Strict header validation (identical to wg-deploy)
-# --------------------------------------------------------------------
-awk -F'\t' '
-	/^#/ { next }
-	/^[[:space:]]*$/ { next }
-	!seen {
-		seen=1
-		if ($1=="base" &&
-			$2=="iface" &&
-			$3=="slot" &&
-			$4=="dns" &&
-			$5=="client_addr4" &&
-			$6=="client_addr6" &&
-			$7=="AllowedIPs_client" &&
-			$8=="AllowedIPs_server" &&
-			$9=="endpoint") exit 0
-		exit 1
-	}
-' "$PLAN" || {
-	echo "wg-plan-ifaces: ERROR: plan.tsv header does not match strict contract" >&2
+PLAN_READER="$(dirname "$0")/wg-plan-read.sh"
+
+[ -x "$PLAN_READER" ] || {
+	echo "wg-plan-ifaces: ERROR: missing plan reader: $PLAN_READER" >&2
 	exit 2
 }
 
 # --------------------------------------------------------------------
 # Emit unique, non-empty iface names (column 2)
 # --------------------------------------------------------------------
-awk -F'\t' '
-	/^#/ { next }
-	/^[[:space:]]*$/ { next }
-
-	# Skip header row
-	$1=="base" &&
-	$2=="iface" &&
-	$3=="slot" &&
-	$4=="dns" &&
-	$5=="client_addr4" &&
-	$6=="client_addr6" &&
-	$7=="AllowedIPs_client" &&
-	$8=="AllowedIPs_server" &&
-	$9=="endpoint" { next }
-
+"$PLAN_READER" | awk -F'\t' '
 	$2 != "" { print $2 }
-' "$PLAN" | sort -u
+' | sort -u

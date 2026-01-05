@@ -72,7 +72,9 @@ prereqs: prereqs-network
 		build-essential \
 		curl jq git nftables iptables shellcheck pup codespell aspell ndppd \
 		knot-dnsutils \
-		iperf3 qrencode \
+		unbound dnsutils dnsperf \
+		iperf3 \
+		qrencode \
 		libc-ares-dev \
 		apt-cacher-ng
 	@echo "✅ [make] Base prerequisites installed"

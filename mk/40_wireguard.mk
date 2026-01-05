@@ -42,7 +42,7 @@ wg-compile-keys: wg-compile-intent $(WG_KEYS_SCRIPT)
 # ------------------------------------------------------------
 # Render client + server configs from plan.tsv + keys.tsv
 # ------------------------------------------------------------
-wg-render: wg-compile-intent wg-compile-keys wg-ensure-server-keys $(WG_RENDER_SCRIPT)
+wg-render: wg-plan wg-compile-intent wg-compile-keys wg-ensure-server-keys $(WG_RENDER_SCRIPT)
 	@echo "▶ rendering WireGuard client configs"
 	@$(WG_RENDER_SCRIPT)
 
@@ -98,3 +98,7 @@ wg-rebuild-all:
 	@$(MAKE) wg-apply
 	@echo "🔥 WireGuard fully rebuilt with fresh keys"
 
+.PHONY: wg-plan
+wg-plan:
+	@echo "[wg] Planning WireGuard interfaces and address allocation"
+	@./scripts/wg-plan-ifaces.sh

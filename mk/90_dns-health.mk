@@ -5,6 +5,6 @@ DNS_CHECK_BIN := $(INSTALL_PATH)/$(DNS_CHECK_NAME)
 
 .PHONY: check-dns
 
-check-dns: $(DNS_CHECK_BIN)
+check-dns: $(DNS_CHECK_BIN) dns-runtime-check
 	@echo "Running DNS health check (requires sudo)..."
 	sudo $(DNS_CHECK_BIN)
