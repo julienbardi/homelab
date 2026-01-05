@@ -3,6 +3,11 @@
 # Idempotent nft conversion of setup-subnet-router.sh
 set -euo pipefail
 
+# Resolve homelab repo root (script lives in scripts/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOMELAB_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+export HOMELAB_DIR
+
 CLEANUP_LEGACY=${CLEANUP_LEGACY:-0}
 
 # --- Topology (adjust if needed: probably eth0, eth1 or br0) ---
@@ -198,31 +203,32 @@ nft create chain ip nat postrouting '{ type nat hook postrouting priority 100; p
 
 # --- Helper to add rule if missing ---
 add_rule() {
-	local check="$1"; shift
-	local cmd="$*"
+	local rule="$1"
+	local cmd="$2"
 
-	# Exact match: extract rules from nft and compare normalized strings
-	if ! nft -a list ruleset | awk -v c="$check" '
-		{
-			# normalize whitespace
-			line=$0
-			gsub(/[ \t]+/, " ", line)
-			if (index(line, c) > 0) found=1
-		}
-		END { exit(found ? 0 : 1) }
-	'; then
-		log "Adding rule: $check"
-		eval "$cmd"
+	local norm
+	norm="$(printf '%s' "$rule" | tr -s '[:space:]' ' ')"
+
+	if nft list ruleset \
+	| sed -E 's/ counter packets [0-9]+ bytes [0-9]+//g; s/ # handle [0-9]+//g' \
+	| tr -s '[:space:]' ' ' \
+	| grep -Fxq "$norm"; then
+		log "Already present: $rule"
 	else
-		log "Already present: $check"
+		log "Adding rule: $rule"
+		eval "$cmd"
 	fi
 }
 
 # --- Conntrack baseline (ESTABLISHED,RELATED) ---
-add_rule "ct state established,related accept" \
+add_rule \
+	"ct state related,established accept" \
 	"nft add rule inet filter input ct state related,established accept"
-add_rule "ct state related,established accept FORWARD" \
+
+add_rule \
+	"ct state related,established accept" \
 	"nft add rule inet filter forward ct state related,established accept"
+
 
 # --- LAN host accepts (IPv4 + IPv6) ---
 add_rule "iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept" \
@@ -238,8 +244,10 @@ add_rule "iifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 accept" \
 	"nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 accept"
 
 # --- Essential service ports on host (DNS/SSH/HTTPS/UPnP/SMB/wsdd2/etc.) ---
-add_rule "tcp dport 443 accept" \
+add_rule \
+	"tcp dport 443 accept" \
 	"nft add rule inet filter input tcp dport 443 accept"
+
 add_rule "udp dport 53 accept" \
 	"nft add rule inet filter input udp dport 53 accept"
 add_rule "tcp dport 53 accept" \
@@ -272,10 +280,12 @@ add_rule "iifname \"${LAN_IF}\" udp dport 51420-51435 ct state new,established a
 	"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport {51420-51435} ct state new,established accept"
 
 # --- Trusted router WireGuard clients -> LAN (IPv4 + IPv6) ---
-add_rule "trusted router WG -> LAN v4" \
+add_rule \
+	"iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 ip daddr ${LAN_SUBNET} accept" \
 	"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 ip daddr ${LAN_SUBNET} accept"
 
-add_rule "trusted router WG -> LAN v6" \
+add_rule \
+	"iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr ${LAN_SUBNET_V6} accept" \
 	"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr ${LAN_SUBNET_V6} accept"
 
 # --- WireGuard per-interface host + forward rules (wg0..wg7) ---
@@ -310,30 +320,36 @@ for i in $(seq 1 15); do
 		# LAN means: can reach LAN_SUBNET + LAN_SUBNET_V6 through LAN_IF
 		if [ "$has_lan" -eq 1 ]; then
 			# IPv4 LAN
-			add_rule "wg${i} -> LAN v4" "nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept"
-			add_rule "LAN v4 -> wg${i}" "nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept"
+			add_rule \
+				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept"
+
+			add_rule \
+				"iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept" \
+				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept"
+
 
 			# IPv6 LAN
-			add_rule "wg${i} -> LAN v6" "nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept"
-			add_rule "LAN v6 -> wg${i}" "nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept"
+			add_rule \
+				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept"
+
+			add_rule \
+				"iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept" \
+				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept"
 		else
 			log "LAN disabled for ${WG_IF} by bitmask"
 		fi
 
-		# --- Bitmask-gated Internet IPv4 (NAT) ---
+		# --- Bitmask-gated Internet IPv4 ---
 		if [ "$has_v4" -eq 1 ]; then
-			add_rule "oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade" \
-				"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade"
-		fi
-
-		# --- Bitmask-gated Internet IPv4 (NAT) ---
-		if [ "$has_v4" -eq 1 ]; then
-			# Allow forwarding out to LAN_IF for non-LAN destinations (internet v4)
-			add_rule "wg${i} -> inet v4" \
+			add_rule \
+				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr != ${LAN_SUBNET} accept" \
 				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr != ${LAN_SUBNET} accept"
 
-			# NAT (masquerade) out of LAN_IF for internet v4 profiles
-			add_rule "oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade" \
+
+			add_rule \
+				"oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade" \
 				"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade"
 		else
 			log "IPv4 Internet disabled for ${WG_IF} by bitmask"
@@ -342,8 +358,10 @@ for i in $(seq 1 15); do
 		# --- Bitmask-gated Internet IPv6 (routed, no NAT66) ---
 		if [ "$has_v6" -eq 1 ]; then
 			# Allow forwarding out to LAN_IF for non-LAN IPv6 destinations (internet v6)
-			add_rule "wg${i} -> inet v6" \
+			add_rule \
+				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr != ${LAN_SUBNET_V6} accept" \
 				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr != ${LAN_SUBNET_V6} accept"
+
 		else
 			log "IPv6 Internet disabled for ${WG_IF} by bitmask"
 		fi
@@ -377,15 +395,19 @@ if ip link show "${TS_IF}" >/dev/null 2>&1; then
 		"nft add rule inet filter forward oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} accept"
 
 	# NEW: Tailscale IPv6 -> LAN IPv6
-	add_rule "TS -> LAN v6" \
+	add_rule \
+		"iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr ${LAN_SUBNET_V6} accept" \
 		"nft add rule inet filter forward iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr ${LAN_SUBNET_V6} accept"
 
 	# NEW: LAN IPv6 -> Tailscale IPv6
-	add_rule "LAN -> TS v6" \
+	add_rule \
+		"iifname \"${LAN_IF}\" oifname \"${TS_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${TS_SUBNET_V6} accept" \
 		"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${TS_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${TS_SUBNET_V6} accept"
 
+
 	# NEW: Tailscale IPv6 -> Internet IPv6 (non-LAN)
-	add_rule "TS -> inet v6" \
+	add_rule \
+		"iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr != ${LAN_SUBNET_V6} accept" \
 		"nft add rule inet filter forward iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr != ${LAN_SUBNET_V6} accept"
 
 	log "Tailscale nft rules applied."
