@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# dns_setup.sh
+# dns-runtime-guard.sh
 # ------------------------------------------------------------
 # Health‑check script: validate Unbound runtime health
 # Host: 10.89.12.4 (NAS / VPN node)
