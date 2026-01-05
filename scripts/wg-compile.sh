@@ -12,7 +12,12 @@ set -eu
 #   - (A,B) is deterministic per base and identical across all interfaces
 #
 # IPv6 is symmetric and embeds the same (A,B):
-#   2a01:8b81:4800:9c00:N::A:B
+#   wgN (N=1..15): 2a01:8b81:4800:9c0X::A:B  (X = hex(N))
+#   2a01:8b81:4800:9c00::/64 is the LAN and connot be used for Wireguard subnets.
+#   wg1 -> 2a01:8b81:4800:9c01::/64
+#   ...
+#   wg10-> 2a01:8b81:4800:9c0a::/64
+#   wg15-> 2a01:8b81:4800:9c0f::/64
 #
 # Authoritative input:
 #   /volume1/homelab/wireguard/input/clients.csv   (user,machine,iface)
@@ -29,7 +34,7 @@ set -eu
 
 # --------------------------------------------------------------------
 
-# WireGuard profile bitmask model (wg0..wg15)
+# WireGuard profile bitmask model (wg1..wg15)
 BIT_LAN=0
 BIT_V4=1
 BIT_V6=2
@@ -52,6 +57,12 @@ STAGE="$OUT_DIR/.staging.$$"
 umask 077
 
 die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
+
+wg_hextet_from_ifnum() {
+	n="$1"
+	[ "$n" -ge 1 ] && [ "$n" -le 15 ] || die "invalid ifnum '$n' for wg subnet"
+	printf "9c0%x" "$n"
+}
 
 # --------------------------------------------------------------------
 # Deterministic allocator helpers
@@ -77,7 +88,12 @@ ab_from_slot() {
 }
 
 server_addr4_for_ifnum() { printf "10.%s.0.1/16\n" "$1"; }
-server_addr6_for_ifnum() { printf "2a01:8b81:4800:9c00:%s::1/128\n" "$1"; }
+server_addr6_for_ifnum() {
+	ifnum="$1"
+	hextet="$(wg_hextet_from_ifnum "$ifnum")"
+	printf "2a01:8b81:4800:%s::1/128\n" "$hextet"
+}
+
 
 # --------------------------------------------------------------------
 
@@ -152,14 +168,17 @@ PLAN_TMP="$STAGE/plan.tsv"
 
 	while IFS=$'\t' read -r user machine iface base; do
 		ifnum="${iface#wg}"
+		if [ "$ifnum" -lt 1 ] || [ "$ifnum" -gt 15 ]; then
+			die "invalid iface wg${ifnum} — only wg1..wg15 are allowed"
+		fi
 
 		slot="$(awk -F'\t' -v b="$base" '$1==b{print $2}' "$STAGE/alloc.tsv")"
 		set -- $(ab_from_slot "$slot")
 		A="$1"; B="$2"
 
 		client_addr4="10.${ifnum}.${A}.${B}/16"
-		client_addr6="2a01:8b81:4800:9c00:${ifnum}::${A}:${B}/128"
-
+		client_addr6="2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::${A}:${B}/128"
+  	
 		server_addr4="$(server_addr4_for_ifnum "$ifnum")"
 		server_addr6="$(server_addr6_for_ifnum "$ifnum")"
 
@@ -177,8 +196,6 @@ PLAN_TMP="$STAGE/plan.tsv"
 		else
 			[ "$has_lan" -eq 1 ] && allowed_client="10.89.12.0/24"
 		fi
-
-		[ "$ifnum" -eq 0 ] && allowed_client="${server_addr4}, ${server_addr6}"
 
 		endpoint="${ENDPOINT_HOST_BASE}:$((ENDPOINT_PORT_BASE + ifnum))"
 
