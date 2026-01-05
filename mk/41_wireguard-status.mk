@@ -122,7 +122,7 @@ wg-compiled:
 
 wg-deployed:
 	@echo "Deployed /etc/wireguard view:"
-	@$(run_as_root) sh -c '\
+	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
 		ls -la "$(WG_DIR)" 2>/dev/null || { echo "missing $(WG_DIR)"; exit 1; }; \
 		echo ""; \
 		echo "Configs:"; \
@@ -144,7 +144,7 @@ wg-runtime:
 wg-status:
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS" "PUBLIC_KEY(short)"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "------" "------------" "------------------" "--------" "----------------"
-	@$(run_as_root) sh -c '\
+	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
 		set -e; \
 		IFACES="$$( "$(SCRIPTS)/wg-plan-ifaces.sh" "$(PLAN)" )"; \
 		for dev in $$IFACES; do \
@@ -209,7 +209,3 @@ wg-check-ports:
 			fi; \
 		fi; \
 	done
-
-
-
-
