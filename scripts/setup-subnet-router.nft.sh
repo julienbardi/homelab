@@ -240,118 +240,118 @@ nft create chain ip nat postrouting '{ type nat hook postrouting priority 100; p
 
 # --- Conntrack baseline (ESTABLISHED,RELATED) ---
 add_input_rule \
-	"ct state related,established accept comment \"sr:input-ct\"" \
-	"nft add rule inet filter input ct state related,established accept comment \"sr:input-ct\""
+	"ct state related,established accept comment \\\"sr:input-ct\\\"" \
+	"nft add rule inet filter input ct state related,established accept comment \\\"sr:input-ct\\\""
 
 add_forward_rule \
-	"ct state related,established accept comment \"sr:forward-ct\"" \
-	"nft add rule inet filter forward ct state related,established accept comment \"sr:forward-ct\""
+	"ct state related,established accept comment \\\"sr:forward-ct\\\"" \
+	"nft add rule inet filter forward ct state related,established accept comment \\\"sr:forward-ct\\\""
 
 add_output_rule \
-	"ct state related,established accept comment \"sr:output-ct\"" \
-	"nft add rule inet filter output ct state related,established accept comment \"sr:output-ct\""
+	"ct state related,established accept comment \\\"sr:output-ct\\\"" \
+	"nft add rule inet filter output ct state related,established accept comment \\\"sr:output-ct\\\""
 
 # --- LAN host accepts (IPv4 + IPv6) ---
 add_input_rule \
-	"iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept comment \"sr:input-lan-v4\"" \
-	"nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept comment \"sr:input-lan-v4\""
+	"iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept comment \\\"sr:input-lan-v4\\\"" \
+	"nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr ${LAN_SUBNET} accept comment \\\"sr:input-lan-v4\\\""
 
 add_input_rule \
-	"iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept comment \"sr:input-lan-v6\"" \
-	"nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept comment \"sr:input-lan-v6\""
+	"iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept comment \\\"sr:input-lan-v6\\\"" \
+	"nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr ${LAN_SUBNET_V6} accept comment \\\"sr:input-lan-v6\\\""
 
-add_input_rule "ip protocol icmp accept comment \"sr:input-icmp-v4\"" \
-	"nft add rule inet filter input ip protocol icmp accept comment \"sr:input-icmp-v4\""
+add_input_rule "ip protocol icmp accept comment \\\"sr:input-icmp-v4\\\"" \
+	"nft add rule inet filter input ip protocol icmp accept comment \\\"sr:input-icmp-v4\\\""
 
-add_input_rule "ip6 nexthdr icmpv6 accept comment \"sr:input-icmp-v6\"" \
-	"nft add rule inet filter input ip6 nexthdr icmpv6 accept comment \"sr:input-icmp-v6\""
+add_input_rule "ip6 nexthdr icmpv6 accept comment \\\"sr:input-icmp-v6\\\"" \
+	"nft add rule inet filter input ip6 nexthdr icmpv6 accept comment \\\"sr:input-icmp-v6\\\""
 
 # --- Trusted router WireGuard clients (10.6.0.0/24 + fd5e:d23d:70e:111::/64) ---
 add_input_rule \
-	"iifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 accept comment \"sr:input-trusted-v4\"" \
-	"nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 accept comment \"sr:input-trusted-v4\""
+	"iifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 accept comment \\\"sr:input-trusted-v4\\\"" \
+	"nft add rule inet filter input iifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 accept comment \\\"sr:input-trusted-v4\\\""
 
 add_input_rule \
-	"iifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 accept comment \"sr:input-trusted-v6\"" \
-	"nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 accept comment \"sr:input-trusted-v6\""
+	"iifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 accept comment \\\"sr:input-trusted-v6\\\"" \
+	"nft add rule inet filter input iifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 accept comment \\\"sr:input-trusted-v6\\\""
 
 
 # --- Essential service ports on host (DNS/SSH/HTTPS/UPnP/SMB/wsdd2/etc.) ---
 add_input_rule \
-	"tcp dport 443 accept comment \"sr:input-svc-443\"" \
-	"nft add rule inet filter input tcp dport 443 accept comment \"sr:input-svc-443\""
+	"tcp dport 443 accept comment \\\"sr:input-svc-443\\\"" \
+	"nft add rule inet filter input tcp dport 443 accept comment \\\"sr:input-svc-443\\\""
 
 add_input_rule \
-	"udp dport 53 accept comment \"sr:input-svc-53-udp\"" \
-	"nft add rule inet filter input udp dport 53 accept comment \"sr:input-svc-53-udp\""
+	"udp dport 53 accept comment \\\"sr:input-svc-53-udp\\\"" \
+	"nft add rule inet filter input udp dport 53 accept comment \\\"sr:input-svc-53-udp\\\""
 
 add_input_rule \
-	"tcp dport 53 accept comment \"sr:input-svc-53-tcp\"" \
-	"nft add rule inet filter input tcp dport 53 accept comment \"sr:input-svc-53-tcp\""
+	"tcp dport 53 accept comment \\\"sr:input-svc-53-tcp\\\"" \
+	"nft add rule inet filter input tcp dport 53 accept comment \\\"sr:input-svc-53-tcp\\\""
 
 add_input_rule \
-	"tcp dport 22 accept comment \"sr:input-svc-22\"" \
-	"nft add rule inet filter input tcp dport 22 accept comment \"sr:input-svc-22\""
+	"tcp dport 22 accept comment \\\"sr:input-svc-22\\\"" \
+	"nft add rule inet filter input tcp dport 22 accept comment \\\"sr:input-svc-22\\\""
 
 add_input_rule \
-	"tcp dport 2222 accept comment \"sr:input-svc-2222\"" \
-	"nft add rule inet filter input tcp dport 2222 accept comment \"sr:input-svc-2222\""
+	"tcp dport 2222 accept comment \\\"sr:input-svc-2222\\\"" \
+	"nft add rule inet filter input tcp dport 2222 accept comment \\\"sr:input-svc-2222\\\""
 
 add_input_rule \
-	"tcp dport 9999 accept comment \"sr:input-svc-9999\"" \
-	"nft add rule inet filter input tcp dport 9999 accept comment \"sr:input-svc-9999\""
+	"tcp dport 9999 accept comment \\\"sr:input-svc-9999\\\"" \
+	"nft add rule inet filter input tcp dport 9999 accept comment \\\"sr:input-svc-9999\\\""
 
 add_input_rule \
-	"tcp dport 9443 accept comment \"sr:input-svc-9443\"" \
-	"nft add rule inet filter input tcp dport 9443 accept comment \"sr:input-svc-9443\""
+	"tcp dport 9443 accept comment \\\"sr:input-svc-9443\\\"" \
+	"nft add rule inet filter input tcp dport 9443 accept comment \\\"sr:input-svc-9443\\\""
 
 
 # --- Allow Unbound DNS replies (loopback, UDP/TCP source port 5335) ---
 add_output_rule \
-	"iifname \"lo\" udp sport 5335 accept comment \"sr:output-lo-dns-udp\"" \
-	"nft add rule inet filter output iifname \"lo\" udp sport 5335 accept comment \"sr:output-lo-dns-udp\""
+	"iifname \"lo\" udp sport 5335 accept comment \\\"sr:output-lo-dns-udp\\\"" \
+	"nft add rule inet filter output iifname \"lo\" udp sport 5335 accept comment \\\"sr:output-lo-dns-udp\\\""
 
 add_output_rule \
-	"iifname \"lo\" tcp sport 5335 accept comment \"sr:output-lo-dns-tcp\"" \
-	"nft add rule inet filter output iifname \"lo\" tcp sport 5335 accept comment \"sr:output-lo-dns-tcp\""
+	"iifname \"lo\" tcp sport 5335 accept comment \\\"sr:output-lo-dns-tcp\\\"" \
+	"nft add rule inet filter output iifname \"lo\" tcp sport 5335 accept comment \\\"sr:output-lo-dns-tcp\\\""
 
 
 # --- Allow DNS queries to Unbound (loopback, UDP/TCP source port 5335)---
 add_input_rule \
-	"iifname \"lo\" udp dport 5335 accept comment \"sr:input-lo-dns-udp\"" \
-	"nft add rule inet filter input iifname \"lo\" udp dport 5335 accept comment \"sr:input-lo-dns-udp\""
+	"iifname \"lo\" udp dport 5335 accept comment \\\"sr:input-lo-dns-udp\\\"" \
+	"nft add rule inet filter input iifname \"lo\" udp dport 5335 accept comment \\\"sr:input-lo-dns-udp\\\""
 
 add_input_rule \
-	"iifname \"lo\" tcp dport 5335 accept comment \"sr:input-lo-dns-tcp\"" \
-	"nft add rule inet filter input iifname \"lo\" tcp dport 5335 accept comment \"sr:input-lo-dns-tcp\""
+	"iifname \"lo\" tcp dport 5335 accept comment \\\"sr:input-lo-dns-tcp\\\"" \
+	"nft add rule inet filter input iifname \"lo\" tcp dport 5335 accept comment \\\"sr:input-lo-dns-tcp\\\""
 
 add_input_rule \
-	"tcp dport 445 accept comment \"sr:input-svc-445\"" \
-	"nft add rule inet filter input tcp dport 445 accept comment \"sr:input-svc-445\""  # SMB
+	"tcp dport 445 accept comment \\\"sr:input-svc-445\\\"" \
+	"nft add rule inet filter input tcp dport 445 accept comment \\\"sr:input-svc-445\\\""  # SMB
 
 add_input_rule \
-	"udp dport 3702 accept comment \"sr:input-svc-3702\"" \
-	"nft add rule inet filter input udp dport 3702 accept comment \"sr:input-svc-3702\"" # wsdd2
+	"udp dport 3702 accept comment \\\"sr:input-svc-3702\\\"" \
+	"nft add rule inet filter input udp dport 3702 accept comment \\\"sr:input-svc-3702\\\"" # wsdd2
 
 add_input_rule \
-	"udp dport 1900 accept comment \"sr:input-svc-1900\"" \
-	"nft add rule inet filter input udp dport 1900 accept comment \"sr:input-svc-1900\"" # UPnP/SSDP
+	"udp dport 1900 accept comment \\\"sr:input-svc-1900\\\"" \
+	"nft add rule inet filter input udp dport 1900 accept comment \\\"sr:input-svc-1900\\\"" # UPnP/SSDP
 
 # --- WireGuard handshake ports on LAN uplink ---
 # Accept UDP 51420-51435 on LAN_IF (IPv4 + IPv6 via inet table)
 add_input_rule \
-	"iifname \"${LAN_IF}\" udp dport 51420-51435 ct state new,established accept comment \"sr:input-wg-hs-range\"" \
-	"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport {51420-51435} ct state new,established accept comment \"sr:input-wg-hs-range\""
+	"iifname \"${LAN_IF}\" udp dport 51420-51435 ct state new,established accept comment \\\"sr:input-wg-hs-range\\\"" \
+	"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport {51420-51435} ct state new,established accept comment \\\"sr:input-wg-hs-range\\\""
 
 
 # --- Trusted router WireGuard clients -> LAN (IPv4 + IPv6) ---
 add_forward_rule \
-	"iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 ip daddr ${LAN_SUBNET} accept comment \"sr:forward-trusted-lan-v4\"" \
-	"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 ip daddr ${LAN_SUBNET} accept comment \"sr:forward-trusted-lan-v4\""
+	"iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 ip daddr ${LAN_SUBNET} accept comment \\\"sr:forward-trusted-lan-v4\\\"" \
+	"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip saddr 10.6.0.0/24 ip daddr ${LAN_SUBNET} accept comment \\\"sr:forward-trusted-lan-v4\\\""
 
 add_forward_rule \
-	"iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr ${LAN_SUBNET_V6} accept comment \"sr:forward-trusted-lan-v6\"" \
-	"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr ${LAN_SUBNET_V6} accept comment \"sr:forward-trusted-lan-v6\""
+	"iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr ${LAN_SUBNET_V6} accept comment \\\"sr:forward-trusted-lan-v6\\\"" \
+	"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${LAN_IF}\" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr ${LAN_SUBNET_V6} accept comment \\\"sr:forward-trusted-lan-v6\\\""
 
 
 # --- WireGuard per-interface host + forward rules (wg0..wg7) ---
@@ -376,15 +376,15 @@ for i in $(seq 1 15); do
 
 		# Host access from wgX (kept broad: allows DoH/SSH/etc to the NAS itself)
 		add_input_rule \
-			"iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept comment \"sr:input-${WG_IF}-host-v4\"" \
-			"nft add rule inet filter input iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept comment \"sr:input-${WG_IF}-host-v4\""
+			"iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept comment \\\"sr:input-${WG_IF}-host-v4\\\"" \
+			"nft add rule inet filter input iifname \"${WG_IF}\" ip saddr ${IPV4_SUBNET} accept comment \\\"sr:input-${WG_IF}-host-v4\\\""
 
-		add_input_rule "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept comment \"sr:input-${WG_IF}-host-v6\"" \
-			"nft add rule inet filter input iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept comment \"sr:input-${WG_IF}-host-v6\""
+		add_input_rule "iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept comment \\\"sr:input-${WG_IF}-host-v6\\\"" \
+			"nft add rule inet filter input iifname \"${WG_IF}\" ip6 saddr ${IPV6_SUBNET} accept comment \\\"sr:input-${WG_IF}-host-v6\\\""
 
 		# Handshake path on LAN uplink: accept UDP port for this interface (no source restriction)
-		add_input_rule "iifname \"${LAN_IF}\" udp dport ${PORT} accept comment \"sr:input-${WG_IF}-hs\"" \
-			"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport ${PORT} ct state new,established accept comment \"sr:input-${WG_IF}-hs\""
+		add_input_rule "iifname \"${LAN_IF}\" udp dport ${PORT} accept comment \\\"sr:input-${WG_IF}-hs\\\"" \
+			"nft add rule inet filter input iifname \"${LAN_IF}\" udp dport ${PORT} ct state new,established accept comment \\\"sr:input-${WG_IF}-hs\\\""
 
 
 		# --- Bitmask-gated LAN access ---
@@ -392,21 +392,21 @@ for i in $(seq 1 15); do
 		if [ "$has_lan" -eq 1 ]; then
 			# IPv4 LAN
 			add_forward_rule \
-				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept comment \"sr:forward-${WG_IF}-lan-v4\"" \
-				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept comment \"sr:forward-${WG_IF}-lan-v4\""
+				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept comment \\\"sr:forward-${WG_IF}-lan-v4\\\"" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr ${LAN_SUBNET} accept comment \\\"sr:forward-${WG_IF}-lan-v4\\\""
 
 			add_forward_rule \
-				"iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept comment \"sr:forward-${WG_IF}-lan-v4-rev\"" \
-				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept comment \"sr:forward-${WG_IF}-lan-v4-rev\""
+				"iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept comment \\\"sr:forward-${WG_IF}-lan-v4-rev\\\"" \
+				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip saddr ${LAN_SUBNET} ip daddr ${IPV4_SUBNET} accept comment \\\"sr:forward-${WG_IF}-lan-v4-rev\\\""
 
 			# IPv6 LAN
 			add_forward_rule \
-				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept comment \"sr:forward-${WG_IF}-lan-v6\"" \
-				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept comment \"sr:forward-${WG_IF}-lan-v6\""
+				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept comment \\\"sr:forward-${WG_IF}-lan-v6\\\"" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr ${LAN_SUBNET_V6} accept comment \\\"sr:forward-${WG_IF}-lan-v6\\\""
 
 			add_forward_rule \
-				"iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept comment \"sr:forward-${WG_IF}-lan-v6-rev\"" \
-				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept comment \"sr:forward-${WG_IF}-lan-v6-rev\""
+				"iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept comment \\\"sr:forward-${WG_IF}-lan-v6-rev\\\"" \
+				"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${WG_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${IPV6_SUBNET} accept comment \\\"sr:forward-${WG_IF}-lan-v6-rev\\\""
 		else
 			log "LAN disabled for ${WG_IF} by bitmask"
 		fi
@@ -414,12 +414,12 @@ for i in $(seq 1 15); do
 		# --- Bitmask-gated Internet IPv4 ---
 		if [ "$has_v4" -eq 1 ]; then
 			add_forward_rule \
-				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr != ${LAN_SUBNET} accept comment \"sr:forward-${WG_IF}-inet-v4\"" \
-				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr != ${LAN_SUBNET} accept comment \"sr:forward-${WG_IF}-inet-v4\""
+				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr != ${LAN_SUBNET} accept comment \\\"sr:forward-${WG_IF}-inet-v4\\\"" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} ip daddr != ${LAN_SUBNET} accept comment \\\"sr:forward-${WG_IF}-inet-v4\\\""
 
 			add_nat_postrouting_rule \
-				"oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade comment \"sr:nat-${WG_IF}-inet-v4\"" \
-				"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade comment \"sr:nat-${WG_IF}-inet-v4\""
+				"oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade comment \\\"sr:nat-${WG_IF}-inet-v4\\\"" \
+				"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${IPV4_SUBNET} masquerade comment \\\"sr:nat-${WG_IF}-inet-v4\\\""
 		else
 			log "IPv4 Internet disabled for ${WG_IF} by bitmask"
 		fi
@@ -428,8 +428,8 @@ for i in $(seq 1 15); do
 		if [ "$has_v6" -eq 1 ]; then
 			# Allow forwarding out to LAN_IF for non-LAN IPv6 destinations (internet v6)
 			add_forward_rule \
-				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr != ${LAN_SUBNET_V6} accept comment \"sr:forward-${WG_IF}-inet-v6\"" \
-				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr != ${LAN_SUBNET_V6} accept comment \"sr:forward-${WG_IF}-inet-v6\""
+				"iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr != ${LAN_SUBNET_V6} accept comment \\\"sr:forward-${WG_IF}-inet-v6\\\"" \
+				"nft add rule inet filter forward iifname \"${WG_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${IPV6_SUBNET} ip6 daddr != ${LAN_SUBNET_V6} accept comment \\\"sr:forward-${WG_IF}-inet-v6\\\""
 		else
 			log "IPv6 Internet disabled for ${WG_IF} by bitmask"
 		fi
@@ -447,47 +447,47 @@ TS_SUBNET_V6="fd7a:115c:a1e0::/48"
 
 if ip link show "${TS_IF}" >/dev/null 2>&1; then
 		add_input_rule \
-			"iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept comment \"sr:input-ts-v4\"" \
-			"nft add rule inet filter input iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept comment \"sr:input-ts-v4\""
+			"iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept comment \\\"sr:input-ts-v4\\\"" \
+			"nft add rule inet filter input iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept comment \\\"sr:input-ts-v4\\\""
 
 		add_forward_rule \
-			"iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept comment \"sr:forward-ts-v4\"" \
-			"nft add rule inet filter forward iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept comment \"sr:forward-ts-v4\""
+			"iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept comment \\\"sr:forward-ts-v4\\\"" \
+			"nft add rule inet filter forward iifname \"${TS_IF}\" ip saddr ${TS_SUBNET_V4} accept comment \\\"sr:forward-ts-v4\\\""
 
 		add_forward_rule \
-			"oifname \"${TS_IF}\" ip daddr ${TS_SUBNET_V4} accept comment \"sr:forward-ts-v4-rev\"" \
-			"nft add rule inet filter forward oifname \"${TS_IF}\" ip daddr ${TS_SUBNET_V4} accept comment \"sr:forward-ts-v4-rev\""
+			"oifname \"${TS_IF}\" ip daddr ${TS_SUBNET_V4} accept comment \\\"sr:forward-ts-v4-rev\\\"" \
+			"nft add rule inet filter forward oifname \"${TS_IF}\" ip daddr ${TS_SUBNET_V4} accept comment \\\"sr:forward-ts-v4-rev\\\""
 
 		add_nat_postrouting_rule \
-			"oifname \"${LAN_IF}\" ip saddr ${TS_SUBNET_V4} masquerade comment \"sr:nat-ts-v4\"" \
-			"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${TS_SUBNET_V4} masquerade comment \"sr:nat-ts-v4\""
+			"oifname \"${LAN_IF}\" ip saddr ${TS_SUBNET_V4} masquerade comment \\\"sr:nat-ts-v4\\\"" \
+			"nft add rule ip nat postrouting oifname \"${LAN_IF}\" ip saddr ${TS_SUBNET_V4} masquerade comment \\\"sr:nat-ts-v4\\\""
 
 		add_input_rule \
-			"iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept comment \"sr:input-ts-v6\"" \
-			"nft add rule inet filter input iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept comment \"sr:input-ts-v6\""
+			"iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept comment \\\"sr:input-ts-v6\\\"" \
+			"nft add rule inet filter input iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept comment \\\"sr:input-ts-v6\\\""
 
 		add_forward_rule \
-			"iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept comment \"sr:forward-ts-v6\"" \
-			"nft add rule inet filter forward iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept comment \"sr:forward-ts-v6\""
+			"iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept comment \\\"sr:forward-ts-v6\\\"" \
+			"nft add rule inet filter forward iifname \"${TS_IF}\" ip6 saddr ${TS_SUBNET_V6} accept comment \\\"sr:forward-ts-v6\\\""
 
 		add_forward_rule \
-			"oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} accept comment \"sr:forward-ts-v6-rev\"" \
-			"nft add rule inet filter forward oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} accept comment \"sr:forward-ts-v6-rev\""
+			"oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} accept comment \\\"sr:forward-ts-v6-rev\\\"" \
+			"nft add rule inet filter forward oifname \"${TS_IF}\" ip6 daddr ${TS_SUBNET_V6} accept comment \\\"sr:forward-ts-v6-rev\\\""
 
 		# NEW: Tailscale IPv6 -> LAN IPv6
 		add_forward_rule \
-			"iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr ${LAN_SUBNET_V6} accept comment \"sr:forward-ts-lan-v6\"" \
-			"nft add rule inet filter forward iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr ${LAN_SUBNET_V6} accept comment \"sr:forward-ts-lan-v6\""
+			"iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr ${LAN_SUBNET_V6} accept comment \\\"sr:forward-ts-lan-v6\\\"" \
+			"nft add rule inet filter forward iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr ${LAN_SUBNET_V6} accept comment \\\"sr:forward-ts-lan-v6\\\""
 
 		# NEW: LAN IPv6 -> Tailscale IPv6
 		add_forward_rule \
-			"iifname \"${LAN_IF}\" oifname \"${TS_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${TS_SUBNET_V6} accept comment \"sr:forward-ts-lan-v6-rev\"" \
-			"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${TS_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${TS_SUBNET_V6} accept comment \"sr:forward-ts-lan-v6-rev\""
+			"iifname \"${LAN_IF}\" oifname \"${TS_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${TS_SUBNET_V6} accept comment \\\"sr:forward-ts-lan-v6-rev\\\"" \
+			"nft add rule inet filter forward iifname \"${LAN_IF}\" oifname \"${TS_IF}\" ip6 saddr ${LAN_SUBNET_V6} ip6 daddr ${TS_SUBNET_V6} accept comment \\\"sr:forward-ts-lan-v6-rev\\\""
 
 		# NEW: Tailscale IPv6 -> Internet IPv6 (non-LAN)
 		add_forward_rule \
-			"iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr != ${LAN_SUBNET_V6} accept comment \"sr:forward-ts-inet-v6\"" \
-			"nft add rule inet filter forward iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr != ${LAN_SUBNET_V6} accept comment \"sr:forward-ts-inet-v6\""
+			"iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr != ${LAN_SUBNET_V6} accept comment \\\"sr:forward-ts-inet-v6\\\"" \
+			"nft add rule inet filter forward iifname \"${TS_IF}\" oifname \"${LAN_IF}\" ip6 saddr ${TS_SUBNET_V6} ip6 daddr != ${LAN_SUBNET_V6} accept comment \\\"sr:forward-ts-inet-v6\\\""
 
 	log "Tailscale nft rules applied."
 else
