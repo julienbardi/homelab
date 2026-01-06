@@ -312,6 +312,55 @@ table inet filter {
 		iifname "eth0" udp dport 51435 ct state established,new accept
 		iifname "tailscale0" ip saddr 100.64.0.0/10 accept
 		iifname "tailscale0" ip6 saddr fd7a:115c:a1e0::/48 accept
+		ct state established,related accept
+		iifname "eth0" ip saddr 10.89.12.0/24 accept
+		iifname "eth0" ip6 saddr 2a01:8b81:4800:9c00::/64 accept
+		ip protocol icmp accept
+		ip6 nexthdr ipv6-icmp accept
+		iifname "eth0" ip saddr 10.6.0.0/24 accept
+		iifname "eth0" ip6 saddr fd5e:d23d:70e:111::/64 accept
+		tcp dport 443 accept
+		udp dport 53 accept
+		tcp dport 53 accept
+		tcp dport 22 accept
+		tcp dport 2222 accept
+		tcp dport 9999 accept
+		tcp dport 9443 accept
+		iifname "lo" udp dport 5335 accept
+		iifname "lo" tcp dport 5335 accept
+		tcp dport 445 accept
+		udp dport 3702 accept
+		udp dport 1900 accept
+		iifname "eth0" udp dport 51420-51435 ct state established,new accept
+		iifname "wg1" ip saddr 10.1.0.0/16 accept
+		iifname "wg1" ip6 saddr 2a01:8b81:4800:9c01::/64 accept
+		iifname "eth0" udp dport 51421 ct state established,new accept
+		iifname "wg2" ip saddr 10.2.0.0/16 accept
+		iifname "wg2" ip6 saddr 2a01:8b81:4800:9c02::/64 accept
+		iifname "eth0" udp dport 51422 ct state established,new accept
+		iifname "wg3" ip saddr 10.3.0.0/16 accept
+		iifname "wg3" ip6 saddr 2a01:8b81:4800:9c03::/64 accept
+		iifname "eth0" udp dport 51423 ct state established,new accept
+		iifname "wg4" ip saddr 10.4.0.0/16 accept
+		iifname "wg4" ip6 saddr 2a01:8b81:4800:9c04::/64 accept
+		iifname "eth0" udp dport 51424 ct state established,new accept
+		iifname "wg5" ip saddr 10.5.0.0/16 accept
+		iifname "wg5" ip6 saddr 2a01:8b81:4800:9c05::/64 accept
+		iifname "eth0" udp dport 51425 ct state established,new accept
+		iifname "wg6" ip saddr 10.6.0.0/16 accept
+		iifname "wg6" ip6 saddr 2a01:8b81:4800:9c06::/64 accept
+		iifname "eth0" udp dport 51426 ct state established,new accept
+		iifname "wg7" ip saddr 10.7.0.0/16 accept
+		iifname "wg7" ip6 saddr 2a01:8b81:4800:9c07::/64 accept
+		iifname "eth0" udp dport 51427 ct state established,new accept
+		iifname "wg14" ip saddr 10.14.0.0/16 accept
+		iifname "wg14" ip6 saddr 2a01:8b81:4800:9c0e::/64 accept
+		iifname "eth0" udp dport 51434 ct state established,new accept
+		iifname "wg15" ip saddr 10.15.0.0/16 accept
+		iifname "wg15" ip6 saddr 2a01:8b81:4800:9c0f::/64 accept
+		iifname "eth0" udp dport 51435 ct state established,new accept
+		iifname "tailscale0" ip saddr 100.64.0.0/10 accept
+		iifname "tailscale0" ip6 saddr fd7a:115c:a1e0::/48 accept
 	}
 
 	chain forward {
@@ -628,6 +677,48 @@ table inet filter {
 		iifname "tailscale0" oifname "eth0" ip6 saddr fd7a:115c:a1e0::/48 ip6 daddr 2a01:8b81:4800:9c00::/64 accept
 		iifname "eth0" oifname "tailscale0" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr fd7a:115c:a1e0::/48 accept
 		iifname "tailscale0" oifname "eth0" ip6 saddr fd7a:115c:a1e0::/48 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept
+		ct state established,related accept
+		iifname "eth0" oifname "eth0" ip saddr 10.6.0.0/24 ip daddr 10.89.12.0/24 accept
+		iifname "eth0" oifname "eth0" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept
+		iifname "wg1" oifname "eth0" ip saddr 10.1.0.0/16 ip daddr 10.89.12.0/24 accept
+		iifname "eth0" oifname "wg1" ip saddr 10.89.12.0/24 ip daddr 10.1.0.0/16 accept
+		iifname "wg1" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c01::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept
+		iifname "eth0" oifname "wg1" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c01::/64 accept
+		iifname "wg2" oifname "eth0" ip saddr 10.2.0.0/16 ip daddr != 10.89.12.0/24 accept
+		iifname "wg3" oifname "eth0" ip saddr 10.3.0.0/16 ip daddr 10.89.12.0/24 accept
+		iifname "eth0" oifname "wg3" ip saddr 10.89.12.0/24 ip daddr 10.3.0.0/16 accept
+		iifname "wg3" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c03::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept
+		iifname "eth0" oifname "wg3" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c03::/64 accept
+		iifname "wg3" oifname "eth0" ip saddr 10.3.0.0/16 ip daddr != 10.89.12.0/24 accept
+		iifname "wg4" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c04::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept
+		iifname "wg5" oifname "eth0" ip saddr 10.5.0.0/16 ip daddr 10.89.12.0/24 accept
+		iifname "eth0" oifname "wg5" ip saddr 10.89.12.0/24 ip daddr 10.5.0.0/16 accept
+		iifname "wg5" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c05::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept
+		iifname "eth0" oifname "wg5" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c05::/64 accept
+		iifname "wg5" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c05::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept
+		iifname "wg6" oifname "eth0" ip saddr 10.6.0.0/16 ip daddr != 10.89.12.0/24 accept
+		iifname "wg6" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c06::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept
+		iifname "wg7" oifname "eth0" ip saddr 10.7.0.0/16 ip daddr 10.89.12.0/24 accept
+		iifname "eth0" oifname "wg7" ip saddr 10.89.12.0/24 ip daddr 10.7.0.0/16 accept
+		iifname "wg7" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c07::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept
+		iifname "eth0" oifname "wg7" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c07::/64 accept
+		iifname "wg7" oifname "eth0" ip saddr 10.7.0.0/16 ip daddr != 10.89.12.0/24 accept
+		iifname "wg7" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c07::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept
+		iifname "wg14" oifname "eth0" ip saddr 10.14.0.0/16 ip daddr != 10.89.12.0/24 accept
+		iifname "wg14" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0e::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept
+		iifname "wg15" oifname "eth0" ip saddr 10.15.0.0/16 ip daddr 10.89.12.0/24 accept
+		iifname "eth0" oifname "wg15" ip saddr 10.89.12.0/24 ip daddr 10.15.0.0/16 accept
+		iifname "wg15" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0f::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept
+		iifname "eth0" oifname "wg15" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c0f::/64 accept
+		iifname "wg15" oifname "eth0" ip saddr 10.15.0.0/16 ip daddr != 10.89.12.0/24 accept
+		iifname "wg15" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0f::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept
+		iifname "tailscale0" ip saddr 100.64.0.0/10 accept
+		oifname "tailscale0" ip daddr 100.64.0.0/10 accept
+		iifname "tailscale0" ip6 saddr fd7a:115c:a1e0::/48 accept
+		oifname "tailscale0" ip6 daddr fd7a:115c:a1e0::/48 accept
+		iifname "tailscale0" oifname "eth0" ip6 saddr fd7a:115c:a1e0::/48 ip6 daddr 2a01:8b81:4800:9c00::/64 accept
+		iifname "eth0" oifname "tailscale0" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr fd7a:115c:a1e0::/48 accept
+		iifname "tailscale0" oifname "eth0" ip6 saddr fd7a:115c:a1e0::/48 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept
 	}
 
 	chain output {
@@ -640,6 +731,9 @@ table inet filter {
 		iifname "lo" tcp sport 5335 accept
 		iifname "lo" udp sport 5335 accept
 		iifname "lo" tcp sport 5335 accept
+		iifname "lo" udp sport 5335 accept
+		iifname "lo" tcp sport 5335 accept
+		ct state established,related accept
 		iifname "lo" udp sport 5335 accept
 		iifname "lo" tcp sport 5335 accept
 		ct state established,related accept
