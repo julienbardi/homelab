@@ -102,6 +102,43 @@ Activation is explicit and rollback‑protected:
 
 No UGOS firewall overrides or post‑init scripts are required.
 
+## Firewall lifecycle (nftables)
+
+The firewall is managed declaratively via nftables with rollback protection.
+
+### Install (no activation)
+```bash
+make nft-install
+```
+### Confirm rules (disarm rollback)
+```bash
+make nft-confirm
+```
+
+### Automatic rollback
+If nft-confirm is not run within the rollback window, the previous firewall
+state is automatically restored.
+
+This guarantees safe, remote‑friendly firewall changes.
+
+
+This prevents *any* ambiguity later.
+
+---
+
+## 3️⃣ (Optional but excellent) Add a `make nft-help` target
+
+If you want to go one step further:
+
+```make
+.PHONY: nft-help
+nft-help:
+    @echo "Firewall lifecycle:"
+    @echo "  make nft-install   # Install units (no activation)"
+    @echo "  make nft-apply     # Apply rules (arms rollback)"
+    @echo "  make nft-confirm   # Confirm rules"
+    @echo "  (Rollback runs automatically if not confirmed)"
+```
 
 
 ### 2. Apply required kernel networking settings
@@ -148,7 +185,6 @@ Component	Responsibility
 | Component  | Responsibility |
 |:-----------|:---------------|
 |`/etc/sysctl.d/99-ug-multilan.conf`|	Kernel routing & ARP behavior|
-|`/usr/local/bin/ug-firewall-override.sh`|	Interface‑aware firewall rules|
 |`/etc/rc.local`|	Execution order glue: systemd oneshot service (After=network-online.target) |
 
 Each layer does one thing well.
@@ -314,42 +350,7 @@ The design principle is **minimal, explicit, reproducible**. Every script logs d
 ## Repository Layout
 
 ```
-/home/julie/src/homelab
-│
-├── Makefile                 # Orchestration entrypoint (Gen0 → Gen2)
-├── .gitignore               # Hygiene rules (Gen0 check)
-├── README.md                # Repo policy, usage, resilience notes
-│
-├── gen0/                    # Foundational scripts
-│   ├── setup_headscale.sh
-│   ├── setup_coredns.sh
-│   ├── dns_setup.sh
-│   ├── wg_firewall_apply.sh
-│   └── router_audit.sh
-│
-├── gen1/                    # Dependent helpers
-│   ├── caddy-reload.sh
-│   ├── tailnet.sh
-│   ├── rotate-unbound-rootkeys.sh
-│   └── wg_baseline.sh
-│
-├── gen2/                    # Final deployment artifacts
-│   └── site/
-│       └── index.html
-│
-├── config/                  # Static config templates
-│   ├── headscale.yaml       # main Headscale config (no inline derp_map)
-│   ├── derp.yaml            # external DERPMap file in map[int]*tailcfg.DERPRegion format
-│   ├── coredns/Corefile
-│   └── unbound/unbound.conf.template
-│
-├── systemd/                 # Unit templates (not deployed copies)
-│   ├── headscale.service
-│   ├── coredns.service
-│   └── subnet-router.service
-│
-└── scripts/                 # Supporting utilities
-    └── aliases.sh           # router-logs, router-deploy
+TBD
 ```
 
 ## Homelab Dependency Graph

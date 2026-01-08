@@ -1,0 +1,8 @@
+[Unit]
+Description=Rollback homelab nftables if not confirmed
+DefaultDependencies=no
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /etc/nftables.conf
