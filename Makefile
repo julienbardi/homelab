@@ -409,8 +409,8 @@ nft-install:
 	@$(run_as_root) install -m 0755 scripts/homelab-nft-apply.sh /usr/local/bin/
 	@$(run_as_root) install -m 0755 scripts/homelab-nft-confirm.sh /usr/local/bin/
 	@$(run_as_root) install -m 0755 scripts/homelab-nft-rollback.sh /usr/local/bin/
-	@$(run_as_root) install -m 0644 systemd/homelab-nft.service /etc/systemd/system/
-	@$(run_as_root) install -m 0644 systemd/homelab-nft-rollback.timer /etc/systemd/system/
+	@$(run_as_root) install -m 0644 config/systemd/homelab-nft.service /etc/systemd/system/
+    @$(run_as_root) install -m 0644 config/systemd/homelab-nft-rollback.timer /etc/systemd/system/
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft.service homelab-nft-rollback.timer
 	@echo "[make] ✅ Firewall units installed (not yet applied)"
