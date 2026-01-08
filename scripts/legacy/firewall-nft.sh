@@ -1,3 +1,6 @@
+# LEGACY — DO NOT USE
+# Superseded by homelab.nft + homelab-nft.service
+# Kept for historical reference only
 #!/usr/bin/env bash
 # firewall-nft.sh
 # Idempotent nft-based firewall for NAS host aligned with mk/40_wireguard.mk
