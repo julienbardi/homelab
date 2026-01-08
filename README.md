@@ -80,75 +80,29 @@ The safest method is to re‑apply your rules at boot via a startup script.
 
 Note: On UGOS, SSH typically listens on port 2222 only. Port 22 may be closed or unused depending on firmware. Both ports are allowed in firewall rules to avoid lockout during upgrades, but only port 2222 is expected to accept connections.
 
-#### 1 Create a firewall restore script
-bash
-sudo nano /usr/local/bin/ug-firewall-override.sh
-Paste this:
+## Firewall architecture
 
-```bash
-#!/bin/sh
-# UGOS firewall SSH override
-# Applied after UG firewall initialization
+The firewall and NAT are fully owned by nftables.
 
-nft add rule ip filter UG_INPUT iifname "eth1" tcp dport 22 accept
-nft add rule ip filter UG_INPUT iifname "eth1" tcp dport 2222 accept
-#allow SSH via LAN1 (10 Gbps direct link)
-nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 22 accept
-nft add rule ip filter UG_INPUT iifname "eth0" tcp dport 2222 accept
-```
-Save and exit.
+- Rules live in `homelab.nft`
+- Applied via `homelab-nft-apply.sh`
+- Protected by rollback + confirm
+- No iptables, no vendor overrides, no post-init scripts
 
-#### 2 Make it executable
-```bash
-sudo chmod +x /usr/local/bin/ug-firewall-override.sh
-```
-#### 3 Create a systemd service
-```bash
-sudo nano /etc/systemd/system/ug-firewall-override.service
-```
+The distro `nftables.service` is intentionally disabled.
 
-Paste
-```bash
-[Unit]
-Description=UGOS firewall override (SSH rules)
-After=network-online.target
-Wants=network-online.target
+### Firewall safety
 
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/ug-firewall-override.sh
-RemainAfterExit=yes
+The firewall is fully owned by `homelab-nft.service`.
 
-[Install]
-WantedBy=multi-user.target
-```
+Activation is explicit and rollback‑protected:
+- `make nft-apply` applies rules and arms rollback
+- `make nft-confirm` commits the configuration
+- Failure to confirm automatically reverts changes
 
-#### 4 Reload systemd and enable it
-```bash
-sudo systemctl daemon-reexec
-sudo systemctl daemon-reload
-sudo systemctl enable ug-firewall-override.service
-```
-#### 5 Test immediately (no reboot needed)
-```bash
-sudo systemctl start ug-firewall-override.service
-sudo nft list chain ip filter UG_INPUT
-```
-You should see your SSH rules appear.
-#### 6 Reboot to confirm persistence
-```bash
-# reboot in 1 minute
-sudo shutdown -r +1 "Rebooting to validate persistent network configuration"
-```
-After reboot:
-```bash
-sudo sysctl net.ipv4.conf.eth0.rp_filter
-sudo nft list chain ip filter UG_INPUT
-```
-Your rules will still be there.
+No UGOS firewall overrides or post‑init scripts are required.
 
-🧠 Why this works on UGOS (and rc.local doesn't)
-- UGOS regenerates nftables rules at boot, but does not overwrite custom systemd units
+
 
 ### 2. Apply required kernel networking settings
 
@@ -395,7 +349,6 @@ The design principle is **minimal, explicit, reproducible**. Every script logs d
 │   └── subnet-router.service
 │
 └── scripts/                 # Supporting utilities
-    ├── setup-subnet-router.sh
     └── aliases.sh           # router-logs, router-deploy
 ```
 
@@ -462,7 +415,6 @@ make clean
 ```
 
 Supporting Scripts
-setup-subnet-router.sh → subnet router logic with conflict detection, NAT, dnsmasq restart, GRO tuning, version auto‑increment, footer logging.
 
 aliases.sh → operational shortcuts:
 
