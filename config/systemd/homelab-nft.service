@@ -1,0 +1,12 @@
+[Unit]
+Description=Homelab nftables firewall
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/homelab-nft-apply.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

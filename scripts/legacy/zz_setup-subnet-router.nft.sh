@@ -49,16 +49,23 @@ _add_rule_in_chain() {
 	local rule="$4"
 	local cmd="$5"
 
-	local norm
-	norm="$(printf '%s' "$rule" | tr -s '[:space:]' ' ')"
+	# Extract sr: comment (required)
+	local comment
+	comment="$(printf '%s\n' "$rule" | sed 's/\\"/"/g' | sed -n 's/.*comment "\([^"]*\)".*/\1/p')"
 
+
+	if [ -z "$comment" ]; then
+		log "ERROR: rule has no comment, refusing to manage it:"
+		log "  $rule"
+		exit 1
+	fi
+
+	# Check for existing rule by comment identity
 	if nft list chain "$family" "$table" "$chain" 2>/dev/null \
-	| sed -E 's/ counter packets [0-9]+ bytes [0-9]+//g; s/ # handle [0-9]+//g' \
-	| tr -s '[:space:]' ' ' \
-	| grep -Fxq "$norm"; then
-		log "Already present [${chain}]: $rule"
+	| grep -Fq "comment \"$comment\""; then
+		log "Already present [${chain}]: $comment"
 	else
-		log "Adding [${chain}]: $rule"
+		log "Adding [${chain}]: $comment"
 		eval "$cmd"
 	fi
 }

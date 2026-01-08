@@ -39,7 +39,7 @@ include mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include mk/30_config_validation.mk
 include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
-include mk/31_setup-subnet-router.mk # Subnet router orchestration
+#include mk/31_setup-subnet-router.mk # Subnet router orchestration LEGACY — DO NOT USE Superseded by homelab-nft.service + homelab.nft
 include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include mk/40_code-server.mk
 include mk/40_wireguard.mk   # Wireguard orchestration
@@ -73,6 +73,11 @@ include mk/99_lint.mk        # lint and safety checks (always last)
 help:
 	@echo "[make] Available targets:"
 	@echo ""
+	@echo "  Firewall (nftables):"
+	@echo "    make nft-install        # Install firewall scripts and systemd units"
+	@echo "    make nft-apply          # Apply firewall rules (arms rollback timer)"
+	@echo "    make nft-confirm        # Confirm firewall rules (disarms rollback)"
+	@echo "    make nft-status         # Show active homelab firewall rules"
 	@echo "  Package and preflight"
 	@echo "	   make prereqs            # Install prerequisite tools (curl, jq, git, nftables, ndppd, dns utils, admin helpers)"
 	@echo "    make deps               # Install developer tooling (go, pandoc, checkmake, strace, vnstat)"
@@ -285,8 +290,10 @@ bootstrap: \
 .PHONY: firewall-stack
 firewall-stack: \
 	install-pkg-nftables \
-	enable-nftables \
-	enable-ndppd
+	enable-ndppd \
+	nft-install
+	@echo "[make] Firewall stack installed." 
+	@echo "[make] Run 'make nft-apply' to activate the firewall."
 
 .PHONY: dns-stack
 dns-stack: \
@@ -386,3 +393,27 @@ uninstall-systemd:
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound-ctl-fix.service.d || true
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound.service.d || true
 	@$(run_as_root) systemctl daemon-reload
+
+.PHONY: nft-apply nft-confirm nft-install nft-status
+
+nft-apply:
+	sudo scripts/homelab-nft-apply.sh
+
+nft-confirm:
+	sudo scripts/homelab-nft-confirm.sh
+
+.PHONY: nft-install nft-apply nft-confirm nft-status
+
+nft-install:
+	@echo "[make] Installing homelab nftables firewall..."
+	@$(run_as_root) install -m 0755 scripts/homelab-nft-apply.sh /usr/local/bin/
+	@$(run_as_root) install -m 0755 scripts/homelab-nft-confirm.sh /usr/local/bin/
+	@$(run_as_root) install -m 0755 scripts/homelab-nft-rollback.sh /usr/local/bin/
+	@$(run_as_root) install -m 0644 systemd/homelab-nft.service /etc/systemd/system/
+	@$(run_as_root) install -m 0644 systemd/homelab-nft-rollback.timer /etc/systemd/system/
+	@$(run_as_root) systemctl daemon-reload
+	@$(run_as_root) systemctl enable homelab-nft.service homelab-nft-rollback.timer
+	@echo "[make] ✅ Firewall units installed (not yet applied)"
+
+nft-status:
+	sudo nft list table inet homelab_filter
