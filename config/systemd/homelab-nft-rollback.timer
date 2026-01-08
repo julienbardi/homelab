@@ -1,0 +1,8 @@
+[Unit]
+Description=Rollback homelab nftables if not confirmed
+
+[Timer]
+OnActiveSec=120
+
+[Install]
+WantedBy=timers.target
