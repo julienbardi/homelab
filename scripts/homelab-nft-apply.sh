@@ -1,5 +1,7 @@
 #!/bin/bash
 set -euo pipefail
+# resolve repo root relative to this script, allow override via HOMELAB_DIR
+HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
 
 RULES="${HOMELAB_DIR}/scripts/homelab.nft"
 ROLLBACK_FLAG="/run/homelab-nft.pending"

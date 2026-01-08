@@ -3,6 +3,7 @@ Description=Rollback homelab nftables if not confirmed
 
 [Timer]
 OnActiveSec=120
+AccuracySec=1s
 
 [Install]
 WantedBy=timers.target
