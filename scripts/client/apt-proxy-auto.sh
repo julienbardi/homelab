@@ -23,9 +23,16 @@ set -eu
 # This avoids disabling the proxy on LAN/VPN while preserving
 # strict non-public exposure of apt-cacher-ng.
 # --------------------------------------------------------------------
+# IMPORTANT:
+# APT prefers IPv6 when a hostname resolves to both A and AAAA records.
+# apt-cacher-ng accepts IPv4 connections but refuses IPv6, resulting in
+# "connect (111: Connection refused)" if a hostname is used.
+# Therefore the proxy URL MUST use an explicit IPv4 address to ensure
+# deterministic and reliable APT behavior.
 
 BACKEND_URL="http://10.89.12.4:3142/acng-report.html"
-PROXY_URL="http://apt.bardi.ch:3142"
+BACKEND_IP="$(printf '%s\n' "$BACKEND_URL" | sed -E 's|^http://([^:/]+).*|\1|')"
+PROXY_URL="http://${BACKEND_IP}:3142"
 CONF_FILE="/etc/apt/apt.conf.d/01proxy"
 
 TMP_FILE="$(mktemp)"
@@ -33,10 +40,10 @@ cleanup() { rm -f "$TMP_FILE"; }
 trap cleanup EXIT
 
 if curl -fsS --max-time 2 "$BACKEND_URL" >/dev/null; then
-	printf 'Acquire::http::Proxy "%s";\n' "$PROXY_URL" >"$TMP_FILE"
-	install -m 0644 -o root -g root "$TMP_FILE" "$CONF_FILE"
-	echo "apt-proxy-auto: ENABLED ($PROXY_URL)"
+    printf 'Acquire::http::Proxy "%s";\n' "$PROXY_URL" >"$TMP_FILE"
+    install -m 0644 -o root -g root "$TMP_FILE" "$CONF_FILE"
+    echo "apt-proxy-auto: ENABLED ($PROXY_URL)"
 else
-	rm -f "$CONF_FILE"
-	echo "apt-proxy-auto: DISABLED (backend unreachable)"
+    rm -f "$CONF_FILE"
+    echo "apt-proxy-auto: DISABLED (backend unreachable)"
 fi
