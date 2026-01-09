@@ -1,4 +1,5 @@
 #!/bin/bash
+# homelab-nft-apply.sh
 set -euo pipefail
 # resolve repo root relative to this script, allow override via HOMELAB_DIR
 HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
