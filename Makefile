@@ -407,16 +407,12 @@ nft-confirm:
 .PHONY: nft-install
 nft-install:
 	@echo "[make] Installing homelab nftables firewall..."
-	@$(run_as_root) install -o root -g root -m 0755 \
-		$(HOMELAB_DIR)/scripts/homelab-nft-apply.sh /usr/local/bin/homelab-nft-apply.sh
-	@$(run_as_root) install -o root -g root -m 0755 $(HOMELAB_DIR)/scripts/homelab-nft-confirm.sh \
-		/usr/local/bin/homelab-nft-confirm.sh
-	@$(run_as_root) install -o root -g root -m 0755 $(HOMELAB_DIR)/scripts/homelab-nft-rollback.sh \
-		/usr/local/bin/homelab-nft-rollback.sh
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft.service \
-		/etc/systemd/system/homelab-nft.service
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft-rollback.timer \
-		/etc/systemd/system/homelab-nft-rollback.timer
+	@$(run_as_root) install -o root -g root -m 0755 $(HOMELAB_DIR)/scripts/homelab-nft-apply.sh /usr/local/bin/homelab-nft-apply.sh
+	@$(run_as_root) install -o root -g root -m 0755 $(HOMELAB_DIR)/scripts/homelab-nft-confirm.sh /usr/local/bin/homelab-nft-confirm.sh
+	@$(run_as_root) install -o root -g root -m 0755 $(HOMELAB_DIR)/scripts/homelab-nft-rollback.sh /usr/local/bin/homelab-nft-rollback.sh
+	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service
+	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
+	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft.service homelab-nft-rollback.timer
 	@echo "[make] ✅ Firewall units installed (not yet applied)"
