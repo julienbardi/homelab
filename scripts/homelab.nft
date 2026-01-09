@@ -32,7 +32,7 @@ table inet homelab_filter {
         iifname "eth0" ip6 saddr fd5e:d23d:70e:111::/64 accept comment "sr:input-trusted-v6"
 
         # Essential Services
-        tcp dport { 22, 443, 445, 2222, 9443, 9999 } accept comment "sr:input-svc-tcp"
+        tcp dport { 22, 443, 445, 3142, 2222, 9443, 9999 } accept comment "sr:input-svc-tcp"
         udp dport { 53, 1900, 3702, 5335 } accept comment "sr:input-svc-udp"
 
         # WireGuard Handshake Range
