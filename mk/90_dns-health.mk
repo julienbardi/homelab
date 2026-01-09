@@ -7,4 +7,4 @@ DNS_CHECK_BIN := $(INSTALL_PATH)/$(DNS_CHECK_NAME)
 
 check-dns: $(DNS_CHECK_BIN) dns-runtime-check
 	@echo "Running DNS health check (requires sudo)..."
-	sudo $(DNS_CHECK_BIN)
+	@$(run_as_root) $(DNS_CHECK_BIN)
