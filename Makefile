@@ -37,6 +37,7 @@ include mk/00_prereqs.mk
 include mk/05_bootstrap_wireguard.mk
 include mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include mk/20_deps.mk        # package dependencies (apt installs, base tools)
+include mk/20_net-tunnel.mk
 include mk/30_config_validation.mk
 include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
 #include mk/31_setup-subnet-router.mk # Subnet router orchestration LEGACY — DO NOT USE Superseded by homelab-nft.service + homelab.nft
