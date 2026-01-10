@@ -59,7 +59,7 @@ tailscaled-lan: tailscaled-check-deps net-tunnel-preflight
 		--accept-dns=false \
 		--accept-routes=true
 	@echo "📡 LAN exit-node + subnet route advertised"
-	@$(run_as_root) $(TS_BIN) status --json | jq '.Self.Capabilities'
+	@$(run_as_root) $(TS_BIN) status --json | jq '.Self.CapMap'
 	@echo "✅ LAN client configured"
 
 # --------------------------------------------------------------------
