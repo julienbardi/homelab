@@ -55,7 +55,7 @@ wg-compile: wg-compile-intent wg-compile-keys wg-render
 # Deploy compiled state (requires successful compile)
 # ------------------------------------------------------------
 # Requires: net-tunnel-preflight (UDP tunnel NIC invariants)
-wg-deploy: net-tunnel-preflight wg-compile $(WG_DEPLOY_SCRIPT)
+wg-deploy: ensure-run-as-root net-tunnel-preflight wg-compile $(WG_DEPLOY_SCRIPT)
 	@echo "▶ deploying WireGuard state"
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
 
@@ -81,12 +81,12 @@ wg-client-export: wg-render $(WG_EXPORT_SCRIPT)
 # ------------------------------------------------------------
 # Consistency / sanity checks
 # ------------------------------------------------------------
-wg-check: $(WG_CHECK_SCRIPT)
+wg-check: ensure-run-as-root $(WG_CHECK_SCRIPT)
 	@echo "▶ validating WireGuard intent"
 	@$(run_as_root) $(WG_CHECK_SCRIPT)
 
 .PHONY: wg-rebuild-all
-wg-rebuild-all:
+wg-rebuild-all: ensure-run-as-root
 	@echo "⚠️  FULL WireGuard rebuild (keys + config)"
 	@echo "⚠️  This will invalidate ALL existing clients"
 	@echo "⚠️  Press Ctrl-C now if this is not intended"

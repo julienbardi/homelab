@@ -75,6 +75,9 @@ database:
     write_ahead_log: true
     wal_autocheckpoint: 1000
 
+policy:
+  path: /etc/headscale/acl.json
+
 # acme_url: https://acme-v02.api.letsencrypt.org/directory
 # acme_email: ""
 # tls_letsencrypt_hostname: ""
