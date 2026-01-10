@@ -8,7 +8,7 @@ CADDYFILE    := /etc/caddy/Caddyfile
 SRC_CADDYFILE:= $(HOMELAB_DIR)/config/caddy/Caddyfile
 
 .PHONY: caddy
-caddy: gitcheck assert-caddy-ports-free
+caddy: ensure-run-as-root gitcheck assert-caddy-ports-free
 	@set -euo pipefail; \
 	echo "📄⬇️ Installing Caddyfile"; \
 	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
@@ -60,7 +60,7 @@ caddy-fmt:
 	@sudo caddy fmt --overwrite "$(SRC_CADDYFILE)"
 
 .PHONY: assert-caddy-ports-free
-assert-caddy-ports-free:
+assert-caddy-ports-free: ensure-run-as-root
 	@conflict=$$($(run_as_root) ss -H -tlnp '( sport = :80 or sport = :443 )' | grep -v caddy || true); \
 	if [ -n "$$conflict" ]; then \
 		echo "❌ ERROR: Port 80 or 443 is already in use:"; \

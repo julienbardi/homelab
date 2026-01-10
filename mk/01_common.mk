@@ -15,6 +15,13 @@ MAKE ?= $(MAKE)
 
 run_as_root := $(HOMELAB_DIR)/bin/run-as-root
 
+.PHONY: ensure-run-as-root
+ensure-run-as-root:
+	@if [ ! -x "$(run_as_root)" ]; then \
+		echo "[make] 🔧 Ensuring run_as_root.sh is executable"; \
+		chmod +x $(run_as_root); \
+	fi
+
 INSTALL_PATH ?= /usr/local/bin
 OWNER ?= root
 GROUP ?= root
@@ -27,11 +34,6 @@ STAMP_DIR ?= /var/lib/homelab
 define log
 echo "$1" >&2; command -v logger >/dev/null 2>&1 && logger -t homelab-make "$1"
 endef
-
-# Ensure run_as_root helper exists and is executable (warn, do not fail)
-ifeq ($(shell test -x $(run_as_root) >/dev/null 2>&1 && echo ok || echo no),no)
-$(warning "Warning: $(run_as_root) not found or not executable. Some targets may fail.")
-endif
 
 # install_script(src, name)
 define install_script
@@ -64,7 +66,7 @@ define apt_update_if_needed
 endef
 
 .PHONY: apt-update
-apt-update:
+apt-update: ensure-run-as-root
 	@$(call apt_update_if_needed)
 
 # apt_install(tool, pkg-list)
@@ -114,7 +116,7 @@ define remove_cmd
 endef
 
 .PHONY: homelab-cleanup-deps
-homelab-cleanup-deps: ; # clear any built-in recipe
+homelab-cleanup-deps: ensure-run-as-root
 	@echo "[make] Cleaning up unused dependencies..."
 	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get autoremove -y || true
 
@@ -128,5 +130,5 @@ check-prereqs:
 	echo "[make] All required commands present"
 
 # pattern rule: install scripts/<name>.sh -> $(INSTALL_PATH)/<name>
-$(INSTALL_PATH)/%: $(HOMELAB_DIR)/scripts/%.sh
+$(INSTALL_PATH)/%: ensure-run-as-root $(HOMELAB_DIR)/scripts/%.sh
 	$(call install_script,$<,$*)

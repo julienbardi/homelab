@@ -30,7 +30,7 @@ TS_REPO_LIST    := /etc/apt/sources.list.d/tailscale.list
 
 .PHONY: tailscale-repo install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale verify-pkg-tailscale
 
-tailscale-repo:
+tailscale-repo: ensure-run-as-root
 	@echo "📦 Adding Tailscale apt repository (Debian $(DEBIAN_CODENAME))"
 	@$(run_as_root) install -d -m 0755 /usr/share/keyrings
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg \
@@ -40,14 +40,14 @@ tailscale-repo:
 	@$(call apt_update_if_needed)
 	@echo "✅ Tailscale repository configured"
 
-install-pkg-tailscale: tailscale-repo
+install-pkg-tailscale: ensure-run-as-root tailscale-repo
 	@echo "📦 Installing Tailscale (client + daemon)"
 	@$(call apt_install,tailscale,tailscale)
 	@$(run_as_root) systemctl enable --now tailscaled >/dev/null 2>&1 || true
 	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) verify-pkg-tailscale
 	@echo "✅ Tailscale installed and running"
 
-upgrade-pkg-tailscale: tailscale-repo
+upgrade-pkg-tailscale: ensure-run-as-root tailscale-repo
 	@echo "⬆️ Upgrading Tailscale to latest stable"
 	@$(call apt_update_if_needed)
 	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y tailscale
@@ -55,14 +55,14 @@ upgrade-pkg-tailscale: tailscale-repo
 	@$(MAKE) verify-pkg-tailscale
 	@echo "✅ Tailscale upgraded"
 
-remove-pkg-tailscale:
+remove-pkg-tailscale: ensure-run-as-root
 	@echo "🗑️ Removing Tailscale"
 	@$(run_as_root) systemctl stop tailscaled >/dev/null 2>&1 || true
 	@$(run_as_root) systemctl disable tailscaled >/dev/null 2>&1 || true
 	@$(call apt_remove,tailscale)
 	@echo "✅ Tailscale removed"
 
-verify-pkg-tailscale:
+verify-pkg-tailscale: ensure-run-as-root
 	@echo "🔎 Verifying Tailscale installation"
 	@bash -c 'set -e; \
 		CLI_VER=$$(tailscale version | head -n1); \
@@ -86,7 +86,7 @@ remove-pkg-go:
 # ------------------------------------------------------------
 # vnstat
 # ------------------------------------------------------------
-install-pkg-vnstat:
+install-pkg-vnstat: ensure-run-as-root
 	@echo "📦 Installing vnstat"
 	$(call apt_install,vnstat,vnstat)
 	@echo "[make] Initializing vnstat database for tailscale0..."
@@ -102,7 +102,7 @@ remove-pkg-vnstat:
 # ------------------------------------------------------------
 # nftables
 # ------------------------------------------------------------
-install-pkg-nftables:
+install-pkg-nftables: ensure-run-as-root
 	@echo "📦 Installing nftables"
 	$(call apt_install,nft,nftables)
 	@$(run_as_root) systemctl enable --now nftables >/dev/null 2>&1 || true
@@ -125,7 +125,7 @@ remove-pkg-wireguard:
 # ------------------------------------------------------------
 # Caddy
 # ------------------------------------------------------------
-install-pkg-caddy:
+install-pkg-caddy: ensure-run-as-root
 	@echo "📦 Installing Caddy"
 	@$(run_as_root) rm -f /etc/caddy/Caddyfile
 	$(call apt_install,caddy,caddy)
@@ -136,7 +136,7 @@ remove-pkg-caddy:
 # ------------------------------------------------------------
 # ndppd
 # ------------------------------------------------------------
-enable-ndppd: prereqs
+enable-ndppd: ensure-run-as-root prereqs
 	@echo "📦 Enabling ndppd service"
 	@$(run_as_root) systemctl enable --now ndppd >/dev/null 2>&1 || true
 	@echo "✅ ndppd enabled"
@@ -148,7 +148,7 @@ CHECKMAKE_VERSION := 0.2.2
 CHECKMAKE_BIN := /usr/local/bin/checkmake
 STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
 
-install-pkg-checkmake: install-pkg-pandoc install-pkg-go
+install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go
 	@echo "[make] Installing checkmake (v$(CHECKMAKE_VERSION))"
 	@if [ -f "$(STAMP_CHECKMAKE)" ]; then \
 		INST_VER=$$(grep '^version=' "$(STAMP_CHECKMAKE)" | cut -d= -f2); \
@@ -209,7 +209,7 @@ STAMP_PANDOC := $(STAMP_DIR)/pandoc.installed
 
 .SILENT: install-pkg-pandoc
 
-install-pkg-pandoc:
+install-pkg-pandoc: ensure-run-as-root
 	@$(run_as_root) install -d -m 0755 $(STAMP_DIR); \
 	installed_bin=$$(command -v pandoc 2>/dev/null || true); \
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
@@ -238,7 +238,7 @@ install-pkg-pandoc:
 	trap - EXIT; \
 	echo "[make] pandoc $(PANDOC_VERSION) installed"
 
-upgrade-pkg-pandoc: $(STAMP_PANDOC)
+upgrade-pkg-pandoc: ensure-run-as-root $(STAMP_PANDOC)
 	@echo "[make] Upgrading pandoc..."
 	@$(call apt_update_if_needed)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
@@ -248,7 +248,7 @@ upgrade-pkg-pandoc: $(STAMP_PANDOC)
 	rm -f "$$tmp"
 	@echo "[make] pandoc upgrade complete"
 
-remove-pkg-pandoc:
+remove-pkg-pandoc: ensure-run-as-root
 	@echo "[make] Removing pandoc..."
 	@if dpkg -s pandoc >/dev/null 2>&1; then \
 		$(run_as_root) apt-get remove -y pandoc; \

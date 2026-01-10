@@ -21,6 +21,27 @@ headscale-acls:
 		echo "[headscale] ERROR: ACL source file not found: $(ACL_SRC)"; \
 		exit 1; \
 	fi
-	@$(run_as_root) install -o root -g headscale -m 0640 "$(ACL_SRC)" "$(ACL_DST)"
-	@$(run_as_root) systemctl restart headscale
-	@echo "[headscale] ACL policy installed and headscale restarted"
+
+	@$(run_as_root) bash -c '\
+		changed=0; \
+		if [ ! -f "$(ACL_DST)" ]; then \
+			echo "[headscale] No existing ACL — installing fresh copy"; \
+			install -o root -g headscale -m 0640 "$(ACL_SRC)" "$(ACL_DST)"; \
+			changed=1; \
+		else \
+			if ! cmp -s "$(ACL_SRC)" "$(ACL_DST)"; then \
+				echo "[headscale] ACL changed — installing new version"; \
+				install -o root -g headscale -m 0640 "$(ACL_SRC)" "$(ACL_DST)"; \
+				changed=1; \
+			else \
+				echo "[headscale] ACL unchanged — nothing to do"; \
+			fi; \
+		fi; \
+		if [ $$changed -eq 1 ]; then \
+			echo "[headscale] Restarting headscale due to ACL update"; \
+			systemctl restart headscale; \
+		fi \
+	'
+
+	@echo "[headscale] ACL policy processed"
+

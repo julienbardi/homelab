@@ -13,7 +13,7 @@ TAILSCALE_REPO_LINE := deb [signed-by=$(TAILSCALE_KEYRING)] https://pkgs.tailsca
 .PHONY: prereqs-network prereqs fix-tailscale-repo
 
 # minimum required to route packets
-prereqs-network:
+prereqs-network: ensure-run-as-root
 	@echo "[make] Installing base networking prerequisites"
 	@$(run_as_root) apt-get update
 	@$(run_as_root) apt-get install -y \
@@ -25,7 +25,7 @@ prereqs-network:
 		tcpdump
 
 # everything else
-prereqs: prereqs-network
+prereqs: ensure-run-as-root prereqs-network
 	@echo "[check] Verifying public DNS CNAME for apt.bardi.ch by asking a public DNS"
 	@cname=$$(dig +short @1.1.1.1 apt.bardi.ch CNAME | sed 's/\.$$//'); \
 	if [ "$$cname" != "bardi.ch" ]; then \
@@ -79,7 +79,7 @@ prereqs: prereqs-network
 		apt-cacher-ng
 	@echo "✅ [make] Base prerequisites installed"
 
-fix-tailscale-repo:
+fix-tailscale-repo: ensure-run-as-root
 	@echo "🛠️  Fixing Tailscale APT repository (signed-by hygiene)"
 	@test -f $(TAILSCALE_REPO_FILE) || { \
 		echo "❌ $(TAILSCALE_REPO_FILE) not found"; \

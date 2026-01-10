@@ -12,18 +12,13 @@ SHELL := /bin/bash
 HEADSCALE_BIN := /usr/local/bin/headscale
 HEADSCALE_URL := https://github.com/juanfont/headscale/releases/download/v0.28.0-beta.1/headscale_0.28.0-beta.1_linux_amd64
 
-.PHONY: ensure-run-as-root
-ensure-run-as-root:
-	@echo "[make] Ensuring run_as_root.sh is executable..."
-	@chmod +x $(run_as_root)
-
 # --------------------------------------------------------------------
 # Ensure Headscale binary is installed
 # --------------------------------------------------------------------
 .PHONY: headscale-bin
 headscale-bin: ensure-run-as-root
 	@if [ -x "$(HEADSCALE_BIN)" ]; then \
-		echo "[make] Headscale binary already present"; \
+		echo "[make] ✅ Headscale binary already present"; \
 	else \
 		echo "[make] Installing Headscale binary"; \
 		$(run_as_root) curl -fsSL "$(HEADSCALE_URL)" -o "$(HEADSCALE_BIN)"; \
@@ -62,12 +57,88 @@ headscale-prereqs: \
 	config/headscale.yaml \
 	config/derp.yaml \
 	deploy-headscale \
-	headscale-bin
+	headscale-bin \
+	headscale-systemd
 
 # --------------------------------------------------------------------
 # Headscale orchestration (serialized)
 # --------------------------------------------------------------------
 .PHONY: headscale
 headscale: headscale-prereqs
-	@echo "[make] Running Headscale setup script..."
-	@$(run_as_root) bash scripts/setup/setup_headscale.sh
+	@echo "[make] Restarting Headscale..."
+	@$(run_as_root) systemctl restart headscale
+	@$(MAKE) headscale-acls
+	@$(MAKE) headscale-verify
+	@echo ""
+	@echo "[headscale] ℹ️  For detailed status:"
+	@echo "           sudo systemctl status headscale"
+	@echo "           sudo journalctl -u headscale -n 200"
+	@echo ""
+
+# --------------------------------------------------------------------
+# Install Headscale systemd unit (static, declarative)
+# --------------------------------------------------------------------
+.PHONY: headscale-systemd
+headscale-systemd: ensure-run-as-root
+	@$(run_as_root) install -m 0644 config/systemd/headscale.service /etc/systemd/system/headscale.service
+	@$(run_as_root) install -d -m 0755 /etc/systemd/system/headscale.service.d
+	@$(run_as_root) install -m 0644 config/systemd/headscale.service.d/override.conf /etc/systemd/system/headscale.service.d/override.conf
+	@$(run_as_root) systemctl daemon-reload
+	@$(run_as_root) systemctl enable headscale
+
+# --------------------------------------------------------------------
+# Headscale verification (post-deploy checks)
+# --------------------------------------------------------------------
+
+
+# --------------------------------------------------------------------
+# Atomic Headscale verification tests (parallel-safe)
+# --------------------------------------------------------------------
+
+.PHONY: test-headscale-service
+test-headscale-service: ensure-run-as-root
+	@$(run_as_root) systemctl is-active --quiet headscale \
+		&& echo "[verify] ✅ Service active" \
+		|| (echo "[verify] ❌ Service NOT active"; exit 1)
+
+.PHONY: test-headscale-config
+test-headscale-config: ensure-run-as-root
+	@$(run_as_root) headscale configtest --config /etc/headscale/config.yaml >/dev/null \
+		&& echo "[verify] ✅ Configtest passed" \
+		|| (echo "[verify] ❌ Configtest FAILED"; exit 1)
+
+.PHONY: test-headscale-acl
+test-headscale-acl: ensure-run-as-root
+	@$(run_as_root) headscale policy show >/dev/null \
+		&& echo "[verify] ✅ ACL policy loaded" \
+		|| (echo "[verify] ❌ ACL policy NOT loaded"; exit 1)
+
+.PHONY: test-headscale-nodes
+test-headscale-nodes: ensure-run-as-root
+	@$(run_as_root) headscale nodes list >/dev/null \
+		&& echo "[verify] ✅ Nodes reachable" \
+		|| (echo "[verify] ❌ Node list FAILED"; exit 1)
+
+.PHONY: test-headscale-unit
+test-headscale-unit:
+	@cmp -s config/systemd/headscale.service /etc/systemd/system/headscale.service \
+		&& echo "[verify] ✅ systemd unit matches repo" \
+		|| (echo "[verify] ❌ systemd unit differs from repo"; exit 1)
+
+.PHONY: test-headscale-override
+test-headscale-override:
+	@cmp -s config/systemd/headscale.service.d/override.conf /etc/systemd/system/headscale.service.d/override.conf \
+		&& echo "[verify] ✅ override matches repo" \
+		|| (echo "[verify] ❌ override differs from repo"; exit 1)
+
+# --------------------------------------------------------------------
+# Parallel verification suite (runs atomic tests concurrently)
+# --------------------------------------------------------------------
+headscale-verify: \
+	test-headscale-service \
+	test-headscale-config \
+	test-headscale-acl \
+	test-headscale-nodes \
+	test-headscale-unit \
+	test-headscale-override
+	@echo "[verify] 🎉 Parallel verification complete"

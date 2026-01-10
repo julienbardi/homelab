@@ -120,7 +120,7 @@ wg-compiled:
 # Deployed view (filesystem in /etc/wireguard)
 # ------------------------------------------------------------
 
-wg-deployed:
+wg-deployed: ensure-run-as-root
 	@echo "Deployed /etc/wireguard view:"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
 		ls -la "$(WG_DIR)" 2>/dev/null || { echo "missing $(WG_DIR)"; exit 1; }; \
@@ -136,12 +136,11 @@ wg-deployed:
 # Runtime view (kernel state, intent-scoped)
 # ------------------------------------------------------------
 
-wg-runtime:
+wg-runtime: ensure-run-as-root
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" "$(SCRIPTS)/wg-runtime.sh"
 
-
 # A compact runtime summary per iface derived from intent (no WG_IFACES var).
-wg-status:
+wg-status: ensure-run-as-root
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS" "PUBLIC_KEY(short)"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "------" "------------" "------------------" "--------" "----------------"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
@@ -184,7 +183,7 @@ wg-dashboard:
 # Client removal (kept as-is)
 # ------------------------------------------------------------
 
-wg-remove-client:
+wg-remove-client: ensure-run-as-root
 	@# Usage: make wg-remove-client BASE=<base> IFACE=<iface>
 	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
 		echo "Usage: make wg-remove-client BASE=<base> IFACE=<iface>"; exit 1; \

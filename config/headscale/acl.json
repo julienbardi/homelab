@@ -1,15 +1,31 @@
 {
+  "groups": {
+    "group:lan": [
+      "dxp4800plus-a83@lan",
+      "omen30l-20250504@lan",
+      "localhost-jctllvli@lan",
+      "localhost-g4lnczgc@lan"
+    ],
+    "group:wan": [
+      "localhost@wan"
+    ]
+  },
+  "tagOwners": {
+    "tag:exit-node": ["group:lan", "group:wan"]
+  },
+  "autoApprovers": {
+    "exitNode": ["group:lan", "group:wan"]
+  },
   "acls": [
     {
-      "users": ["bardi-family"],
-      "ports": ["*:*"]
+      "action": "accept",
+      "src": ["group:lan"],
+      "dst": ["*:*"]
     },
     {
-      "users": ["bardi-guests"],
-      "ports": ["0.0.0.0/0:*", "::/0:*"]
+      "action": "accept",
+      "src": ["group:wan"],
+      "dst": ["0.0.0.0/0:*", "::/0:*"]
     }
-  ],
-  "tagOwners": {
-    "tag:exit-node": ["bardi-family", "bardi-guests"]
-  }
+  ]
 }

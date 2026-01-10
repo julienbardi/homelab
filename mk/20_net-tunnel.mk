@@ -20,7 +20,7 @@ endif
 
 .PHONY: net-tunnel-preflight
 
-net-tunnel-preflight:
+net-tunnel-preflight: ensure-run-as-root
 	@NETDEV="$$(ip -o route get 8.8.8.8 | awk '{print $$5}')" && \
 		$(run_as_root) ethtool -k "$$NETDEV" | grep -q 'rx-udp-gro-forwarding: on' || \
 		$(run_as_root) ethtool -K "$$NETDEV" rx-udp-gro-forwarding on rx-gro-list off

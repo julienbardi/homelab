@@ -5,7 +5,7 @@
 
 .PHONY: wg-bootstrap
 
-wg-bootstrap:
+wg-bootstrap: ensure-run-as-root
 	@echo "[make] Bootstrapping WireGuard filesystem layout"
 
 	@$(run_as_root) install -d -m 0750 -o root  -g admin /volume1/homelab
