@@ -2,7 +2,6 @@
 # Idempotent Makefile fragment to install and configure dnscrypt-proxy.
 # Replaces CoreDNS orchestration.
 
-.ONESHELL:
 SHELL := /bin/bash
 
 # Binary + version
