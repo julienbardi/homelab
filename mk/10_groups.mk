@@ -10,7 +10,8 @@
 # in a Debian-compliant, upgrade-safe manner.
 # ============================================================
 
-AUTHORIZED_ADMINS = julie leona
+# Users part of the admin group
+AUTHORIZED_ADMINS = julie
 
 # Groups that humans are allowed to be members of
 ADMIN_GROUPS = \
@@ -35,7 +36,7 @@ CURRENT_USER := $(shell id -un)
 # ------------------------------------------------------------
 # Harden all groups in one go
 # ------------------------------------------------------------
-harden-groups:
+harden-groups: ensure-run-as-root
 	@if ! echo "$(AUTHORIZED_ADMINS)" | grep -qw "$(CURRENT_USER)"; then \
 		echo "❌ Current user $(CURRENT_USER) is not authorized to enforce groups"; \
 		exit 1; \

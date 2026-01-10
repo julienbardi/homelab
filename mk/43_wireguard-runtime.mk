@@ -8,7 +8,7 @@
 
 .PHONY: wg-runtime-recover
 
-wg-runtime-recover:
+wg-runtime-recover: ensure-run-as-root
 	@echo "⚠️  Runtime recovery only — does not modify intent or compiled artifacts"
 	@$(run_as_root) sh -c '\
 		set -e; \
