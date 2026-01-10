@@ -46,7 +46,8 @@ tailscaled-check-deps:
 # LAN client (trusted: LAN + exit-node)
 # --------------------------------------------------------------------
 # do not use --accept-dns=true as it hijacks DNS entries in /etc/resolv.conf
-tailscaled-lan: tailscaled-check-deps
+tailscaled-lan: tailscaled-check-deps net-tunnel-preflight
+	$(call warn_if_no_net_tunnel_preflight)
 	@echo "🔑 Enrolling LAN client (bardi-lan / lan)"
 	@$(run_as_root) $(TS_BIN) up --reset \
 		--login-server=https://vpn.bardi.ch \
@@ -65,6 +66,7 @@ tailscaled-lan: tailscaled-check-deps
 # WAN client (internet-only)
 # --------------------------------------------------------------------
 tailscaled-wan: tailscaled-check-deps
+	$(call warn_if_no_net_tunnel_preflight)
 	@echo "🔑 Enrolling WAN client (bardi-wan / wan)"
 	@$(run_as_root) $(TS_BIN) up --reset \
 		--login-server=https://vpn.bardi.ch \
@@ -111,8 +113,8 @@ tailscaled-status: install-pkg-vnstat
 		$(run_as_root) journalctl -u tailscaled --since "1 hour ago" \
 		| grep -i connection | wc -l | xargs echo "events"
 	@echo "🧾 versions:"
-	@echo "   CLI:"; $(TS_BIN) version || true
-	@echo "   Daemon:"; $(run_as_root) tailscaled --version || true
+	@echo "	CLI:"; $(TS_BIN) version || true
+	@echo "	Daemon:"; $(run_as_root) tailscaled --version || true
 
 tailscaled-logs:
 	@echo "📜 Tailing logs (Ctrl-C to exit)"
