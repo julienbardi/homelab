@@ -54,7 +54,8 @@ wg-compile: wg-compile-intent wg-compile-keys wg-render
 # ------------------------------------------------------------
 # Deploy compiled state (requires successful compile)
 # ------------------------------------------------------------
-wg-deploy: wg-compile $(WG_DEPLOY_SCRIPT)
+# Requires: net-tunnel-preflight (UDP tunnel NIC invariants)
+wg-deploy: net-tunnel-preflight wg-compile $(WG_DEPLOY_SCRIPT)
 	@echo "▶ deploying WireGuard state"
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
 
@@ -62,7 +63,6 @@ wg-deploy: wg-compile $(WG_DEPLOY_SCRIPT)
 # Full workflow: compile → deploy
 # ------------------------------------------------------------
 wg-apply: wg-compile wg-deploy wg-client-export
-
 	@echo "✅ WireGuard converged successfully"
 
 # ------------------------------------------------------------
