@@ -6,12 +6,51 @@
 # - Recipes call $(run_as_root) with argv tokens.
 # - Escape operators (\>, \|, \&\&, \|\|).
 # --------------------------------------------------------------------
+# Absolute path to the directory containing this Makefile
+MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-include mk/01_common.mk
+# Directory of the including Makefile (normally the repo root).
+# before any includes
+HOMELAB_DIR ?= $(MAKEFILE_DIR)
+
+# --------------------------------------------------------------------
+# Canonical Makefile entry enforcement
+# --------------------------------------------------------------------
+MAKEFILE_CANONICAL := $(abspath $(lastword $(MAKEFILE_LIST)))
+
+define NL
+
+
+endef
+ifeq ($(MAKELEVEL),0)
+  ifneq ($(firstword $(MAKEFILE_LIST)),$(MAKEFILE_CANONICAL))
+    $(error 🚫 Invalid Make entrypoint$(NL)$(NL)\
+This repository enforces a *canonical Make graph*.$(NL)$(NL)\
+⚙️  Why:$(NL)\
+   • Some targets are *phase drivers*$(NL)\
+   • Phase drivers re-enter the Make graph intentionally$(NL)\
+   • Running from a non-canonical file breaks ordering guarantees$(NL)$(NL)\
+ 🛠️  How to fix:$(NL)\
+    ① Stop the current command$(NL)\
+	② Re-run using the canonical entrypoint$(NL)\
+	③ Keep the same targets$(NL)$(NL)\
+✅ Correct invocation:$(NL)\
+$(NL)\
+make $(if $(MAKEFLAGS),$(MAKEFLAGS) )-f $(MAKEFILE_CANONICAL)$(if $(MAKECMDGOALS), $(MAKECMDGOALS))$(NL)\
+$(NL)\
+⚠️ Note: Flags (e.g. -j) are not shown here due to a Make limitation, but they are fully supported.$(NL)\
+$(NL)\
+Please try\
+)
+  endif
+  export MAKEFILE_CANONICAL
+else
+  MAKEFLAGS += -f $(MAKEFILE_CANONICAL)
+endif
 
 SHELL := /bin/bash
+
 HOMELAB_REPO := git@github.com:Jambo15/homelab.git
-HOMELAB_DIR  := .# $(HOME)/src/homelab
 
 BUILDER_NAME := $(shell git config --get user.name)
 BUILDER_EMAIL := $(shell git config --get user.email)
@@ -32,38 +71,39 @@ INTERNAL_HOSTS := \
 	apt.bardi.ch
 
 # --- Includes (ordered by prefix) ---
-include mk/00_prereqs.mk
-#include mk/01_common.mk
-include mk/05_bootstrap_wireguard.mk
-include mk/10_groups.mk      # group membership enforcement (security bootstrap)
-include mk/20_deps.mk        # package dependencies (apt installs, base tools)
-include mk/20_net-tunnel.mk
-include mk/30_config_validation.mk
-include mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
-#include mk/31_setup-subnet-router.mk # Subnet router orchestration LEGACY — DO NOT USE Superseded by homelab-nft.service + homelab.nft
-include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
-include mk/40_code-server.mk
-include mk/40_wireguard.mk   # Wireguard orchestration
-include mk/41_wireguard-status.mk
-include mk/42_wireguard-qr.mk
-include mk/43_wireguard-runtime.mk
-include mk/40_caddy.mk
-include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
-include mk/50_dnsmasq.mk
-include mk/60_unbound.mk     # Unbound DNS resolver setup
-include mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
-include mk/70_dnsdist.mk     #
-include mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
-include mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
-include mk/70_apt_proxy_auto.mk
-include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
-include mk/81_headscale.mk              # Headscale service + binary + systemd
-include mk/83_headscale-users.mk        # Users (future)
-include mk/84_headscale-acls.mk         # ACLs (future)
-include mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
-include mk/90_dns-health.mk  # DNS health checks and monitoring
-include mk/90_converge.mk
-include mk/99_lint.mk        # lint and safety checks (always last)
+include $(MAKEFILE_DIR)/mk/00_prereqs.mk
+include $(MAKEFILE_DIR)/mk/01_common.mk
+include $(MAKEFILE_DIR)/mk/05_bootstrap_wireguard.mk
+include $(MAKEFILE_DIR)/mk/10_groups.mk      # group membership enforcement (security bootstrap)
+include $(MAKEFILE_DIR)/mk/20_attic.mk
+include $(MAKEFILE_DIR)/mk/20_deps.mk        # package dependencies (apt installs, base tools)
+include $(MAKEFILE_DIR)/mk/20_net-tunnel.mk
+include $(MAKEFILE_DIR)/mk/30_config_validation.mk
+include $(MAKEFILE_DIR)/mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
+#include $(MAKEFILE_DIR)/mk/31_setup-subnet-router.mk # Subnet router orchestration LEGACY — DO NOT USE Superseded by homelab-nft.service + homelab.nft
+include $(MAKEFILE_DIR)/mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
+include $(MAKEFILE_DIR)/mk/40_code-server.mk
+include $(MAKEFILE_DIR)/mk/40_wireguard.mk   # Wireguard orchestration
+include $(MAKEFILE_DIR)/mk/41_wireguard-status.mk
+include $(MAKEFILE_DIR)/mk/42_wireguard-qr.mk
+include $(MAKEFILE_DIR)/mk/43_wireguard-runtime.mk
+include $(MAKEFILE_DIR)/mk/40_caddy.mk
+include $(MAKEFILE_DIR)/mk/50_certs.mk       # certificate handling (issue, renew, deploy)
+include $(MAKEFILE_DIR)/mk/50_dnsmasq.mk
+include $(MAKEFILE_DIR)/mk/60_unbound.mk     # Unbound DNS resolver setup
+include $(MAKEFILE_DIR)/mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
+include $(MAKEFILE_DIR)/mk/70_dnsdist.mk     #
+include $(MAKEFILE_DIR)/mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
+include $(MAKEFILE_DIR)/mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
+include $(MAKEFILE_DIR)/mk/70_apt_proxy_auto.mk
+include $(MAKEFILE_DIR)/mk/80_tailnet.mk     # Tailscale/Headscale orchestration
+include $(MAKEFILE_DIR)/mk/81_headscale.mk              # Headscale service + binary + systemd
+include $(MAKEFILE_DIR)/mk/83_headscale-users.mk        # Users (future)
+include $(MAKEFILE_DIR)/mk/84_headscale-acls.mk         # ACLs (future)
+include $(MAKEFILE_DIR)/mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
+include $(MAKEFILE_DIR)/mk/90_dns-health.mk  # DNS health checks and monitoring
+include $(MAKEFILE_DIR)/mk/90_converge.mk
+include $(MAKEFILE_DIR)/mk/99_lint.mk        # lint and safety checks (always last)
 
 # ============================================================
 # Makefile — homelab certificate orchestration
@@ -84,6 +124,10 @@ help:
 	@echo "    make deps               # Install developer tooling (go, pandoc, checkmake, strace, vnstat)"
 	@echo "    make apt-update         # Force refresh apt cache (normally cached for $(APT_UPDATE_MAX_AGE)s)"
 	@echo "    make check-prereqs      # Verify required host commands (sudo, apt-get, git, ip, wg, etc.)"
+	@echo ""
+	@echo "  Attic (content-addressable cache)"
+	@echo "    make attic              # Ensure Attic is installed, configured, and running"
+	@echo "    make attic-remove       # Remove Attic binary, service, and data"
 	@echo ""
 	@echo "  Linting"
 	@echo "    make lint               # Run permissive lint suite (shellcheck, checkmake, spell, headscale configtest)"
@@ -237,7 +281,7 @@ ensure-known-hosts:
 gitcheck:
 	@if [ ! -d $(HOMELAB_DIR)/.git ]; then \
 		echo "[make] Cloning homelab repo..."; \
-		mkdir -p $(HOME)/src; \
+		mkdir -p $(dir $(HOMELAB_DIR)); \
 		git clone $(HOMELAB_REPO) $(HOMELAB_DIR); \
 	else \
 		echo "[make] homelab repo already present at $(HOMELAB_DIR)"; \
@@ -435,4 +479,9 @@ nft-install-rollback:
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft-rollback.timer
 
-
+#DEBUG
+print-debug:
+	@echo "CURDIR=$(CURDIR)"
+	@echo "MAKEFILE_LIST=$(MAKEFILE_LIST)"
+	@echo "HOMELAB_DIR=$(HOMELAB_DIR)"
+	

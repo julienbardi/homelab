@@ -46,7 +46,7 @@ prereqs: ensure-run-as-root prereqs-network
 	else \
 		echo "➕ Installing Tailscale signing key"; \
 		curl -fsSL $(TAILSCALE_KEY_URL) | \
-			$(run_as_root) tee $(TAILSCALE_KEYRING) >/dev/null
+			$(run_as_root) tee $(TAILSCALE_KEYRING) >/dev/null; \
 	fi
 
 	@echo "[check] Verifying Tailscale repo uses signed-by"
@@ -89,3 +89,18 @@ fix-tailscale-repo: ensure-run-as-root
 		's|^deb .*pkgs.tailscale.com.*|$(TAILSCALE_REPO_LINE)|' \
 		$(TAILSCALE_REPO_FILE)
 	@echo "✅ Tailscale repo updated with signed-by=$(TAILSCALE_KEYRING)"
+
+# ------------------------------------------------------------
+# Rust toolchain (system-wide, use as dependency when needed, e.g. attic)
+# Installed via rustup but exposed system-wide via /usr/local/bin
+# rustup installs into /root/.cargo; binaries are symlinked into /usr/local/bin
+# ------------------------------------------------------------
+.PHONY: rust-system
+
+rust-system: ensure-run-as-root
+	@command -v cargo >/dev/null 2>&1 || { \
+		echo "[make] → Installing Rust system-wide"; \
+		$(run_as_root) sh -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path'; \
+		$(run_as_root) ln -sf /root/.cargo/bin/cargo /usr/local/bin/cargo; \
+		$(run_as_root) ln -sf /root/.cargo/bin/rustc /usr/local/bin/rustc; \
+	}

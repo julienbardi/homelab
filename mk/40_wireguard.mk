@@ -85,8 +85,8 @@ wg-check: ensure-run-as-root $(WG_CHECK_SCRIPT)
 	@echo "▶ validating WireGuard intent"
 	@$(run_as_root) $(WG_CHECK_SCRIPT)
 
-.PHONY: wg-rebuild-all
-wg-rebuild-all: ensure-run-as-root
+.PHONY: wg-rebuild-clean
+wg-rebuild-clean: ensure-run-as-root
 	@echo "⚠️  FULL WireGuard rebuild (keys + config)"
 	@echo "⚠️  This will invalidate ALL existing clients"
 	@echo "⚠️  Press Ctrl-C now if this is not intended"
@@ -95,7 +95,9 @@ wg-rebuild-all: ensure-run-as-root
 	@$(run_as_root) $(SCRIPTS)/wg-record-compromised-keys.sh
 	@echo "▶ destroying existing WireGuard state"
 	@$(run_as_root) $(SCRIPTS)/wg-nuke.sh
-	@$(MAKE) wg-apply
+
+.PHONY: wg-rebuild-all
+wg-rebuild-all: wg-rebuild-clean wg-apply
 	@echo "🔥 WireGuard fully rebuilt with fresh keys"
 
 .PHONY: wg-plan
