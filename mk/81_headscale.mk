@@ -12,6 +12,8 @@ SHELL := /bin/bash
 HEADSCALE_BIN := /usr/local/bin/headscale
 HEADSCALE_URL := https://github.com/juanfont/headscale/releases/download/v0.28.0-beta.1/headscale_0.28.0-beta.1_linux_amd64
 
+.NOTPARALLEL: headscale headscale-restart headscale-verify
+
 # --------------------------------------------------------------------
 # Ensure Headscale binary is installed
 # --------------------------------------------------------------------
@@ -64,16 +66,22 @@ headscale-prereqs: \
 # Headscale orchestration (serialized)
 # --------------------------------------------------------------------
 .PHONY: headscale
-headscale: headscale-prereqs
-	@echo "[make] Restarting Headscale..."
-	@$(run_as_root) systemctl restart headscale
-	@$(MAKE) headscale-acls
-	@$(MAKE) headscale-verify
+headscale: \
+	headscale-prereqs \
+	headscale-restart \
+	headscale-acls \
+	headscale-verify
 	@echo ""
 	@echo "[headscale] ℹ️  For detailed status:"
 	@echo "           sudo systemctl status headscale"
 	@echo "           sudo journalctl -u headscale -n 200"
 	@echo ""
+
+.PHONY: headscale-restart
+headscale-restart: ensure-run-as-root
+	@echo "[make] Restarting Headscale..."
+	@$(run_as_root) systemctl daemon-reload
+	@$(run_as_root) systemctl restart headscale
 
 # --------------------------------------------------------------------
 # Install Headscale systemd unit (static, declarative)

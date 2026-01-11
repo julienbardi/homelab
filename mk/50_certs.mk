@@ -18,7 +18,6 @@ DEPLOY     := $(SCRIPT_DIR)/setup/deploy_certificates.sh
 # --------------------------------------------------------------------
 # Idempotent internal CA creation and deployment helpers
 # --------------------------------------------------------------------
-REPO_ROOT ?= $(HOME)/src/homelab
 SSL_CANONICAL_DIR ?= /var/lib/ssl/canonical
 CA_KEY := /etc/ssl/private/ca/homelab_bardi_CA.key
 CA_PUB := /etc/ssl/certs/homelab_bardi_CA.pem
@@ -29,20 +28,7 @@ CADDY_DEPLOY_DIR ?= /etc/ssl/caddy
 
 # Create CA (idempotent). Uses EC P-384 by default.
 certs-create:
-	@echo "[certs] ensure CA private key + public cert exist"
-	@if [ -f "$(CA_KEY)" -a -f "$(CA_PUB)" ]; then \
-	  echo "[certs] CA already exists: $(CA_PUB)"; \
-	else \
-	  $(run_as_root) mkdir -p /etc/ssl/private/ca; \
-	  $(run_as_root) chmod 700 /etc/ssl/private/ca; \
-	  echo "[certs] generating CA private key $(CA_KEY)"; \
-	  $(run_as_root) openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-384 -out "$(CA_KEY)"; \
-	  $(run_as_root) chmod 0600 "$(CA_KEY)"; \
-	  echo "[certs] generating CA public cert $(CA_PUB)"; \
-	  $(run_as_root) openssl req -x509 -new -key "$(CA_KEY)" -days 3650 -sha256 \
-		-subj "/CN=homelab-bardi-CA/O=bardi.ch/OU=homelab" -out "$(CA_PUB)"; \
-	  $(run_as_root) chmod 0644 "$(CA_PUB)"; \
-	fi
+	@$(run_as_root) scripts/certs-create.sh
 
 .PHONY: gen-client-cert
 gen-client-cert:
@@ -56,14 +42,7 @@ gen-client-cert:
 
 # Deploy CA public cert into canonical store and caddy deploy dir (idempotent)
 certs-deploy: certs-create
-	@echo "[certs] deploying CA public cert to canonical store and caddy"
-	@$(run_as_root) mkdir -p "$(SSL_CANONICAL_DIR)"; \
-	  $(run_as_root) install -m 0644 "$(CA_PUB)" "$(CANON_CA)"; \
-	  $(run_as_root) chown root:root "$(CANON_CA)"; \
-	  $(run_as_root) mkdir -p "$(CADDY_DEPLOY_DIR)"; \
-	  $(run_as_root) install -m 0644 "$(CANON_CA)" "$(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem"; \
-	  $(run_as_root) chown root:root "$(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem"; \
-	  echo "[certs] deployed to $(CANON_CA) and $(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem"
+	@CONF_FORCE=$(CONF_FORCE) $(run_as_root) scripts/certs-deploy.sh
 
 # Ensure CA exists and is deployed (used by other Makefiles)
 certs-ensure: certs-deploy
@@ -118,8 +97,8 @@ certs-rotate:
 	logger -t "$$TAG" -p user.info "Old CA files moved to $$BACKUP_DIR"; \
 	# create and deploy new CA via existing make targets
 	logger -t "$$TAG" -p user.info "Creating new CA"; \
-	$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) certs-create || { logger -t "$$TAG" -p user.err "certs-create failed"; exit 1; }; \
-	$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) certs-deploy || { logger -t "$$TAG" -p user.err "certs-deploy failed"; exit 1; }; \
+	$(run_as_root) scripts/certs-create.sh || { logger -t "$$TAG" -p user.err "certs-create failed"; exit 1; }; \
+	CONF_FORCE=$(CONF_FORCE) $(run_as_root) scripts/certs-deploy.sh || { logger -t "$$TAG" -p user.err "certs-deploy failed"; exit 1; }; \
 	logger -t "$$TAG" -p user.info "New CA created and deployed"; \
 	# list affected clients
 	clients=$$(ls -1 "$$CLIENT_DIR"/*.p12 2>/dev/null | xargs -n1 basename 2>/dev/null | sed "s/\.p12$$//") || true; \

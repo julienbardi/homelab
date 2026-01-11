@@ -40,19 +40,17 @@ tailscale-repo: ensure-run-as-root
 	@$(call apt_update_if_needed)
 	@echo "✅ Tailscale repository configured"
 
-install-pkg-tailscale: ensure-run-as-root tailscale-repo
+install-pkg-tailscale: ensure-run-as-root tailscale-repo verify-pkg-tailscale
 	@echo "📦 Installing Tailscale (client + daemon)"
 	@$(call apt_install,tailscale,tailscale)
 	@$(run_as_root) systemctl enable --now tailscaled >/dev/null 2>&1 || true
-	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) verify-pkg-tailscale
 	@echo "✅ Tailscale installed and running"
 
-upgrade-pkg-tailscale: ensure-run-as-root tailscale-repo
+upgrade-pkg-tailscale: ensure-run-as-root tailscale-repo verify-pkg-tailscale
 	@echo "⬆️ Upgrading Tailscale to latest stable"
 	@$(call apt_update_if_needed)
 	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y tailscale
 	@$(run_as_root) systemctl restart tailscaled >/dev/null 2>&1
-	@$(MAKE) verify-pkg-tailscale
 	@echo "✅ Tailscale upgraded"
 
 remove-pkg-tailscale: ensure-run-as-root
@@ -207,9 +205,13 @@ PANDOC_SHA256 := 5d4ecbf9c616360a9046e14685389ff2898088847e5fb260eedecd023453995
 PANDOC_DEB := /tmp/pandoc-$(PANDOC_VERSION)-amd64.deb
 STAMP_PANDOC := $(STAMP_DIR)/pandoc.installed
 
+.PHONY: fetch-pandoc
+fetch-pandoc:
+	$(call attic_fetch_window,$(PANDOC_DEB_URL),$(PANDOC_DEB),3600)
+
 .SILENT: install-pkg-pandoc
 
-install-pkg-pandoc: ensure-run-as-root
+install-pkg-pandoc: ensure-run-as-root fetch-pandoc
 	@$(run_as_root) install -d -m 0755 $(STAMP_DIR); \
 	installed_bin=$$(command -v pandoc 2>/dev/null || true); \
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
@@ -220,10 +222,8 @@ install-pkg-pandoc: ensure-run-as-root
 		echo "[make] pandoc $(PANDOC_VERSION) already installed"; \
 		exit 0; \
 	fi; \
-	rm -f $(PANDOC_DEB); \
 	set -euo pipefail; \
 	trap 'rm -f "$(PANDOC_DEB)";' EXIT; \
-	curl -fsSL "$(PANDOC_DEB_URL)" -o "$(PANDOC_DEB)"; \
 	echo "$(PANDOC_SHA256)  $(PANDOC_DEB)" | sha256sum -c - >/dev/null; \
 	DEBIAN_FRONTEND=noninteractive $(run_as_root) dpkg -i "$(PANDOC_DEB)" >/dev/null 2>&1 || true; \
 	$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get -y -f install --no-install-recommends >/dev/null; \
