@@ -227,16 +227,21 @@ dns-runtime: \
 	@echo "⚙️ [make] DNS runtime helpers ensured (dnsdist + dns-warm)"
 
 # --- Reset + bootstrap ---
-dns-reset: assert-unbound-tools
+.PHONY: dns-reset-clean
+dns-reset-clean:
 	@echo "🧹 [make] Stopping Unbound and clearing state..."
 	@$(run_as_root) systemctl stop unbound || true
 	@$(run_as_root) rm -rf /run/unbound /var/lib/unbound/* || true
-	@echo "🔄 [make] Redeploying Unbound configs and service..."
-	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) deploy-unbound
-	@echo "🔑 [make] Re-initializing remote-control..."
-	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) setup-unbound-control
-	@echo "🔍 [make] Running dns_setup.sh..."
-	@$(MAKE) FORCE=$(FORCE) CONF_FORCE=$(CONF_FORCE) dns
+
+.PHONY: dns-reset
+dns-reset: FORCE := $(FORCE)
+dns-reset: CONF_FORCE := $(CONF_FORCE)
+dns-reset: \
+	assert-unbound-tools \
+	dns-reset-clean \
+	deploy-unbound \
+	setup-unbound-control \
+	dns
 	@echo "✅ [make] DNS reset + bootstrap complete"
 
 # --- Health check ---

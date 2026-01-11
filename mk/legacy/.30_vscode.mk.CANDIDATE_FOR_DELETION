@@ -60,15 +60,16 @@ caddy-preview:
 	@diff -u "$(CADDY_DST)" "$(CADDY_WORK)/Caddyfile" || true
 
 # ----- Select mode: mTLS -----
-caddy-mode-mtls:
+caddy-mode-mtls: CODE_SNIPPET := $(CODE_SNIPPET_MTLS)
+caddy-mode-mtls: caddy-preview
 	@echo "[Caddy] Mode: mTLS"
-	@$(MAKE) CODE_SNIPPET="$(CODE_SNIPPET_MTLS)" caddy-preview
+
 
 # ----- Select mode: Basic Auth -----
-caddy-mode-basic:
+caddy-mode-basic: CODE_SNIPPET := $(CODE_SNIPPET_BASIC)
+caddy-mode-basic: caddy-preview
 	@test -n "$(BASIC_AUTH_HASH)" || (echo "[ERR] BASIC_AUTH_HASH is empty. Run: make caddy-bcrypt PW=yourpassword"; exit 1)
 	@echo "[Caddy] Mode: Basic Auth (user=$(BASIC_AUTH_USER))"
-	@$(MAKE) CODE_SNIPPET="$(CODE_SNIPPET_BASIC)" caddy-preview
 
 # ----- Deploy staged Caddyfile and reload -----
 caddy-deploy:

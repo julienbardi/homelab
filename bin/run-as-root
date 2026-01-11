@@ -10,11 +10,16 @@
 # - This allows commands with arguments, quotes, >, |, &&, ||.
 # - In Makefiles, escape operators (\>, \|, \&\&) so they survive parsing.
 # --------------------------------------------------------------------
-
 set -euo pipefail
-
+[ "$#" -gt 0 ] || {
+    echo "run-as-root: no command specified" >&2
+    exit 64
+}
+# Environment variables allowed to cross the privilege boundary.
+# This list is policy: changes must be deliberate and reviewed.
+PRESERVE_ENV="DEBIAN_FRONTEND,SRC_ATTIC_CONFIG,SRC_ATTIC_SERVICE,ATTIC_REF"
 if [ "$(id -u)" -eq 0 ]; then
 	exec "$@"
 else
-	exec sudo --preserve-env=DEBIAN_FRONTEND -- "$@"
+	exec sudo --preserve-env="$PRESERVE_ENV" -- "$@"
 fi

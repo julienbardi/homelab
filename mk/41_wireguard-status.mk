@@ -25,7 +25,9 @@ EXPORT_DIR    := $(WG_ROOT)/export/clients
 SCRIPTS := $(CURDIR)/scripts
 
 .PHONY: \
-	wg-clients wg-show-client-key \
+	wg-clients \
+	wg-show-client-key-validate \
+	wg-show-client-key \
 	wg-intent wg-intent-ifaces wg-intent-bases \
 	wg-compiled wg-deployed \
 	wg-status wg-runtime \
@@ -84,14 +86,16 @@ wg-clients:
 				user, machine, iface, base, iface \
 		}'
 
-# Show the compiled private key for a client (from compiled artifacts).
-# Usage: make wg-show-client-key BASE=foo-bar IFACE=wg3
-wg-show-client-key:
+.PHONY: wg-show-client-key-validate
+wg-show-client-key-validate:
 	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
 		echo "Usage: make wg-show-client-key BASE=<base> IFACE=<iface>" >&2; \
 		exit 1; \
 	fi
-	@$(MAKE) --no-print-directory wg-show BASE=$(BASE) IFACE=$(IFACE)
+
+# Show the compiled private key for a client (from compiled artifacts).
+# Usage: make wg-show-client-key BASE=foo-bar IFACE=wg3
+wg-show-client-key: wg-show-client-key-validate wg-show
 
 # ------------------------------------------------------------
 # Compiled artifacts view
@@ -105,7 +109,7 @@ wg-compiled:
 	@echo "  exports:     $(EXPORT_DIR)"
 	@echo
 	@echo "Interfaces (from intent):"
-	@$(MAKE) --no-print-directory wg-intent-ifaces | sed 's/^/  - /'
+	@$(SCRIPTS)/wg-plan-ifaces.sh "$(PLAN)" | sed 's/^/  - /'
 	@echo
 	@echo "Server pubkeys present:"
 	@ls -1 "$(SERVER_PUBDIR)"/*.pub 2>/dev/null | sed 's|.*/|  - |' || echo "  (none)"
