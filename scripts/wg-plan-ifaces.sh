@@ -4,8 +4,6 @@
 
 set -euo pipefail
 
-: "${WG_ROOT:?WG_ROOT not set}"
-
 PLAN_READER="$(dirname "$0")/wg-plan-read.sh"
 
 [ -x "$PLAN_READER" ] || {
