@@ -13,7 +13,7 @@
 # Keeps bin/run-as-root unchanged (argv tokens contract).
 # ============================================================
 
-.PHONY: converge-network
+.PHONY: converge-network regen-clients-all
 
 converge-network:
 	@if [ "$(FORCE)" != "1" ]; then \
@@ -23,18 +23,28 @@ converge-network:
 	fi
 	@echo "🚀 Converging full WireGuard + firewall state"
 
-	$(run_as_root) $(MAKE) all-wg CONF_FORCE=1
+	$(MAKE) -f $(MAKEFILE_CANONICAL) all-wg CONF_FORCE=1
 
 	@echo "🔁 Regenerating client configs (parallel)"
-	$(run_as_root) /bin/sh -eu -c '\
-		set -o pipefail; \
-		for i in 0 1 2 3 4 5 6 7; do \
-			FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1 $(MAKE) regen-clients IFACE=wg$$i & \
-		done; \
-		wait'
+	$(MAKE) -f $(MAKEFILE_CANONICAL) regen-clients-all FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1
 
-	$(run_as_root) $(MAKE) all-wg-up
-	$(run_as_root) $(MAKE) wg-add-peers
+	$(MAKE) -f $(MAKEFILE_CANONICAL) all-wg-up
+	$(MAKE) -f $(MAKEFILE_CANONICAL) wg-add-peers
 	$(run_as_root) scripts/setup-subnet-router.nft.sh
 
 	@echo "✅ Network convergence complete"
+
+# ------------------------------------------------------------
+# Parallel client regeneration (Make-level fan-out)
+# ------------------------------------------------------------
+
+ifneq ($(filter command line environment,$(origin WG_ROOT)),)
+WG_IFACES = $(shell $(SCRIPTS)/wg-plan-ifaces.sh "$(WG_ROOT)/compiled/plan.tsv")
+endif
+
+regen-clients-all: $(WG_IFACES:%=regen-client-%)
+
+.PHONY: $(WG_IFACES:%=regen-client-%)
+
+regen-client-%:
+	$(MAKE) -f $(MAKEFILE_CANONICAL) regen-clients IFACE=$*

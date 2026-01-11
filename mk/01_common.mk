@@ -7,8 +7,7 @@
 # - Do not wrap entire command in quotes.
 # - Escape operators (\>, \|, \&\&, \|\|) so they survive Make parsing.
 # --------------------------------------------------------------------
-# Repo root (overrideable by top-level Makefile / environment)
-HOMELAB_DIR ?= $(CURDIR)
+
 
 # Fallback for recursive make (do not force; let make set it if present)
 MAKE ?= $(MAKE)

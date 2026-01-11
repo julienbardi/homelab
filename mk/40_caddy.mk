@@ -8,7 +8,7 @@ CADDYFILE    := /etc/caddy/Caddyfile
 SRC_CADDYFILE:= $(HOMELAB_DIR)/config/caddy/Caddyfile
 
 .PHONY: caddy
-caddy: ensure-run-as-root gitcheck assert-caddy-ports-free
+caddy: ensure-run-as-root gitcheck assert-caddy-ports-free deploy-caddy
 	@set -euo pipefail; \
 	echo "📄⬇️ Installing Caddyfile"; \
 	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
@@ -42,7 +42,6 @@ caddy: ensure-run-as-root gitcheck assert-caddy-ports-free
 	else \
 		$(run_as_root) systemctl start caddy && echo "✅ Started successfully"; \
 	fi
-	@$(MAKE) deploy-caddy
 
 .PHONY: caddy-validate caddy-fmt
 

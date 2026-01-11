@@ -2,30 +2,30 @@
 # mk/99_lint.mk — lint orchestration
 # ============================================================
 
-REPO_ROOT := $(abspath $(CURDIR)/..)
-
 # Tools (allow override)
 SHELLCHECK ?= shellcheck
-SHELLCHECK_OPTS ?= -s bash -x --external-sources --source-path=$(REPO_ROOT)
+SHELLCHECK_OPTS ?= -s bash -x --external-sources --source-path=$(HOMELAB_DIR)
 CODESPELL ?= codespell
 ASPELL ?= aspell
 CHECKMAKE ?= checkmake
 
 # Files to lint
 # Prefer git-tracked files; fallback to find for non-git contexts
-SH_FILES := $(shell git -C $(REPO_ROOT) ls-files '*.sh' 2>/dev/null || true)
+SH_FILES := $(shell git -C $(HOMELAB_DIR) ls-files '*.sh' 2>/dev/null || true)
 ifeq ($(strip $(SH_FILES)),)
-SH_FILES := $(shell find $(REPO_ROOT) -type f -name '*.sh' -print)
+SH_FILES := $(shell find $(HOMELAB_DIR) -type f -name '*.sh' -print)
 endif
 
-MK_FILES := $(shell git -C $(REPO_ROOT) ls-files 'mk/*.mk' 2>/dev/null || true)
+MK_FILES := $(shell git -C $(HOMELAB_DIR) ls-files 'mk/*.mk' 2>/dev/null || true)
 ifeq ($(strip $(MK_FILES)),)
-MK_FILES := $(wildcard $(REPO_ROOT)/mk/*.mk)
+MK_FILES := $(wildcard $(HOMELAB_DIR)/mk/*.mk)
 endif
 
-MAKEFILES := $(REPO_ROOT)/Makefile $(MK_FILES)
+MAKEFILES := $(HOMELAB_DIR)/Makefile $(MK_FILES)
 
-.PHONY: lint lint-all lint-fast lint-ci lint-scripts lint-shellcheck lint-shellcheck-strict \
+.PHONY: lint lint-all lint-fast lint-ci lint-scripts-partial lint-scripts \
+		lint-shellcheck \
+		lint-shellcheck-strict \
 		lint-config lint-makefile lint-makefile-strict lint-headscale lint-spell lint-spell-strict
 
 # Default lint target: permissive full suite
@@ -42,7 +42,7 @@ lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-head
 	@echo "[lint-ci] All checks passed (strict mode)."
 
 # Run shell syntax check and ShellCheck across all tracked .sh files (permissive)
-lint-scripts:
+lint-scripts-partial:
 	@echo "[lint] Checking shell syntax for tracked .sh files..."
 	@if [ -z "$(SH_FILES)" ]; then \
 	  echo "[lint] No shell files found to lint"; \
@@ -51,8 +51,7 @@ lint-scripts:
 		echo "[lint] bash -n $$f"; bash -n "$$f" || { echo "[lint] Syntax error in $$f"; exit 1; }; \
 	  done; \
 	fi
-	@echo "[lint] Running ShellCheck (permissive)..."
-	@$(MAKE) lint-shellcheck
+lint-scripts: lint-scripts-partial lint-shellcheck
 
 # ShellCheck permissive: never fails the whole run (useful for local dev)
 lint-shellcheck:
@@ -93,7 +92,7 @@ lint-spell:
 	@echo "[lint] Running codespell and aspell (permissive)..."
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
-	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(REPO_ROOT) || true; \
+	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(HOMELAB_DIR) || true; \
 	else \
 	  echo "[lint] codespell not installed; skipping codespell"; \
 	fi
@@ -112,7 +111,7 @@ lint-spell-strict:
 	@echo "[lint-ci] Running codespell and aspell (strict)..."
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
-	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(REPO_ROOT); \
+	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(HOMELAB_DIR); \
 	else \
 	  echo "[lint-ci] ERROR: codespell not installed; install with 'make deps' or set CODESPELL=..."; exit 2; \
 	fi
@@ -131,7 +130,7 @@ lint-spell-strict:
 lint-makefile:
 	@echo "[lint] Linting Makefiles and mk/*.mk (permissive)..."
 	@if command -v $(CHECKMAKE) >/dev/null 2>&1; then \
-	  for mf in $(REPO_ROOT)/Makefile $(MK_FILES); do \
+	  for mf in $(HOMELAB_DIR)/Makefile $(MK_FILES); do \
 		[ -f "$$mf" ] || continue; \
 		echo "[checkmake] $$mf"; \
 		$(CHECKMAKE) "$$mf" || true; \
@@ -148,7 +147,7 @@ lint-makefile-strict:
 	@if ! command -v $(CHECKMAKE) >/dev/null 2>&1; then \
 	  echo "[lint-ci] ERROR: checkmake not installed; install with 'make deps' or set CHECKMAKE=..."; exit 2; \
 	else \
-	  for mf in $(REPO_ROOT)/Makefile $(MK_FILES); do \
+	  for mf in $(HOMELAB_DIR)/Makefile $(MK_FILES); do \
 		[ -f "$$mf" ] || continue; \
 		echo "[checkmake] $$mf"; \
 		$(CHECKMAKE) "$$mf" || { echo "[checkmake] Issues in $$mf"; exit 1; }; \

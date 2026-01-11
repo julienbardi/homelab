@@ -1,0 +1,89 @@
+# ------------------------------------------------------------
+# Core server settings
+# ------------------------------------------------------------
+
+# Listen address for the Attic server
+listen = "0.0.0.0:8082"
+
+# Hosts allowed to access the server
+# do not add "::/0" as this exposes Attic globally if IPv6 routing exists
+allowed-hosts = [
+  "127.0.0.1",
+  "::1",
+
+  "10.89.12.0/24",             # LAN IPv4
+  "2a01:8b81:4800:9c00::/64",  # LAN IPv6
+  "100.64.0.0/10",             # Tailscale IPv4
+  "fd7a:115c:a1e0::/48"        # Tailscale IPv6
+]
+
+# Public API endpoint (used in narinfo URLs)
+api-endpoint = "http://nas:8082"
+
+# Substituter endpoint advertised to clients
+substituter-endpoint = "http://nas:8082"
+
+# ------------------------------------------------------------
+# Security & protocol behavior
+# ------------------------------------------------------------
+
+# Allow soft deletion of caches (recommended for GC safety)
+soft-delete-caches = true
+
+# Require proof‑of‑possession for uploads (recommended)
+require-proof-of-possession = true
+
+# Maximum allowed narinfo size (integer as bytes)
+max-nar-info-size = 8388608
+
+# ------------------------------------------------------------
+# Storage backend
+# ------------------------------------------------------------
+
+[storage]
+type = "local"
+path = "/volume1/homelab/attic/store"
+
+# ------------------------------------------------------------
+# Database backend
+# ------------------------------------------------------------
+
+[database]
+url = "sqlite:///volume1/homelab/attic/index/index.sqlite"
+
+# ------------------------------------------------------------
+# Chunking configuration
+# ------------------------------------------------------------
+
+[chunking]
+algorithm = "fastcdc"
+nar-size-threshold = 1048576
+min-size = 65536
+avg-size = 1048576
+max-size = 8388608
+
+# ------------------------------------------------------------
+# Compression configuration
+# ------------------------------------------------------------
+
+[compression]
+type = "zstd"
+level = 6
+
+# ------------------------------------------------------------
+# Garbage collection policy
+# ------------------------------------------------------------
+
+[garbage-collection]
+enabled = true
+max-store-size = "1000GB"
+min-free-space = "200GB"
+
+# ------------------------------------------------------------
+# Authentication (JWT)
+# ------------------------------------------------------------
+
+[jwt]
+issuer = "attic"
+audience = "attic-clients"
+expiration = "24h"

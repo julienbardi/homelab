@@ -39,6 +39,7 @@ headscale-acls:
 		fi; \
 		if [ $$changed -eq 1 ]; then \
 			echo "[headscale] Restarting headscale due to ACL update"; \
+			systemctl daemon-reload; \
 			systemctl restart headscale; \
 		fi \
 	'

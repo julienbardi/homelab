@@ -57,10 +57,14 @@ dns-warm-install: \
 	dns-warm-install-systemd \
 	dns-warm-enable
 
+dns-warm-status: dns-warm-enable
+	@$(run_as_root) systemctl status $(TIMER) --no-pager || true
+	@$(run_as_root) systemctl status $(SERVICE) --no-pager || true
+
 dns-warm-enable:
 	@echo "Enabling dns-warm timer..."
 	@$(run_as_root) systemctl enable --now $(TIMER)
-	@$(MAKE) dns-warm-status
+
 
 dns-warm-disable:
 	@echo "Disabling dns-warm timer..."
@@ -72,10 +76,6 @@ dns-warm-start:
 
 dns-warm-stop:
 	@$(run_as_root) systemctl stop $(SERVICE)
-
-dns-warm-status:
-	@$(run_as_root) systemctl status $(TIMER) --no-pager || true
-	@$(run_as_root) systemctl status $(SERVICE) --no-pager || true
 
 dns-warm-uninstall: dns-warm-disable
 	@echo "Removing dns-warm components..."
