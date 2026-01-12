@@ -36,7 +36,7 @@ This repository enforces a *canonical Make graph*.$(NL)$(NL)\
 	③ Keep the same targets$(NL)$(NL)\
 ✅ Correct invocation:$(NL)\
 $(NL)\
-make $(if $(MAKEFLAGS),$(MAKEFLAGS) )-f $(MAKEFILE_CANONICAL)$(if $(MAKECMDGOALS), $(MAKECMDGOALS))$(NL)\
+time make $(if $(MAKEFLAGS),$(MAKEFLAGS) )-f $(MAKEFILE_CANONICAL)$(if $(MAKECMDGOALS), $(MAKECMDGOALS))$(NL)\
 $(NL)\
 ⚠️ Note: Flags (e.g. -j) are not shown here due to a Make limitation, but they are fully supported.$(NL)\
 $(NL)\
@@ -75,7 +75,6 @@ include $(MAKEFILE_DIR)/mk/00_prereqs.mk
 include $(MAKEFILE_DIR)/mk/01_common.mk
 include $(MAKEFILE_DIR)/mk/05_bootstrap_wireguard.mk
 include $(MAKEFILE_DIR)/mk/10_groups.mk      # group membership enforcement (security bootstrap)
-include $(MAKEFILE_DIR)/mk/20_attic.mk
 include $(MAKEFILE_DIR)/mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include $(MAKEFILE_DIR)/mk/20_net-tunnel.mk
 include $(MAKEFILE_DIR)/mk/30_config_validation.mk
@@ -124,10 +123,6 @@ help:
 	@echo "    make deps               # Install developer tooling (go, pandoc, checkmake, strace, vnstat)"
 	@echo "    make apt-update         # Force refresh apt cache (normally cached for $(APT_UPDATE_MAX_AGE)s)"
 	@echo "    make check-prereqs      # Verify required host commands (sudo, apt-get, git, ip, wg, etc.)"
-	@echo ""
-	@echo "  Attic (content-addressable cache)"
-	@echo "    make attic              # Ensure Attic is installed, configured, and running"
-	@echo "    make attic-remove       # Remove Attic binary, service, and data"
 	@echo ""
 	@echo "  Linting"
 	@echo "    make lint               # Run permissive lint suite (shellcheck, checkmake, spell, headscale configtest)"

@@ -56,7 +56,7 @@ define attic_fetch
 			echo "   • Cache miss → downloading"; \
 			curl -L "$(1)" -o "$(2)"; \
 			echo "   • Uploading to Attic"; \
-			$(run_as_root) $(ATTIC_CLIENT_BIN) push $(ATTIC_SERVER) $$HASH "$(2)"; \
+			$(ATTIC_CLIENT_BIN) push $(ATTIC_SERVER) $$HASH "$(2)"; \
 		fi; \
 	else \
 		echo "   • Attic unavailable → direct download"; \
@@ -79,14 +79,14 @@ attic-restart: ensure-run-as-root
 	@$(run_as_root) systemctl restart attic
 
 .PHONY: attic-gc
-attic-gc: ensure-run-as-root
+attic-gc:
 	@echo "→ Running Attic garbage collection"
-	@$(run_as_root) $(ATTIC_CLIENT_BIN) gc $(ATTIC_SERVER)
+	@$(ATTIC_CLIENT_BIN) gc $(ATTIC_SERVER)
 
 .PHONY: attic-info
-attic-info: ensure-run-as-root
+attic-info:
 	@echo "→ Attic server info"
-	@$(run_as_root) $(ATTIC_CLIENT_BIN) info $(ATTIC_SERVER)
+	@$(ATTIC_CLIENT_BIN) info $(ATTIC_SERVER)
 
 # ------------------------------------------------------------
 # Attic CAS end-to-end test
@@ -94,19 +94,21 @@ attic-info: ensure-run-as-root
 
 .PHONY: attic-test
 attic-test:
-	@echo "→ Testing Attic CAS end-to-end"
-	@TMP1=$$(mktemp); \
-	 TMP2=$$(mktemp); \
-	 URL="https://example.com"; \
-	 HASH=$$(printf "%s" "$$URL" | sha256sum | awk '{print $$1}'); \
-	 echo "   Downloading test file"; \
-	 curl -sL "$$URL" -o "$$TMP1"; \
-	 echo "   Pushing to Attic"; \
-	 $(ATTIC_CLIENT_BIN) push $(ATTIC_SERVER) $$HASH "$$TMP1"; \
-	 echo "   Pulling back"; \
-	 $(ATTIC_CLIENT_BIN) pull $(ATTIC_SERVER) $$HASH > "$$TMP2"; \
-	 echo "   Verifying"; \
-	 diff "$$TMP1" "$$TMP2" && echo "   ✔ Attic CAS test passed" || echo "   ✘ Attic CAS test failed"
+	@echo "→ Testing Attic binary cache end-to-end"
+
+	@echo "   Ensuring Attic cache exists"
+	@$(ATTIC_CLIENT_BIN) cache create homelab >/dev/null 2>&1 || true
+
+	@echo "   Configuring Nix to use Attic cache"
+	@$(ATTIC_CLIENT_BIN) use homelab
+
+	@echo "   Building test derivation (initial build)"
+	@nix build nixpkgs#hello --no-link
+
+	@echo "   Rebuilding to verify cache hit"
+	@nix build nixpkgs#hello --no-link --rebuild
+
+	@echo "   ✔ Attic binary cache test passed"
 
 # ------------------------------------------------------------
 # attic_store_local — CAS push for local files
@@ -116,7 +118,7 @@ define attic_store_local
 	HASH=$$(sha256sum "$(1)" | awk '{print $$1}'); \
 	if [ "$(ATTIC_AVAILABLE)" = "1" ] && [ -x "$(ATTIC_CLIENT_BIN)" ]; then \
 		echo "   • Attic available → pushing"; \
-		$(run_as_root) $(ATTIC_CLIENT_BIN) push $(ATTIC_SERVER) $$HASH "$(1)"; \
+		$(ATTIC_CLIENT_BIN) push $(ATTIC_SERVER) $$HASH "$(1)"; \
 	else \
 		echo "   • Attic unavailable → skipping"; \
 	fi
@@ -151,6 +153,11 @@ attic-install: rust-system attic-db-init | ensure-run-as-root
 		$(run_as_root) systemctl status attic --no-pager; \
 		exit 1; \
 	}
+	@echo "1️⃣ Create a token on the NAS (once)"
+	@echo "atticadm make-token --sub homelab-client --validity '3 months' --create-cache homelab --push homelab --pull homelab"
+	@echo "2️⃣ Distribute the token securely"
+	@echo "3️⃣ Non‑interactive login on the client"
+	@echo "attic login homelab http://nas:8082 <token>"
 
 # ------------------------------------------------------------
 # Readiness marker
@@ -211,52 +218,122 @@ define attic_fetch_window
 		curl -fsSL "$$URL" -o "$$DEST"; \
 		if [ "$(ATTIC_AVAILABLE)" = "1" ] && [ -x "$(ATTIC_CLIENT_BIN)" ]; then \
 			echo "   • Uploading to Attic"; \
-			$(run_as_root) $(ATTIC_CLIENT_BIN) push $(ATTIC_SERVER) $$HASH "$$DEST"; \
+			$(ATTIC_CLIENT_BIN) push $(ATTIC_SERVER) $$HASH "$$DEST"; \
 		fi; \
 	fi
 endef
 
-# Attic client installation (Cargo-based, no Nix)
-# fails 
-# The system library `nix-main` required by crate `attic` was not found.
-# The file `nix-main.pc` needs to be installed
-#
-ATTIC_REPO        := https://github.com/zhaofengli/attic.git
-ATTIC_SRC         := /usr/local/src/attic
-ATTIC_CLIENT_BIN  := /usr/local/bin/attic
+# ------------------------------------------------------------
+# Attic client installation (Nix-based)
+# ------------------------------------------------------------
 
-STAMP_ATTIC_CLIENT := $(STAMP_DIR)/attic-client.installed
+ATTIC_CLIENT_WRAPPER := $(HOMELAB_DIR)/bin/attic
+ATTIC_CLIENT_PROFILE ?= github:zhaofengli/attic
 
-.PHONY: install-attic-client remove-attic-client
+.PHONY: install-attic-client remove-attic-client attic-client-status
 
-install-attic-client: ensure-run-as-root
-	@echo "📦 Installing Attic client (Cargo build)"
-	@$(run_as_root) install -d -m 0755 $(STAMP_DIR)
-	@if [ -x "$(ATTIC_CLIENT_BIN)" ] && [ -f "$(STAMP_ATTIC_CLIENT)" ]; then \
-		echo "[make] Attic client already installed; skipping"; \
-		exit 0; \
+install-attic-client: ensure-run-as-root ensure-nix-command
+	@echo "📦 Installing Attic client (Nix-based)"
+	@$(HOMELAB_DIR)/scripts/install-attic-client-nix.sh
+	@echo "✅ Attic client installed (Nix)"
+
+attic-client-status:
+	@echo "→ Attic client status"
+	@if [ -x "$(ATTIC_CLIENT_BIN)" ]; then \
+		echo "   • wrapper: $(ATTIC_CLIENT_BIN)"; \
+	else \
+		echo "   • wrapper: missing"; \
 	fi
-	@if [ ! -d "$(ATTIC_SRC)/.git" ]; then \
-		echo "[make] Cloning Attic source"; \
-		$(run_as_root) mkdir -p "$(dir $(ATTIC_SRC))"; \
-		$(run_as_root) git clone "$(ATTIC_REPO)" "$(ATTIC_SRC)"; \
+	@if test -x "$$(command -v nix)"; then \
+		nix profile list | sed 's/^/   • profile: /' || true; \
+	else \
+		echo "   • nix: not installed"; \
 	fi
-	@echo "[make] Checking out Attic revision $(ATTIC_REF)"
-	@$(run_as_root) git -C "$(ATTIC_SRC)" \
-		-c safe.directory="$(ATTIC_SRC)" \
-		fetch --tags
-	@$(run_as_root) git -C "$(ATTIC_SRC)" \
-		-c safe.directory="$(ATTIC_SRC)" \
-		-c advice.detachedHead=false \
-		checkout "$(ATTIC_REF)"
-	@echo "[make] Building Attic client"
-	@$(run_as_root) bash -c 'cd "$(ATTIC_SRC)" && cargo build --release -p attic-client'
-	@$(run_as_root) install -m 0755 "$(ATTIC_SRC)/target/release/attic" "$(ATTIC_CLIENT_BIN)"
-	@echo "version=$(ATTIC_REF) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| $(run_as_root) tee "$(STAMP_ATTIC_CLIENT)" >/dev/null
-	@echo "✅ Attic client installed"
 
 remove-attic-client: ensure-run-as-root
-	@echo "🗑️ Removing Attic client"
-	@$(run_as_root) rm -f "$(ATTIC_CLIENT_BIN)" "$(STAMP_ATTIC_CLIENT)"
-	@echo "✅ Attic client removed"
+	@echo "🗑️ Removing Attic client wrapper + stamp (Nix profile untouched)"
+	@$(run_as_root) rm -f "$(ATTIC_CLIENT_BIN)"
+	@echo "✅ Attic client wrapper removed"
+
+.PHONY: ensure-nix-command
+
+ensure-nix-command:
+	@command -v nix >/dev/null 2>&1 || { \
+		echo "[make] ❌ nix not found in PATH"; \
+		echo "[make] → install Nix first"; \
+		exit 1; \
+	}
+	@nix profile list >/dev/null 2>&1 || { \
+		echo "[make] ❌ nix-command feature is disabled"; \
+		echo "[make]"; \
+		echo "[make] → run: make fix-nix-command"; \
+		echo "[make] → or enable it manually in /etc/nix/nix.conf"; \
+		exit 1; \
+	}
+
+.PHONY: fix-nix-command
+
+fix-nix-command: ensure-run-as-root
+	@echo "[make] → Enabling nix-command + flakes globally"
+
+	@echo "[make] → Ensuring /etc/nix exists"
+	@$(run_as_root) install -d -m 0755 /etc/nix
+
+	@echo "[make] → Updating /etc/nix/nix.conf"
+	@$(run_as_root) sh -c '\
+		if [ -f /etc/nix/nix.conf ]; then \
+			if grep -q "^experimental-features" /etc/nix/nix.conf; then \
+				sed -i "s/^experimental-features.*/experimental-features = nix-command flakes/" /etc/nix/nix.conf; \
+			else \
+				echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf; \
+			fi; \
+		else \
+			echo "experimental-features = nix-command flakes" > /etc/nix/nix.conf; \
+		fi'
+
+	@if systemctl list-unit-files nix-daemon.service >/dev/null 2>&1; then \
+		echo "[make] → Restarting nix-daemon"; \
+		$(run_as_root) systemctl restart nix-daemon; \
+	else \
+		echo "[make] → nix-daemon not present (single-user Nix)"; \
+	fi
+
+	@echo "[make] ✅ nix-command enabled"
+
+
+.PHONY: attic-bootstrap-test
+attic-bootstrap-test: ensure-run-as-root
+	@echo "→ 1. Install Attic server + client"
+	@$(run_as_root) "$(HOMELAB_DIR)/scripts/bootstrap-attic.sh"
+
+	@echo "→ 2. Restart Attic service"
+	@$(run_as_root) systemctl restart attic
+	@sleep 2
+
+	@echo "→ 3. Generate token"
+	@TOKEN="$$(atticadm make-token \
+		--sub homelab-client \
+		--validity '3 months' \
+		--create-cache homelab \
+		--push homelab \
+		--pull homelab)"; \
+	echo "$$TOKEN" > $(HOMELAB_DIR)/attic-test.token; \
+	echo "   Token saved to attic-test.token"
+
+	@echo "→ 4. Login using token"
+	@attic login homelab http://nas:8082 "$$(cat $(HOMELAB_DIR)/attic-test.token)"
+
+	@echo "→ 5. Create cache"
+	@attic cache create homelab || true
+
+	@echo "→ 6. Download test file"
+	@curl -fsSL https://nixos.org/logo/nix-logo.png -o /tmp/nix-logo.png
+
+	@echo "→ 7. Push file into Attic"
+	@HASH="$$(sha256sum /tmp/nix-logo.png | awk '{print $$1}')"; \
+	attic push homelab $$HASH /tmp/nix-logo.png
+
+	@echo "→ 8. Verify pull"
+	@attic pull homelab $$HASH > /tmp/nix-logo-pulled.png
+
+	@echo "✔ Attic end-to-end bootstrap test complete"
