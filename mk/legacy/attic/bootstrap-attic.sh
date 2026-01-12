@@ -13,7 +13,9 @@ ATTIC_ROOT="${ATTIC_ROOT:-/volume1/homelab/attic}"
 DST_ATTIC_CONFIG="${ATTIC_ROOT}/config.toml"
 DST_ATTIC_SERVICE="/etc/systemd/system/attic.service"
 
-ATTIC_REPO="https://github.com/zhaofengli/attic.git"
+ATTIC_REPO="https://github.com/attic-rs/attic.git"
+ATTIC_REPO="git@github.com:attic-rs/attic.git"
+
 ATTIC_SRC="/usr/local/src/attic"
 ATTIC_SERVER_BIN="/usr/local/bin/atticd"
 
