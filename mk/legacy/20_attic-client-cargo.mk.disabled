@@ -1,0 +1,45 @@
+# Attic client installation (Cargo-based, no Nix)
+# fails 
+# The system library `nix-main` required by crate `attic` was not found.
+# The file `nix-main.pc` needs to be installed
+#
+ATTIC_REPO        := https://github.com/zhaofengli/attic.git
+ATTIC_SRC         := /usr/local/src/attic
+ATTIC_CLIENT_BIN  := /usr/local/bin/attic
+
+STAMP_ATTIC_CLIENT := $(STAMP_DIR)/attic-client.installed
+
+.PHONY: install-attic-client remove-attic-client
+
+install-attic-client-cargo-legacy: ensure-run-as-root
+	@echo "📦 Installing Attic client (Cargo build)"
+	@$(run_as_root) install -d -m 0755 $(STAMP_DIR)
+	@if [ -x "$(ATTIC_CLIENT_BIN)" ] && [ -f "$(STAMP_ATTIC_CLIENT)" ]; then \
+		echo "[make] Attic client already installed; skipping"; \
+		exit 0; \
+	fi
+	@if [ ! -d "$(ATTIC_SRC)/.git" ]; then \
+		echo "[make] Cloning Attic source"; \
+		$(run_as_root) mkdir -p "$(dir $(ATTIC_SRC))"; \
+		$(run_as_root) git clone "$(ATTIC_REPO)" "$(ATTIC_SRC)"; \
+	fi
+	@echo "[make] Checking out Attic revision $(ATTIC_REF)"
+	@$(run_as_root) git -C "$(ATTIC_SRC)" \
+		-c safe.directory="$(ATTIC_SRC)" \
+		fetch --tags
+	@$(run_as_root) git -C "$(ATTIC_SRC)" \
+		-c safe.directory="$(ATTIC_SRC)" \
+		-c advice.detachedHead=false \
+		checkout "$(ATTIC_REF)"
+	@echo "[make] Building Attic client"
+	@$(run_as_root) bash -c 'cd "$(ATTIC_SRC)" && cargo build --release -p attic-client'
+	@$(run_as_root) install -m 0755 "$(ATTIC_SRC)/target/release/attic" "$(ATTIC_CLIENT_BIN)"
+	@echo "version=$(ATTIC_REF) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		| $(run_as_root) tee "$(STAMP_ATTIC_CLIENT)" >/dev/null
+	@echo "✅ Attic client installed"
+
+remove-attic-client-cargo-legacy: ensure-run-as-root
+	@echo "🗑️ Removing Attic client"
+	@$(run_as_root) rm -f "$(ATTIC_CLIENT_BIN)" "$(STAMP_ATTIC_CLIENT)"
+	@echo "✅ Attic client removed"
+

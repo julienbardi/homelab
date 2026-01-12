@@ -6,7 +6,7 @@
 listen = "0.0.0.0:8082"
 
 # Hosts allowed to access the server
-# do not add "::/0" as this exposes Attic globally if IPv6 routing exists
+# (uncomment and adjust when you want to lock it down)
 allowed-hosts = [
   "127.0.0.1",
   "::1",
@@ -27,13 +27,8 @@ substituter-endpoint = "http://nas:8082"
 # Security & protocol behavior
 # ------------------------------------------------------------
 
-# Allow soft deletion of caches (recommended for GC safety)
 soft-delete-caches = true
-
-# Require proof‑of‑possession for uploads (recommended)
 require-proof-of-possession = true
-
-# Maximum allowed narinfo size (integer as bytes)
 max-nar-info-size = 8388608
 
 # ------------------------------------------------------------
