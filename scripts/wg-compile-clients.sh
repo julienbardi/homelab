@@ -76,6 +76,11 @@ compile_iface() {
 
 	local server_pubkey
 	server_pubkey="$(tr -d '\r\n' <"$server_pub")"
+	[ -n "$server_pubkey" ] || {
+		echo "ERROR: empty server public key in $server_pub" >&2
+		exit 1
+	}
+
 
 	mkdir -p "$OUT_SERVER/$iface"
 	echo "rendering interface $iface"
@@ -144,7 +149,7 @@ compile_iface() {
 			print "[Interface]"               >> client_file
 			kv(client_file, "PrivateKey", priv[key])
 			kv(client_file, "Address", $5 ", " $6)
-			kv(client_file, "DNS", $4)
+			if ($4 != "") kv(client_file, "DNS", $4)
 			print ""                          >> client_file
 			print "[Peer]"                    >> client_file
 			print "# Server: homelab-" $2     >> client_file
