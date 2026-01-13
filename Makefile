@@ -209,6 +209,8 @@ help:
 	@echo "    make all-wg-up                  # Bring up all wg interfaces"
 	@echo "    make wg-reinstall-all           # LEGACY: destructive WG reset (superseded by wg-rebuild-all)"
 	@echo ""
+	@echo "  Note: All WireGuard targets must be invoked via the canonical Makefile entrypoint."
+	@echo ""
 	@echo "  Client management"
 	@echo "    make client-<name>              # Generate client config (name may include -wgN or use IFACE=wgN)"
 	@echo "    make client-list                # List client artifacts (*.conf, *.key, *.pub)"
