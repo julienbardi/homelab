@@ -189,18 +189,31 @@ PLAN_TMP="$STAGE/plan.tsv"
 		has_v6=$(( (ifnum >> BIT_V6) & 1 ))
 		is_full=$(( (ifnum >> BIT_FULL) & 1 ))
 
-		allowed_client=""
+		# AllowedIPs for the client:
+		# - Always include wgN subnets (v4 + v6) so the tunnel itself is routable.
+		# - Add LAN prefixes when BIT_LAN is set.
+		# - Add default routes only when BIT_FULL is set, gated by the inet bits.
+		allowed_client="10.${ifnum}.0.0/16, 2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::/64"
+
+		if [ "$has_lan" -eq 1 ]; then
+			allowed_client="${allowed_client}, 10.89.12.0/24, 2a01:8b81:4800:9c00::/64"
+		fi
+
 		if [ "$is_full" -eq 1 ]; then
-			[ "$has_v4" -eq 1 ] && allowed_client="0.0.0.0/0"
-			[ "$has_v6" -eq 1 ] && allowed_client="${allowed_client:+$allowed_client, }::/0"
-		else
-			[ "$has_lan" -eq 1 ] && allowed_client="10.89.12.0/24"
+			[ "$has_v4" -eq 1 ] || die "iface ${iface} sets FULL without inet-v4 bit"
+			[ "$has_v6" -eq 1 ] || die "iface ${iface} sets FULL without inet-v6 bit"
+			allowed_client="${allowed_client}, 0.0.0.0/0, ::/0"
 		fi
 
 		endpoint="${ENDPOINT_HOST_BASE}:$((ENDPOINT_PORT_BASE + ifnum))"
 
-		printf "%s\t%s\t%s\t127.0.0.1\t%s\t%s\t%s\t%s\t%s\n" \
+		dns=""
+		if [ "$has_lan" -eq 1 ] || [ "$is_full" -eq 1 ]; then
+			dns="10.89.12.4, 2a01:8b81:4800:9c00::4"
+		fi
+		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
 			"$base" "$iface" "$slot" \
+			"$dns" \
 			"$client_addr4" "$client_addr6" \
 			"$allowed_client" "$allowed_server" \
 			"$endpoint"

@@ -67,7 +67,9 @@ do
 		echo "[Interface]"
 		echo "PrivateKey = $client_private"
 		echo "Address = $addr4"
-		echo "DNS = ${WG_DNS:-$dns}"
+		if [ -n "${WG_DNS:-$dns}" ]; then
+			echo "DNS = ${WG_DNS:-$dns}"
+		fi
 		echo
 		echo "[Peer]"
 		echo "PublicKey = $server_public"

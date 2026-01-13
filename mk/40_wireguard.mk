@@ -19,8 +19,11 @@ WG_RENDER_SCRIPT  := $(SCRIPTS)/wg-compile-clients.sh
 WG_EXPORT_SCRIPT  := $(SCRIPTS)/wg-client-export.sh
 WG_DEPLOY_SCRIPT  := $(SCRIPTS)/wg-deploy.sh
 WG_CHECK_SCRIPT   := $(SCRIPTS)/wg-check.sh
+WG_SERVER_BASE_RENDER_SCRIPT := $(SCRIPTS)/wg-render-server-base.sh
+WG_RENDER_CHECK_SCRIPT := $(SCRIPTS)/wg-check-render.sh
 
-.PHONY: wg-validate wg-apply wg-compile wg-deploy wg-status wg-client-export wg-check
+.PHONY: wg-validate wg-apply wg-render-server-base wg-compile wg-deployed wg-status wg-client-export wg-check \
+	wg-rebuild-clean wg-rebuild-all wg-plan wg-check-render
 
 # ------------------------------------------------------------
 # Compile intent → plan.tsv
@@ -42,27 +45,27 @@ wg-compile-keys: wg-compile-intent $(WG_KEYS_SCRIPT)
 # ------------------------------------------------------------
 # Render client + server configs from plan.tsv + keys.tsv
 # ------------------------------------------------------------
-wg-render: wg-plan wg-compile-intent wg-compile-keys wg-ensure-server-keys $(WG_RENDER_SCRIPT)
+wg-render-server-base: wg-compile-intent $(WG_SERVER_BASE_RENDER_SCRIPT)
+	@echo "▶ rendering WireGuard server base configs"
+	@$(WG_SERVER_BASE_RENDER_SCRIPT)
+
+wg-render: wg-plan wg-compile-intent wg-compile-keys wg-ensure-server-keys wg-render-server-base $(WG_RENDER_SCRIPT)
 	@echo "▶ rendering WireGuard client configs"
 	@$(WG_RENDER_SCRIPT)
 
 # ------------------------------------------------------------
 # Compile everything (no deployment)
 # ------------------------------------------------------------
-wg-compile: wg-compile-intent wg-compile-keys wg-render
+wg-compile: wg-compile-intent wg-compile-keys wg-render wg-check-render wg-check
 
 # ------------------------------------------------------------
 # Deploy compiled state (requires successful compile)
 # ------------------------------------------------------------
-# Requires: net-tunnel-preflight (UDP tunnel NIC invariants)
-wg-deploy: ensure-run-as-root net-tunnel-preflight wg-compile $(WG_DEPLOY_SCRIPT)
+wg-deployed: ensure-run-as-root net-tunnel-preflight wg-compile wg-check $(WG_DEPLOY_SCRIPT)
 	@echo "▶ deploying WireGuard state"
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
 
-# ------------------------------------------------------------
-# Full workflow: compile → deploy
-# ------------------------------------------------------------
-wg-apply: wg-compile wg-deploy wg-client-export
+wg-apply: wg-client-export
 	@echo "✅ WireGuard converged successfully"
 
 # ------------------------------------------------------------
@@ -74,7 +77,7 @@ wg-validate: wg-compile
 # ------------------------------------------------------------
 # Client config export (depends on compiled state)
 # ------------------------------------------------------------
-wg-client-export: wg-render $(WG_EXPORT_SCRIPT)
+wg-client-export: wg-render wg-deployed $(WG_EXPORT_SCRIPT)
 	@echo "▶ exporting WireGuard client configs"
 	@$(WG_EXPORT_SCRIPT)
 
@@ -85,7 +88,7 @@ wg-check: ensure-run-as-root $(WG_CHECK_SCRIPT)
 	@echo "▶ validating WireGuard intent"
 	@$(run_as_root) $(WG_CHECK_SCRIPT)
 
-.PHONY: wg-rebuild-clean
+
 wg-rebuild-clean: ensure-run-as-root
 	@echo "⚠️  FULL WireGuard rebuild (keys + config)"
 	@echo "⚠️  This will invalidate ALL existing clients"
@@ -96,11 +99,13 @@ wg-rebuild-clean: ensure-run-as-root
 	@echo "▶ destroying existing WireGuard state"
 	@$(run_as_root) $(SCRIPTS)/wg-nuke.sh
 
-.PHONY: wg-rebuild-all
 wg-rebuild-all: wg-rebuild-clean wg-apply
 	@echo "🔥 WireGuard fully rebuilt with fresh keys"
 
-.PHONY: wg-plan
 wg-plan:
 	@echo "[wg] Planning WireGuard interfaces and address allocation"
 	@./scripts/wg-plan-ifaces.sh
+
+wg-check-render: wg-render $(WG_RENDER_CHECK_SCRIPT)
+	@echo "▶ validating rendered WireGuard artifacts"
+	@$(WG_RENDER_CHECK_SCRIPT)

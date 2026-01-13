@@ -13,12 +13,19 @@ umask 077
 	exit 1
 }
 
+command -v wg >/dev/null 2>&1 || {
+	echo "wg-compile-keys: ERROR: wg not found in PATH" >&2
+	exit 1
+}
+
 EXISTING_KEYS="$OUT"
 
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
 printf "base\tiface\tclient_pub\tclient_priv\n" >"$tmp"
+
+[ -f "$EXISTING_KEYS" ] || : >"$EXISTING_KEYS"
 
 awk -F'\t' '
 	BEGIN { OFS="\t" }
@@ -62,6 +69,7 @@ awk -F'\t' '
 		cmd = "wg genkey"
 		cmd | getline new_priv
 		close(cmd)
+		sub(/\r?\n$/, "", new_priv)
 
 		cmd = "printf \"%s\" \"" new_priv "\" | wg pubkey"
 		cmd | getline new_pub

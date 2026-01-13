@@ -5,15 +5,12 @@ umask 077
 : "${WG_ROOT:?WG_ROOT not set}"
 
 PLAN="$WG_ROOT/compiled/plan.tsv"
-SERVER_KEYS_DIR="$WG_ROOT/server-keys"
-COMPILED_PUBDIR="$WG_ROOT/compiled/server-pubkeys"
+OUT_BASE="$WG_ROOT/out/server/base"
 
 [ -f "$PLAN" ] || { echo "ERROR: missing $PLAN" >&2; exit 1; }
-command -v wg >/dev/null 2>&1 || { echo "ERROR: wg not found in PATH" >&2; exit 1; }
 
-mkdir -p "$SERVER_KEYS_DIR" "$COMPILED_PUBDIR"
-chmod 700 "$SERVER_KEYS_DIR" 2>/dev/null || true
-chmod 2770 "$COMPILED_PUBDIR" 2>/dev/null || true
+mkdir -p "$OUT_BASE"
+chmod 700 "$OUT_BASE" 2>/dev/null || true
 
 ifaces="$(
 	awk '
@@ -31,44 +28,25 @@ ifaces="$(
 
 for iface in $ifaces; do
 	case "$iface" in
-		wg[0-9]|wg1[0-5]) : ;;
-		*)
-			echo "ERROR: invalid iface '$iface' in plan.tsv" >&2
-			exit 1
-			;;
+		wg[0-9]|wg1[0-5]) ;;
+		*) echo "ERROR: invalid iface '$iface'" >&2; exit 1 ;;
 	esac
 
-	priv="$SERVER_KEYS_DIR/$iface.key"
-	pub="$SERVER_KEYS_DIR/$iface.pub"
-	out_pub="$COMPILED_PUBDIR/$iface.pub"
+	i="${iface#wg}"
 
-	if [ -f "$priv" ] && [ -f "$pub" ]; then
-		cp -f "$pub" "$out_pub"
-		chmod 644 "$out_pub" 2>/dev/null || true
-		continue
-	fi
+	out="$OUT_BASE/$iface.conf"
+	cat >"$out" <<EOF
+[Interface]
+Address = 10.${i}.0.1/16, 2a01:8b81:4800:9c00:${i}::1/128
+ListenPort = $((51420 + i))
+PrivateKey = __REPLACED_AT_DEPLOY__
+EOF
 
-	if [ -f "$priv" ] && [ ! -f "$pub" ]; then
-		wg pubkey <"$priv" >"$pub"
-		chmod 600 "$priv" "$pub" 2>/dev/null || true
-		cp -f "$pub" "$out_pub"
-		chmod 644 "$out_pub" 2>/dev/null || true
-		continue
-	fi
+	case "$iface" in
+		wg4|wg7) echo "Table = off" >>"$out" ;;
+	esac
 
-	if [ ! -f "$priv" ] && [ -f "$pub" ]; then
-		echo "ERROR: found $pub but missing $priv (refusing to proceed)" >&2
-		exit 1
-	fi
-
-	tmp="$priv.tmp.$$"
-	wg genkey >"$tmp"
-	chmod 600 "$tmp" 2>/dev/null || true
-	mv -f "$tmp" "$priv"
-	wg pubkey <"$priv" >"$pub"
-	chmod 600 "$priv" "$pub" 2>/dev/null || true
-	cp -f "$pub" "$out_pub"
-	chmod 644 "$out_pub" 2>/dev/null || true
+	chmod 600 "$out" 2>/dev/null || true
 done
 
-echo "server keys OK: $SERVER_KEYS_DIR"
+echo "server base configs OK: $OUT_BASE"

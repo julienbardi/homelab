@@ -11,6 +11,7 @@ Routed LAN (LAN2 – Router‑connected)
 - IPv6: Fully routed via router (RA + default gateway)
 This interface is the **only default route** for the system. All outbound traffic (updates, package installs, VPN traffic) must exit via this LAN.
 
+LEGACY:
 Direct‑attach LAN (LAN1 – 10 Gbps point‑to‑point)
 LAN1 is a **static, IPv4‑only, point‑to‑point link** used exclusively for high‑speed local access (storage, management, bulk transfers).
 - Link type: Direct PC ↔ NAS (10 Gbps)
@@ -474,11 +475,6 @@ Client → CoreDNS → Unbound → Internet root/authoritative servers
 - CoreDNS forwards non-tailnet queries to Unbound at 10.89.12.4:53
 
 
-
-
-
-
-
 ## Current Scripts
 
 ### `scripts/setup-subnet-router.sh`
@@ -558,12 +554,7 @@ Iface (Interface)
 
 # Appendix with archived content, most probably updated
 
-## sudo apt
-
-sudo apt update
-sudo apt install -y shellcheck
-
-## Core DNS (experimental)
+## LEGACY: Core DNS (experimental, no, we use dnsdist)
 
 We use CoreDNS to provide DOH for our DNS
 
@@ -760,3 +751,54 @@ tailscale ping 8.8.8.8
 nslookup example.com
 curl https://example.com
 ```
+
+
+## Network topology
+
+LAN subnet: 10.89.12.0/24
+
+
+###Wireguard router VPN:
+
+Subnet IPv4: 10.89.13.1/24
+Server address: 10.89.13.1/24 (was 10.6.0.1/32 until 2026-01-13)
+DNS = 10.89.13.1, 2a01:8b81:4800:9c20::1
+
+
+AllowedIPs = 10.89.13.0/24, 10.89.12.0/24
+
+Subnet Ipv6: 2a01:8b81:4800:9c20::/64
+
+Router WG server IPv6: 2a01:8b81:4800:9c20::1/64
+Clients IPv6: 2a01:8b81:4800:9c20::2/128
+AllowedIPs (split tunnel)
+AllowedIPs = 10.89.13.0/24, 2a01:8b81:4800:9c20::/64, 10.89.12.0/24, 2a01:8b81:4800:9c00::/64
+
+AllowedIPs (if on LAN)
+10.89.13.0/24, 2a01:8b81:4800:9c20::/64
+-> ok
+
+Nok:
+0.0.0.0/0,::/0,10.89.13.0/24, 2a01:8b81:4800:9c20::/64, 10.89.12.0/24, 2a01:8b81:4800:9c00::/64
+
+
+So
+Router WireGuard Server:
+Address = 10.89.13.1/24, 2a01:8b81:4800:9c20::1/64
+ListenPort = 51820
+
+Client 2 (omen30l)
+Address = Allowed IPs (server)
+10.89.13.2/32,2a01:8b81:4800:9c20::2/128
+
+(DNS = 10.89.12.4)
+
+ListenPort: 51820
+Allowed IPs (server) (split tunnel):
+10.89.13.0/24,2a01:8b81:4800:9c20::/64,10.89.12.0/24,2a01:8b81:4800:9c00::/64
+or
+Allowed IPs (server) (full tunnel):
+0.0.0.0/0, ::/0
+
+
+-> 290Mbps / 82 Mbps
