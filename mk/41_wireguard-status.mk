@@ -29,7 +29,7 @@ SCRIPTS := $(CURDIR)/scripts
 	wg-show-client-key-validate \
 	wg-show-client-key \
 	wg-intent wg-intent-ifaces wg-intent-bases \
-	wg-compiled wg-deployed \
+	wg-compiled wg-deployed-view \
 	wg-status wg-runtime \
 	wg-dashboard \
 	wg-remove-client
@@ -124,7 +124,7 @@ wg-compiled:
 # Deployed view (filesystem in /etc/wireguard)
 # ------------------------------------------------------------
 
-wg-deployed: ensure-run-as-root
+wg-deployed-view: ensure-run-as-root
 	@echo "Deployed /etc/wireguard view:"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
 		ls -la "$(WG_DIR)" 2>/dev/null || { echo "missing $(WG_DIR)"; exit 1; }; \
