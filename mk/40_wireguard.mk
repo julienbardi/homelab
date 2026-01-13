@@ -45,12 +45,14 @@ wg-compile-keys: wg-compile-intent $(WG_KEYS_SCRIPT)
 # ------------------------------------------------------------
 # Render client + server configs from plan.tsv + keys.tsv
 # ------------------------------------------------------------
-wg-render-server-base: wg-compile-intent $(WG_SERVER_BASE_RENDER_SCRIPT)
+wg-render-server-base: wg-compile-intent
 	@echo "▶ rendering WireGuard server base configs"
+	@test -x "$(WG_SERVER_BASE_RENDER_SCRIPT)"
 	@$(WG_SERVER_BASE_RENDER_SCRIPT)
 
-wg-render: wg-plan wg-compile-intent wg-compile-keys wg-ensure-server-keys wg-render-server-base $(WG_RENDER_SCRIPT)
+wg-render: wg-plan wg-compile-intent wg-compile-keys wg-ensure-server-keys wg-render-server-base
 	@echo "▶ rendering WireGuard client configs"
+	@test -x "$(WG_RENDER_SCRIPT)"
 	@$(WG_RENDER_SCRIPT)
 
 # ------------------------------------------------------------
@@ -61,8 +63,9 @@ wg-compile: wg-compile-intent wg-compile-keys wg-render wg-check-render wg-check
 # ------------------------------------------------------------
 # Deploy compiled state (requires successful compile)
 # ------------------------------------------------------------
-wg-deployed: ensure-run-as-root net-tunnel-preflight wg-compile wg-check $(WG_DEPLOY_SCRIPT)
+wg-deployed: ensure-run-as-root net-tunnel-preflight wg-compile wg-check
 	@echo "▶ deploying WireGuard state"
+	@test -x "$(WG_DEPLOY_SCRIPT)"
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
 
 wg-apply: wg-client-export
@@ -77,15 +80,17 @@ wg-validate: wg-compile
 # ------------------------------------------------------------
 # Client config export (depends on compiled state)
 # ------------------------------------------------------------
-wg-client-export: wg-render wg-deployed $(WG_EXPORT_SCRIPT)
+wg-client-export: wg-render wg-deployed
 	@echo "▶ exporting WireGuard client configs"
+	@test -x "$(WG_EXPORT_SCRIPT)"
 	@$(WG_EXPORT_SCRIPT)
 
 # ------------------------------------------------------------
 # Consistency / sanity checks
 # ------------------------------------------------------------
-wg-check: ensure-run-as-root $(WG_CHECK_SCRIPT)
+wg-check: ensure-run-as-root
 	@echo "▶ validating WireGuard intent"
+	@test -x "$(WG_CHECK_SCRIPT)"
 	@$(run_as_root) $(WG_CHECK_SCRIPT)
 
 
@@ -106,6 +111,7 @@ wg-plan:
 	@echo "[wg] Planning WireGuard interfaces and address allocation"
 	@./scripts/wg-plan-ifaces.sh
 
-wg-check-render: wg-render $(WG_RENDER_CHECK_SCRIPT)
+wg-check-render: wg-render
 	@echo "▶ validating rendered WireGuard artifacts"
+	@test -x "$(WG_RENDER_CHECK_SCRIPT)"
 	@$(WG_RENDER_CHECK_SCRIPT)
