@@ -32,11 +32,16 @@ umask 077
 # Render client configs from canonical plan reader
 # --------------------------------------------------------------------
 "$PLAN_READER" | while IFS=$'\t' read -r \
-	base iface slot dns addr4 addr6 allowed_client allowed_server endpoint
+	base iface slot dns \
+	client_addr4 client_addr6 \
+	allowed_client allowed_server \
+	endpoint \
+	server_addr4 server_addr6 server_routes
 do
+
 	[ -n "$base" ]  || die "missing base"
 	[ -n "$iface" ] || die "missing iface for base=$base"
-	[ -n "$addr4" ] || die "missing client_addr4 for $base $iface"
+	[ -n "$client_addr4" ] || die "missing client_addr4 for $base $iface"
 	[ -n "$allowed_client" ] || die "missing AllowedIPs_client for $base $iface"
 
 	srv_pub="$WG_PUBDIR/$iface.pub"
@@ -66,7 +71,8 @@ do
 		echo
 		echo "[Interface]"
 		echo "PrivateKey = $client_private"
-		echo "Address = $addr4"
+		echo "Address = $client_addr4"
+		echo "Address = $client_addr6"
 		if [ -n "${WG_DNS:-$dns}" ]; then
 			echo "DNS = ${WG_DNS:-$dns}"
 		fi
