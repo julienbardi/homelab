@@ -43,9 +43,9 @@ include $(MAKEFILE_DIR)/mk/05_bootstrap_wireguard.mk
 include $(MAKEFILE_DIR)/mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include $(MAKEFILE_DIR)/mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include $(MAKEFILE_DIR)/mk/20_net-tunnel.mk
+include $(MAKEFILE_DIR)/mk/20_sysctl.mk
 include $(MAKEFILE_DIR)/mk/30_config_validation.mk
 include $(MAKEFILE_DIR)/mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
-#include $(MAKEFILE_DIR)/mk/31_setup-subnet-router.mk # Subnet router orchestration LEGACY — DO NOT USE Superseded by homelab-nft.service + homelab.nft
 include $(MAKEFILE_DIR)/mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include $(MAKEFILE_DIR)/mk/40_code-server.mk
 include $(MAKEFILE_DIR)/mk/40_wireguard.mk   # Wireguard orchestration
@@ -109,7 +109,6 @@ update: gitcheck
 	@echo "[make] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake
-.PHONY: setup-subnet-router
 .PHONY: test logs clean-soft
 
 .PHONY: clean
@@ -134,39 +133,9 @@ test: logs
 	@echo "[make] Running run_as_root harness..."
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
 
-# --- all targets (legacy) ---
-all: harden-groups gitcheck gen0 gen1 gen2
-	@echo "[make] Completed full orchestration (harden-groups → gen0 → gen1 → gen2)"
-
-# -- all targets
-.PHONY: bootstrap
-bootstrap: \
-	deps \
-	vpn-stack \
-	dns-stack \
-	dns-runtime
-	@echo "Consider make firewall-stack"
-
-.PHONY: firewall-stack
-firewall-stack: \
-	install-pkg-nftables \
-	enable-ndppd \
-	nft-install
-	@echo "[make] Firewall stack installed." 
-	@echo "[make] Run 'make nft-apply' to activate the firewall."
-
-.PHONY: dns-stack
-dns-stack: \
-	install-pkg-dnsmasq \
-	deploy-dnsmasq-config \
-	enable-unbound \
-	dnsdist \
-	dns-runtime
-
-.PHONY: vpn-stack
-vpn-stack: \
-	install-pkg-wireguard \
-	install-pkg-tailscale
+# --- all targets ---
+.PHONY: all
+all: converge-network
 
 .PHONY: headscale-stack
 
@@ -190,20 +159,6 @@ tailscaled: \
 .PHONY: wg
 
 wg: wg-apply wg-intent wg-dashboard wg-status wg-runtime wg-clients
-
-# --- Gen0: foundational services --- disabled: dnscrypt-proxy
-gen0: \
-	sysctl \
-	harden-groups \
-	ensure-known-hosts \
-	setup-subnet-router \
-	headscale-stack \
-	tailscaled \
-	dns-stack \
-	dns-runtime
-	@echo "[make] Running gen0 foundational services..."
-
-gen1: caddy tailnet rotate wg-baseline code-server
 
 SYSTEMD_DIR = /etc/systemd/system
 REPO_SYSTEMD = config/systemd
