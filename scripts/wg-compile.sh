@@ -24,8 +24,8 @@ set -eu
 #
 # Compiled outputs (atomic):
 #   /volume1/homelab/wireguard/compiled/clients.lock.csv
-#   /volume1/homelab/wireguard/compiled/alloc.csv   (base,slot)
-#   /volume1/homelab/wireguard/compiled/plan.tsv   (NON-AUTHORITATIVE, derived)
+#   /volume1/homelab/wireguard/compiled/alloc.csv	(base,slot)
+#   /volume1/homelab/wireguard/compiled/plan.tsv	(AUTHORITATIVE for deploy; derived from clients.csv + alloc.csv)
 #
 # Notes:
 # - Deterministic allocator with collision resolution.
@@ -164,9 +164,8 @@ awk -F',' 'NR>1{printf "%s\t%s\n",$1,$2}' "$ALLOC_MERGED" >"$STAGE/alloc.tsv"
 PLAN_TMP="$STAGE/plan.tsv"
 {
 	printf "# GENERATED FILE — DO NOT EDIT\n"
-	printf "base\tiface\tslot\tdns\tclient_addr4\tclient_addr6\tAllowedIPs_client\tAllowedIPs_server\tendpoint\n"
-
-	while IFS=$'\t' read -r user machine iface base; do
+	printf "base\tiface\tslot\tdns\tclient_addr4\tclient_addr6\tAllowedIPs_client\tAllowedIPs_server\tendpoint\tserver_addr4\tserver_addr6\tserver_routes\n"
+	while IFS="$(printf '\t')" read -r user machine iface base; do
 		ifnum="${iface#wg}"
 		if [ "$ifnum" -lt 1 ] || [ "$ifnum" -gt 15 ]; then
 			die "invalid iface wg${ifnum} — only wg1..wg15 are allowed"
@@ -182,12 +181,30 @@ PLAN_TMP="$STAGE/plan.tsv"
 		server_addr4="$(server_addr4_for_ifnum "$ifnum")"
 		server_addr6="$(server_addr6_for_ifnum "$ifnum")"
 
-		allowed_server="${client_addr4}, ${client_addr6}"
+		# Initialize flags (required with set -u)
+		has_lan=0
+		has_v4=0
+		has_v6=0
+		is_full=0
 
 		has_lan=$(( (ifnum >> BIT_LAN) & 1 ))
 		has_v4=$(( (ifnum >> BIT_V4) & 1 ))
 		has_v6=$(( (ifnum >> BIT_V6) & 1 ))
 		is_full=$(( (ifnum >> BIT_FULL) & 1 ))
+
+		server_allowed_v4="10.${ifnum}.0.0/16"
+		server_allowed_v6="2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::/64"
+
+		allowed_server="${server_allowed_v4}, ${server_allowed_v6}"
+
+		if [ "$has_lan" -eq 1 ];then
+			allowed_server="${allowed_server}, 10.89.12.0/24, 2a01:8b81:4800:9c00::/64"
+		fi
+
+		server_routes=""
+		if [ "$has_lan" -eq 1 ]; then
+			server_routes="10.89.12.0/24, 2a01:8b81:4800:9c00::/64"
+		fi
 
 		# AllowedIPs for the client:
 		# - Always include wgN subnets (v4 + v6) so the tunnel itself is routable.
@@ -196,7 +213,8 @@ PLAN_TMP="$STAGE/plan.tsv"
 		allowed_client="10.${ifnum}.0.0/16, 2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::/64"
 
 		if [ "$has_lan" -eq 1 ]; then
-			allowed_client="${allowed_client}, 10.89.12.0/24, 2a01:8b81:4800:9c00::/64"
+			: # LAN access is server-routed; never add LAN prefixes to AllowedIPs_client
+			#allowed_client="${allowed_client}
 		fi
 
 		if [ "$is_full" -eq 1 ]; then
@@ -211,12 +229,13 @@ PLAN_TMP="$STAGE/plan.tsv"
 		if [ "$has_lan" -eq 1 ] || [ "$is_full" -eq 1 ]; then
 			dns="10.89.12.4, 2a01:8b81:4800:9c00::4"
 		fi
-		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
 			"$base" "$iface" "$slot" \
 			"$dns" \
 			"$client_addr4" "$client_addr6" \
 			"$allowed_client" "$allowed_server" \
-			"$endpoint"
+			"$endpoint" \
+			"$server_addr4" "$server_addr6" "$server_routes"
 	done <"$NORM"
 } >"$PLAN_TMP"
 
