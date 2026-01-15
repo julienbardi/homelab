@@ -26,17 +26,6 @@ need "$PLAN"
 need "$SERVER_KEYS_DIR"
 
 # plan.tsv is strict TSV emitted by wg-compile.sh.
-# Columns:
-#   1 base
-#   2 iface
-#   3 slot
-#   4 dns
-#   5 client_addr4
-#   6 client_addr6
-#   7 AllowedIPs_client
-#   8 AllowedIPs_server
-#   9 endpoint
-#
 # Validate the first non-comment, non-empty line is the expected header.
 awk -F'\t' '
 	/^#/ { next }
@@ -51,7 +40,10 @@ awk -F'\t' '
 			$6=="client_addr6" &&
 			$7=="AllowedIPs_client" &&
 			$8=="AllowedIPs_server" &&
-			$9=="endpoint") exit 0
+			$9=="endpoint" &&
+			$10=="server_addr4" &&
+			$11=="server_addr6" &&
+			$12=="server_routes") exit 0
 		exit 1
 	}
 ' "$PLAN" || die "plan.tsv: unexpected header (not strict TSV contract)"
@@ -60,20 +52,11 @@ mapfile -t ACTIVE_IFACES < <(
 	awk -F'\t' '
 		/^#/ { next }
 		/^[[:space:]]*$/ { next }
-
-		$1=="base" &&
-		$2=="iface" &&
-		$3=="slot" &&
-		$4=="dns" &&
-		$5=="client_addr4" &&
-		$6=="client_addr6" &&
-		$7=="AllowedIPs_client" &&
-		$8=="AllowedIPs_server" &&
-		$9=="endpoint" { next }
-
+		$1=="base" && $2=="iface" { next }
 		{ if ($2 != "") print $2 }
 	' "$PLAN" | sort -u
 )
+
 
 [ "${#ACTIVE_IFACES[@]}" -gt 0 ] || die "no interfaces found in plan.tsv"
 
@@ -101,7 +84,6 @@ cleanup() {
 	rm -rf "$NEW" 2>/dev/null || true
 }
 trap cleanup EXIT
-
 
 for dev in "${ACTIVE_IFACES[@]}"; do
 	case "$dev" in
@@ -147,7 +129,7 @@ done
 # --------------------------------------------------------------------
 # Keep-list
 # --------------------------------------------------------------------
-KEEP="$NEW/keep.list"
+KEEP="$NEW/last-known-good.list"
 : >"$KEEP"
 
 for dev in "${ACTIVE_IFACES[@]}"; do
@@ -195,7 +177,7 @@ if [ "$DRY_RUN" = "1" ]; then
 	exit 0
 fi
 
-KEEP="$WG_DIR/keep.list"
+KEEP="$WG_DIR/last-known-good.list"
 
 LEGACY="$WG_DIR/.legacy"
 mkdir -p "$LEGACY"
@@ -209,10 +191,54 @@ done
 
 if [ "$DRY_RUN" != "1" ]; then
 	for dev in "${ACTIVE_IFACES[@]}"; do
-		if ip link show "$dev" >/dev/null 2>&1; then
-			"$WG_BIN" syncconf "$dev" <("$WG_QUICK" strip "$dev")
-		else
-			"$WG_QUICK" up "$dev"
+
+		# Read authoritative server config from plan.tsv (cols 10-12)
+		read -r server_addr4 server_addr6 server_routes < <(
+			awk -F'\t' -v iface="$dev" '
+				/^#/ || /^[[:space:]]*$/ { next }
+				$1=="base" && $2=="iface" { next }
+				$2!=iface { next }
+				{
+					if (!seen) { a4=$10; a6=$11; r=$12; seen=1; next }
+					if ($10!=a4 || $11!=a6 || $12!=r) { exit 2 }
+				}
+				END {
+					if (!seen) exit 1
+					print a4, a6, r
+				}
+			' "$PLAN"
+		) || die "plan.tsv: missing or inconsistent server fields for iface '$dev'"
+
+
+		[ -n "${server_addr4:-}" ] || die "plan.tsv: missing server_addr4 for iface '$dev'"
+		[ -n "${server_addr6:-}" ] || die "plan.tsv: missing server_addr6 for iface '$dev'"
+
+		if ! ip link show "$dev" >/dev/null 2>&1; then
+			ip link add "$dev" type wireguard
+		fi
+
+		"$WG_BIN" setconf "$dev" <("$WG_QUICK" strip "$dev")
+
+		ip -4 address replace "$server_addr4" dev "$dev"
+		ip -6 address replace "$server_addr6" dev "$dev"
+
+		ip link set up dev "$dev"
+
+		# Install server_routes (col 12). Empty means "no routes".
+		if [ -n "${server_routes:-}" ]; then
+			IFS=',' read -r -a routes <<<"$server_routes"
+			for cidr in "${routes[@]}"; do
+				# trim
+				cidr="${cidr#"${cidr%%[![:space:]]*}"}"
+				cidr="${cidr%"${cidr##*[![:space:]]}"}"
+				[ -n "$cidr" ] || continue
+
+				case "$cidr" in
+					*:*/*) ip -6 route replace "$cidr" dev "$dev" ;;
+					*.*/*) ip -4 route replace "$cidr" dev "$dev" ;;
+					*) die "plan.tsv: invalid server_routes entry '$cidr' for iface '$dev'" ;;
+				esac
+			done
 		fi
 	done
 else

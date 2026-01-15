@@ -28,7 +28,7 @@ SCRIPTS := $(CURDIR)/scripts
 	wg-clients \
 	wg-show-client-key-validate \
 	wg-show-client-key \
-	wg-intent wg-intent-ifaces wg-intent-bases \
+	wg-intent wg-intent-ifaces \
 	wg-compiled wg-deployed-view \
 	wg-status wg-runtime \
 	wg-dashboard \
@@ -65,19 +65,14 @@ wg-intent:
 wg-intent-ifaces:
 	@$(SCRIPTS)/wg-plan-ifaces.sh "$(PLAN)"
 
-wg-intent-bases:
-	@$(WG_PLAN_ROWS) | awk -F'\t' '{print $$1}' | sort -u
-
 # ------------------------------------------------------------
 # Keep: wg-clients (command generator for client inspection)
 #
 # This is intent-driven. It does NOT inspect /etc/wireguard.
 # It prints commands you can copy-paste.
 # ------------------------------------------------------------
-
 wg-clients:
-	@printf "%-8s %-12s %-6s %-s\n" "USER" "MACHINE" "IFACE" "COMMAND"
-	@printf "%-8s %-12s %-6s %-s\n" "--------" "------------" "------" "----------------------------------------------"
+	@echo "📋 WireGuard client summary (make wg-clients)"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '\
 		{ \
 			base=$$1; iface=$$2; \
@@ -93,7 +88,8 @@ wg-show-client-key-validate:
 		exit 1; \
 	fi
 
-# Show the compiled private key for a client (from compiled artifacts).
+# Show the compiled client configuration / private key.
+# Intended for secure, explicit operator-mediated client provisioning.
 # Usage: make wg-show-client-key BASE=foo-bar IFACE=wg3
 wg-show-client-key: wg-show-client-key-validate wg-show
 
@@ -127,14 +123,24 @@ wg-compiled:
 wg-deployed-view: ensure-run-as-root
 	@echo "Deployed /etc/wireguard view:"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
-		ls -la "$(WG_DIR)" 2>/dev/null || { echo "missing $(WG_DIR)"; exit 1; }; \
-		echo ""; \
+		set -e; \
+		if [ ! -d "$(WG_DIR)" ]; then \
+			echo "missing $(WG_DIR)"; exit 1; \
+		fi; \
+		echo; \
 		echo "Configs:"; \
 		ls -1 "$(WG_DIR)"/*.conf 2>/dev/null || echo "  (none)"; \
-		echo ""; \
-		echo "Keys:"; \
-		ls -1 "$(WG_DIR)"/*.key "$(WG_DIR)"/*.pub 2>/dev/null || echo "  (none)"; \
+		echo; \
+		echo "Public keys:"; \
+		ls -1 "$(WG_DIR)"/*.pub 2>/dev/null || echo "  (none)"; \
+		echo; \
+		echo "Metadata:"; \
+		ls -1 "$(WG_DIR)"/.deploy-meta "$(WG_DIR)"/last-known-good.list 2>/dev/null || echo "  (none)"; \
+		echo; \
+		echo "Unexpected files:"; \
+		ls -1 "$(WG_DIR)" | grep -Ev "^(wg.*\\.(conf|pub)|\\.deploy-meta|last-known-good\\.list)$$" || echo "  (none)"; \
 	'
+
 
 # ------------------------------------------------------------
 # Runtime view (kernel state, intent-scoped)
