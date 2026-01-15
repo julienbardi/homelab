@@ -109,7 +109,6 @@ __pycache__/
 /etc/headscale/private.key
 
 /var/lib/unbound/root.key
-/var/lib/subnet-router.version
 
 # Systemd runtime overrides (not source templates)
 /*.service.d/

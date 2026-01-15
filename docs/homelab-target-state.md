@@ -54,22 +54,6 @@ or browse https://github.com/Jambo15/homelab/blob/main/docs/homelab-handbook.md
 
 ---
 
-## 📡 Subnet Router Service
-- **Script**: `/usr/local/bin/setup-subnet-router.sh`  
-  - Auto‑incrementing version tag  
-  - Logs version + timestamp at boot (systemd)  
-  - Conflict detection for overlapping subnets  
-  - NAT, dnsmasq restart, Tailscale advertisement, GRO tuning  
-  - Footer echo lines for audit clarity
-
-- **Systemd Service**  
-  - Logs version at boot for easy grepping  
-  - Aliases:  
-    - `router-logs` → tails live logs of `subnet-router.service`  
-    - `router-deploy` → copies updated script from `~/` to `/usr/local/bin/` and restarts service
-
----
-
 ## 🌍 Exposure & Access
 - **Internal‑only services**: Headscale, admin dashboards  
 - **Internet‑exposed services**: Only those explicitly mapped with SSL certs and port forwarding  
@@ -80,26 +64,6 @@ or browse https://github.com/Jambo15/homelab/blob/main/docs/homelab-handbook.md
 ## 📂 Documentation & Repo Structure
 
 The repository is organized to keep **design docs, configs, and scripts** cleanly separated, with this handbook serving as the master reference.
-
-```text
-homelab/
-├── docs/
-│   ├── homelab-handbook.md      # Master design brief (this file)
-│   ├── architecture-overview.md # Optional ASCII diagram or visuals
-│   ├── audit-checklist.md       # Quick verification steps
-│   └── troubleshooting.md       # Common issues and resolutions
-│
-├── configs/
-│   ├── dnsmasq.conf             # Internal DNS mappings
-│   ├── dhcp-static.conf         # Static DHCP leases
-│   ├── systemd-units/           # Unit files for subnet router, cert service
-│   └── tailscale/               # Headscale/Tailscale configs
-│
-├── scripts/
-│   ├── setup-subnet-router.sh   # Subnet router logic (versioned, logged)
-│   └── bardi_cert.sh            # Centralized cert issuance/renewal
-│
-└── logs/                        # (Optional) sanitized log samples for audits
 
 ---
 

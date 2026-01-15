@@ -84,8 +84,6 @@ Keys are generated on the NAS.
 ### Startup behavior
 WireGuard interfaces are managed via systemd (wg-quick@wgX.service)
 
-The subnet-router script is installed at /usr/local/bin/setup-subnet-router.nft.sh
-
 A systemd service applies nftables + ndppd config at boot
 
 make deps installs all required packages including ndppd, nftables, wireguard, unbound, tailscale, etc.

@@ -196,16 +196,7 @@ This installs:
 
 ---
 
-# 8. Deploy Subnet Router
-
-`router-deploy`
-
-Equivalent to:
-
-`
-sudo cp setup-subnet-router.nft.sh /usr/local/bin/
-sudo systemctl restart subnet-router.service
-`
+# 8. WRONG: Deploy Subnet Router
 
 Validate:
 
@@ -217,7 +208,7 @@ Validate:
 
 ---
 
-# 9. Install VS Code Server (Manual UGOS Method)
+# 9. WRONG: Install VS Code Server (Manual UGOS Method)
 
 Determine commit ID:
 

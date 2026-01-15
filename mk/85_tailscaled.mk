@@ -74,7 +74,7 @@ tailscaled-wan: tailscaled-check-deps
 			--user $(HS_USER_WAN) \
 			--ephemeral=true \
 			--output json | jq -r '.key') \
-		--accept-dns=true
+		--accept-dns=false
 	@echo "✅ WAN client configured (internet-only)"
 
 # --------------------------------------------------------------------

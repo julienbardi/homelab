@@ -409,57 +409,6 @@ Check all scripts for syntax errors:
 ```
 make lint
 ```
-Cleaning
-Remove generated artifacts (keys, configs, QR codes):
-
-```
-make clean
-```
-
-Supporting Scripts
-
-aliases.sh → operational shortcuts:
-
-router-logs → tail live logs of subnet-router.service
-
-router-deploy → copy updated script and restart service
-
-subnet-router.service → systemd unit to run router script at boot and log version line.
-
-Config Templates
-headscale.yaml → Headscale server + DNS integration
-
-coredns/Corefile → CoreDNS plugin for tailnet resolution, forwards to Unbound
-
-unbound.conf.template → Unbound baseline with DNSSEC trust anchors
-
-Resilience Notes
-Degraded mode logging: every script logs failures without aborting the entire stack.
-
-iptables‑legacy enforced: firewall scripts explicitly call iptables-legacy for deterministic behavior.
-
-Versioning: subnet router script auto‑increments version and logs timestamp at deploy.
-
-Auditability: all logs go to both file and syslog, so you can grep across services.
-
-Collaborator Policy
-Keep changes minimal and explicit.
-
-Always document .PHONY targets in the Makefile.
-
-Never trust source IP alone — scope firewall rules to interfaces.
-
-Validate configs before reload (Caddy, Unbound).
-
-Use router-deploy alias for safe updates.
-
-Next Steps
-Extend site/index.html into a dashboard (service health, logs).
-
-Add regression tests for DNSSEC rotation.
-
-Document rollback commands for each generation.
-
 
 ## DNS Architecture
 
@@ -475,33 +424,10 @@ Client → CoreDNS → Unbound → Internet root/authoritative servers
 - CoreDNS forwards non-tailnet queries to Unbound at 10.89.12.4:53
 
 
-## Current Scripts
-
-### `scripts/setup-subnet-router.sh`
-Configures the NAS as a subnet router with:
-- LAN subnet detection (excluding Docker conflicts)
-- NAT and IP forwarding
-- `dnsmasq` restart
-- Tailscale route advertisement
-- GRO tuning
-- Logs to `/var/log/setup-subnet-router.log` with Git commit hash
-- Auto‑creates and enables `setup-subnet-router.service`
-
-Usage:
-```bash
-# Deploy
-sudo cp scripts/setup-subnet-router.sh /usr/local/bin/
-sudo chmod +x /usr/local/bin/setup-subnet-router.sh
-sudo setup-subnet-router.sh
-
-# Remove service
-sudo setup-subnet-router.sh --remove
-````
-
 ## Repo Structure
  ```bash
 homelab/
-├── scripts/        # Automation scripts (currently only setup-subnet-router.sh)
+├── scripts/        # Automation scripts
 ├── .gitignore      # Ignore rules for logs, temp files, NAS sync dbs, etc.
 └── README.md       # Project overview and usage
 ````
