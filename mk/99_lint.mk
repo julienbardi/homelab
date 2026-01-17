@@ -96,7 +96,7 @@ lint-spell:
 	@echo "[lint] Running codespell and aspell (permissive)..."
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
-	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" $(HOMELAB_DIR) || true; \
+	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg,.git,dns-warm-async" $(HOMELAB_DIR) || true; \
 	else \
 	  echo "[lint] codespell not installed; skipping codespell"; \
 	fi
