@@ -35,20 +35,20 @@ days_left() {
 }
 
 issue() {
-	log "[issue] issuing RSA+ECC for $DOMAIN"
-	"$ACME" --server letsencrypt --issue -d "$DOMAIN" -d "*.$DOMAIN" --dns dns_infomaniak --keylength 4096 --force || log "[warn] RSA issuance failed"
-	"$ACME" --server letsencrypt --issue -d "$DOMAIN" -d "*.$DOMAIN" --dns dns_infomaniak --keylength ec-256 --ecc --force || log "[warn] ECC issuance failed"
+	log "🔐 Issuing RSA and ECC certificates for $DOMAIN"
+	"$ACME" --server letsencrypt --issue -d "$DOMAIN" -d "*.$DOMAIN" --dns dns_infomaniak --keylength 4096 --force || log "⚠️ RSA certificate issuance failed"
+	"$ACME" --server letsencrypt --issue -d "$DOMAIN" -d "*.$DOMAIN" --dns dns_infomaniak --keylength ec-256 --ecc --force || log "⚠️ ECC certificate issuance failed"
 }
 
 renew() {
 	[[ -f "$ACME_HOME/.last_renew" ]] && \
 	(( $(date +%s) - $(stat -c %Y "$ACME_HOME/.last_renew") < 86400 )) && \
-	{ log "[renew] Refusing renewal — last attempt <24h"; return; }
+	{ log "⏳ Renewal skipped — last attempt <24h"; return; }
 
 	local acme_force="${ACME_FORCE:-0}"
 
 	if (( acme_force == 1 )); then
-		log "[renew] ACME_FORCE enabled — bypassing threshold"
+		log "⚠️ ACME_FORCE enabled — bypassing renewal thresholds"
 		"$ACME" --renew -d "$DOMAIN" --ecc --force && log "[renew] ECC forced renewal"
 		"$ACME" --renew -d "$DOMAIN" --force && log "[renew] RSA forced renewal"
 		return
@@ -59,13 +59,13 @@ renew() {
 	local ecc_days; ecc_days="$(days_left "$ecc_check")"
 
 	if (( ecc_days > RENEW_THRESHOLD_DAYS )); then
-		log "[renew] ECC cert valid ${ecc_days}d; skipping (threshold ${RENEW_THRESHOLD_DAYS}d)"
+		log "🔁 ECC certificate valid ${ecc_days}d — skipping renewal"
 	else
-		log "[renew] ECC within ${ecc_days}d; attempting renewal"
+		log "⏳ ECC certificate within ${ecc_days}d — attempting renewal"
 		if "$ACME" --renew -d "$DOMAIN" --ecc; then
-			log "[renew] ECC renewal succeeded"
+			log "🔐 ECC certificate renewed"
 		else
-			log "[info] ECC renewal skipped or not needed"
+			log "🔁 ECC renewal not required"
 		fi
 	fi
 
@@ -74,39 +74,38 @@ renew() {
 	local rsa_days; rsa_days="$(days_left "$rsa_check")"
 
 	if (( rsa_days > RENEW_THRESHOLD_DAYS )); then
-		log "[renew] RSA cert valid ${rsa_days}d; skipping (threshold ${RENEW_THRESHOLD_DAYS}d)"
+		log "🔁 RSA certificate valid ${rsa_days}d — skipping renewal"
 	else
-		log "[renew] RSA within ${rsa_days}d; attempting renewal"
+		log "⏳ RSA certificate within ${rsa_days}d — attempting renewal"
 		if "$ACME" --renew -d "$DOMAIN"; then
-			log "[renew] RSA renewal succeeded"
+			log "🔐 RSA certificate renewed"
 		else
-			log "[info] RSA renewal skipped or not needed"
+			log "🔁 RSA renewal not required"
 		fi
 	fi
-
 	touch "$ACME_HOME/.last_renew"
 }
 
 
 prepare() {
-	log "[prepare] canonical store: $SSL_CANONICAL_DIR"
+	log "📦 Preparing canonical certificate store at $SSL_CANONICAL_DIR"
 	sudo mkdir -p "$SSL_CANONICAL_DIR"
 
 	for t in ecc rsa; do
 		if [[ "$t" == "ecc" ]]; then
 			# ECC must exist — fail loudly if missing
-			require_file "$SSL_CERT_ECC"  || { log "[prepare] ❌ missing ECC cert:   $SSL_CERT_ECC";  exit 1; }
-			require_file "$SSL_CHAIN_ECC" || { log "[prepare] ❌ missing ECC chain:  $SSL_CHAIN_ECC"; exit 1; }
-			require_file "$SSL_KEY_ECC"   || { log "[prepare] ❌ missing ECC key:    $SSL_KEY_ECC";   exit 1; }
+			require_file "$SSL_CERT_ECC"  || { log "❌ missing ECC cert:   $SSL_CERT_ECC";  exit 1; }
+			require_file "$SSL_CHAIN_ECC" || { log "❌ missing ECC chain:  $SSL_CHAIN_ECC"; exit 1; }
+			require_file "$SSL_KEY_ECC"   || { log "❌ missing ECC key:    $SSL_KEY_ECC";   exit 1; }
 
 			sudo cp -f "$SSL_CHAIN_ECC" "$SSL_CANONICAL_DIR/fullchain_ecc.pem"
 			sudo cp -f "$SSL_KEY_ECC"   "$SSL_CANONICAL_DIR/privkey_ecc.pem"
 
 		else
 			# RSA must exist — fail loudly if missing
-			require_file "$SSL_CERT_RSA"  || { log "[prepare] ❌ missing RSA cert:   $SSL_CERT_RSA";  exit 1; }
-			require_file "$SSL_CHAIN_RSA" || { log "[prepare] ❌ missing RSA chain:  $SSL_CHAIN_RSA"; exit 1; }
-			require_file "$SSL_KEY_RSA"   || { log "[prepare] ❌ missing RSA key:    $SSL_KEY_RSA";   exit 1; }
+			require_file "$SSL_CERT_RSA"  || { log "❌ missing RSA cert:   $SSL_CERT_RSA";  exit 1; }
+			require_file "$SSL_CHAIN_RSA" || { log "❌ missing RSA chain:  $SSL_CHAIN_RSA"; exit 1; }
+			require_file "$SSL_KEY_RSA"   || { log "❌ missing RSA key:    $SSL_KEY_RSA";   exit 1; }
 
 			sudo cp -f "$SSL_CHAIN_RSA" "$SSL_CANONICAL_DIR/fullchain_rsa.pem"
 			sudo cp -f "$SSL_KEY_RSA"   "$SSL_CANONICAL_DIR/privkey_rsa.pem"
@@ -116,7 +115,7 @@ prepare() {
 	sudo chmod 0600 "$SSL_CANONICAL_DIR"/privkey_*.pem || true
 	sudo chmod 0644 "$SSL_CANONICAL_DIR"/fullchain_*.pem || true
 
-	log "[prepare] updated ECC+RSA in canonical store"
+	log "📦 Canonical certificate store updated (ECC + RSA)"
 }
 
 deploy_caddy() {
@@ -176,7 +175,7 @@ deploy_headscale() {
 }
 
 deploy_dnsdist() {
-	log "[deploy][dnsdist] deploying DoH TLS material"
+	log "🔐 Deploying DoH TLS material to dnsdist"
 
 	local DNSDIST_GROUP="_dnsdist"
 	local DNSDIST_BASE_DIR="/etc/dnsdist"
@@ -216,12 +215,12 @@ deploy_dnsdist() {
 	fi
 
 	if [[ "$rc1" -eq 3 || "$rc2" -eq 3 ]]; then
-		log "[svc] restarting dnsdist (TLS material updated, dnsdist cannot reload TLS material)"
+		log "🔄 Restarting dnsdist (TLS material updated)"
 		systemctl restart dnsdist
 	else
 		log "🔁 dnsdist unchanged (no restart)"
 	fi
-	log "[deploy][dnsdist] complete"
+	log "🔐 dnsdist TLS material deployed"
 }
 
 
