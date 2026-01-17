@@ -8,8 +8,10 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 set -euo pipefail
 
-source "/home/julie/src/homelab/config/homelab.env"
-source "/home/julie/src/homelab/scripts/common.sh"
+HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/../..")}"
+
+source "$HOMELAB_DIR/config/homelab.env"
+source "$HOMELAB_DIR/scripts/common.sh"
 
 ACME="$ACME_HOME/acme.sh"
 
@@ -215,26 +217,29 @@ deploy_dnsdist() {
 	chown root:"$DNSDIST_GROUP" "$DNSDIST_CERT_DIR"
 	chmod 0750 "$DNSDIST_CERT_DIR"
 
-	local res1 res2
-	res1="$(atomic_install "$SRC_CHAIN" \
-		"$DNSDIST_CERT_DIR/fullchain.pem" \
-		"root:$DNSDIST_GROUP" 0644)"
+	local rc1 rc2
 
-	res2="$(atomic_install "$SRC_KEY" \
-		"$DNSDIST_CERT_DIR/privkey.pem" \
-		"root:$DNSDIST_GROUP" 0640)"
+	CHANGED_EXIT_CODE=3
+
+	"$HOMELAB_DIR/scripts/install_if_changed.sh" \
+		"$SRC_CHAIN" "$DNSDIST_CERT_DIR/fullchain.pem" root "$DNSDIST_GROUP" 0644
+	rc1="$?"
+
+	"$HOMELAB_DIR/scripts/install_if_changed.sh" \
+		"$SRC_KEY" "$DNSDIST_CERT_DIR/privkey.pem" root "$DNSDIST_GROUP" 0640
+	rc2="$?"
 
 	if ! service_exists dnsdist; then
 		log "[deploy][dnsdist] skipped — service not installed"
 		return 0
 	fi
-	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
+
+	if [[ "$rc1" -eq 3 || "$rc2" -eq 3 ]]; then
 		log "[svc] restarting dnsdist (TLS material updated, dnsdist cannot reload TLS material)"
 		systemctl restart dnsdist
 	else
 		log "🔁 dnsdist unchanged (no restart)"
 	fi
-
 	log "[deploy][dnsdist] complete"
 }
 
