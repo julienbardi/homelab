@@ -99,20 +99,22 @@ __pycache__/
 *.obb
 
 # === Homelab-specific artifacts ===
-# Sensitive or generated files from WireGuard, Headscale, Unbound, and router scripts
-# Source: internal homelab stack documentation
-/etc/wireguard/*.key
-/etc/wireguard/*.conf
-/etc/wireguard/qr/*.qr
+# Runtime secrets and generated artifacts (never commit)
 
-/etc/headscale/db.sqlite
-/etc/headscale/private.key
+# WireGuard private material
+**/wireguard/*.key
+**/wireguard/*.conf
+**/wireguard/qr/*.qr
 
-/var/lib/unbound/root.key
+# Headscale runtime state
+**/headscale/*.key
+**/headscale/db.sqlite
+
+# Unbound runtime trust anchors
+**/unbound/root.key
 
 # Systemd runtime overrides (not source templates)
-/*.service.d/
-/*.pid
+*.service.d/
 
 # Future site/dashboard build artifacts
 gen2/site/node_modules/
@@ -120,3 +122,14 @@ gen2/site/dist/
 
 # Wireguard runtime artifacts (secrets)
 /out/
+
+# Build outputs
+/build/
+/dist/
+
+# Compiled binaries (never commit)
+*.o
+*.a
+*.so
+*.exe
+dns-warm-async
