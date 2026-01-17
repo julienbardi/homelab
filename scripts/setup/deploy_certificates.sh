@@ -20,7 +20,7 @@ usage() {
 }
 
 service_exists() {
-	systemctl list-unit-files --type=service | grep -q "^$1.service"
+	systemctl status "$1.service" >/dev/null 2>&1
 }
 
 days_left() {
