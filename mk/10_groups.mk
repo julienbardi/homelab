@@ -23,13 +23,12 @@ ADMIN_GROUPS = \
 # Groups owned exclusively by system services
 SERVICE_GROUPS = \
 	headscale \
-	coredns \
 	_dnsdist \
 	ssl-cert
 
 # Service accounts to create (one per service group)
 # On Debian systems, ssl-cert is usually group‑only, not a user.
-SERVICE_USERS = headscale coredns _dnsdist
+SERVICE_USERS = headscale _dnsdist
 
 CURRENT_USER := $(shell id -un)
 

@@ -149,12 +149,12 @@ certs-rotate:
 
 
 .PHONY: issue renew prepare \
-	deploy-caddy deploy-coredns deploy-headscale deploy-dnsdist deploy-router deploy-diskstation deploy-qnap \
-	validate-caddy validate-coredns validate-headscale validate-router validate-diskstation validate-qnap \
-	all-caddy all-coredns all-headscale all-router all-diskstation all-qnap \
+	deploy-caddy deploy-headscale deploy-dnsdist deploy-router deploy-diskstation deploy-qnap \
+	validate-caddy validate-headscale validate-router validate-diskstation validate-qnap \
+	all-caddy all-headscale all-router all-diskstation all-qnap \
 	setup-cert-watch-% setup-cert-watch-all \
 	deploy-cert-watch-% deploy-cert-watch-all \
-	bootstrap-caddy bootstrap-coredns bootstrap-headscale bootstrap-router bootstrap-diskstation bootstrap-qnap \
+	bootstrap-caddy bootstrap-headscale bootstrap-router bootstrap-diskstation bootstrap-qnap \
 	bootstrap-all
 
 # Base actions
@@ -175,9 +175,6 @@ endef
 
 deploy-caddy: prepare
 	$(call deploy_with_status,caddy)
-
-deploy-coredns: prepare
-	$(call deploy_with_status,coredns)
 
 deploy-headscale: prepare
 	$(call deploy_with_status,headscale)
@@ -201,7 +198,6 @@ define validate_with_status
 endef
 
 validate-caddy:       $(call validate_with_status,caddy)
-validate-coredns:     $(call validate_with_status,coredns)
 validate-headscale:   $(call validate_with_status,headscale)
 validate-router:      $(call validate_with_status,router)
 validate-diskstation: $(call validate_with_status,diskstation)
@@ -209,7 +205,6 @@ validate-qnap:        $(call validate_with_status,qnap)
 
 # All-in-one targets (pattern rule: renew + prepare + deploy + validate)
 all-caddy:       renew prepare deploy-caddy       validate-caddy
-all-coredns:     renew prepare deploy-coredns     validate-coredns
 all-headscale:   renew prepare deploy-headscale   validate-headscale
 all-router:      renew prepare deploy-router      validate-router
 all-diskstation: renew prepare deploy-diskstation validate-diskstation
@@ -236,8 +231,7 @@ setup-cert-watch-%:
 setup-cert-watch-all: \
 	setup-cert-watch-caddy \
 	setup-cert-watch-dnsdist \
-	setup-cert-watch-headscale \
-	setup-cert-watch-coredns
+	setup-cert-watch-headscale
 
 # Bootstrap combos
 define bootstrap_with_status
@@ -247,7 +241,6 @@ define bootstrap_with_status
 endef
 
 bootstrap-caddy:         $(call bootstrap_with_status,caddy)
-bootstrap-coredns:       $(call bootstrap_with_status,coredns)
 bootstrap-headscale:     $(call bootstrap_with_status,headscale)
 bootstrap-router:        $(call bootstrap_with_status,router)
 bootstrap-diskstation:   $(call bootstrap_with_status,diskstation)
@@ -256,8 +249,7 @@ bootstrap-qnap:          $(call bootstrap_with_status,qnap)
 # FIX: bootstrap-all wires only LOCAL watchers; no remote hosts here
 bootstrap-all: \
 	setup-cert-watch-caddy all-caddy \
-	setup-cert-watch-headscale \
-	setup-cert-watch-coredns
+	setup-cert-watch-headscale
 
 # Cert watch deploy targets
 define deploy_cert_watch
@@ -274,5 +266,4 @@ deploy-cert-watch-%:
 deploy-cert-watch-all: \
 	deploy-cert-watch-caddy \
 	deploy-cert-watch-dnsdist \
-	deploy-cert-watch-headscale \
-	deploy-cert-watch-coredns
+	deploy-cert-watch-headscale

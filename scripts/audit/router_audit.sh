@@ -5,7 +5,7 @@
 # Audit health of VPN + DNS stack
 # Host: 10.89.12.4 (NAS / VPN node)
 # Responsibilities:
-#   - Summarize Headscale, CoreDNS, Unbound, ndppd services
+#   - Summarize Headscale, Unbound, ndppd services
 #   - Summarize WireGuard interfaces wg0–wg7 and tailscale0
 #   - Check firewall rules (run_as_root /sbin/iptables-legacy)
 # ============================================================
@@ -24,7 +24,7 @@ log() {
 # --- Service Summary Table ---
 log "🔍 Service summary"
 
-SERVICES=(headscale coredns unbound ndppd)
+SERVICES=(headscale unbound ndppd)
 
 # Header
 printf "%-12s %-8s %-8s %-40s\n" "Service" "Active" "Enabled" "Hint"
