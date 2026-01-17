@@ -26,7 +26,7 @@ OWNER ?= root
 GROUP ?= root
 MODE ?= 0755
 
-# Stamp dir (overrideable)
+# Stamp dir (overridable)
 STAMP_DIR ?= /var/lib/homelab
 
 # log(message). Show on screen and write to syslog/journald
