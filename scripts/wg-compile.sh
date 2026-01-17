@@ -13,7 +13,7 @@ set -eu
 #
 # IPv6 is symmetric and embeds the same (A,B):
 #   wgN (N=1..15): 2a01:8b81:4800:9c0X::A:B  (X = hex(N))
-#   2a01:8b81:4800:9c00::/64 is the LAN and connot be used for Wireguard subnets.
+#   2a01:8b81:4800:9c00::/64 is the LAN and cannot be used for Wireguard subnets.
 #   wg1 -> 2a01:8b81:4800:9c01::/64
 #   ...
 #   wg10-> 2a01:8b81:4800:9c0a::/64

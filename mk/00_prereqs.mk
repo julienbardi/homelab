@@ -70,7 +70,7 @@ prereqs: ensure-run-as-root prereqs-network
 	@$(call apt_update_if_needed)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 		build-essential \
-		curl jq git nftables iptables shellcheck pup codespell aspell ndppd \
+		curl jq git nftables iptables shellcheck pup codespell aspell aspell-en ndppd \
 		knot-dnsutils \
 		unbound dnsutils dnsperf \
 		iperf3 \

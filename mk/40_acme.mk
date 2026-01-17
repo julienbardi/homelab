@@ -1,7 +1,7 @@
 # mk/40_acme.mk
 # ACME certificate permission fixes
 
-# Canonical ACME state location (overrideable)
+# Canonical ACME state location (overridable)
 ACME_HOME ?= /var/lib/acme
 
 # Group allowed to read certificates
