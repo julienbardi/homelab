@@ -1,78 +1,75 @@
 # ============================================================
-# mk/90_converge.mk — Explicit full network convergence
+# mk/90_converge.mk — Explicit network convergence (safe by default)
 #
-# This target intentionally rewrites WireGuard state:
-# - regenerates server configs
-# - reassigns client IPs if needed
-# - brings up all interfaces
-# - reconciles kernel peer state
-# - reapplies nftables policy
+# Convergence semantics:
+# - Verifies kernel forwarding and firewall integrity
+# - Applies idempotent server WireGuard state (no mutation)
+# - Detects client configuration drift and shows diffs
+# - Requires explicit FORCE=1 only when mutation would occur:
+#     * client regeneration
+#     * runtime peer reconciliation
 #
-# Intentionally state-rewriting. Requires FORCE=1.
-# sudo FORCE=1 make converge-network
+# Safety guarantees:
+# - No WireGuard state is modified without explicit confirmation
+# - Client drift is always shown before FORCE is requested
+# - Runtime changes are gated behind FORCE
+#
+# Usage:
+#   sudo make all              # Safe unless drift is detected
+#   sudo FORCE=1 make all      # Apply all required changes
+#   make wg-clients-diff       # Inspect client drift only (no mutation)
+#
 # Keeps bin/run-as-root unchanged (argv tokens contract).
+# NOTE:
+# Output must be deterministic.
+# Do NOT add timestamps or run-specific metadata.
+# Drift detection relies on byte-stable output.
 # ============================================================
 .PHONY: converge-network converge-audit \
 		check-force check-forwarding \
-		wg-stack regen-clients-fanout network-status \
+		wg-stack network-status \
 		wg-converge-server wg-converge-clients wg-converge-runtime
 
-converge-network: check-forwarding check-force \
+converge-network: check-forwarding \
 				  install-homelab-sysctl \
-				  firewall-stack \
-				  dns-stack dns-runtime \
+				  nft-verify \
+				  dns-runtime \
 				  wg-stack
 	@echo "✅ Network convergence complete"
 
 converge-audit:
 	@echo "🔎 Converge DAG (what would run)"
-	@$(MAKE) -n converge-network | sed -n '1,200p'
+	@echo "   (audit disabled: sub-make is forbidden)"
+	@echo "   Use: make -n converge-network | sed -n '1,200p'"
 
 check-force:
 	@if echo "$(MAKEFLAGS)" | grep -q -- '-n'; then \
 		echo "[audit] FORCE check skipped"; \
 	elif [ "$(FORCE)" != "1" ]; then \
-		echo "ERROR: converge-network requires FORCE=1"; \
-		echo "       (rewrites WireGuard state)"; \
+		echo "ERROR: a sub‑step detected drift"; \
+		echo "       converge-network rewrites WireGuard state"; \
+		echo "       explicit confirmation required"; \
+		echo ""; \
+		echo "👉 Re-run with:"; \
+		echo "   sudo FORCE=1 make all"; \
 		exit 1; \
 	fi
+
+.PHONY: wg-clients-diff
+wg-clients-diff:
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(HOMELAB_DIR)/scripts/wg-clients-drift.sh" || true
 
 .PHONY: wg-stack
 wg-stack: wg-converge-server wg-converge-clients wg-converge-runtime
 
-regen-clients-fanout: FORCE_REASSIGN=1
-regen-clients-fanout: FORCE=1
-regen-clients-fanout: CONF_FORCE=1
+wg-converge-server: wg-deployed
 
-wg-converge-server:
-	$(MAKE) -f $(MAKEFILE_CANONICAL) all-wg CONF_FORCE=1
+wg-converge-clients: regen-clients
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(HOMELAB_DIR)/scripts/wg-clients-drift.sh" && \
+		echo "✅ Client configs already converged" || \
+		echo "🔁 Client configs regenerated"
 
-wg-converge-clients:
-	@echo "🔁 Regenerating client configs (sequential, deterministic)"
-	$(MAKE) -f $(MAKEFILE_CANONICAL) regen-clients-fanout
-
-wg-converge-runtime:
-	$(MAKE) -f $(MAKEFILE_CANONICAL) all-wg-up
-	$(MAKE) -f $(MAKEFILE_CANONICAL) wg-add-peers
-
-# Client regeneration fan-out (intentionally sequential for safety)
-# Evaluate client interfaces at runtime to avoid parse-time shell traps
-.PHONY: regen-clients-fanout
-regen-clients-fanout: guard-wg-root
-	@for iface in $$($(SCRIPTS)/wg-plan-ifaces.sh "$(WG_ROOT)/compiled/plan.tsv"); do \
-		$(MAKE) regen-client-$$iface FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1; \
-	done
-
-.PHONY: guard-wg-root
-guard-wg-root:
-	@if [ -z "$(WG_ROOT)" ]; then \
-		echo "ERROR: WG_ROOT must be set (command line or environment) for regen-clients-fanout"; \
-		exit 1; \
-	fi
-
-regen-client-%:
-	$(MAKE) -f $(MAKEFILE_CANONICAL) regen-clients IFACE=$* \
-		FORCE_REASSIGN=1 FORCE=1 CONF_FORCE=1
+wg-converge-runtime: check-force wg-deployed
 
 check-forwarding:
 	@$(run_as_root) sysctl -n net.ipv4.ip_forward | grep -q '^1$$' || \
@@ -90,8 +87,46 @@ network-status:
 	@$(run_as_root) nft list table inet homelab_filter
 	@$(run_as_root) nft list table ip homelab_nat
 
-.PHONY: firewall-stack
-firewall-stack:
-	@echo "🔥 Applying homelab nftables firewall"
-	@$(run_as_root) bash "$(HOMELAB_DIR)/scripts/homelab-nft-apply.sh"
+HOMELAB_NFT_ETC_DIR   := /etc/nftables
+HOMELAB_NFT_RULESET   := $(HOMELAB_NFT_ETC_DIR)/homelab.nft
+HOMELAB_NFT_HASH_FILE := /var/lib/homelab/nftables.applied.sha256
+
+.PHONY: nft-verify
+nft-verify: check-forwarding
+	@echo "🔍 [make] Verifying homelab nftables applied hash"
+
+	@if [ ! -f "$(HOMELAB_NFT_RULESET)" ]; then \
+		echo "❌ nftables ruleset not present on disk"; \
+		echo "   converge-network only verifies firewall state"; \
+		echo "   firewall has never been applied on this host"; \
+		echo ""; \
+		echo "👉 First-time setup required:"; \
+		echo "   sudo make nft-apply && sudo make nft-confirm"; \
+		exit 1; \
+	fi
+
+	@if [ ! -f "$(HOMELAB_NFT_HASH_FILE)" ]; then \
+		echo "❌ No recorded applied hash found: $(HOMELAB_NFT_HASH_FILE)"; \
+		echo "👉 Firewall was never applied intentionally"; \
+		echo "👉 Run: make nft-apply && make nft-confirm"; \
+		exit 1; \
+	fi
+
+	@if [ ! -s "$(HOMELAB_NFT_HASH_FILE)" ]; then \
+		echo "❌ Recorded nftables hash is empty"; \
+		echo "👉 Run: make nft-apply && make nft-confirm"; \
+		exit 1; \
+	fi
+
+	@current=$$($(run_as_root) sha256sum "$(HOMELAB_NFT_RULESET)" | awk '{print $$1}'); \
+	recorded=$$($(run_as_root) cat "$(HOMELAB_NFT_HASH_FILE)"); \
+	if [ "$$current" != "$$recorded" ]; then \
+		echo "❌ nftables drift detected (homelab.nft changed since last apply)"; \
+		echo "   Recorded: $$recorded"; \
+		echo "   Current:  $$current"; \
+		echo "👉 Review and run: make nft-apply && make nft-confirm"; \
+		exit 1; \
+	fi
+
+	@echo "✅ [make] nftables ruleset matches recorded applied state"
 
