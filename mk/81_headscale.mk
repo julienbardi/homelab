@@ -143,6 +143,7 @@ test-headscale-override:
 # Parallel verification suite (runs atomic tests concurrently)
 # --------------------------------------------------------------------
 headscale-verify: \
+	headscale-wait-ready \
 	test-headscale-service \
 	test-headscale-config \
 	test-headscale-acl \
@@ -150,3 +151,15 @@ headscale-verify: \
 	test-headscale-unit \
 	test-headscale-override
 	@echo "[verify] 🎉 Parallel verification complete"
+
+.PHONY: headscale-wait-ready
+headscale-wait-ready: ensure-run-as-root
+	@echo "[make] Waiting for Headscale API..."
+	@for i in {1..10}; do \
+		if $(run_as_root) headscale version >/dev/null 2>&1; then \
+			echo "[make] Headscale API ready"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "[make] ❌ Headscale API did not become ready in time"; exit 1
