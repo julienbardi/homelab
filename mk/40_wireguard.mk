@@ -30,28 +30,33 @@ WG_RENDER_CHECK_SCRIPT := $(SCRIPTS)/wg-check-render.sh
 # ------------------------------------------------------------
 wg-compile-intent: $(WG_CSV) $(WG_COMPILE_SCRIPT)
 	@test -x "$(WG_COMPILE_SCRIPT)"
-	@$(WG_COMPILE_SCRIPT)
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_COMPILE_SCRIPT)"
+
 
 wg-ensure-server-keys: wg-compile-intent $(WG_SERVER_KEYS_SCRIPT)
 	@test -x "$(WG_SERVER_KEYS_SCRIPT)"
-	@$(WG_SERVER_KEYS_SCRIPT)
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_KEYS_SCRIPT)"
+
 # ------------------------------------------------------------
 # Generate client keys → keys.tsv
 # ------------------------------------------------------------
 wg-compile-keys: wg-compile-intent $(WG_KEYS_SCRIPT)
 	@test -x "$(WG_KEYS_SCRIPT)"
-	@$(WG_KEYS_SCRIPT)
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_KEYS_SCRIPT)"
+
 
 # ------------------------------------------------------------
 # Render client + server configs from plan.tsv + keys.tsv
 # ------------------------------------------------------------
 wg-render-server-base: wg-compile-intent
 	@test -x "$(WG_SERVER_BASE_RENDER_SCRIPT)"
-	@$(WG_SERVER_BASE_RENDER_SCRIPT)
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_BASE_RENDER_SCRIPT)"
+
 
 wg-render: wg-plan wg-compile-intent wg-compile-keys wg-ensure-server-keys wg-render-server-base
 	@test -x "$(WG_RENDER_SCRIPT)"
-	@$(WG_RENDER_SCRIPT)
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_SCRIPT)"
+
 
 # ------------------------------------------------------------
 # Compile everything (no deployment)
@@ -63,18 +68,19 @@ wg-compile: wg-compile-intent wg-compile-keys wg-render wg-check-render wg-check
 # ------------------------------------------------------------
 wg-deployed: ensure-run-as-root net-tunnel-preflight wg-compile wg-check
 	@test -x "$(WG_DEPLOY_SCRIPT)"
+	@echo "🔄 WireGuard deployment requested"
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
 
 wg-apply: wg-deployed
 	@test -x "$(WG_EXPORT_SCRIPT)"
 	@$(WG_EXPORT_SCRIPT)
-	@echo "✅ WireGuard converged successfully"
+	@echo "✅ WireGuard converged"
 
 # ------------------------------------------------------------
 # Validate only (alias)
 # ------------------------------------------------------------
 wg-validate: wg-compile
-	@echo "✅ validation OK"
+	@echo "🔁 WireGuard validation OK (no changes applied)"
 
 # ------------------------------------------------------------
 # Consistency / sanity checks
@@ -84,7 +90,7 @@ wg-check: ensure-run-as-root
 	@$(run_as_root) $(WG_CHECK_SCRIPT)
 
 wg-rebuild-clean: ensure-run-as-root
-	@echo "⚠️  FULL WireGuard rebuild (keys + config)"
+	@echo "🔥 FULL WireGuard rebuild (keys + config)"
 	@echo "⚠️  This will invalidate ALL existing clients"
 	@echo "⚠️  Press Ctrl-C now if this is not intended"
 	@sleep 5
@@ -102,4 +108,5 @@ wg-plan:
 
 wg-check-render: wg-render
 	@test -x "$(WG_RENDER_CHECK_SCRIPT)"
-	@$(WG_RENDER_CHECK_SCRIPT)
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"
+
