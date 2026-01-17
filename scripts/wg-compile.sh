@@ -168,7 +168,7 @@ PLAN_TMP="$STAGE/plan.tsv"
 {
 	printf "# GENERATED FILE — DO NOT EDIT\n"
 	printf "base\tiface\tslot\tdns\tclient_addr4\tclient_addr6\tAllowedIPs_client\tAllowedIPs_server\tendpoint\tserver_addr4\tserver_addr6\tserver_routes\n"
-	while IFS="$(printf '\t')" read -r user machine iface base; do
+	while IFS="$(printf '\t')" read -r _ _ iface base; do
 		ifnum="${iface#wg}"
 		if [ "$ifnum" -lt 1 ] || [ "$ifnum" -gt 15 ]; then
 			die "invalid iface wg${ifnum} — only wg1..wg15 are allowed"
