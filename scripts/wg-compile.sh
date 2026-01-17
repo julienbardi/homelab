@@ -175,7 +175,11 @@ PLAN_TMP="$STAGE/plan.tsv"
 		fi
 
 		slot="$(awk -F'\t' -v b="$base" '$1==b{print $2}' "$STAGE/alloc.tsv")"
-		ab_from_slot "$slot" | IFS=' ' read -r A B
+		ab="$(ab_from_slot "$slot")"
+		IFS=' ' read -r A B <<EOF
+$ab
+EOF
+		unset ab
 
 		client_addr4="10.${ifnum}.${A}.${B}/16"
 		client_addr6="2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::${A}:${B}/128"
