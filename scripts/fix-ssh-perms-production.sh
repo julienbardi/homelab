@@ -113,7 +113,7 @@ while IFS=: read -r USER HOME; do
 	fi
 
 	log "ℹ️ Inspecting $SSH_DIR"
-	ls -ld -- "$SSH_DIR" 2>/dev/null | sed -n '1p' || true
+	stat -c '%A %U:%G %n' -- "$SSH_DIR" 2>/dev/null || true
 	ls -l -- "$SSH_DIR" 2>/dev/null || true
 
 	# If root, ensure group exists and set ownership
