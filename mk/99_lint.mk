@@ -26,7 +26,7 @@ MAKEFILES := $(HOMELAB_DIR)/Makefile $(MK_FILES)
 .PHONY: lint lint-all lint-fast lint-ci lint-scripts-partial lint-scripts \
 		lint-shellcheck \
 		lint-shellcheck-strict \
-		lint-config lint-makefile lint-makefile-strict lint-headscale lint-spell lint-spell-strict
+		lint-makefile lint-makefile-strict lint-headscale lint-spell lint-spell-strict
 
 # Default lint target: permissive full suite
 lint: lint-all
@@ -38,7 +38,7 @@ lint-fast: lint-scripts lint-makefile
 lint-all: lint-fast lint-spell lint-headscale
 
 # Strict CI lint: fail on any issue (ShellCheck warnings, checkmake errors, codespell, aspell)
-lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale
+lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale-strict
 	@echo "[lint-ci] All checks passed (strict mode)."
 
 # Run shell syntax check and ShellCheck across all tracked .sh files (permissive)
@@ -136,9 +136,7 @@ lint-makefile:
 		$(CHECKMAKE) "$$mf" || true; \
 	  done; \
 	else \
-	  echo "[lint] checkmake not installed; run 'make deps' to install it or set CHECKMAKE=..."; \
-	  echo "[lint] Falling back to 'make -n' for a dry-run (non-failing)"; \
-	  make -n all >/dev/null || true; \
+	  echo "[lint] checkmake not installed; run 'make deps' to install it; skipping Makefile lint"; \
 	fi
 
 # Lint Makefiles strict: fail on checkmake errors
@@ -157,7 +155,9 @@ lint-makefile-strict:
 # Headscale config test (use run_as_root helper)
 lint-headscale:
 	@echo "[lint] Linting /etc/headscale/headscale.yaml (permissive)..."
-	@if command -v headscale >/dev/null 2>&1; then \
+	@if [ -z "$(run_as_root)" ]; then \
+	  echo "[lint] run_as_root helper not defined; skipping headscale configtest"; \
+	elif command -v headscale >/dev/null 2>&1; then \
 	  $(run_as_root) headscale configtest --config /etc/headscale/headscale.yaml || echo "[lint] Headscale configtest failed (permissive)"; \
 	else \
 	  echo "[lint] headscale binary not found; skipping headscale configtest"; \
@@ -166,8 +166,11 @@ lint-headscale:
 # Headscale config test strict
 lint-headscale-strict:
 	@echo "[lint-ci] Linting /etc/headscale/headscale.yaml (strict)..."
-	@if ! command -v headscale >/dev/null 2>&1; then \
+	@if [ -z "$(run_as_root)" ]; then \
+	  echo "[lint-ci] ERROR: run_as_root helper not defined"; exit 2; \
+	elif ! command -v headscale >/dev/null 2>&1; then \
 	  echo "[lint-ci] headscale binary not found; skipping headscale configtest"; \
 	else \
 	  $(run_as_root) headscale configtest --config /etc/headscale/headscale.yaml || { echo "[lint-ci] Headscale config invalid"; exit 1; }; \
 	fi
+
