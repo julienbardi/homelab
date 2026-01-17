@@ -59,7 +59,9 @@ die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
 
 wg_hextet_from_ifnum() {
 	n="$1"
-	[ "$n" -ge 1 ] && [ "$n" -le 15 ] || die "invalid ifnum '$n' for wg subnet"
+	if [ "$n" -lt 1 ] || [ "$n" -gt 15 ]; then
+		die "invalid ifnum '$n' for wg subnet"
+	fi
 	printf "9c0%x" "$n"
 }
 
