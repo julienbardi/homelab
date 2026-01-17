@@ -52,7 +52,6 @@ PLAN="$OUT_DIR/plan.tsv"
 ENDPOINT_HOST_BASE="vpn.bardi.ch"
 ENDPOINT_PORT_BASE="51420"
 
-TAB="$(printf '\t')"
 STAGE="$OUT_DIR/.staging.$$"
 umask 077
 
