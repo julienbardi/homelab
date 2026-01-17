@@ -17,8 +17,6 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-
 : "${WG_ROOT:?WG_ROOT not set}"
 
 PLAN="${WG_ROOT}/compiled/plan.tsv"
