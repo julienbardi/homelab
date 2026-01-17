@@ -14,7 +14,7 @@ DNSDIST_KEY        := $(DNSDIST_CERT_DIR)/privkey.pem
 
 .PHONY: dnsdist dnsdist-install deploy-dnsdist-certs \
 		dnsdist-config dnsdist-validate dnsdist-enable \
-		dnsdist-restart dnsdist-status dnsdist-systemd-dropin \
+		dnsdist-status dnsdist-systemd-dropin \
 		install-kdig
 
 install-kdig:
@@ -25,7 +25,7 @@ install-kdig:
 # --------------------------------------------------------------------
 dnsdist: harden-groups install-kdig \
 		dnsdist-install dnsdist-systemd-dropin deploy-dnsdist-certs \
-		dnsdist-config dnsdist-validate dnsdist-enable dnsdist-restart
+		dnsdist-config dnsdist-validate dnsdist-enable
 	@echo "🚀 dnsdist DoH frontend ready"
 
 # --------------------------------------------------------------------
@@ -49,11 +49,19 @@ deploy-dnsdist-certs:
 # --------------------------------------------------------------------
 # Deploy dnsdist configuration
 # --------------------------------------------------------------------
+.PHONY: dnsdist-config
 dnsdist-config:
-	@echo "📄 [make] Deploying dnsdist.conf → $(DNSDIST_CONF_DST)"
-	@$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist
-	@$(run_as_root) install -m 0644 -o root -g root \
-		$(DNSDIST_CONF_SRC) $(DNSDIST_CONF_DST)
+	@set -eu; \
+	$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
+	CHANGED_EXIT_CODE=3 \
+	$(run_as_root) $(HOMELAB_DIR)/scripts/install_if_changed.sh \
+		"$(DNSDIST_CONF_SRC)" "$(DNSDIST_CONF_DST)" root root 0644; \
+	rc="$$?"; \
+	if [ "$$rc" -eq 3 ]; then \
+		echo "🔄 dnsdist.conf updated"; \
+		echo "🔁 restarting dnsdist.service"; \
+		$(run_as_root) systemctl restart $(DNSDIST_UNIT); \
+	fi
 
 # --------------------------------------------------------------------
 # Validate dnsdist configuration (no daemon)
@@ -70,25 +78,27 @@ dnsdist-enable:
 	@$(run_as_root) systemctl enable $(DNSDIST_UNIT)
 
 # --------------------------------------------------------------------
-# Restart dnsdist cleanly
-# --------------------------------------------------------------------
-dnsdist-restart:
-	@echo "🔄 dnsdist restart requested"
-	@$(run_as_root) systemctl restart $(DNSDIST_UNIT)
-
-# --------------------------------------------------------------------
 # Status helper
 # --------------------------------------------------------------------
 dnsdist-status:
 	@$(run_as_root) systemctl status $(DNSDIST_UNIT) --no-pager || true
 
 dnsdist-systemd-dropin:
-	@echo "⚙️ [make] Installing dnsdist systemd drop-in"
-	@$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d
-	@$(run_as_root) install -m 0644 \
-		$(HOMELAB_DIR)/scripts/systemd/dnsdist.service.d/10-no-port53.conf \
-		/etc/systemd/system/dnsdist.service.d/10-no-port53.conf
-	@$(run_as_root) systemctl daemon-reload
+	@set -eu; \
+	echo "⚙️ [make] Installing dnsdist systemd drop-in"; \
+	$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
+	CHANGED_EXIT_CODE=3 \
+	$(run_as_root) $(HOMELAB_DIR)/scripts/install_if_changed.sh \
+		"$(HOMELAB_DIR)/scripts/systemd/dnsdist.service.d/10-no-port53.conf" \
+		"/etc/systemd/system/dnsdist.service.d/10-no-port53.conf" \
+		root root 0644; \
+	rc="$$?"; \
+	$(run_as_root) systemctl daemon-reload; \
+	if [ "$$rc" -eq 3 ]; then \
+		echo "🔄 dnsdist drop-in updated"; \
+		echo "🔁 restarting dnsdist.service"; \
+		$(run_as_root) systemctl restart $(DNSDIST_UNIT); \
+	fi
 
 .PHONY: assert-dnsdist-running
 assert-dnsdist-running:

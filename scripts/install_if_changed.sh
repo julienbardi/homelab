@@ -70,7 +70,7 @@ mode="$5"
 }
 
 case "$mode" in
-	[0-7][0-7][0-7]) ;;
+	[0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;;
 	*) echo "❌ invalid mode: $mode" >&2; exit 1 ;;
 esac
 
@@ -88,18 +88,18 @@ if [ -f "$dst" ] &&
    cmp -s "$tmp" "$dst" &&
    [ "$(stat -c '%a %u %g' "$tmp")" = "$(stat -c '%a %u %g' "$dst")" ]; then
 	if [ "$quiet" -eq 0 ]; then
-		echo "⚪ $(basename "$dst") unchanged (already converged)"
+		echo "⚪ $dst unchanged"
 	fi
 	exit 0
 fi
 
 if [ "$dry_run" -eq 1 ]; then
 	if [ "$quiet" -eq 0 ]; then
-		echo "🔍 $(basename "$dst") would be updated (dry-run)"
+		echo "🔍 $dst would be updated (dry-run)"
 	fi
 else
 	# Replace destination atomically
 	install -m "$mode" -o "$owner" -g "$group" "$tmp" "$dst"
-	echo "🔄 $(basename "$dst") updated"
+	echo "🔄 $dst updated"
 fi
 exit "${CHANGED_EXIT_CODE:-3}"
