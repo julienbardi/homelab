@@ -32,7 +32,7 @@ echo >&2
 
 # Show unified diffs (safe, readable)
 for f in $(diff -qr "$REAL" "$TEST" | awk '/Files/ {print $2}'); do
-    rel="${f#$REAL/}"
+    rel="${f#"$REAL"/}"
     echo "─── diff: $rel ───" >&2
     diff -u "$REAL/$rel" "$TEST/$rel" >&2 || true
     echo >&2

@@ -26,7 +26,7 @@ LOCKFILE="/var/lock/gen-client-cert-$CN.lock"
 "$RUN_AS_ROOT" mkdir -p "$VERIF_DIR"
 "$RUN_AS_ROOT" chmod 0700 "$VERIF_DIR"
 
-"$RUN_AS_ROOT" "$SCRIPT_DIR/generate-client-cert.sh" "$CN" $FORCE_FLAG
+"$RUN_AS_ROOT" "$SCRIPT_DIR/generate-client-cert.sh" "$CN" "$FORCE_FLAG"
 
 "$RUN_AS_ROOT" touch "$LOCKFILE"
 if ! "$RUN_AS_ROOT" flock -n "$LOCKFILE" true 2>/dev/null; then
