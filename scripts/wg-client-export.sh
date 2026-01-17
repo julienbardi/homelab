@@ -68,6 +68,13 @@ do
 
 	{
 		echo "# ${base}-${iface}"
+		echo "#"
+		echo "# Plan metadata (documentary only):"
+		echo "#   slot           = $slot"
+		echo "#   allowed_server = $allowed_server"
+		echo "#   server_addr4   = $server_addr4"
+		echo "#   server_addr6   = $server_addr6"
+		echo "#   server_routes  = $server_routes"
 		echo
 		echo "[Interface]"
 		echo "PrivateKey = $client_private"
