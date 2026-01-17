@@ -17,7 +17,7 @@ ACME="$ACME_HOME/acme.sh"
 
 usage() {
 	echo "Usage: $0 {issue|renew|prepare|deploy <service>|validate <service>|all <service>}"
-	echo "Services: caddy coredns headscale dnsdist router diskstation qnap"
+	echo "Services: caddy headscale dnsdist router diskstation qnap"
 	exit 1
 }
 
@@ -148,25 +148,6 @@ deploy_caddy() {
 	log "[deploy][caddy] complete"
 }
 
-deploy_coredns() {
-	log "[deploy][coredns] ECC cert via canonical store"
-	local res
-	res=$(atomic_install "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-						 "$SSL_CANONICAL_DIR/fullchain.pem" \
-						 "coredns:coredns" 0644)
-	if ! service_exists coredns; then
-		log "[deploy][coredns] skipped — service not installed"
-		return 0
-	fi
-	if [[ "$res" == "changed" ]]; then
-		reload_service coredns /etc/coredns/Corefile
-	else
-		log "🔁 coredns unchanged (no reload)"
-	fi
-
-	log "[deploy][coredns] complete"
-}
-
 deploy_headscale() {
 	log "[deploy][headscale] optional ECC certs into $SSL_DEPLOY_DIR_HEADSCALE"
 	sudo mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
@@ -219,7 +200,7 @@ deploy_dnsdist() {
 
 	local rc1 rc2
 
-	CHANGED_EXIT_CODE=3
+	local CHANGED_EXIT_CODE=3
 
 	"$HOMELAB_DIR/scripts/install_if_changed.sh" \
 		"$SRC_CHAIN" "$DNSDIST_CERT_DIR/fullchain.pem" root "$DNSDIST_GROUP" 0644
@@ -325,7 +306,6 @@ validate_caddy() {
 	echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" -cipher ECDHE-RSA-AES128-GCM-SHA256 2>/dev/null | openssl x509 -noout -subject -dates || log "[warn] RSA handshake failed"
 }
 
-validate_coredns() { log "[validate][coredns] DoH/DoT validation TBD"; }
 validate_headscale() { log "[validate][headscale] only if exposed on 443"; }
 validate_router() { log "[validate][router] remote validation requires hostnames/ports"; }
 validate_diskstation() {
@@ -383,7 +363,6 @@ validate_qnap() { log "[validate][qnap] remote validation requires hostnames/por
 dispatch_deploy() {
 	case "${1:-}" in
 		caddy)        deploy_caddy ;;
-		coredns)      deploy_coredns ;;
 		headscale)    deploy_headscale ;;
 		dnsdist)      deploy_dnsdist ;;
 		router)       deploy_router ;;
@@ -396,7 +375,6 @@ dispatch_deploy() {
 dispatch_validate() {
 	case "${1:-}" in
 		caddy)        validate_caddy ;;
-		coredns)      validate_coredns ;;
 		headscale)    validate_headscale ;;
 		router)       validate_router ;;
 		diskstation)  validate_diskstation ;;
@@ -412,7 +390,7 @@ case "${1:-}" in
 	deploy)
 	[[ $# -eq 2 ]] || usage
 	case "$2" in
-		caddy|coredns|headscale|dnsdist|router|diskstation|qnap) ;;
+		caddy|headscale|dnsdist|router|diskstation|qnap) ;;
 		*) log "[deploy] ERROR: unsupported service '$2'"; exit 2 ;;
 	esac
 	dispatch_deploy "$2"
