@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# /jffs/scripts/dns-health
+#
+# Router-side DNS backend health check and failover.
+#
+# Behavior:
+#   - If Unbound (10.89.12.4:5335) is reachable, use it as DNS backend
+#   - If not, fall back to ISP-provided DNS
+#   - Clients always use the router; no DHCP changes
+#
+# IPv4 and IPv6 are handled symmetrically.
+#
+# Added on 2026-01-17 by julie
+
+UNBOUND_IP="10.89.12.4"
+UNBOUND_PORT="5335"
+TAG="dns-health"
+
+check_unbound() {
+    dig @"$UNBOUND_IP" -p "$UNBOUND_PORT" . SOA \
+        +time=1 +tries=1 +retry=0 >/dev/null 2>&1
+}
+
+current_mode() {
+    nvram get wan_dnsenable_x
+}
+
+set_unbound() {
+    logger -t "$TAG" "Unbound reachable — using recursive backend"
+    nvram set wan_dnsenable_x=1
+    nvram set wan_dns1_x="$UNBOUND_IP"
+    nvram set wan_dns2_x=""
+}
+
+set_fallback() {
+    logger -t "$TAG" "Unbound unreachable — falling back to ISP DNS"
+    nvram set wan_dnsenable_x=0
+    nvram set wan_dns1_x=""
+    nvram set wan_dns2_x=""
+}
+
+if check_unbound; then
+    [ "$(current_mode)" != "1" ] && set_unbound
+else
+    [ "$(current_mode)" != "0" ] && set_fallback
+fi
+
+nvram commit
+service restart_dnsmasq

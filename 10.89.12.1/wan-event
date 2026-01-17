@@ -1,0 +1,14 @@
+#!/bin/sh
+
+sh /jffs/scripts/domain_vpn_routing.sh cron # domain_vpn_routing
+
+sh /jffs/scripts/domain_vpn_routing.sh querypolicy all # domain_vpn_routing_queryall
+
+sh /jffs/scripts/wan-failover.sh cron # Wan-Failover
+
+#
+# --- DNS backend health check ---
+# Re-evaluate DNS backend after WAN events.
+# Select Unbound if reachable, otherwise fall back to ISP DNS.
+#
+[ -x /jffs/scripts/dns-health ] && /jffs/scripts/dns-health &
