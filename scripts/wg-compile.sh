@@ -82,7 +82,9 @@ slot_from_base() {
 
 ab_from_slot() {
 	s="$1"
-	[ "$s" -ge 0 ] && [ "$s" -lt "$SLOT_SPACE" ] || die "invalid slot '$s'"
+	if [ "$s" -lt 0 ] || [ "$s" -ge "$SLOT_SPACE" ]; then
+		die "invalid slot '$s'"
+	fi
 	A=$(( (s / 253) + 1 ))   # 1..253
 	B=$(( (s % 253) + 2 ))   # 2..254
 	printf "%s %s\n" "$A" "$B"
