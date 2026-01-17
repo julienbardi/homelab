@@ -158,23 +158,23 @@ lint-makefile-strict:
 
 # Headscale config test (use run_as_root helper)
 lint-headscale:
-	@echo "[lint] Linting /etc/headscale/headscale.yaml (permissive)..."
+	@echo "[lint] Linting /etc/headscale/config.yaml (permissive)..."
 	@if [ -z "$(run_as_root)" ]; then \
 	  echo "[lint] run_as_root helper not defined; skipping headscale configtest"; \
 	elif command -v headscale >/dev/null 2>&1; then \
-	  $(run_as_root) headscale configtest --config /etc/headscale/headscale.yaml || echo "[lint] Headscale configtest failed (permissive)"; \
+	  $(run_as_root) headscale configtest --config /etc/headscale/config.yaml || echo "[lint] Headscale configtest failed (permissive)"; \
 	else \
 	  echo "[lint] headscale binary not found; skipping headscale configtest"; \
 	fi
 
 # Headscale config test strict
 lint-headscale-strict:
-	@echo "[lint-ci] Linting /etc/headscale/headscale.yaml (strict)..."
+	@echo "[lint-ci] Linting /etc/headscale/config.yaml (strict)..."
 	@if [ -z "$(run_as_root)" ]; then \
 	  echo "[lint-ci] ERROR: run_as_root helper not defined"; exit 2; \
 	elif ! command -v headscale >/dev/null 2>&1; then \
 	  echo "[lint-ci] headscale binary not found; skipping headscale configtest"; \
 	else \
-	  $(run_as_root) headscale configtest --config /etc/headscale/headscale.yaml || { echo "[lint-ci] Headscale config invalid"; exit 1; }; \
+	  $(run_as_root) headscale configtest --config /etc/headscale/config.yaml || { echo "[lint-ci] Headscale config invalid"; exit 1; }; \
 	fi
 
