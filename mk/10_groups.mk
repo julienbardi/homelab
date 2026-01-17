@@ -3,11 +3,10 @@
 # ------------------------------------------------------------
 # Hardened group membership enforcement
 #
-# - ADMIN_GROUPS: human-managed privilege groups
-# - SERVICE_GROUPS: system service groups (no human members)
-#
-# This file enforces group existence and membership invariants
-# in a Debian-compliant, upgrade-safe manner.
+# Contracts:
+# - harden-groups: verify invariants only (safe under sudo)
+# - enforce-groups: mutate state to satisfy invariants
+#                   (authorized human only)
 # ============================================================
 
 # Users part of the admin group
@@ -25,32 +24,78 @@ ADMIN_GROUPS = \
 SERVICE_GROUPS = \
 	headscale \
 	coredns \
-	_dnsdist
+	_dnsdist \
+	ssl-cert
 
 # Service accounts to create (one per service group)
-SERVICE_USERS = $(SERVICE_GROUPS)
+# On Debian systems, ssl-cert is usually group‑only, not a user.
+SERVICE_USERS = headscale coredns _dnsdist
 
-# Guard: only allow authorized admins to run these targets
 CURRENT_USER := $(shell id -un)
 
 # ------------------------------------------------------------
-# Harden all groups in one go
+# Verification-only: exits non-zero on any drift
 # ------------------------------------------------------------
-harden-groups: ensure-run-as-root
+.PHONY: groups-compliant
+groups-compliant:
+	@for g in $(ADMIN_GROUPS); do \
+		getent group $$g >/dev/null 2>&1 || { echo "❌ Missing admin group: $$g"; exit 1; }; \
+		for u in $(AUTHORIZED_ADMINS); do \
+			id -u $$u >/dev/null 2>&1 || continue; \
+			id -nG $$u | grep -qw $$g || { echo "❌ $$u not in $$g"; exit 1; }; \
+		done; \
+		for u in $$(getent group $$g | awk -F: '{print $$4}' | tr ',' ' '); do \
+			[ -z "$$u" ] && continue; \
+			case " $(AUTHORIZED_ADMINS) " in \
+				*" $$u "*) ;; \
+				*) echo "❌ Unauthorized member $$u in $$g"; exit 1 ;; \
+			esac; \
+		done; \
+	done; \
+	for g in $(SERVICE_GROUPS); do \
+		getent group $$g >/dev/null 2>&1 || { echo "❌ Missing service group: $$g"; exit 1; }; \
+	done; \
+	for u in $(SERVICE_USERS); do \
+		id -u $$u >/dev/null 2>&1 || { echo "❌ Missing service user: $$u"; exit 1; }; \
+	done
+
+# ------------------------------------------------------------
+# Public target used by converge: verify only, never mutates
+# ------------------------------------------------------------
+.PHONY: harden-groups
+harden-groups: ensure-run-as-root groups-compliant
+	@echo "✅ Groups already compliant"
+
+# ------------------------------------------------------------
+# Authorization guard (human-gated)
+# ------------------------------------------------------------
+.PHONY: ensure-authorized-admin
+ensure-authorized-admin:
 	@if ! echo "$(AUTHORIZED_ADMINS)" | grep -qw "$(CURRENT_USER)"; then \
 		echo "❌ Current user $(CURRENT_USER) is not authorized to enforce groups"; \
 		exit 1; \
 	fi
 
-	@missing=""
-	@for u in $(AUTHORIZED_ADMINS); do \
+# ------------------------------------------------------------
+# Mutation entrypoint (explicit, declarative)
+# ------------------------------------------------------------
+.PHONY: enforce-groups
+enforce-groups: ensure-authorized-admin ensure-run-as-root _enforce-groups
+	@echo "✅ Group enforcement complete"
+
+# ------------------------------------------------------------
+# Mutation logic (unchanged, authoritative)
+# ------------------------------------------------------------
+.PHONY: _enforce-groups
+_enforce-groups:
+	@missing=""; \
+	for u in $(AUTHORIZED_ADMINS); do \
 		if ! id -u $$u >/dev/null 2>&1; then \
 			$(call log,⚠️ User $$u does not exist, skipping admin membership); \
 			missing="$$missing $$u"; \
 		fi; \
-	done
-
-	@for g in $(ADMIN_GROUPS); do \
+	done; \
+	for g in $(ADMIN_GROUPS); do \
 		if ! getent group $$g >/dev/null 2>&1; then \
 			$(call log,➕ Creating admin group $$g); \
 			$(run_as_root) groupadd $$g; \
@@ -63,6 +108,7 @@ harden-groups: ensure-run-as-root
 			fi; \
 		done; \
 		for u in $$(getent group $$g | awk -F: '{print $$4}' | tr ',' ' '); do \
+			[ -z "$$u" ] && continue; \
 			case " $(AUTHORIZED_ADMINS) " in \
 				*" $$u "*) ;; \
 				*) $(call log,❌ Removing user $$u from group $$g (not authorized)); \
@@ -70,17 +116,15 @@ harden-groups: ensure-run-as-root
 			esac; \
 		done; \
 		echo "🎯 Admin group $$g enforced"; \
-	done
-
-	@for g in $(SERVICE_GROUPS); do \
+	done; \
+	for g in $(SERVICE_GROUPS); do \
 		if ! getent group $$g >/dev/null 2>&1; then \
 			$(call log,➕ Creating service group $$g); \
 			$(run_as_root) groupadd --system $$g; \
 		fi; \
 		echo "🎯 Service group $$g ensured"; \
-	done
-
-	@for u in $(SERVICE_USERS); do \
+	done; \
+	for u in $(SERVICE_USERS); do \
 		if ! id -u $$u >/dev/null 2>&1; then \
 			$(call log,➕ Creating service user $$u with primary group $$u); \
 			$(run_as_root) useradd --system --gid $$u --shell /usr/sbin/nologin --home /nonexistent $$u; \
@@ -90,6 +134,7 @@ harden-groups: ensure-run-as-root
 # ------------------------------------------------------------
 # Inspection helper
 # ------------------------------------------------------------
+.PHONY: check-groups
 check-groups:
 	@for g in $(ADMIN_GROUPS) $(SERVICE_GROUPS); do \
 		if getent group $$g >/dev/null 2>&1; then \

@@ -209,17 +209,17 @@ uninstall-systemd:
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound.service.d || true
 	@$(run_as_root) systemctl daemon-reload
 
-.PHONY: nft-apply nft-confirm nft-install nft-status
+.PHONY: nft-apply nft-confirm nft-install nft-status nft-install nft-verify nft-install-rollback
+.NOTPARALLEL: nft-confirm nft-apply
 
 nft-apply:
-	sudo scripts/homelab-nft-apply.sh
+	@$(run_as_root) scripts/homelab-nft-apply.sh
+	@echo "🧾 Recording applied nftables ruleset hash"
+	@$(run_as_root) sh -c 'sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"'
 
 nft-confirm:
 	sudo scripts/homelab-nft-confirm.sh
 
-.PHONY: nft-install nft-apply nft-confirm nft-status
-
-.PHONY: nft-install
 nft-install:
 	@echo "[make] Installing homelab nftables firewall..."
 	@$(run_as_root) install -o root -g root -m 0755 $(HOMELAB_DIR)/scripts/homelab-nft-apply.sh /usr/local/bin/homelab-nft-apply.sh
@@ -236,11 +236,9 @@ nft-install:
 	@echo "[make]   make nft-confirm  # Confirm rules (disarms rollback)"
 	@echo "[make]   (If not confirmed, rollback runs automatically)"
 
-
 nft-status:
 	sudo nft list table inet homelab_filter
 
-.PHONY: nft-install-rollback
 nft-install-rollback:
 	@echo "[make] Installing homelab nft rollback units..."
 	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft-rollback.service \
@@ -254,4 +252,11 @@ print-debug:
 	@echo "CURDIR=$(CURDIR)"
 	@echo "MAKEFILE_LIST=$(MAKEFILE_LIST)"
 	@echo "HOMELAB_DIR=$(HOMELAB_DIR)"
-	
+
+.PHONY: regen-clients
+regen-clients: ensure-run-as-root
+	@echo "🔁 Regenerating all WireGuard clients from authoritative input"
+	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" \
+		"$(HOMELAB_DIR)/scripts/wg-compile-clients.sh"
+
+

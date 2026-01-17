@@ -9,7 +9,7 @@ enable-unbound: \
 	deploy-unbound-local-internal \
 	deploy-unbound-service \
 	deploy-unbound-control-config
-	@echo "🔄 Restarting Unbound with homelab configuration"
+	@echo "🔄 unbound restart requested (homelab configuration)"
 	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true
 	@$(run_as_root) systemctl restart unbound
 	@$(run_as_root) systemctl is-active --quiet unbound || \
@@ -22,8 +22,12 @@ enable-unbound: \
 # Unbound
 # ------------------------------------------------------------
 install-pkg-unbound:
-	@echo "📦 Installing Unbound"
-	$(call apt_install,unbound,unbound)
+	@if command -v unbound >/dev/null; then \
+		echo "🔁 unbound already installed"; \
+	else \
+		echo "📦 Installing unbound"; \
+		$(call apt_install,unbound,unbound); \
+	fi
 	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true
 	@echo "✅ Unbound installed and enabled"
 
@@ -285,7 +289,7 @@ sysctl:
 		echo "net.core.wmem_max = 8388608" | $(run_as_root) tee -a /etc/sysctl.d/99-unbound-buffers.conf >/dev/null; \
 		echo "✅ Wrote /etc/sysctl.d/99-unbound-buffers.conf"; \
 	else \
-		echo "✔ /etc/sysctl.d/99-unbound-buffers.conf already correct"; \
+		echo "🔁 /etc/sysctl.d/99-unbound-buffers.conf already correct"; \
 	fi
 	@echo "🔧 Reloading sysctl configuration..."
 	@$(run_as_root) /sbin/sysctl --system >/dev/null

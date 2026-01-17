@@ -62,6 +62,16 @@ if ! iptables -C FORWARD -p tcp -d "$NAS4" --dport 2222 \
 fi
 
 #
+# IPv4 firewall invariant:
+# Allow STUN (DERP / Tailscale NAT discovery) to NAS
+#
+if ! iptables -C FORWARD -p udp -d "$NAS4" --dport 3478 \
+	-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+	iptables -I FORWARD -p udp -d "$NAS4" --dport 3478 \
+		-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+fi
+
+#
 # IPv6 firewall invariant:
 # Allow inbound HTTPS to NAS (idempotent)
 #

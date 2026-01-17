@@ -26,14 +26,14 @@ install-kdig:
 dnsdist: harden-groups install-kdig \
 		dnsdist-install dnsdist-systemd-dropin deploy-dnsdist-certs \
 		dnsdist-config dnsdist-validate dnsdist-enable dnsdist-restart
-	@echo "🚀 [make] dnsdist DoH frontend ready"
+	@echo "🚀 dnsdist DoH frontend ready"
 
 # --------------------------------------------------------------------
 # Install dnsdist (Debian package)
 # --------------------------------------------------------------------
 dnsdist-install:
 	@if command -v $(DNSDIST_BIN) >/dev/null; then \
-		echo "[make] dnsdist binary present"; \
+		echo "🔁 dnsdist binary already present"; \
 	else \
 		echo "[make] Installing dnsdist"; \
 		$(call apt_update_if_needed); \
@@ -73,7 +73,7 @@ dnsdist-enable:
 # Restart dnsdist cleanly
 # --------------------------------------------------------------------
 dnsdist-restart:
-	@echo "🔄 [make] Restarting dnsdist"
+	@echo "🔄 dnsdist restart requested"
 	@$(run_as_root) systemctl restart $(DNSDIST_UNIT)
 
 # --------------------------------------------------------------------

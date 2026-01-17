@@ -239,10 +239,8 @@ PLAN_TMP="$STAGE/plan.tsv"
 	done <"$NORM"
 } >"$PLAN_TMP"
 
-mv -f "$PLAN_TMP" "$PLAN"
-mv -f "$LOCK_TMP" "$LOCK"
-mv -f "$ALLOC_MERGED" "$ALLOC"
-
-chmod 600 "$PLAN" "$LOCK" "$ALLOC"
+install -m 0644 -o root -g root "$PLAN_TMP" "$PLAN"
+install -m 0644 -o root -g root "$LOCK_TMP" "$LOCK"
+install -m 0600 -o root -g root "$ALLOC_MERGED" "$ALLOC"
 
 echo "wg-compile: OK"

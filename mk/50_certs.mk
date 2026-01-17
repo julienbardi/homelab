@@ -38,15 +38,14 @@ gen-client-cert:
 	@FORCE_FLAG=''; if [ "$(FORCE)" = "1" ]; then FORCE_FLAG="--force"; fi; \
 	./scripts/gen-client-cert-wrapper.sh "$(CN)" "$(run_as_root)" "$(SCRIPT_DIR)" "$$FORCE_FLAG"
 
-
-
 # Deploy CA public cert into canonical store and caddy deploy dir (idempotent)
 certs-deploy: certs-create
-	@CONF_FORCE=$(CONF_FORCE) $(run_as_root) scripts/certs-deploy.sh
+	@CONF_FORCE=$(CONF_FORCE) $(run_as_root) scripts/certs-deploy.sh 2>/dev/null
+	@echo "🔐 Certificates deployed"
 
 # Ensure CA exists and is deployed (used by other Makefiles)
 certs-ensure: certs-deploy
-	@echo "[certs] ensure complete"
+	@echo "🔁 certificates ensured"
 
 # Status: list CA and client certs
 certs-status:
@@ -59,20 +58,20 @@ certs-status:
 .PHONY: certs-expiry
 certs-expiry:
 	@if [ -f "$(CA_PUB)" ]; then \
-	  echo "[certs] CA public cert: $(CA_PUB)"; \
+	  echo "🔍 CA public cert: $(CA_PUB)"; \
 	  $(run_as_root) openssl x509 -in "$(CA_PUB)" -noout -enddate -subject; \
 	  expiry=$$($(run_as_root) openssl x509 -in "$(CA_PUB)" -noout -enddate | cut -d= -f2); \
 	  expiry_ts=$$(date -d "$$expiry" +%s); now_ts=$$(date +%s); \
 	  days_left=$$(( (expiry_ts - now_ts) / 86400 )); \
-	  echo "[certs] days until CA expiry: $$days_left"; \
+	  echo "⏳ days until CA expiry: $$days_left"; \
 	else \
-	  echo "[certs] CA public cert missing: $(CA_PUB)"; exit 2; \
+	  echo "❌ CA public cert missing: $(CA_PUB)"; exit 2; \
 	fi
 
 # Rotate CA (dangerous: creates a new CA and lists clients that must be reissued)
 .PHONY: certs-rotate
 certs-rotate:
-	@echo "[certs] ROTATE CA - this will create a new CA and invalidate existing client certs"; \
+	@echo "🔥 ROTATE CA - this will create a new CA and invalidate existing client certs"; \
 	read -p "Type YES to proceed: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1); \
 	# exclusive lock to avoid concurrent runs
 	$(run_as_root) bash -c 'exec 9>/var/lock/certs-rotate.lock || exit 1; flock -n 9 || { echo "another certs-rotate is running"; exit 1; }; \
@@ -150,32 +149,71 @@ certs-rotate:
 
 
 .PHONY: issue renew prepare \
-	deploy-% validate-% all-% \
+	deploy-caddy deploy-coredns deploy-headscale deploy-dnsdist deploy-router deploy-diskstation deploy-qnap \
+	validate-caddy validate-coredns validate-headscale validate-router validate-diskstation validate-qnap \
+	all-caddy all-coredns all-headscale all-router all-diskstation all-qnap \
 	setup-cert-watch-% setup-cert-watch-all \
 	deploy-cert-watch-% deploy-cert-watch-all \
-	bootstrap-% bootstrap-all
+	bootstrap-caddy bootstrap-coredns bootstrap-headscale bootstrap-router bootstrap-diskstation bootstrap-qnap \
+	bootstrap-all
 
 # Base actions
 issue:
 	@$(run_as_root) $(DEPLOY) issue || { echo "[make] ❌ issue failed"; exit 1; }
 
 renew:
-	@$(run_as_root) $(DEPLOY) renew FORCE=$(FORCE) || { echo "[make] ❌ renew failed"; exit 1; }
+	@$(run_as_root) $(DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE) || { echo "[make] ❌ renew failed"; exit 1; }
 
 prepare: renew fix-acme-perms
 	@$(run_as_root) $(DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
 
-# Deploy targets (pattern rule)
-deploy-%: prepare
-	@$(run_as_root) $(DEPLOY) deploy $* || { echo "[make] ❌ deploy-$* failed"; exit 1; }
+# Deploy targets
+define deploy_with_status
+	@$(run_as_root) $(DEPLOY) deploy $(1) 2>/dev/null
+	@echo "🔄 Certificate deploy requested → $(1)"
+endef
 
-# Validate targets (pattern rule)
-validate-%:
-	@$(run_as_root) $(DEPLOY) validate $* || { echo "[make] ❌ validate-$* failed"; exit 1; }
+deploy-caddy: prepare
+	$(call deploy_with_status,caddy)
+
+deploy-coredns: prepare
+	$(call deploy_with_status,coredns)
+
+deploy-headscale: prepare
+	$(call deploy_with_status,headscale)
+
+deploy-dnsdist: prepare
+	$(call deploy_with_status,dnsdist)
+
+deploy-router: prepare
+	$(call deploy_with_status,router)
+
+deploy-diskstation: prepare
+	$(call deploy_with_status,diskstation)
+
+deploy-qnap: prepare
+	$(call deploy_with_status,qnap)
+
+# Validate targets
+define validate_with_status
+	@$(run_as_root) $(DEPLOY) validate $(1)
+	@echo "🔁 $(1) validation OK"
+endef
+
+validate-caddy:       $(call validate_with_status,caddy)
+validate-coredns:     $(call validate_with_status,coredns)
+validate-headscale:   $(call validate_with_status,headscale)
+validate-router:      $(call validate_with_status,router)
+validate-diskstation: $(call validate_with_status,diskstation)
+validate-qnap:        $(call validate_with_status,qnap)
 
 # All-in-one targets (pattern rule: renew + prepare + deploy + validate)
-all-%: renew prepare deploy-% validate-%
-	@$(run_as_root) $(DEPLOY) all $* || { echo "[make] ❌ all-$* failed"; exit 1; }
+all-caddy:       renew prepare deploy-caddy       validate-caddy
+all-coredns:     renew prepare deploy-coredns     validate-coredns
+all-headscale:   renew prepare deploy-headscale   validate-headscale
+all-router:      renew prepare deploy-router      validate-router
+all-diskstation: renew prepare deploy-diskstation validate-diskstation
+all-qnap:        renew prepare deploy-qnap        validate-qnap
 
 # Cert watch setup targets
 setup-cert-watch-%:
@@ -201,9 +239,19 @@ setup-cert-watch-all: \
 	setup-cert-watch-headscale \
 	setup-cert-watch-coredns
 
-# Bootstrap combos (pattern rule)
-bootstrap-%: setup-cert-watch-% all-%
-	@echo "[make] bootstrap-$* complete"
+# Bootstrap combos
+define bootstrap_with_status
+	@$(MAKE) setup-cert-watch-$(1)
+	@$(MAKE) all-$(1)
+	@echo "🚀 $(1) bootstrapped"
+endef
+
+bootstrap-caddy:         $(call bootstrap_with_status,caddy)
+bootstrap-coredns:       $(call bootstrap_with_status,coredns)
+bootstrap-headscale:     $(call bootstrap_with_status,headscale)
+bootstrap-router:        $(call bootstrap_with_status,router)
+bootstrap-diskstation:   $(call bootstrap_with_status,diskstation)
+bootstrap-qnap:          $(call bootstrap_with_status,qnap)
 
 # FIX: bootstrap-all wires only LOCAL watchers; no remote hosts here
 bootstrap-all: \
@@ -212,18 +260,19 @@ bootstrap-all: \
 	setup-cert-watch-coredns
 
 # Cert watch deploy targets
+define deploy_cert_watch
+	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service /etc/systemd/system/cert-reload@.service
+	@$(run_as_root) install -m 0644 scripts/systemd/$(1)-cert.path /etc/systemd/system/$(1)-cert.path
+	@$(run_as_root) systemctl daemon-reload
+	@$(run_as_root) systemctl enable $(1)-cert.path
+endef
+
 deploy-cert-watch-%:
-	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service /etc/systemd/system/cert-reload@.service && \
-	$(run_as_root) install -m 0644 scripts/systemd/$*-cert.path /etc/systemd/system/$*-cert.path && \
-	$(run_as_root) systemctl daemon-reload && \
-	$(run_as_root) systemctl enable $*-cert.path
+	$(call deploy_cert_watch,$*)
 
 # FIX: deploy only LOCAL watcher units; remove diskstation/qnap/router
-deploy-cert-watch-all:
-	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service /etc/systemd/system/cert-reload@.service && \
-	$(run_as_root) install -m 0644 scripts/systemd/caddy-cert.path /etc/systemd/system/caddy-cert.path && \
-	$(run_as_root) install -m 0644 scripts/systemd/dnsdist-cert.path /etc/systemd/system/dnsdist-cert.path && \
-	$(run_as_root) install -m 0644 scripts/systemd/headscale-cert.path /etc/systemd/system/headscale-cert.path && \
-	$(run_as_root) install -m 0644 scripts/systemd/coredns-cert.path /etc/systemd/system/coredns-cert.path && \
-	$(run_as_root) systemctl daemon-reload && \
-	$(run_as_root) systemctl enable caddy-cert.path dnsdist-cert.path headscale-cert.path coredns-cert.path
+deploy-cert-watch-all: \
+	deploy-cert-watch-caddy \
+	deploy-cert-watch-dnsdist \
+	deploy-cert-watch-headscale \
+	deploy-cert-watch-coredns

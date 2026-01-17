@@ -39,10 +39,14 @@ issue() {
 }
 
 renew() {
-	local force="${FORCE:-0}"
+	[[ -f "$ACME_HOME/.last_renew" ]] && \
+	(( $(date +%s) - $(stat -c %Y "$ACME_HOME/.last_renew") < 86400 )) && \
+	{ log "[renew] Refusing renewal — last attempt <24h"; return; }
 
-	if (( force == 1 )); then
-		log "[renew] FORCE enabled — bypassing threshold"
+	local acme_force="${ACME_FORCE:-0}"
+
+	if (( acme_force == 1 )); then
+		log "[renew] ACME_FORCE enabled — bypassing threshold"
 		"$ACME" --renew -d "$DOMAIN" --ecc --force && log "[renew] ECC forced renewal"
 		"$ACME" --renew -d "$DOMAIN" --force && log "[renew] RSA forced renewal"
 		return
@@ -77,6 +81,8 @@ renew() {
 			log "[info] RSA renewal skipped or not needed"
 		fi
 	fi
+
+	touch "$ACME_HOME/.last_renew"
 }
 
 
@@ -134,7 +140,7 @@ deploy_caddy() {
 	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
 		reload_service caddy /etc/caddy/Caddyfile
 	else
-		log "[svc] caddy unchanged; no reload"
+		log "🔁 caddy unchanged (no reload)"
 	fi
 
 	log "[deploy][caddy] complete"
@@ -153,7 +159,7 @@ deploy_coredns() {
 	if [[ "$res" == "changed" ]]; then
 		reload_service coredns /etc/coredns/Corefile
 	else
-		log "[svc] coredns unchanged; no reload"
+		log "🔁 coredns unchanged (no reload)"
 	fi
 
 	log "[deploy][coredns] complete"
@@ -180,7 +186,7 @@ deploy_headscale() {
 	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
 		reload_service headscale /etc/headscale/config.yaml
 	else
-		log "[svc] headscale unchanged; no reload"
+		log "🔁 headscale unchanged (no reload)"
 	fi
 
 	log "[deploy][headscale] complete"
@@ -226,7 +232,7 @@ deploy_dnsdist() {
 		log "[svc] restarting dnsdist (TLS material updated, dnsdist cannot reload TLS material)"
 		systemctl restart dnsdist
 	else
-		log "[svc] dnsdist unchanged; no restart"
+		log "🔁 dnsdist unchanged (no restart)"
 	fi
 
 	log "[deploy][dnsdist] complete"
@@ -251,7 +257,7 @@ deploy_router() {
 	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
 		log "[deploy][router] ECC cert updated; reboot router web service manually if needed"
 	else
-		log "[deploy][router] ECC cert unchanged; no action"
+		log "🔁 router ECC cert unchanged"
 	fi
 }
 
@@ -288,7 +294,7 @@ deploy_diskstation() {
 			return 1
 		fi
 	else
-		log "[deploy][diskstation] ECC cert unchanged; no action"
+		log "🔁 diskstation ECC cert unchanged"
 	fi
 
 	log "[deploy][diskstation] complete"
@@ -398,7 +404,14 @@ case "${1:-}" in
 	issue)      issue ;;
 	renew)      renew ;;
 	prepare)    prepare ;;
-	deploy)     [[ $# -eq 2 ]] || usage; dispatch_deploy "$2" ;;
+	deploy)
+	[[ $# -eq 2 ]] || usage
+	case "$2" in
+		caddy|coredns|headscale|dnsdist|router|diskstation|qnap) ;;
+		*) log "[deploy] ERROR: unsupported service '$2'"; exit 2 ;;
+	esac
+	dispatch_deploy "$2"
+	;;
 	validate)   [[ $# -eq 2 ]] || usage; dispatch_validate "$2" ;;
 	all)
 		[[ $# -eq 2 ]] || usage

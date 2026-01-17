@@ -1,4 +1,5 @@
 #!/bin/sh
+# certs-deploy.sh
 set -e
 
 SSL_CANONICAL_DIR="/var/lib/ssl/canonical"
@@ -9,14 +10,17 @@ CADDY_DEPLOY_DIR="/etc/ssl/caddy"
 CONF_FORCE="${CONF_FORCE:-0}"
 export CONF_FORCE
 
-echo "[certs] deploying CA public cert to canonical store and caddy"
+# Internal logging (stderr only)
+log() {
+    echo "$@" >&2
+}
+
+log "deploying CA public cert to canonical store and caddy"
 
 mkdir -p "$SSL_CANONICAL_DIR"
-install -m 0644 "$CA_PUB" "$CANON_CA"
-chown root:root "$CANON_CA"
+install -o root -g root -m 0644 "$CA_PUB" "$CANON_CA"
 
 mkdir -p "$CADDY_DEPLOY_DIR"
-install -m 0644 "$CANON_CA" "$CADDY_DEPLOY_DIR/homelab_bardi_CA.pem"
-chown root:root "$CADDY_DEPLOY_DIR/homelab_bardi_CA.pem"
+install -o root -g root -m 0644 "$CANON_CA" "$CADDY_DEPLOY_DIR/homelab_bardi_CA.pem"
 
-echo "[certs] deployed to $CANON_CA and $CADDY_DEPLOY_DIR/homelab_bardi_CA.pem"
+log "CA public cert deployed"
