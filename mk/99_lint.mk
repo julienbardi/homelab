@@ -16,6 +16,10 @@ ifeq ($(strip $(SH_FILES)),)
 SH_FILES := $(shell find $(HOMELAB_DIR) -type f -name '*.sh' -print)
 endif
 
+# Exclude archived scripts from linting
+SH_FILES := $(filter-out archive/%,$(SH_FILES))
+
+
 MK_FILES := $(shell git -C $(HOMELAB_DIR) ls-files 'mk/*.mk' 2>/dev/null || true)
 ifeq ($(strip $(MK_FILES)),)
 MK_FILES := $(wildcard $(HOMELAB_DIR)/mk/*.mk)
@@ -92,7 +96,7 @@ lint-spell:
 	@echo "[lint] Running codespell and aspell (permissive)..."
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
-	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(HOMELAB_DIR) || true; \
+	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" $(HOMELAB_DIR) || true; \
 	else \
 	  echo "[lint] codespell not installed; skipping codespell"; \
 	fi
