@@ -81,10 +81,12 @@ apt-update: ensure-run-as-root
 # - $(1) is the command to check (e.g. curl)
 # - $(2) is the apt package(s) to install (e.g. curl)
 define apt_install
-	if ! command -v $(1) >/dev/null 2>&1; then \
+	if ! PATH=/usr/sbin:/sbin:$$PATH command -v $(1) >/dev/null 2>&1; then \
 		echo "$(1) not found, installing: $(2)"; \
 		$(call apt_update_if_needed); \
-		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold $(2); \
+		$(run_as_root) env DEBIAN_FRONTEND=noninteractive \
+			apt-get install -y --no-install-recommends \
+			-o Dpkg::Options::=--force-confold $(2); \
 	else \
 		VER_STR=$$( \
 			if [ "$(1)" = "strace" ]; then \
@@ -94,12 +96,17 @@ define apt_install
 			elif [ "$(1)" = "go" ]; then \
 				go version 2>&1 | head -n1; \
 			else \
-				{ $(1) --version 2>&1 || $(1) version 2>&1 || $(1) -v 2>&1 || echo "unknown"; } | head -n1; \
+				( PATH=/usr/sbin:/sbin:$$PATH $(1) --version 2>&1 || \
+				  PATH=/usr/sbin:/sbin:$$PATH $(1) version 2>&1 || \
+				  PATH=/usr/sbin:/sbin:$$PATH $(1) -v 2>&1 || \
+				  echo "unknown" ) | head -n1; \
 			fi \
 		); \
 		echo "$(1) version: $$VER_STR"; \
 	fi
 endef
+
+
 
 # Usage:
 #   $(call apt_remove,packagename)                     -> remove package if present
