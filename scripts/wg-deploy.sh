@@ -16,6 +16,10 @@ SERVER_KEYS_DIR="$ROOT/server-keys"
 
 DRY_RUN="${WG_DRY_RUN:-0}"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+INSTALL_IF_CHANGED="${SCRIPT_DIR}/install_if_changed.sh"
+[ -x "$INSTALL_IF_CHANGED" ] || die "install_if_changed.sh not found or not executable"
+
 die()  { echo "wg-deploy: ERROR: $*" >&2; exit 1; }
 need() { [ -e "$1" ] || die "missing required path: $1"; }
 
@@ -140,6 +144,36 @@ for dev in "${ACTIVE_IFACES[@]}"; do
 	echo "$dev.pub"  >>"$KEEP"
 done
 
+
+# --------------------------------------------------------------------
+# No-op fast path: if NEW matches current /etc/wireguard, do nothing
+# --------------------------------------------------------------------
+if [ "$DRY_RUN" != "1" ] && [ -d "$WG_DIR" ]; then
+	unchanged=1
+
+	while IFS= read -r rel; do
+		[ -n "$rel" ] || continue
+		[ -f "$NEW/$rel" ] || die "internal error: missing $NEW/$rel"
+		[ -f "$WG_DIR/$rel" ] || { unchanged=0; break; }
+		cmp -s "$WG_DIR/$rel" "$NEW/$rel" || { unchanged=0; break; }
+	done <"$KEEP"
+
+	# If /etc/wireguard contains extra files outside keep-list (excluding legacy/meta), treat as change.
+	if [ "$unchanged" = "1" ]; then
+		if find "$WG_DIR" -maxdepth 1 -type f \
+			! -name 'last-known-good.list' \
+			! -name '.deploy-meta' \
+			-print -quit | grep -q .; then
+			unchanged=0
+		fi
+	fi
+
+	if [ "$unchanged" = "1" ]; then
+		rm -rf "$NEW" 2>/dev/null || true
+		exit 0
+	fi
+fi
+
 if [ "$DRY_RUN" = "1" ] && [ ! -d "$WG_DIR" ]; then
 	echo "🧪 DRY-RUN: /etc/wireguard does not exist yet; showing proposed tree only"
 	find "$NEW" -maxdepth 2 -type f | sort
@@ -256,6 +290,9 @@ swapped=0
 
 META="$WG_DIR/.deploy-meta"
 
+META_TMP="$(mktemp)"
+trap 'rm -f "$META_TMP"; cleanup' EXIT
+
 {
 	echo "timestamp: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 	echo "host: $(hostname -f 2>/dev/null || hostname)"
@@ -266,8 +303,6 @@ META="$WG_DIR/.deploy-meta"
 	for dev in "${ACTIVE_IFACES[@]}"; do
 		echo "  - $dev"
 	done
-} >"$META"
+} >"$META_TMP"
 
-chmod 600 "$META"
-
-echo "wg-deploy: OK"
+"$INSTALL_IF_CHANGED" --quiet "$META_TMP" "$META" root root 600
