@@ -37,26 +37,16 @@ echo "  📦 output: ${OUTDIR}"
 
 mkdir -p "${OUTDIR}"
 
-# ------------------------------------------------------------
-# Extract unique interfaces from plan.tsv
-# ------------------------------------------------------------
+changed=0
 
-awk -F'\t' '
-	/^#/ { next }
-	/^[[:space:]]*$/ { next }
-	$1=="base" && $2=="iface" { next }
-	{ print $2 }
-' "${PLAN}" | sort -u | while read -r iface; do
+while read -r iface; do
 	conf="${OUTDIR}/${iface}.conf"
 	pub="${PUBDIR}/${iface}.pub"
-
-	echo "▶ ${iface}"
 
 	[ -f "${pub}" ] || { echo "❌ missing ${pub}"; exit 1; }
 
 	# If base config already exists, do not overwrite private key
 	if [ -f "${conf}" ]; then
-		echo "  ♻️  exists ${conf} (preserving private key)"
 		continue
 	fi
 
@@ -73,7 +63,17 @@ awk -F'\t' '
 ListenPort = $(awk -F'\t' -v i="${iface}" '$2==i {print $9; exit}' "${PLAN}")
 EOF
 
-	echo "  ✍️  wrote ${conf}"
-done
+	echo "🟢 wrote ${conf}"
+	changed=1
+done < <(
+	awk -F'\t' '
+		/^#/ { next }
+		/^[[:space:]]*$/ { next }
+		$1=="base" && $2=="iface" { next }
+		{ print $2 }
+	' "${PLAN}" | sort -u
+)
 
-echo "✅ server base configs rendered"
+if [ "$changed" -eq 0 ]; then
+	echo "no server base config changes"
+fi
