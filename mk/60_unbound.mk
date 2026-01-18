@@ -2,6 +2,8 @@
 # mk/60_unbound.mk — Unbound orchestration
 # ============================================================
 
+UNBOUND_RESTART_STAMP := $(STAMP_DIR)/unbound.restart
+
 .PHONY: enable-unbound install-pkg-unbound remove-pkg-unbound
 enable-unbound: \
 	install-pkg-unbound \
@@ -9,9 +11,14 @@ enable-unbound: \
 	deploy-unbound-local-internal \
 	deploy-unbound-service \
 	deploy-unbound-control-config
-	@echo "🔄 unbound restart requested (homelab configuration)"
-	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true
-	@$(run_as_root) systemctl restart unbound
+	@if [ -f "$(UNBOUND_RESTART_STAMP)" ]; then \
+		echo "🔄 unbound configuration changed — restarting"; \
+		$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true; \
+		$(run_as_root) systemctl restart unbound; \
+		$(run_as_root) rm -f $(UNBOUND_RESTART_STAMP); \
+	else \
+		echo "ℹ️ unbound configuration unchanged — no restart needed"; \
+	fi
 	@$(run_as_root) systemctl is-active --quiet unbound || \
 		( echo "❌ Unbound failed to start"; \
 		  $(run_as_root) systemctl status --no-pager unbound; \
@@ -78,23 +85,48 @@ ensure-root-key:
 deploy-unbound-config: update-root-hints ensure-root-key
 	@echo "📄 [make] Deploying unbound.conf → /etc/unbound"
 	@$(run_as_root) install -d -m 0755 /etc/unbound
-	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_CONF_SRC) $(UNBOUND_CONF_DST)
-	@$(run_as_root) unbound-checkconf $(UNBOUND_CONF_DST) || { echo "❌ invalid config"; exit 1; }
-	@echo "✅ [make] unbound.conf deployed"
+	@changed=0; \
+	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
+		$(UNBOUND_CONF_SRC) $(UNBOUND_CONF_DST) root root 0644 || [ $$? -eq 3 ] && changed=1; \
+	$(run_as_root) unbound-checkconf $(UNBOUND_CONF_DST) || { echo "❌ invalid config"; exit 1; }; \
+	if [ $$changed -eq 1 ]; then \
+		echo "→ unbound.conf updated"; \
+		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
+	else \
+		echo "⚪ unbound.conf unchanged"; \
+	fi
 
 deploy-unbound-control-config:
 	@echo "📄 [make] Deploying unbound-control.conf → /etc/unbound"
-	@$(run_as_root) install -m 0644 -o root -g root \
-		$(UNBOUND_CONTROL_CONF_SRC) $(UNBOUND_CONTROL_CONF_DST)
+	@changed=0; \
+	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
+		$(UNBOUND_CONTROL_CONF_SRC) \
+		$(UNBOUND_CONTROL_CONF_DST) \
+		root root 0644 || [ $$? -eq 3 ] && changed=1; \
+	if [ $$changed -eq 1 ]; then \
+		echo "→ unbound-control.conf updated"; \
+		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
+	else \
+		echo "⚪ unbound-control.conf unchanged"; \
+	fi
 
 UNBOUND_SERVICE_SRC := $(HOMELAB_DIR)/config/systemd/unbound.service
 UNBOUND_SERVICE_DST := /etc/systemd/system/unbound.service
 
 deploy-unbound-service:
 	@echo "⚙️ [make] Deploying unbound.service → /etc/systemd/system"
-	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_SERVICE_SRC) $(UNBOUND_SERVICE_DST)
-	@$(run_as_root) systemctl daemon-reload
-	@echo "✅ [make] unbound.service deployed"
+	@changed=0; \
+	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
+		$(UNBOUND_SERVICE_SRC) \
+		$(UNBOUND_SERVICE_DST) \
+		root root 0644 || [ $$? -eq 3 ] && changed=1; \
+	if [ $$changed -eq 1 ]; then \
+		echo "→ unbound.service updated"; \
+		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
+		$(run_as_root) systemctl daemon-reload; \
+	else \
+		echo "⚪ unbound.service unchanged"; \
+	fi
 
 UNBOUND_LOCAL_INTERNAL_SRC := $(HOMELAB_DIR)/config/unbound/local-internal.conf
 UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
@@ -102,13 +134,19 @@ UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
 .PHONY: deploy-unbound-local-internal
 deploy-unbound-local-internal:
 	@echo "📄 [make] Deploying internal DNS overrides → unbound"
-	@$(run_as_root) install -m 0644 -o root -g root \
+	@changed=0; \
+	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
 		$(UNBOUND_LOCAL_INTERNAL_SRC) \
-		$(UNBOUND_LOCAL_INTERNAL_DST)
-	@$(run_as_root) unbound-checkconf || \
-		( echo "❌ invalid unbound configuration after installing internal overrides"; exit 1 )
-	@$(run_as_root) systemctl reload unbound
-	@echo "✅ [make] Internal DNS overrides active"
+		$(UNBOUND_LOCAL_INTERNAL_DST) \
+		root root 0644 || [ $$? -eq 3 ] && changed=1; \
+	$(run_as_root) unbound-checkconf || \
+		( echo "❌ invalid unbound configuration after installing internal overrides"; exit 1 ); \
+	if [ $$changed -eq 1 ]; then \
+		echo "→ local-internal.conf updated"; \
+		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
+	else \
+		echo "⚪ local-internal.conf unchanged"; \
+	fi
 
 # --- Systemd drop-in for fixing /run/unbound.ctl ownership ---
 UNBOUND_DROPIN_SRC := $(HOMELAB_DIR)/config/systemd/unbound.service.d/99-fix-unbound-ctl.conf
@@ -118,16 +156,18 @@ UNBOUND_DROPIN_DST := /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.c
 install-unbound-systemd-dropin:
 	@echo "🔧 [make] Installing unbound systemd drop-in"
 	@$(run_as_root) install -d /etc/systemd/system/unbound.service.d
-	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_DROPIN_SRC) $(UNBOUND_DROPIN_DST)
-	@$(run_as_root) systemctl daemon-reload
-	@echo "[make] Restarting unbound service (drop-in)"
-	@$(run_as_root) systemctl restart unbound
-	@$(run_as_root) systemctl is-active --quiet unbound || \
-		( echo "❌ unbound failed to start after drop-in install"; \
-		  $(run_as_root) systemctl status --no-pager unbound; \
-		  exit 1 )
-	@echo "✅ unbound running (drop-in applied)"
-	@echo "✅ [make] unbound systemd drop-in installed"
+	@changed=0; \
+	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
+		$(UNBOUND_DROPIN_SRC) \
+		$(UNBOUND_DROPIN_DST) \
+		root root 0644 || [ $$? -eq 3 ] && changed=1; \
+	if [ $$changed -eq 1 ]; then \
+		echo "→ unbound systemd drop-in updated"; \
+		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
+		$(run_as_root) systemctl daemon-reload; \
+	else \
+		echo "⚪ unbound systemd drop-in unchanged"; \
+	fi
 
 deploy-unbound: dns-preflight \
 				install-pkg-unbound \
