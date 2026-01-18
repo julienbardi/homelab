@@ -7,7 +7,18 @@ umask 077
 PLAN="$WG_ROOT/compiled/plan.tsv"
 OUT_BASE="$WG_ROOT/out/server/base"
 
-[ -f "$PLAN" ] || { echo "ERROR: missing $PLAN" >&2; exit 1; }
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+INSTALL_IF_CHANGED="$SCRIPT_DIR/install_if_changed.sh"
+
+[ -x "$INSTALL_IF_CHANGED" ] || {
+	echo "wg-ensure-server-keys: ERROR: install_if_changed.sh not found or not executable" >&2
+	exit 1
+}
+
+[ -f "$PLAN" ] || {
+	echo "wg-ensure-server-keys: ERROR: missing $PLAN" >&2
+	exit 1
+}
 
 mkdir -p "$OUT_BASE"
 chmod 700 "$OUT_BASE" 2>/dev/null || true
@@ -24,18 +35,30 @@ ifaces="$(
 	' "$PLAN" | sort -u
 )"
 
-[ -n "$ifaces" ] || { echo "ERROR: no ifaces found in $PLAN" >&2; exit 1; }
+[ -n "$ifaces" ] || {
+	echo "wg-ensure-server-keys: ERROR: no ifaces found in $PLAN" >&2
+	exit 1
+}
 
 for iface in $ifaces; do
 	case "$iface" in
 		wg[0-9]|wg1[0-5]) ;;
-		*) echo "ERROR: invalid iface '$iface'" >&2; exit 1 ;;
+		*)
+			echo "wg-ensure-server-keys: ERROR: invalid iface '$iface'" >&2
+			exit 1
+			;;
 	esac
 
 	i="${iface#wg}"
-
 	out="$OUT_BASE/$iface.conf"
-	cat >"$out" <<EOF
+
+	# Ensure semantics: never overwrite existing base config
+	[ -f "$out" ] && continue
+
+	tmp="$(mktemp)"
+	trap 'rm -f "$tmp"' EXIT
+
+	cat >"$tmp" <<EOF
 [Interface]
 Address = 10.${i}.0.1/16, 2a01:8b81:4800:9c00:${i}::1/128
 ListenPort = $((51420 + i))
@@ -43,10 +66,8 @@ PrivateKey = __REPLACED_AT_DEPLOY__
 EOF
 
 	case "$iface" in
-		wg4|wg7) echo "Table = off" >>"$out" ;;
+		wg4|wg7) echo "Table = off" >>"$tmp" ;;
 	esac
 
-	chmod 600 "$out" 2>/dev/null || true
+	"$INSTALL_IF_CHANGED" --quiet "$tmp" "$out" root root 600
 done
-
-echo "server base configs OK: $OUT_BASE"
