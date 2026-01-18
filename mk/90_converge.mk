@@ -2,6 +2,12 @@
 # mk/90_converge.mk — Explicit network convergence (safe by default)
 # ============================================================
 
+.NOTPARALLEL: dns enable-unbound deploy-unbound-config deploy-unbound-local-internal \
+			  deploy-unbound-service deploy-unbound-control-config \
+			  dns-runtime \
+			  runtime-snapshot-before runtime-snapshot-after runtime-diff \
+			  wg-converge-runtime
+
 .PHONY: converge-network converge-audit \
 		wg-stack wg-converge-server wg-converge-clients wg-converge-runtime \
 		wg-clients-diff \
@@ -13,7 +19,7 @@
 # ------------------------------------------------------------
 RUNTIME_SNAP_BEFORE := /run/homelab-net.before
 RUNTIME_SNAP_AFTER  := /run/homelab-net.after
-RUNTIME_DIFF_FILE   := /run/homelab-net.diff
+RUNTIME_DIFF_FILE   := /tmp/homelab-net.diff
 
 # ------------------------------------------------------------
 # Top-level convergence entry points
@@ -22,7 +28,7 @@ RUNTIME_DIFF_FILE   := /run/homelab-net.diff
 converge-network: check-forwarding \
 				  install-homelab-sysctl \
 				  nft-verify \
-				  dns-runtime \
+				  dns \
 				  wg-stack
 	@echo "✅ Network convergence complete"
 
@@ -56,10 +62,14 @@ wg-converge-runtime: runtime-snapshot-before wg-deployed runtime-snapshot-after 
 runtime-snapshot-before:
 	@echo "📸 Capturing runtime network state (before)"
 	@$(run_as_root) "$(HOMELAB_DIR)/scripts/runtime/snapshot-network.sh" "$(RUNTIME_SNAP_BEFORE)"
+	@$(run_as_root) chmod 755 "$(RUNTIME_SNAP_BEFORE)"
+	@$(run_as_root) chmod 644 "$(RUNTIME_SNAP_BEFORE)"/* || true
 
 runtime-snapshot-after:
 	@echo "📸 Capturing runtime network state (after)"
 	@$(run_as_root) "$(HOMELAB_DIR)/scripts/runtime/snapshot-network.sh" "$(RUNTIME_SNAP_AFTER)"
+	@$(run_as_root) chmod 755 "$(RUNTIME_SNAP_AFTER)"
+	@$(run_as_root) chmod 644 "$(RUNTIME_SNAP_AFTER)"/* || true
 
 # runtime-diff:
 # - Pure comparison only
