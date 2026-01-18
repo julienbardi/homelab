@@ -36,7 +36,10 @@ endef
 
 # install_script(src, name)
 define install_script
-	$(run_as_root) install -o $(OWNER) -g $(GROUP) -m $(MODE) $(1) $(INSTALL_PATH)/$(2)
+    $(run_as_root) $(HOMELAB_DIR)/scripts/helpers/install_if_changed.sh \
+        $(1) \
+        $(INSTALL_PATH)/$(2) \
+        $(OWNER) $(GROUP) $(MODE)
 endef
 
 # uninstall_script(name)
