@@ -23,10 +23,10 @@ PLAN="${WG_ROOT}/compiled/plan.tsv"
 PUBDIR="${WG_ROOT}/compiled/server-pubkeys"
 OUTDIR="${WG_ROOT}/out/server/base"
 
-echo "[wg] Rendering server base configs"
-echo "  plan:   ${PLAN}"
-echo "  pubs:   ${PUBDIR}"
-echo "  output: ${OUTDIR}"
+echo "🧱 Rendering server base configs"
+echo "  📄 plan:   ${PLAN}"
+echo "  🔑 pubs:   ${PUBDIR}"
+echo "  📦 output: ${OUTDIR}"
 
 # ------------------------------------------------------------
 # Guards
@@ -56,7 +56,7 @@ awk -F'\t' '
 
 	# If base config already exists, do not overwrite private key
 	if [ -f "${conf}" ]; then
-		echo "  exists ${conf} (preserving private key)"
+		echo "  ♻️  exists ${conf} (preserving private key)"
 		continue
 	fi
 
@@ -73,7 +73,7 @@ awk -F'\t' '
 ListenPort = $(awk -F'\t' -v i="${iface}" '$2==i {print $9; exit}' "${PLAN}")
 EOF
 
-	echo "  wrote ${conf}"
+	echo "  ✍️  wrote ${conf}"
 done
 
 echo "✅ server base configs rendered"

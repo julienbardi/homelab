@@ -49,8 +49,8 @@ renew() {
 
 	if (( acme_force == 1 )); then
 		log "⚠️ ACME_FORCE enabled — bypassing renewal thresholds"
-		"$ACME" --renew -d "$DOMAIN" --ecc --force && log "[renew] ECC forced renewal"
-		"$ACME" --renew -d "$DOMAIN" --force && log "[renew] RSA forced renewal"
+		"$ACME" --renew -d "$DOMAIN" --ecc --force && log "🔐 ECC certificate forcibly renewed"
+		"$ACME" --renew -d "$DOMAIN" --force && log "🔐 RSA certificate forcibly renewed"
 		return
 	fi
 
@@ -119,7 +119,7 @@ prepare() {
 }
 
 deploy_caddy() {
-	log "[deploy][caddy] ECC-first to $SSL_DEPLOY_DIR_CADDY"
+	log "🔐 Deploying ECC TLS material to caddy"
 	sudo mkdir -p "$SSL_DEPLOY_DIR_CADDY"
 
 	# Capture results from atomic_install
@@ -134,7 +134,7 @@ deploy_caddy() {
 						  "caddy:caddy" 0640)
 
 	if ! service_exists caddy; then
-		log "[deploy][caddy] skipped — service not installed"
+		log "⏭️ caddy not installed — skipping TLS deployment"
 		return 0
 	fi
 	# Reload if either changed
@@ -143,12 +143,11 @@ deploy_caddy() {
 	else
 		log "🔁 caddy unchanged (no reload)"
 	fi
-
-	log "[deploy][caddy] complete"
+	log "🔐 caddy TLS material deployed"
 }
 
 deploy_headscale() {
-	log "[deploy][headscale] optional ECC certs into $SSL_DEPLOY_DIR_HEADSCALE"
+	log "🔐 Deploying ECC TLS material to headscale"
 	sudo mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
 
 	local res1
@@ -162,7 +161,7 @@ deploy_headscale() {
 						  "headscale:headscale" 0640)
 
 	if ! service_exists headscale; then
-		log "[deploy][headscale] skipped — service not installed"
+		log "⏭️ headscale not installed — skipping TLS deployment"
 		return 0
 	fi
 	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
@@ -170,8 +169,7 @@ deploy_headscale() {
 	else
 		log "🔁 headscale unchanged (no reload)"
 	fi
-
-	log "[deploy][headscale] complete"
+	log "🔐 headscale TLS material deployed"
 }
 
 deploy_dnsdist() {
@@ -223,9 +221,13 @@ deploy_dnsdist() {
 	log "🔐 dnsdist TLS material deployed"
 }
 
-
 deploy_router() {
-	log "[deploy][router] ECC cert to Asus router"
+	log "🔐 Deploying ECC TLS material to router"
+
+	if ! timeout 5 ssh -o BatchMode=yes -o ConnectTimeout=5 julie@10.89.12.1 true; then
+		log "❌ Router unreachable — TLS deployment aborted"
+		return 1
+	fi
 
 	# Push cert and key to the router (remote host 10.89.12.1, user julie, group root)
 	local res1
@@ -240,7 +242,7 @@ deploy_router() {
 
 	# Only log update if either file changed
 	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
-		log "[deploy][router] ECC cert updated; reboot router web service manually if needed"
+		log "🔐 Router ECC certificate updated — manual web service restart may be required"
 	else
 		log "🔁 router ECC cert unchanged"
 	fi
