@@ -46,7 +46,7 @@ define WG_PLAN_ROWS
 awk -F'\t' '\
 	/^#/ { next } \
 	/^[[:space:]]*$$/ { next } \
-	$$1=="base" && $$2=="iface" && $$3=="hostid" { next } \
+	$$1=="base" && $$2=="iface" && $$3=="slot" { next } \
 	{ print } \
 ' "$(PLAN)"
 endef
@@ -56,11 +56,15 @@ endef
 # ------------------------------------------------------------
 
 wg-intent:
-	@printf "%-24s %-6s %-8s %-18s %-s\n" "BASE" "IFACE" "HOSTID" "ADDR4" "ENDPOINT"
-	@printf "%-24s %-6s %-8s %-18s %-s\n" "------------------------" "------" "--------" "------------------" "------------------------------"
+	@echo "📋 WireGuard client addressing"
+	@printf "%-14s %-6s %-7s %-18s %s\n" \
+		"BASE" "IFACE" "HOSTID" "ADDRESS" "ENDPOINT"
+	@printf "%-14s %-6s %-7s %-18s %s\n" \
+		"--------------" "------" "-------" "------------------" "------------------------------"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '{ \
-		printf "%-24s %-6s %-8s %-18s %s\n", $$1, $$2, $$3, $$5, $$9 \
+		printf "%-14s %-6s %-7s %-18s %s\n", $$1, $$2, $$3, $$5, $$9 \
 	}'
+
 
 wg-intent-ifaces:
 	@$(SCRIPTS)/wg-plan-ifaces.sh "$(PLAN)"
