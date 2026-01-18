@@ -11,13 +11,18 @@
 
 INTERNAL_HOSTS := $(shell sed '/^\s*#/d;/^\s*$$/d' $(HOMELAB_DIR)/config/caddy/internal-hosts.txt)
 
-.PHONY: dns-preflight check-public-dns check-caddy-internal-hosts
+.PHONY: dns-preflight assert-tailnet check-public-dns check-caddy-internal-hosts
 
 # check-dnsmasq-udp-buffers assumes that dnsmasq is installed (not necessarily running)
 dns-preflight: \
+	assert-tailnet \
 	check-public-dns \
 	check-caddy-internal-hosts \
 	check-dnsmasq-udp-buffers
+
+assert-tailnet:
+	@tailscale status >/dev/null 2>&1 || \
+		( echo "❌ Tailnet not connected — run: make tailnet"; exit 1 )
 
 check-public-dns:
 	@echo "🔍 Verifying public CNAMEs resolving to canonical names"
