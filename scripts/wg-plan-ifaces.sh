@@ -11,9 +11,6 @@ PLAN_READER="$(dirname "$0")/wg-plan-read.sh"
 	exit 2
 }
 
-# --------------------------------------------------------------------
-# Emit unique, non-empty iface names (column 2)
-# --------------------------------------------------------------------
 "$PLAN_READER" | awk -F'\t' '
 	$2 != "" { print $2 }
 ' | sort -u
