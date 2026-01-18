@@ -107,4 +107,3 @@ if ip -6 route show | grep -Eq '2a01:8b81:4800:9c00::/64.*wg'; then
 	exit 1
 fi
 
-echo "✅ wg-check: OK"
