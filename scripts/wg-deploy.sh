@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+WG_ROLE="${WG_ROLE:-nas}"
+
 WG_DIR="/etc/wireguard"
 ROOT="/volume1/homelab/wireguard"
 
@@ -226,6 +228,9 @@ if [ "$DRY_RUN" != "1" ]; then
 
 		# Install server_routes (col 12). Empty means "no routes".
 		if [ -n "${server_routes:-}" ]; then
+			if [ "$WG_ROLE" != "router" ]; then
+				die "refusing to install server_routes on role '$WG_ROLE'"
+			fi
 			IFS=',' read -r -a routes <<<"$server_routes"
 			for cidr in "${routes[@]}"; do
 				# trim

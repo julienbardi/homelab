@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# wg-check.sh
 set -euo pipefail
 
 ROOT="/volume1/homelab/wireguard"
@@ -15,7 +16,7 @@ die() { echo "wg-check: ERROR: $*" >&2; exit 1; }
 [ -f "$ALLOC" ] || die "missing alloc.csv"
 [ -f "$KEYS" ] || die "missing keys.tsv"
 
-echo "• checking plan.tsv header"
+echo "🔍 checking plan.tsv header"
 
 awk -F'\t' '
 	/^#/ { next }
@@ -35,7 +36,7 @@ awk -F'\t' '
 	}
 ' "$PLAN" || die "plan.tsv header does not match strict TSV contract"
 
-echo "• checking plan.tsv ↔ alloc.csv consistency"
+echo "🔍 checking plan.tsv ↔ alloc.csv consistency"
 
 awk -F'\t' '
 	/^#/ { next }
@@ -46,7 +47,7 @@ awk -F'\t' '
 	grep -q "^$(printf '%s' "$base" | sed 's/[.[\*^$]/\\&/g')," "$ALLOC" || die "base '$base' missing from alloc.csv"
 done
 
-echo "• checking server public keys"
+echo "🔍 checking server public keys"
 
 awk -F'\t' '
 	/^#/ { next }
@@ -57,7 +58,7 @@ awk -F'\t' '
 	[ -f "$SERVER_PUBDIR/$iface.pub" ] || die "missing server pubkey $iface.pub"
 done
 
-echo "• checking client keys (keys.tsv)"
+echo "🔍 checking client keys (keys.tsv)"
 
 awk -F'\t' '
 	BEGIN { OFS="\t" }
@@ -72,7 +73,7 @@ awk -F'\t' '
 	' "$KEYS" || die "missing client key for $base $iface in keys.tsv"
 done
 
-echo "• checking for orphan client keys (keys.tsv)"
+echo "🔍 checking for orphan client keys (keys.tsv)"
 
 awk -F'\t' '
 	/^#/ { next }
@@ -86,8 +87,24 @@ awk -F'\t' '
 		$1==b && $2==i { found=1 }
 		END { exit(found?0:1) }
 	' "$PLAN"; then
-		echo "wg-check: WARN: orphan client key $base $iface"
+		echo "⚠️  wg-check: orphan client key $base $iface"
 	fi
 done
 
-echo "wg-check: OK"
+# --------------------------------------------------------------------
+# Guard: LAN prefixes must never be routed via WireGuard
+# --------------------------------------------------------------------
+
+if ip route show | grep -Eq '10\.89\.12\.0/24.*wg'; then
+	echo "❌ wg-check: LAN IPv4 route leaked into WireGuard" >&2
+	ip route show | grep -E '10\.89\.12\.0/24.*wg' >&2
+	exit 1
+fi
+
+if ip -6 route show | grep -Eq '2a01:8b81:4800:9c00::/64.*wg'; then
+	echo "❌ wg-check: LAN IPv6 route leaked into WireGuard" >&2
+	ip -6 route show | grep -E '2a01:8b81:4800:9c00::/64.*wg' >&2
+	exit 1
+fi
+
+echo "✅ wg-check: OK"

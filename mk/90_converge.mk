@@ -1,34 +1,23 @@
 # ============================================================
 # mk/90_converge.mk — Explicit network convergence (safe by default)
-#
-# Convergence semantics:
-# - Verifies kernel forwarding and firewall integrity
-# - Applies idempotent server WireGuard state (no mutation)
-# - Detects client configuration drift and shows diffs
-# - Requires explicit FORCE=1 only when mutation would occur:
-#     * client regeneration
-#     * runtime peer reconciliation
-#
-# Safety guarantees:
-# - No WireGuard state is modified without explicit confirmation
-# - Client drift is always shown before FORCE is requested
-# - Runtime changes are gated behind FORCE
-#
-# Usage:
-#   sudo make all              # Safe unless drift is detected
-#   sudo FORCE=1 make all      # Apply all required changes
-#   make wg-clients-diff       # Inspect client drift only (no mutation)
-#
-# Keeps bin/run-as-root unchanged (argv tokens contract).
-# NOTE:
-# Output must be deterministic.
-# Do NOT add timestamps or run-specific metadata.
-# Drift detection relies on byte-stable output.
 # ============================================================
+
 .PHONY: converge-network converge-audit \
-		check-force check-forwarding \
-		wg-stack network-status \
-		wg-converge-server wg-converge-clients wg-converge-runtime
+		wg-stack wg-converge-server wg-converge-clients wg-converge-runtime \
+		wg-clients-diff \
+		check-forwarding network-status nft-verify \
+		runtime-snapshot-before runtime-snapshot-after runtime-diff
+
+# ------------------------------------------------------------
+# Runtime snapshot locations (ephemeral, root-owned)
+# ------------------------------------------------------------
+RUNTIME_SNAP_BEFORE := /run/homelab-net.before
+RUNTIME_SNAP_AFTER  := /run/homelab-net.after
+RUNTIME_DIFF_FILE   := /run/homelab-net.diff
+
+# ------------------------------------------------------------
+# Top-level convergence entry points
+# ------------------------------------------------------------
 
 converge-network: check-forwarding \
 				  install-homelab-sysctl \
@@ -38,46 +27,82 @@ converge-network: check-forwarding \
 	@echo "✅ Network convergence complete"
 
 converge-audit:
-	@echo "🔎 Converge DAG (what would run)"
+	@echo "🔍 Convergence plan (dry‑run)"
 	@echo "   (audit disabled: sub-make is forbidden)"
 	@echo "   Use: make -n converge-network | sed -n '1,200p'"
 
-check-force:
-	@if echo "$(MAKEFLAGS)" | grep -q -- '-n'; then \
-		echo "[audit] FORCE check skipped"; \
-	elif [ "$(FORCE)" != "1" ]; then \
-		echo "ERROR: a sub‑step detected drift"; \
-		echo "       converge-network rewrites WireGuard state"; \
-		echo "       explicit confirmation required"; \
-		echo ""; \
-		echo "👉 Re-run with:"; \
-		echo "   sudo FORCE=1 make all"; \
-		exit 1; \
-	fi
+# ------------------------------------------------------------
+# WireGuard convergence DAG
+# ------------------------------------------------------------
 
-.PHONY: wg-clients-diff
-wg-clients-diff:
-	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(HOMELAB_DIR)/scripts/wg-clients-drift.sh" || true
-
-.PHONY: wg-stack
 wg-stack: wg-converge-server wg-converge-clients wg-converge-runtime
+	@echo "🔧 WireGuard convergence"
 
 wg-converge-server: wg-deployed
 
 wg-converge-clients: regen-clients
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(HOMELAB_DIR)/scripts/wg-clients-drift.sh" && \
-		echo "✅ Client configs already converged" || \
-		echo "🔁 Client configs regenerated"
+		echo "♻️  Client configs already converged" || \
+		echo "🔧 Client configs regenerated"
 
-wg-converge-runtime: check-force wg-deployed
+# wg-converge-runtime:
+# - May reconcile live kernel state
+# - Gated by runtime-diff + FORCE
+wg-converge-runtime: runtime-snapshot-before wg-deployed runtime-snapshot-after runtime-diff
+
+# ------------------------------------------------------------
+# Runtime drift detection (implementation detail)
+# ------------------------------------------------------------
+
+runtime-snapshot-before:
+	@echo "📸 Capturing runtime network state (before)"
+	@$(run_as_root) "$(HOMELAB_DIR)/scripts/runtime/snapshot-network.sh" "$(RUNTIME_SNAP_BEFORE)"
+
+runtime-snapshot-after:
+	@echo "📸 Capturing runtime network state (after)"
+	@$(run_as_root) "$(HOMELAB_DIR)/scripts/runtime/snapshot-network.sh" "$(RUNTIME_SNAP_AFTER)"
+
+# runtime-diff:
+# - Pure comparison only
+# - Must never mutate kernel or filesystem state (except diff marker)
+runtime-diff:
+	@echo "🔍 Checking runtime network state"
+	@rm -f "$(RUNTIME_DIFF_FILE)"
+
+	@diff -u "$(RUNTIME_SNAP_BEFORE)/wg.dump"  "$(RUNTIME_SNAP_AFTER)/wg.dump"  >/dev/null || echo "WG_CHANGED=1"     >>"$(RUNTIME_DIFF_FILE)"
+	@diff -u "$(RUNTIME_SNAP_BEFORE)/ip.addr"  "$(RUNTIME_SNAP_AFTER)/ip.addr"  >/dev/null || echo "IP_CHANGED=1"     >>"$(RUNTIME_DIFF_FILE)"
+	@diff -u "$(RUNTIME_SNAP_BEFORE)/route.v4" "$(RUNTIME_SNAP_AFTER)/route.v4" >/dev/null || echo "ROUTE4_CHANGED=1" >>"$(RUNTIME_DIFF_FILE)"
+	@diff -u "$(RUNTIME_SNAP_BEFORE)/route.v6" "$(RUNTIME_SNAP_AFTER)/route.v6" >/dev/null || echo "ROUTE6_CHANGED=1" >>"$(RUNTIME_DIFF_FILE)"
+
+	@if [ -f "$(RUNTIME_DIFF_FILE)" ]; then \
+		echo "⚠️  Runtime network state requires reconciliation"; \
+		sed 's/^/   - /' "$(RUNTIME_DIFF_FILE)"; \
+		if [ "$(FORCE)" != "1" ]; then \
+			echo ""; \
+			echo "👉 Re-run with:"; \
+			echo "   sudo FORCE=1 make all"; \
+			exit 1; \
+		fi; \
+	fi
+
+	@echo "♻️  Runtime network state already converged"
+
+# ------------------------------------------------------------
+# Client-only inspection
+# ------------------------------------------------------------
+
+wg-clients-diff:
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(HOMELAB_DIR)/scripts/wg-clients-drift.sh" || true
+
+# ------------------------------------------------------------
+# Infrastructure checks and status
+# ------------------------------------------------------------
 
 check-forwarding:
 	@$(run_as_root) sysctl -n net.ipv4.ip_forward | grep -q '^1$$' || \
 		{ echo "ERROR: IPv4 forwarding disabled"; exit 1; }
 	@$(run_as_root) sysctl -n net.ipv6.conf.all.forwarding | grep -q '^1$$' || \
 		{ echo "ERROR: IPv6 forwarding disabled"; exit 1; }
-
-.PHONY: network-status
 
 network-status:
 	@echo "🔎 Kernel forwarding"
@@ -87,13 +112,16 @@ network-status:
 	@$(run_as_root) nft list table inet homelab_filter
 	@$(run_as_root) nft list table ip homelab_nat
 
+# ------------------------------------------------------------
+# nftables verification
+# ------------------------------------------------------------
+
 HOMELAB_NFT_ETC_DIR   := /etc/nftables
 HOMELAB_NFT_RULESET   := $(HOMELAB_NFT_ETC_DIR)/homelab.nft
 HOMELAB_NFT_HASH_FILE := /var/lib/homelab/nftables.applied.sha256
 
-.PHONY: nft-verify
 nft-verify: check-forwarding
-	@echo "🔍 [make] Verifying homelab nftables applied hash"
+	@echo "🔍 Verifying nftables applied state"
 
 	@if [ ! -f "$(HOMELAB_NFT_RULESET)" ]; then \
 		echo "❌ nftables ruleset not present on disk"; \
@@ -128,5 +156,4 @@ nft-verify: check-forwarding
 		exit 1; \
 	fi
 
-	@echo "✅ [make] nftables ruleset matches recorded applied state"
-
+	@echo "♻️  nftables ruleset matches recorded applied state"

@@ -34,6 +34,8 @@ set -eu
 
 # --------------------------------------------------------------------
 
+WG_ROLE="${WG_ROLE:-nas}"   # nas | router
+
 # WireGuard profile bitmask model (wg1..wg15)
 BIT_LAN=0
 BIT_V4=1
@@ -203,12 +205,8 @@ EOF
 
 		allowed_server="${server_allowed_v4}, ${server_allowed_v6}"
 
-		if [ "$has_lan" -eq 1 ];then
-			allowed_server="${allowed_server}, 10.89.12.0/24, 2a01:8b81:4800:9c00::/64"
-		fi
-
 		server_routes=""
-		if [ "$has_lan" -eq 1 ]; then
+		if [ "$WG_ROLE" = "router" ] && [ "$has_lan" -eq 1 ]; then
 			server_routes="10.89.12.0/24, 2a01:8b81:4800:9c00::/64"
 		fi
 

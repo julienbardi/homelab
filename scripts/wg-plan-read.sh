@@ -29,13 +29,17 @@ awk -F'\t' '
 			$6!="client_addr6" ||
 			$7!="AllowedIPs_client" ||
 			$8!="AllowedIPs_server" ||
-			$9!="endpoint") {
+			$9!="endpoint" ||
+			$10!="server_addr4" ||
+			$11!="server_addr6" ||
+			$12!="server_routes") {
 			exit 1
 		}
 		next
 	}
 
 	{
+		if (NF != 12) { exit 1 }
 		print
 	}
 ' "$PLAN" || {

@@ -73,7 +73,7 @@ wg-deployed: ensure-run-as-root net-tunnel-preflight wg-compile wg-check
 
 wg-apply: wg-deployed
 	@test -x "$(WG_EXPORT_SCRIPT)"
-	@$(WG_EXPORT_SCRIPT)
+	@$(run_as_root) $(WG_EXPORT_SCRIPT)
 	@echo "✅ WireGuard converged"
 
 # ------------------------------------------------------------
