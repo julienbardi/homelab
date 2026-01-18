@@ -8,6 +8,14 @@ OUT="$ROOT/compiled/keys.tsv"
 
 umask 077
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+INSTALL_IF_CHANGED="$SCRIPT_DIR/install_if_changed.sh"
+
+[ -x "$INSTALL_IF_CHANGED" ] || {
+    echo "wg-compile-keys: ERROR: install_if_changed.sh not found or not executable" >&2
+    exit 1
+}
+
 [ -f "$PLAN" ] || {
 	echo "wg-compile-keys: ERROR: missing plan.tsv" >&2
 	exit 1
@@ -79,8 +87,4 @@ awk -F'\t' '
 	}
 ' "$EXISTING_KEYS" "$PLAN" >>"$tmp"
 
-mv -f "$tmp" "$OUT"
-chmod 600 "$OUT"
-
-echo "wg-compile-keys: OK"
-echo "  keys: $OUT"
+"$INSTALL_IF_CHANGED" --quiet "$tmp" "$OUT" root root 600

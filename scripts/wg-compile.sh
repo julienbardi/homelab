@@ -246,5 +246,3 @@ EOF
 install -m 0644 -o root -g root "$PLAN_TMP" "$PLAN"
 install -m 0644 -o root -g root "$LOCK_TMP" "$LOCK"
 install -m 0600 -o root -g root "$ALLOC_MERGED" "$ALLOC"
-
-echo "wg-compile: OK"
