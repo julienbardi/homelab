@@ -151,10 +151,14 @@ wg-deployed-view: ensure-run-as-root
 # ------------------------------------------------------------
 
 wg-runtime: ensure-run-as-root
+	@echo
+	@echo "📋 WireGuard peer state (make wg-runtime)"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" "$(SCRIPTS)/wg-runtime.sh"
 
 # A compact runtime summary per iface derived from intent (no WG_IFACES var).
 wg-status: ensure-run-as-root
+	@echo
+	@echo "📋 WireGuard runtime interface status (make wg-status)"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS" "PUBLIC_KEY(short)"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "------" "------------" "------------------" "--------" "----------------"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
@@ -186,6 +190,8 @@ wg-status: ensure-run-as-root
 # ------------------------------------------------------------
 
 wg-dashboard:
+	@echo
+	@echo "📋 WireGuard interface assignment (make wg-dashboard)"
 	@printf "%-24s %s\n" "BASE" "IFACES"
 	@printf "%-24s %s\n" "------------------------" "------------------------------"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '\
