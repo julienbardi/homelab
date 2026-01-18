@@ -12,7 +12,14 @@ caddy: ensure-run-as-root gitcheck assert-caddy-ports-free deploy-caddy
 	@set -euo pipefail; \
 	echo "📄⬇️ Installing Caddyfile"; \
 	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
-	$(run_as_root) install -m 0644 -o root -g root "$(SRC_CADDYFILE)" "$(CADDYFILE)"; \
+	changed=0; \
+	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
+		"$(SRC_CADDYFILE)" "$(CADDYFILE)" root root 0644 || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		3) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
 	echo "📦 Deploying custom Caddy binary with rate_limit plugin"; \
 	#if [ -x "$(CADDY_BIN)" ] && [ ! -f "$(CADDY_BACKUP)" ]; then \
 	#	$(run_as_root) mv "$(CADDY_BIN)" "$(CADDY_BACKUP)"; \
@@ -38,7 +45,11 @@ caddy: ensure-run-as-root gitcheck assert-caddy-ports-free deploy-caddy
 	echo "🚀 Applying Caddy service"; \
 	$(run_as_root) systemctl enable caddy; \
 	if $(run_as_root) systemctl is-active --quiet caddy; then \
-		$(run_as_root) systemctl reload caddy && echo "✅ Reload successful"; \
+		if [ "$$changed" -eq 1 ]; then \
+			$(run_as_root) systemctl reload caddy && echo "✅ Reloaded (config changed)"; \
+		else \
+			echo "ℹ️ Caddyfile unchanged — no reload needed"; \
+		fi; \
 	else \
 		$(run_as_root) systemctl start caddy && echo "✅ Started successfully"; \
 	fi
@@ -47,15 +58,15 @@ caddy: ensure-run-as-root gitcheck assert-caddy-ports-free deploy-caddy
 
 caddy-validate:
 	@if [ ! -f /etc/ssl/caddy/fullchain.pem ]; then \
-	  echo "[caddy] WARNING: certs missing; skipping full validation"; \
-	  echo "[caddy] Run 'make deploy-caddy' or 'make all-caddy' once to install certs."; \
+	  echo "⚠️ Certs missing; skipping full validation"; \
+	  echo "👉 Run 'make deploy-caddy' or 'make all-caddy' once to install certs."; \
 	  exit 0; \
 	fi
-	@echo "[caddy] validating Caddyfile"
+	@echo "🔎 Validating Caddyfile"
 	@sudo caddy validate --config "$(SRC_CADDYFILE)"
 
 caddy-fmt:
-	@echo "[caddy] formatting Caddyfile"
+	@echo "🧹 Formatting Caddyfile"
 	@sudo caddy fmt --overwrite "$(SRC_CADDYFILE)"
 
 .PHONY: assert-caddy-ports-free
