@@ -28,7 +28,7 @@ SCRIPTS := $(CURDIR)/scripts
 	wg-clients \
 	wg-show-client-key-validate \
 	wg-show-client-key \
-	wg-intent wg-intent-ifaces \
+	wg-intent \
 	wg-compiled wg-deployed-view \
 	wg-status wg-runtime \
 	wg-dashboard \
@@ -56,7 +56,7 @@ endef
 # ------------------------------------------------------------
 
 wg-intent:
-	@echo "📋 WireGuard client addressing"
+	@echo "📋 WireGuard client addressing (make wg-intent)"
 	@printf "%-14s %-6s %-7s %-18s %s\n" \
 		"BASE" "IFACE" "HOSTID" "ADDRESS" "ENDPOINT"
 	@printf "%-14s %-6s %-7s %-18s %s\n" \
@@ -64,10 +64,6 @@ wg-intent:
 	@$(WG_PLAN_ROWS) | awk -F'\t' '{ \
 		printf "%-14s %-6s %-7s %-18s %s\n", $$1, $$2, $$3, $$5, $$9 \
 	}'
-
-
-wg-intent-ifaces:
-	@$(SCRIPTS)/wg-plan-ifaces.sh "$(PLAN)"
 
 # ------------------------------------------------------------
 # Keep: wg-clients (command generator for client inspection)
@@ -159,8 +155,8 @@ wg-runtime: ensure-run-as-root
 wg-status: ensure-run-as-root
 	@echo
 	@echo "📋 WireGuard runtime interface status (make wg-status)"
-	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS" "PUBLIC_KEY(short)"
-	@printf "%-6s %-12s %-18s %-8s %-s\n" "------" "------------" "------------------" "--------" "----------------"
+	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS"
+	@printf "%-6s %-12s %-18s %-8s %-s\n" "------" "------------" "------------------" "--------"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
 		set -e; \
 		IFACES="$$( "$(SCRIPTS)/wg-plan-ifaces.sh" "$(PLAN)" )"; \
@@ -180,7 +176,7 @@ wg-status: ensure-run-as-root
 			else \
 				pub_short="(none)"; \
 			fi; \
-			printf "%-6s %-12s %-18s %-8s %s\n" "$$dev" "$$link_state" "$$port" "$$peer_count" "$$pub_short"; \
+			printf "%-6s %-12s %-18s %-8s\n" "$$dev" "$$link_state" "$$port" "$$peer_count"; \
 		done \
 	'
 
