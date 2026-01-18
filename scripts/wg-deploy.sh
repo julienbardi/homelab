@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scripts/wg-deploy.sh
 set -euo pipefail
 
 WG_ROLE="${WG_ROLE:-nas}"
