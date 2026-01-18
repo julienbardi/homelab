@@ -95,6 +95,8 @@ define apt_install
 				vnstat --version 2>&1 | head -n1; \
 			elif [ "$(1)" = "go" ]; then \
 				go version 2>&1 | head -n1; \
+			elif [ "$(1)" = "unbound" ]; then \
+				unbound -V 2>&1 | head -n1; \
 			else \
 				( PATH=/usr/sbin:/sbin:$$PATH $(1) --version 2>&1 || \
 				  PATH=/usr/sbin:/sbin:$$PATH $(1) version 2>&1 || \
