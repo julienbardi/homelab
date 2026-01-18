@@ -82,7 +82,6 @@ compile_iface() {
 
 
 	mkdir -p "$OUT_SERVER/$iface"
-	echo "rendering interface $iface"
 
 	awk -F'\t' \
 		-v KEYS="$KEYS" \
@@ -203,6 +202,3 @@ done
 for pid in "${pids[@]}"; do
 	wait "$pid"
 done
-
-echo "client configs written to $OUT_CLIENT"
-echo "server peer fragments written to $OUT_SERVER"
