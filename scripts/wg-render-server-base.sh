@@ -1,20 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 # ------------------------------------------------------------
 # Render WireGuard server base configs
-#
-# Inputs:
-#   WG_ROOT/compiled/plan.tsv
-#   WG_ROOT/compiled/server-pubkeys/
-#
-# Outputs:
-#   WG_ROOT/out/server/base/wgX.conf
-#
-# Notes:
-# - Intent-driven only
-# - Does NOT generate or read private keys
-# - Safe to re-run
 # ------------------------------------------------------------
 
 : "${WG_ROOT:?WG_ROOT not set}"
@@ -22,6 +11,14 @@ set -euo pipefail
 PLAN="${WG_ROOT}/compiled/plan.tsv"
 PUBDIR="${WG_ROOT}/compiled/server-pubkeys"
 OUTDIR="${WG_ROOT}/out/server/base"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+INSTALL_IF_CHANGED="${SCRIPT_DIR}/install_if_changed.sh"
+
+[ -x "${INSTALL_IF_CHANGED}" ] || {
+	echo "wg-render-server-base: ERROR: install_if_changed.sh not found or not executable" >&2
+	exit 1
+}
 
 echo "🧱 Rendering server base configs"
 echo "  📄 plan:   ${PLAN}"
@@ -37,21 +34,19 @@ echo "  📦 output: ${OUTDIR}"
 
 mkdir -p "${OUTDIR}"
 
-changed=0
-
 while read -r iface; do
 	conf="${OUTDIR}/${iface}.conf"
 	pub="${PUBDIR}/${iface}.pub"
 
 	[ -f "${pub}" ] || { echo "❌ missing ${pub}"; exit 1; }
 
-	# If base config already exists, do not overwrite private key
-	if [ -f "${conf}" ]; then
-		continue
-	fi
+	# Ensure semantics: never overwrite existing base config
+	[ -f "${conf}" ] && continue
 
-	# Render minimal base config WITHOUT private key
-	cat > "${conf}" <<EOF
+	tmp="$(mktemp)"
+	trap 'rm -f "$tmp"' EXIT
+
+	cat >"$tmp" <<EOF
 # --------------------------------------------------
 # WireGuard server base config
 # Interface: ${iface}
@@ -63,8 +58,8 @@ while read -r iface; do
 ListenPort = $(awk -F'\t' -v i="${iface}" '$2==i {print $9; exit}' "${PLAN}")
 EOF
 
+	"$INSTALL_IF_CHANGED" --quiet "$tmp" "$conf" root root 600
 	echo "🟢 wrote ${conf}"
-	changed=1
 done < <(
 	awk -F'\t' '
 		/^#/ { next }
@@ -73,7 +68,3 @@ done < <(
 		{ print $2 }
 	' "${PLAN}" | sort -u
 )
-
-if [ "$changed" -eq 0 ]; then
-	echo "no server base config changes"
-fi
