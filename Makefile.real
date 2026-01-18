@@ -45,7 +45,6 @@ include $(MAKEFILE_DIR)/mk/20_deps.mk        # package dependencies (apt install
 include $(MAKEFILE_DIR)/mk/20_net-tunnel.mk
 include $(MAKEFILE_DIR)/mk/20_sysctl.mk
 include $(MAKEFILE_DIR)/mk/30_config_validation.mk
-include $(MAKEFILE_DIR)/mk/30_generate.mk    # generation helpers (cert/key creation, QR codes)
 include $(MAKEFILE_DIR)/mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include $(MAKEFILE_DIR)/mk/40_code-server.mk
 include $(MAKEFILE_DIR)/mk/40_wireguard.mk   # Wireguard orchestration
