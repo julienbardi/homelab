@@ -48,5 +48,3 @@ for iface in $ifaces; do
 		die "no peer configs found in $peers"
 	fi
 done
-
-echo "wg-check-render: OK"
