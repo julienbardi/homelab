@@ -28,17 +28,18 @@ WG_PERSISTENT_KEEPALIVE="${WG_PERSISTENT_KEEPALIVE:-25}"
 mkdir -p "$OUT_ROOT"
 umask 077
 
+changed=0
+
 # --------------------------------------------------------------------
 # Render client configs from canonical plan reader
 # --------------------------------------------------------------------
-"$PLAN_READER" | while IFS=$'\t' read -r \
+while IFS=$'\t' read -r \
 	base iface slot dns \
 	client_addr4 client_addr6 \
 	allowed_client allowed_server \
 	endpoint \
 	server_addr4 server_addr6 server_routes
 do
-
 	[ -n "$base" ]  || die "missing base"
 	[ -n "$iface" ] || die "missing iface for base=$base"
 	[ -n "$client_addr4" ] || die "missing client_addr4 for $base $iface"
@@ -95,9 +96,12 @@ do
 
 	if [ -f "$out" ] && cmp -s "$tmp" "$out"; then
 		rm -f "$tmp"
-		echo "wg-client-export: ⚪ unchanged $out"
 	else
 		mv -f "$tmp" "$out"
-		echo "wg-client-export: 🟢 updated   $out"
+		echo "🟢 updated $out"
+		changed=1
 	fi
-done
+done < <("$PLAN_READER")
+if [ "$changed" -eq 0 ]; then
+	echo "⚪ no client config changes"
+fi
