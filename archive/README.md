@@ -1,3 +1,14 @@
+# Archived Makefile fragments
+
+These files are retained for historical reference only.
+
+They were removed during the idempotent Makefile refactor
+to simplify orchestration, eliminate side effects, and
+enforce deterministic installs.
+
+Do not re‑enable without review.
+
+
 # Homelab Gateway Stack
 
 ## LAN topology

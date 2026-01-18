@@ -44,7 +44,7 @@ endef
 $(INSTALL_PATH)/install_if_changed.sh: ensure-run-as-root scripts/install_if_changed.sh
 	$(call install_install_if_changed)
 
-# install_script(src, name), exit code 1 (no change) and 3 (updated) are success
+# install_script(src, name), exit code 0 (unchanged) and 3 (updated) are success
 define install_script
 	@$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh --quiet \
 		$(1) $(INSTALL_PATH)/$(2) $(OWNER) $(GROUP) $(MODE) || [ $$? -eq 3 ]
@@ -120,7 +120,7 @@ endef
 
 define remove_cmd
 	@echo "Removing $(1)..."
-	$(run_as_root) sh -c '$(2)'
+	@$(run_as_root) sh -c '$(2)'
 endef
 
 .PHONY: homelab-cleanup-deps
