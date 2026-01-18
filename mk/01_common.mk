@@ -146,7 +146,22 @@ check-prereqs:
 	done; \
 	echo "All required commands present"
 
+# All scripts are installed to /usr/local/bin.
+# No script is executed directly from the repository.
+
 # pattern rule: install scripts/<name>.sh -> $(INSTALL_PATH)/<name>
 # requires install_if_changed.sh to exist first (order-only prerequisite)
 $(INSTALL_PATH)/%.sh: $(HOMELAB_DIR)/scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
 	$(call install_script,$<,$*)
+
+SCRIPTS := $(notdir $(wildcard $(HOMELAB_DIR)/scripts/*.sh))
+FILES   := $(addprefix $(INSTALL_PATH)/,$(SCRIPTS))
+
+.PHONY: install-all uninstall-all
+
+install-all: $(FILES)
+
+uninstall-all:
+		@for s in $(SCRIPTS); do \
+				$(call uninstall_script,$$s); \
+		done
