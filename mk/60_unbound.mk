@@ -56,24 +56,31 @@ UNBOUND_CONTROL_CONF_SRC := $(HOMELAB_DIR)/config/unbound/unbound-control.conf
 UNBOUND_CONTROL_CONF_DST := /etc/unbound/unbound-control.conf
 
 .PHONY: assert-unbound-tools
+
 assert-unbound-tools:
-	@command -v unbound >/dev/null || \
+	@PATH=/usr/sbin:/sbin:$$PATH command -v unbound >/dev/null || \
 		( echo "❌ unbound not installed. Run: make prereqs"; exit 1 )
 	@command -v dig >/dev/null || \
 		( echo "❌ dig not installed. Run: make prereqs"; exit 1 )
-	@command -v unbound-control >/dev/null || \
+	@PATH=/usr/sbin:/sbin:$$PATH command -v unbound-control >/dev/null || \
 		( echo "❌ unbound-control not installed. Run: make prereqs"; exit 1 )
 
 # --- Root hints ---
 update-root-hints:
 	@echo "🌐 Updating root hints → /var/lib/unbound/root.hints"
 	@$(run_as_root) mkdir -p /var/lib/unbound
-	@curl -fsSL \
-		--connect-timeout 5 \
-		--max-time 15 \
+	@tmp=$$(mktemp); \
+	if curl -fsSL \
+		--connect-timeout 10 \
+		--max-time 20 \
 		https://www.internic.net/domain/named.root \
-		| $(run_as_root) install -m 0644 -o root -g unbound /dev/stdin /var/lib/unbound/root.hints
-	@echo "✅ root hints updated"
+		-o $$tmp; then \
+		$(run_as_root) install -m 0644 -o root -g unbound $$tmp /var/lib/unbound/root.hints; \
+		echo "✅ root hints updated"; \
+	else \
+		echo "⚠️ root hints download failed — keeping existing file"; \
+	fi; \
+	rm -f $$tmp
 
 # --- Trust anchor ---
 ensure-root-key:
@@ -86,7 +93,6 @@ ensure-root-key:
 	@echo "✅ root key present"
 
 deploy-unbound-config: update-root-hints ensure-root-key
-	@echo "📄 Deploying unbound.conf → /etc/unbound"
 	@$(run_as_root) install -d -m 0755 /etc/unbound
 	@changed=0; \
 	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
@@ -101,12 +107,9 @@ deploy-unbound-config: update-root-hints ensure-root-key
 	if [ $$changed -eq 1 ]; then \
 		echo "→ unbound.conf updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
-	else \
-		echo "⚪ unbound.conf unchanged"; \
 	fi
 
 deploy-unbound-control-config:
-	@echo "📄 Deploying unbound-control.conf → /etc/unbound"
 	@changed=0; \
 	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
 		$(UNBOUND_CONTROL_CONF_SRC) \
@@ -121,15 +124,12 @@ deploy-unbound-control-config:
 	if [ $$changed -eq 1 ]; then \
 		echo "→ unbound-control.conf updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
-	else \
-		echo "⚪ unbound-control.conf unchanged"; \
 	fi
 
 UNBOUND_SERVICE_SRC := $(HOMELAB_DIR)/config/systemd/unbound.service
 UNBOUND_SERVICE_DST := /etc/systemd/system/unbound.service
 
 deploy-unbound-service:
-	@echo "⚙️ Deploying unbound.service → /etc/systemd/system"
 	@changed=0; \
 	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
 		$(UNBOUND_SERVICE_SRC) \
@@ -145,8 +145,6 @@ deploy-unbound-service:
 		echo "→ unbound.service updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
 		$(run_as_root) systemctl daemon-reload; \
-	else \
-		echo "⚪ unbound.service unchanged"; \
 	fi
 
 UNBOUND_LOCAL_INTERNAL_SRC := $(HOMELAB_DIR)/config/unbound/local-internal.conf
@@ -154,7 +152,6 @@ UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
 
 .PHONY: deploy-unbound-local-internal
 deploy-unbound-local-internal:
-	@echo "📄 Deploying internal DNS overrides → unbound"
 	@changed=0; \
 	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
 		$(UNBOUND_LOCAL_INTERNAL_SRC) \
@@ -171,8 +168,6 @@ deploy-unbound-local-internal:
 	if [ $$changed -eq 1 ]; then \
 		echo "→ local-internal.conf updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
-	else \
-		echo "⚪ local-internal.conf unchanged"; \
 	fi
 
 # --- Systemd drop-in for fixing /run/unbound.ctl ownership ---
@@ -181,7 +176,6 @@ UNBOUND_DROPIN_DST := /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.c
 
 .PHONY: install-unbound-systemd-dropin
 install-unbound-systemd-dropin:
-	@echo "🔧 Installing unbound systemd drop-in"
 	@$(run_as_root) install -d /etc/systemd/system/unbound.service.d
 	@changed=0; \
 	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
@@ -198,8 +192,6 @@ install-unbound-systemd-dropin:
 		echo "→ unbound systemd drop-in updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
 		$(run_as_root) systemctl daemon-reload; \
-	else \
-		echo "⚪ unbound systemd drop-in unchanged"; \
 	fi
 
 deploy-unbound:
@@ -214,7 +206,6 @@ deploy-unbound:
 # --- Remote control ---
 .PHONY: setup-unbound-control
 setup-unbound-control:
-	@echo "🔑 Setting up Unbound remote-control"
 	@if [ ! -f /etc/unbound/unbound_server.key ]; then \
 		echo "📦 Generating control certificates..."; \
 		$(run_as_root) unbound-control-setup; \
@@ -232,6 +223,10 @@ setup-unbound-control:
 		> /etc/unbound/unbound-control.conf'
 	@echo "Restarting unbound service (remote-control)"
 	@$(run_as_root) systemctl restart unbound || { echo "❌ restart failed"; exit 1; }
+	@if [ -f "$(UNBOUND_RESTART_STAMP)" ]; then \
+		echo "🔄 Restarted unbound — status:"; \
+		$(run_as_root) systemctl status --no-pager unbound; \
+	fi
 	@$(run_as_root) systemctl is-active --quiet unbound || \
 		( echo "❌ unbound failed to start after remote-control setup"; \
 		  $(run_as_root) systemctl status --no-pager unbound; \
@@ -270,9 +265,9 @@ dns-runtime-check: assert-unbound-running
 # --- Runtime / Benchmark ---
 .PHONY: dns rotate dns-bench dns-all dns-reset dns-health dns-watch dns-runtime
 
-dns:
-	@echo "🔍 Running dns_setup.sh"
-	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/setup/dns_setup.sh
+.PHONY: dns
+dns: enable-unbound dns-runtime dns-warm-install dns-health
+	@echo "✅ DNS stack converged and healthy"
 
 rotate:
 	@echo "🔄 Refreshing DNSSEC trust anchors"
@@ -316,17 +311,39 @@ dns-reset: \
 	@echo "✅ DNS reset + bootstrap complete"
 
 # --- Health check ---
-dns-health: assert-unbound-tools assert-unbound-control
+dns-health: assert-unbound-tools assert-unbound-control dns-runtime
 	@echo "🩺 Checking Unbound health and cache stats..."
-	sudo -u unbound unbound-control \
-		-c /etc/unbound/unbound-control.conf \
-		stats_noreset 2>/dev/null | awk '\
-			/^num.queries/       {print "📊 Total queries: " $$2} \
-			/^num.cachehits/     {print "⚡ Cache hits: " $$2} \
-			/^num.cachemiss/     {print "🐢 Cache misses: " $$2} \
-			/^avg.response.time/ {print "⏱️ Avg response time: " $$2 " ms"} \
-		'
+	@sudo -u unbound unbound-control \
+	-c /etc/unbound/unbound-control.conf \
+	stats_noreset 2>/dev/null | \
+awk -F= '\
+	/thread[0-9]+\.num\.queries=/        { q += $$2 } \
+	/thread[0-9]+\.num\.cachehits=/      { h += $$2 } \
+	/thread[0-9]+\.num\.cachemiss=/      { m += $$2 } \
+	/thread[0-9]+\.recursion\.time\.avg=/ { t += $$2; n++ } \
+	END { \
+		if (!q) exit; \
+		hp = (h/q)*100; \
+		mp = (m/q)*100; \
+		rt = (n ? (t/n)*1000 : 0); \
+		printf "Metric                    Value        Ratio\n"; \
+		printf "────────────────────────────────────────────\n"; \
+		printf "%-22s %10d %9.1f%%\n", "Total queries", q, 100; \
+		printf "%-22s %10d %9.1f%%\n", "Cache hits", h, hp; \
+		printf "%-22s %10d %9.1f%%\n", "Cache misses", m, mp; \
+		printf "%-22s %10.2f ms\n", "Avg recursion time", rt; \
+		printf "\n"; \
+		if (hp < 10) \
+			printf "Verdict: ⚠️ cache cold / priming in progress\n"; \
+		else if (rt > 20) \
+			printf "Verdict: ⚠️ high recursion latency\n"; \
+		else \
+			printf "Verdict: ✅ healthy resolver\n"; \
+	}'
+
 	@echo "✅ dns-health check complete"
+
+
 
 .PHONY: assert-unbound-control
 assert-unbound-control:

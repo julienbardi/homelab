@@ -32,7 +32,8 @@ install-dns-warm-policy:
 	@echo "📄 [make] Installing dns-warm domain policy script"
 	@$(run_as_root) install -m 0755 $(DNS_WARM_POLICY_SRC) $(DNS_WARM_POLICY_DST)
 
-update-dns-warm-domains: install-dns-warm-policy dns-warm-dirs
+# Fix parallel ordering
+update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-warm-dirs
 	@echo "🌐 [make] Updating dns-warm domain list"
 	@$(run_as_root) $(DNS_WARM_POLICY_DST)
 	@$(run_as_root) chown root:root $(DOMAINS_FILE)
@@ -61,7 +62,8 @@ dns-warm-status: dns-warm-enable
 	@$(run_as_root) systemctl status $(TIMER) --no-pager || true
 	@$(run_as_root) systemctl status $(SERVICE) --no-pager || true
 
-dns-warm-enable:
+# Fix parallel ordering
+dns-warm-enable: dns-warm-install-systemd
 	@echo "Enabling dns-warm timer..."
 	@$(run_as_root) systemctl enable --now $(TIMER)
 
@@ -107,7 +109,8 @@ dns-warm-install-script: dns-warm-async-install
 	@$(run_as_root) chown $(USER):$(GROUP) $(SCRIPT_PATH)
 	@$(run_as_root) bash -n $(SCRIPT_PATH)
 
-dns-warm-install-systemd:
+# Fix parallel ordering
+dns-warm-install-systemd: dns-warm-install-script
 	@echo "Installing systemd service and timer..."
 	@$(run_as_root) sh -c 'printf "%s\n" \
 "[Unit]" \
@@ -136,6 +139,7 @@ dns-warm-install-systemd:
 "OnBootSec=2min" \
 "OnUnitInactiveSec=10s" \
 "AccuracySec=30s" \
+"Persistent=true" \
 "" \
 "[Install]" \
 "WantedBy=timers.target" \
@@ -148,8 +152,9 @@ dns-warm-install-systemd:
 # Async DNS cache warmer (c-ares based)
 # ------------------------------------------------------------
 dns-warm-async: $(HOMELAB_DIR)/scripts/dns-warm-async.c prereqs
-	$(CC) -O2 -Wall -Wextra -o $@ $< -lcares
+	@$(CC) -O2 -Wall -Wextra -o $@ $< -lcares
 
 .PHONY: dns-warm-async-install
 dns-warm-async-install: dns-warm-async
-	sudo install -m 0755 dns-warm-async /usr/local/bin/dns-warm-async
+	@$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
+		dns-warm-async /usr/local/bin/dns-warm-async root root 0755
