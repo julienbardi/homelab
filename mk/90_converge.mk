@@ -36,7 +36,6 @@ converge-audit:
 # ------------------------------------------------------------
 
 wg-stack: wg-converge-server wg-converge-clients wg-converge-runtime
-	@echo "🔧 WireGuard convergence"
 
 wg-converge-server: wg-deployed
 
