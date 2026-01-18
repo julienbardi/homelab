@@ -12,7 +12,7 @@ MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 # Directory of the including Makefile (normally the repo root).
 # before any includes
-HOMELAB_DIR ?= $(MAKEFILE_DIR)
+HOMELAB_DIR ?= $(patsubst %/,%,$(MAKEFILE_DIR))
 
 SHELL := /bin/bash
 

@@ -17,7 +17,6 @@ run_as_root := $(HOMELAB_DIR)/bin/run-as-root
 .PHONY: ensure-run-as-root
 ensure-run-as-root:
 	@if [ ! -x "$(run_as_root)" ]; then \
-		echo "[make] 🔧 Ensuring run_as_root.sh is executable"; \
 		chmod +x $(run_as_root); \
 	fi
 
@@ -31,20 +30,29 @@ STAMP_DIR ?= /var/lib/homelab
 
 # log(message). Show on screen and write to syslog/journald
 define log
-echo "$1" >&2; command -v logger >/dev/null 2>&1 && logger -t homelab-make "$1"
+	echo "$1" >&2; command -v logger >/dev/null 2>&1 && logger -t homelab-make "$1"
 endef
 
-# install_script(src, name)
+
+# Bootstrap install for install_if_changed.sh (cannot use itself), -C means "copy only if contents differ".
+define install_install_if_changed
+	@$(run_as_root) install -C -o $(OWNER) -g $(GROUP) -m $(MODE) \
+		scripts/install_if_changed.sh \
+		$(INSTALL_PATH)/install_if_changed.sh
+endef
+
+$(INSTALL_PATH)/install_if_changed.sh: ensure-run-as-root scripts/install_if_changed.sh
+	$(call install_install_if_changed)
+
+# install_script(src, name), exit code 1 (no change) and 3 (updated) are success
 define install_script
-    $(run_as_root) $(HOMELAB_DIR)/scripts/helpers/install_if_changed.sh \
-        $(1) \
-        $(INSTALL_PATH)/$(2) \
-        $(OWNER) $(GROUP) $(MODE)
+	@$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh --quiet \
+		$(1) $(INSTALL_PATH)/$(2) $(OWNER) $(GROUP) $(MODE) || [ $$? -eq 3 ]
 endef
 
 # uninstall_script(name)
 define uninstall_script
-	$(run_as_root) rm -f $(INSTALL_PATH)/$(1)
+	@$(run_as_root) rm -f $(INSTALL_PATH)/$(1)
 endef
 
 # --------------------------------------------------------------------
@@ -54,16 +62,14 @@ endef
 # - Stamp file is written as root so subsequent runs by non-root users still see it.
 # --------------------------------------------------------------------
 APT_UPDATE_STAMP ?= $(STAMP_DIR)/apt.update.stamp
-APT_UPDATE_MAX_AGE ?= 21600   # 6 hours in seconds
+APT_UPDATE_MAX_AGE ?= 21600		# 6 hours in seconds
 
 define apt_update_if_needed
 	$(run_as_root) mkdir -p --mode=0755 $(STAMP_DIR) >/dev/null 2>&1 || true; \
 	if [ ! -f "$(APT_UPDATE_STAMP)" ] || [ $$(expr $$(date +%s) - $$(stat -c %Y "$(APT_UPDATE_STAMP)" 2>/dev/null || echo 0) ) -gt $(APT_UPDATE_MAX_AGE) ]; then \
-		echo "[make] Running apt-get update (stamp missing or older than $(APT_UPDATE_MAX_AGE)s)"; \
+		echo "apt-get update (stamp expired)"; \
 		$(run_as_root) apt-get update; \
 		$(run_as_root) sh -c 'mkdir -p "$(STAMP_DIR)" && date +%s > "$(APT_UPDATE_STAMP)"'; \
-	else \
-		echo "[make] apt-get update stamp is recent; skipping apt-get update"; \
 	fi
 endef
 
@@ -76,7 +82,7 @@ apt-update: ensure-run-as-root
 # - $(2) is the apt package(s) to install (e.g. curl)
 define apt_install
 	if ! command -v $(1) >/dev/null 2>&1; then \
-		echo "[make] $(1) not found, installing: $(2)"; \
+		echo "$(1) not found, installing: $(2)"; \
 		$(call apt_update_if_needed); \
 		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold $(2); \
 	else \
@@ -91,7 +97,7 @@ define apt_install
 				{ $(1) --version 2>&1 || $(1) version 2>&1 || $(1) -v 2>&1 || echo "unknown"; } | head -n1; \
 			fi \
 		); \
-		echo "[make] $(1) version: $$VER_STR"; \
+		echo "$(1) version: $$VER_STR"; \
 	fi
 endef
 
@@ -99,38 +105,39 @@ endef
 #   $(call apt_remove,packagename)                     -> remove package if present
 #   $(call apt_remove,packagename,/path/to/stamp.file) -> remove package and remove stamp; also apt-mark unhold
 define apt_remove
-	echo "[make] Requested removal of $(1)..."; \
+	echo "Removing $(1)..."; \
 	if dpkg -s $(1) >/dev/null 2>&1; then \
-		echo "[make] $(1) is installed; removing..."; \
-		$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get remove -y -o Dpkg::Options::=--force-confold $(1) || echo "[make] apt-get remove returned non-zero"; \
+		echo "$(1) is installed; removing..."; \
+		$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get remove -y -o Dpkg::Options::=--force-confold $(1) || echo "apt-get remove returned non-zero"; \
 		if [ -n "$(2)" ]; then \
 			$(run_as_root) apt-mark unhold $(1) >/dev/null 2>&1 || true; \
 			$(run_as_root) rm -f $(2) >/dev/null 2>&1 || true; \
 		fi; \
 	else \
-		echo "[make] $(1) not installed; nothing to do"; \
+		echo "$(1) not installed; nothing to do"; \
 	fi
 endef
 
 define remove_cmd
-	echo "[make] Removing $(1)..."
+	@echo "Removing $(1)..."
 	$(run_as_root) sh -c '$(2)'
 endef
 
 .PHONY: homelab-cleanup-deps
 homelab-cleanup-deps: ensure-run-as-root
-	@echo "[make] Cleaning up unused dependencies..."
+	@echo "Cleaning up unused dependencies..."
 	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get autoremove -y || true
 
 # simple prereq check target (useful in CI)
 .PHONY: check-prereqs
 check-prereqs:
-	@echo "[make] Checking required commands..."; \
+	@echo "Checking required commands..."; \
 	for cmd in sudo apt-get curl git ip wg awk sort mktemp; do \
-		command -v $$cmd >/dev/null 2>&1 || { echo "[make] Missing required command: $$cmd"; exit 1; }; \
+		command -v $$cmd >/dev/null 2>&1 || { echo "Missing required command: $$cmd"; exit 1; }; \
 	done; \
-	echo "[make] All required commands present"
+	echo "All required commands present"
 
 # pattern rule: install scripts/<name>.sh -> $(INSTALL_PATH)/<name>
-$(INSTALL_PATH)/%: ensure-run-as-root $(HOMELAB_DIR)/scripts/%.sh
+# requires install_if_changed.sh to exist first (order-only prerequisite)
+$(INSTALL_PATH)/%.sh: $(HOMELAB_DIR)/scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
 	$(call install_script,$<,$*)
