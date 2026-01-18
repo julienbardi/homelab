@@ -23,7 +23,7 @@ WG_SERVER_BASE_RENDER_SCRIPT := $(SCRIPTS)/wg-render-server-base.sh
 WG_RENDER_CHECK_SCRIPT := $(SCRIPTS)/wg-check-render.sh
 
 .PHONY: wg-validate wg-apply wg-render-server-base wg-compile wg-deployed wg-status wg-check \
-	wg-rebuild-clean wg-rebuild-all wg-plan wg-check-render
+	wg-rebuild-clean wg-rebuild-all wg-check-render
 
 # ------------------------------------------------------------
 # Compile intent → plan.tsv
@@ -44,7 +44,6 @@ wg-compile-keys: wg-compile-intent $(WG_KEYS_SCRIPT)
 	@test -x "$(WG_KEYS_SCRIPT)"
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_KEYS_SCRIPT)"
 
-
 # ------------------------------------------------------------
 # Render client + server configs from plan.tsv + keys.tsv
 # ------------------------------------------------------------
@@ -53,10 +52,9 @@ wg-render-server-base: wg-compile-intent
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_BASE_RENDER_SCRIPT)"
 
 
-wg-render: wg-plan wg-compile-intent wg-compile-keys wg-ensure-server-keys wg-render-server-base
+wg-render: wg-compile-intent wg-compile-keys wg-ensure-server-keys wg-render-server-base
 	@test -x "$(WG_RENDER_SCRIPT)"
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_SCRIPT)"
-
 
 # ------------------------------------------------------------
 # Compile everything (no deployment)
@@ -75,12 +73,6 @@ wg-apply: wg-deployed
 	@test -x "$(WG_EXPORT_SCRIPT)"
 	@$(run_as_root) $(WG_EXPORT_SCRIPT)
 	@echo "✅ WireGuard converged"
-
-# ------------------------------------------------------------
-# Validate only (alias)
-# ------------------------------------------------------------
-wg-validate: wg-compile
-	@echo "🔁 WireGuard validation OK (no changes applied)"
 
 # ------------------------------------------------------------
 # Consistency / sanity checks
@@ -102,11 +94,6 @@ wg-rebuild-clean: ensure-run-as-root
 wg-rebuild-all: wg-rebuild-clean wg-apply
 	@echo "🔥 WireGuard fully rebuilt with fresh keys"
 
-wg-plan:
-	@echo "[wg] Planning WireGuard interfaces and address allocation"
-	@./scripts/wg-plan-ifaces.sh
-
 wg-check-render: wg-render
 	@test -x "$(WG_RENDER_CHECK_SCRIPT)"
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"
-
