@@ -16,12 +16,12 @@ SERVER_KEYS_DIR="$ROOT/server-keys"
 
 DRY_RUN="${WG_DRY_RUN:-0}"
 
+die()  { echo "wg-deploy: ERROR: $*" >&2; exit 1; }
+need() { [ -e "$1" ] || die "missing required path: $1"; }
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_IF_CHANGED="${SCRIPT_DIR}/install_if_changed.sh"
 [ -x "$INSTALL_IF_CHANGED" ] || die "install_if_changed.sh not found or not executable"
-
-die()  { echo "wg-deploy: ERROR: $*" >&2; exit 1; }
-need() { [ -e "$1" ] || die "missing required path: $1"; }
 
 if [ "$DRY_RUN" != "1" ]; then
 	LOCKFILE="/run/wg-apply.lock"
@@ -89,6 +89,8 @@ cleanup() {
 	fi
 	# If NEW still exists (failure before swap), remove it.
 	rm -rf "$NEW" 2>/dev/null || true
+
+	[ -n "${META_TMP:-}" ] && rm -f "$META_TMP" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -291,8 +293,6 @@ swapped=0
 META="$WG_DIR/.deploy-meta"
 
 META_TMP="$(mktemp)"
-trap 'rm -f "$META_TMP"; cleanup' EXIT
-
 {
 	echo "timestamp: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 	echo "host: $(hostname -f 2>/dev/null || hostname)"
@@ -305,4 +305,5 @@ trap 'rm -f "$META_TMP"; cleanup' EXIT
 	done
 } >"$META_TMP"
 
-"$INSTALL_IF_CHANGED" --quiet "$META_TMP" "$META" root root 600
+# Metadata updates are not failures
+"$INSTALL_IF_CHANGED" --quiet "$META_TMP" "$META" root root 600 || true
