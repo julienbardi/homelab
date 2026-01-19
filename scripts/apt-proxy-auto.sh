@@ -1,6 +1,6 @@
 #!/bin/sh
+# apt-proxy-auto.sh
 set -eu
-
 # --------------------------------------------------------------------
 # NOTE — IMPORTANT DESIGN INTENT
 #

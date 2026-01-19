@@ -37,6 +37,7 @@ INTERNAL_HOSTS := \
 	apt.bardi.ch
 
 # --- Includes (ordered by prefix) ---
+include $(MAKEFILE_DIR)/mk/00_sanity.mk
 include $(MAKEFILE_DIR)/mk/00_prereqs.mk
 include $(MAKEFILE_DIR)/mk/01_common.mk
 include $(MAKEFILE_DIR)/mk/05_bootstrap_wireguard.mk
@@ -58,15 +59,16 @@ include $(MAKEFILE_DIR)/mk/60_unbound.mk     # Unbound DNS resolver setup
 include $(MAKEFILE_DIR)/mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
 include $(MAKEFILE_DIR)/mk/70_dnsdist.mk     #
 include $(MAKEFILE_DIR)/mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
-include $(MAKEFILE_DIR)/mk/70_dnscrypt-proxy.mk   # dnscrypt-proxy setup and deployment
 include $(MAKEFILE_DIR)/mk/70_apt_proxy_auto.mk
 include $(MAKEFILE_DIR)/mk/80_tailnet.mk     # Tailscale/Headscale orchestration
 include $(MAKEFILE_DIR)/mk/81_headscale.mk              # Headscale service + binary + systemd
 include $(MAKEFILE_DIR)/mk/83_headscale-users.mk        # Users (future)
 include $(MAKEFILE_DIR)/mk/84_headscale-acls.mk         # ACLs (future)
+include $(MAKEFILE_DIR)/mk/85_monitoring.mk
 include $(MAKEFILE_DIR)/mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
 include $(MAKEFILE_DIR)/mk/90_dns-health.mk  # DNS health checks and monitoring
 include $(MAKEFILE_DIR)/mk/90_converge.mk
+include $(MAKEFILE_DIR)/mk/95_status.mk
 include $(MAKEFILE_DIR)/mk/99_lint.mk        # lint and safety checks (always last)
 
 # ============================================================
@@ -132,12 +134,20 @@ test: logs
 	@echo "[make] Running run_as_root harness..."
 	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
 
-# --- all targets ---
+# all:
+# - Enforces invariants
+# - Converges kernel + firewall + DNS + WireGuard
+# - Brings up tailnet control plane (Headscale + tailscaled)
+# - Enables baseline observability (Prometheus)
 .PHONY: all
-all: converge-network
+all: assert-sanity converge-network tailscaled monitoring
+	echo ""; \
+	echo "🎉 Homelab fully converged"; \
+	echo "   - Network + WireGuard ready"; \
+	echo "   - Tailnet control plane active"; \
+	echo "   - Monitoring online"
 
 .PHONY: headscale-stack
-
 headscale-stack: \
 	headscale \
 	headscale-users \

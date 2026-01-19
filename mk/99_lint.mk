@@ -27,6 +27,12 @@ endif
 
 MAKEFILES := $(HOMELAB_DIR)/Makefile $(MK_FILES)
 
+define require_tool
+@if ! command -v $(1) >/dev/null 2>&1; then \
+	echo "[lint] ERROR: $(1) not installed"; exit 2; \
+fi
+endef
+
 .PHONY: lint lint-all lint-fast lint-ci lint-scripts-partial lint-scripts \
 		lint-shellcheck \
 		lint-shellcheck-strict \
@@ -48,13 +54,20 @@ lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-head
 # Run shell syntax check and ShellCheck across all tracked .sh files (permissive)
 lint-scripts-partial:
 	@echo "[lint] Checking shell syntax for tracked .sh files..."
+	@command -v bash >/dev/null 2>&1 || { \
+		echo "[lint] ERROR: bash not found (required for syntax check)"; exit 2; }
 	@if [ -z "$(SH_FILES)" ]; then \
-	  echo "[lint] No shell files found to lint"; \
+		echo "[lint] No shell files found to lint"; \
 	else \
-	  for f in $(SH_FILES); do \
-		echo "[lint] bash -n $$f"; bash -n "$$f" || { echo "[lint] Syntax error in $$f"; exit 1; }; \
-	  done; \
+		rc=0; \
+		for f in $(SH_FILES); do \
+			[ -f "$$f" ] || { echo "[lint] Skipping missing file: $$f"; continue; }; \
+			echo "[lint] bash -n $$f"; \
+			bash -n "$$f" || { echo "[lint] Syntax error in $$f"; rc=1; }; \
+		done; \
+		exit $$rc; \
 	fi
+
 lint-scripts: lint-scripts-partial lint-shellcheck
 
 # ShellCheck permissive: never fails the whole run (useful for local dev)
@@ -67,6 +80,7 @@ lint-shellcheck:
 		echo "[shellcheck] No shell files to check"; \
 	  else \
 		for f in $(SH_FILES); do \
+		  [ -f "$$f" ] || { echo "[shellcheck] Skipping missing file: $$f"; continue; }; \
 		  echo "[shellcheck] $$f"; \
 		  $(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || true; \
 		done; \
@@ -76,19 +90,17 @@ lint-shellcheck:
 # ShellCheck strict: fail on any ShellCheck non-zero exit
 lint-shellcheck-strict:
 	@echo "[shellcheck] Scanning tracked shell files (strict)"
-	@if ! command -v $(SHELLCHECK) >/dev/null 2>&1; then \
-	  echo "[shellcheck] ERROR: shellcheck not installed; install with 'make deps' or set SHELLCHECK=..."; exit 2; \
-	else \
-	  if [ -z "$(SH_FILES)" ]; then \
+	$(call require_tool,$(SHELLCHECK))
+	@if [ -z "$(SH_FILES)" ]; then \
 		echo "[shellcheck] No shell files to check"; \
-	  else \
+	else \
 		rc=0; \
 		for f in $(SH_FILES); do \
-		  echo "[shellcheck] $$f"; \
-		  $(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || rc=$$?; \
+		    [ -f "$$f" ] || { echo "[shellcheck] Skipping missing file: $$f"; continue; }; \
+			echo "[shellcheck] $$f"; \
+			$(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || rc=$$?; \
 		done; \
 		if [ $$rc -ne 0 ]; then echo "[shellcheck] Errors/warnings detected"; exit $$rc; fi; \
-	  fi; \
 	fi
 
 # Spell checks: codespell (permissive) and aspell (permissive)
@@ -113,21 +125,21 @@ lint-spell:
 # Spell checks strict: fail if codespell or aspell find issues
 lint-spell-strict:
 	@echo "[lint-ci] Running codespell and aspell (strict)..."
-	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
-	  echo "[codespell] scanning..."; \
-	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(HOMELAB_DIR); \
-	else \
-	  echo "[lint-ci] ERROR: codespell not installed; install with 'make deps' or set CODESPELL=..."; exit 2; \
-	fi
-	@if command -v $(ASPELL) >/dev/null 2>&1; then \
-	  echo "[aspell] scanning comments (strict)"; \
-	  bad=$$( (for f in $(SH_FILES) $(MAKEFILES); do \
-		 [ -f "$$f" ] || continue; \
-		 sed -n 's/^[[:space:]]*#//p' "$$f" | sed 's/[^[:alpha:][:space:]]/ /g'; \
-	   done) | tr '[:upper:]' '[:lower:]' | tr -s ' ' '\n' | sort -u | $(ASPELL) list | sort -u ); \
-	  if [ -n "$$bad" ]; then echo "[aspell] Unknown words found:"; echo "$$bad"; exit 1; fi; \
-	else \
-	  echo "[lint-ci] ERROR: aspell not installed; install with 'make deps' or set ASPELL=..."; exit 2; \
+	$(call require_tool,$(CODESPELL))
+	$(call require_tool,$(ASPELL))
+
+	@echo "[codespell] scanning..."
+	@$(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(HOMELAB_DIR)
+
+	@echo "[aspell] scanning comments (strict)"
+	@bad=$$( (for f in $(SH_FILES) $(MAKEFILES); do \
+		[ -f "$$f" ] || continue; \
+		sed -n 's/^[[:space:]]*#//p' "$$f" | sed 's/[^[:alpha:][:space:]]/ /g'; \
+	done) | tr '[:upper:]' '[:lower:]' | tr -s ' ' '\n' | sort -u | $(ASPELL) list | sort -u ); \
+	if [ -n "$$bad" ]; then \
+		echo "[aspell] Unknown words found:"; \
+		echo "$$bad"; \
+		exit 1; \
 	fi
 
 # Lint Makefiles and mk/*.mk using checkmake when available (permissive)
@@ -146,15 +158,12 @@ lint-makefile:
 # Lint Makefiles strict: fail on checkmake errors
 lint-makefile-strict:
 	@echo "[lint-ci] Linting Makefiles and mk/*.mk (strict)..."
-	@if ! command -v $(CHECKMAKE) >/dev/null 2>&1; then \
-	  echo "[lint-ci] ERROR: checkmake not installed; install with 'make deps' or set CHECKMAKE=..."; exit 2; \
-	else \
-	  for mf in $(HOMELAB_DIR)/Makefile $(MK_FILES); do \
+	$(call require_tool,$(CHECKMAKE))
+	@for mf in $(HOMELAB_DIR)/Makefile $(MK_FILES); do \
 		[ -f "$$mf" ] || continue; \
 		echo "[checkmake] $$mf"; \
 		$(CHECKMAKE) "$$mf" || { echo "[checkmake] Issues in $$mf"; exit 1; }; \
-	  done; \
-	fi
+	done
 
 # Headscale config test (use run_as_root helper)
 lint-headscale:

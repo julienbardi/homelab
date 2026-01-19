@@ -12,8 +12,14 @@
 # - Use line continuations (\) only for readability
 # - Keeps all cert watchers passive until a cert actually changes
 # --------------------------------------------------------------------
-SCRIPT_DIR := ${HOMELAB_DIR}/scripts
-DEPLOY     := $(SCRIPT_DIR)/setup/deploy_certificates.sh
+
+CERTS_CREATE       := /usr/local/bin/certs-create.sh
+CERTS_DEPLOY       := /usr/local/bin/certs-deploy.sh
+GEN_CLIENT_CERT    := /usr/local/bin/generate-client-cert.sh
+GEN_CLIENT_WRAPPER := /usr/local/bin/gen-client-cert-wrapper.sh
+
+SCRIPT_DIR := $(HOMELAB_DIR)/scripts
+DEPLOY     := $(SCRIPT_DIR)/deploy_certificates.sh
 
 # --------------------------------------------------------------------
 # Idempotent internal CA creation and deployment helpers
@@ -27,20 +33,20 @@ CADDY_DEPLOY_DIR ?= /etc/ssl/caddy
 .PHONY: certs-create certs-deploy certs-ensure certs-status
 
 # Create CA (idempotent). Uses EC P-384 by default.
-certs-create:
-	@$(run_as_root) scripts/certs-create.sh
+certs-create: $(CERTS_CREATE)
+	@$(run_as_root) $(CERTS_CREATE)
 
 .PHONY: gen-client-cert
-gen-client-cert:
+gen-client-cert: $(GEN_CLIENT_WRAPPER)
 	@if [ -z "$(CN)" ]; then \
 	  echo "[make] usage: make gen-client-cert CN=<name> [FORCE=1]"; exit 1; \
 	fi
 	@FORCE_FLAG=''; if [ "$(FORCE)" = "1" ]; then FORCE_FLAG="--force"; fi; \
-	./scripts/gen-client-cert-wrapper.sh "$(CN)" "$(run_as_root)" "$(SCRIPT_DIR)" "$$FORCE_FLAG"
+	$(GEN_CLIENT_WRAPPER) "$(CN)" "$(run_as_root)" "$(SCRIPT_DIR)" "$$FORCE_FLAG"
 
 # Deploy CA public cert into canonical store and caddy deploy dir (idempotent)
-certs-deploy: certs-create
-	@CONF_FORCE=$(CONF_FORCE) $(run_as_root) scripts/certs-deploy.sh 2>/dev/null
+certs-deploy: certs-create $(CERTS_DEPLOY)
+	@CONF_FORCE=$(CONF_FORCE) $(run_as_root) $(CERTS_DEPLOY) 2>/dev/null
 	@echo "🔐 Certificates deployed"
 
 # Ensure CA exists and is deployed (used by other Makefiles)
@@ -70,7 +76,7 @@ certs-expiry:
 
 # Rotate CA (dangerous: creates a new CA and lists clients that must be reissued)
 .PHONY: certs-rotate
-certs-rotate:
+certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	@echo "🔥 ROTATE CA - this will create a new CA and invalidate existing client certs"; \
 	read -p "Type YES to proceed: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1); \
 	# exclusive lock to avoid concurrent runs
@@ -96,15 +102,15 @@ certs-rotate:
 	logger -t "$$TAG" -p user.info "Old CA files moved to $$BACKUP_DIR"; \
 	# create and deploy new CA via existing make targets
 	logger -t "$$TAG" -p user.info "Creating new CA"; \
-	$(run_as_root) scripts/certs-create.sh || { logger -t "$$TAG" -p user.err "certs-create failed"; exit 1; }; \
-	CONF_FORCE=$(CONF_FORCE) $(run_as_root) scripts/certs-deploy.sh || { logger -t "$$TAG" -p user.err "certs-deploy failed"; exit 1; }; \
+	$(run_as_root) $(CERTS_CREATE) || { logger -t "$$TAG" -p user.err "certs-create failed"; exit 1; }; \
+	CONF_FORCE=$(CONF_FORCE) $(run_as_root) $(CERTS_DEPLOY) || { logger -t "$$TAG" -p user.err "certs-deploy failed"; exit 1; }; \
 	logger -t "$$TAG" -p user.info "New CA created and deployed"; \
 	# list affected clients
 	clients=$$(ls -1 "$$CLIENT_DIR"/*.p12 2>/dev/null | xargs -n1 basename 2>/dev/null | sed "s/\.p12$$//") || true; \
 	if [ -z "$$clients" ]; then logger -t "$$TAG" -p user.info "No client .p12 files found (no reissue needed)"; else logger -t "$$TAG" -p user.info "Clients to reissue: $$clients"; fi; \
 	# offer automatic reissue if helper exists
 	if [ -n "$$clients" ]; then \
-	  if [ ! -x "$(SCRIPT_DIR)/generate-client-cert.sh" ] && [ ! -x "scripts/generate-client-cert.sh" ]; then \
+	  if [ ! -x "$(GEN_CLIENT_CERT)" ]; then \
 		logger -t "$$TAG" -p user.err "generate-client-cert.sh not found or not executable; cannot reissue automatically"; \
 		echo "generate-client-cert.sh missing or not executable; reissue manually"; \
 	  else \
@@ -112,7 +118,7 @@ certs-rotate:
 		logger -t "$$TAG" -p user.info "Reissuing clients"; \
 		for u in $$clients; do \
 		  logger -t "$$TAG" -p user.info "Reissuing $$u"; \
-		  if [ -x "$(SCRIPT_DIR)/generate-client-cert.sh" ]; then $(run_as_root) "$(SCRIPT_DIR)/generate-client-cert.sh" "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; else $(run_as_root) scripts/generate-client-cert.sh "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; fi; \
+		  $(run_as_root) $(GEN_CLIENT_CERT) "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; \
 		done; \
 		logger -t "$$TAG" -p user.info "Automatic reissue complete; admin must securely deliver new .p12 files to users"; \
 	  fi; \
@@ -121,24 +127,24 @@ certs-rotate:
 	read -p "Install CA expiry monitor (weekly -> systemd journal)? Type YES to install: " m && [ "$$m" = "YES" ] || { logger -t "$$TAG" -p user.info "Expiry monitor not installed"; exit 0; }; \
 	logger -t "$$TAG" -p user.info "Installing expiry monitor (script + systemd timer -> journal)"; \
 	tmp_script=$$(mktemp /root/certs-expiry-XXXXXX.sh); \
-	printf '%s\n' '#!/bin/bash' "CA_PUB=\"$(CANON_CA)\"" "TAG=\"certs-expiry-check\"" 'set -euo pipefail' \
-	'if [ ! -f "$CA_PUB" ]; then' \
-	'  logger -t "$TAG" -p user.err "ERROR: CA public cert missing at $CA_PUB"; exit 2' \
-	'fi' \
-	'enddate=$$(openssl x509 -in "$CA_PUB" -noout -enddate | cut -d= -f2)' \
-	'expiry_ts=$$(date -d "$enddate" +%s)' \
-	'now_ts=$$(date +%s)' \
-	'days_left=$$(( (expiry_ts - now_ts) / 86400 ))' \
-	'logger -t "$TAG" -p user.info "CA expires on $enddate (days left: $days_left)"' \
-	'if [ $$days_left -le 90 ]; then' \
-	'  logger -t "$TAG" -p user.warn "WARNING: CA expires in $$days_left days"' \
-	'fi' > "$$tmp_script"; \
+	printf "%s\n" "#!/bin/bash" "CA_PUB=\"$(CANON_CA)\"" "TAG=\"certs-expiry-check\"" "set -euo pipefail" \
+	"if [ ! -f \"\$$CA_PUB\" ]; then" \
+	"  logger -t \"\$$TAG\" -p user.err \"ERROR: CA public cert missing at \$$CA_PUB\"; exit 2" \
+	"fi" \
+	"enddate=\$$(openssl x509 -in \"\$$CA_PUB\" -noout -enddate | cut -d= -f2)" \
+	"expiry_ts=\$$(date -d \"\$$enddate\" +%s)" \
+	"now_ts=\$$(date +%s)" \
+	"days_left=\$$(( (expiry_ts - now_ts) / 86400 ))" \
+	"logger -t \"\$$TAG\" -p user.info \"CA expires on \$$enddate (days left: \$$days_left)\"" \
+	"if [ \$$days_left -le 90 ]; then" \
+	"  logger -t \"\$$TAG\" -p user.warn \"WARNING: CA expires in \$$days_left days\"" \
+	"fi" > "$$tmp_script"; \
 	chmod 0755 "$$tmp_script"; install -m 0755 "$$tmp_script" /usr/local/bin/certs-expiry-check.sh; rm -f "$$tmp_script"; \
 	tmp_svc=$$(mktemp /root/certs-expiry-XXXXXX.service); \
-	printf '%s\n' '[Unit]' 'Description=Check CA expiry and log status to journal' '' '[Service]' 'Type=oneshot' 'ExecStart=/usr/local/bin/certs-expiry-check.sh' 'StandardOutput=journal' 'StandardError=journal' > "$$tmp_svc"; \
+	printf "%s\n" "[Unit]" "Description=Check CA expiry and log status to journal" "" "[Service]" "Type=oneshot" "ExecStart=/usr/local/bin/certs-expiry-check.sh" "StandardOutput=journal" "StandardError=journal" > "$$tmp_svc"; \
 	install -m 0644 "$$tmp_svc" /etc/systemd/system/certs-expiry-check.service; rm -f "$$tmp_svc"; \
 	tmp_timer=$$(mktemp /root/certs-expiry-XXXXXX.timer); \
-	printf '%s\n' '[Unit]' 'Description=Run CA expiry check weekly' '' '[Timer]' 'OnCalendar=weekly' 'Persistent=true' '' '[Install]' 'WantedBy=timers.target' > "$$tmp_timer"; \
+	printf "%s\n" "[Unit]" "Description=Run CA expiry check weekly" "" "[Timer]" "OnCalendar=weekly" "Persistent=true" "" "[Install]" "WantedBy=timers.target" > "$$tmp_timer"; \
 	install -m 0644 "$$tmp_timer" /etc/systemd/system/certs-expiry-check.timer; rm -f "$$tmp_timer"; \
 	systemctl daemon-reload; systemctl enable --now certs-expiry-check.timer; \
 	logger -t "$$TAG" -p user.info "Expiry monitor installed and enabled (weekly -> journal)"; \

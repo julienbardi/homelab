@@ -1,3 +1,6 @@
+# ARCHIVED — legacy dnscrypt-proxy installer
+# Superseded by dnsmasq + unbound orchestration.
+# Kept for reference only.
 # mk/70_dnscrypt-proxy.mk
 # Idempotent Makefile fragment to install and configure dnscrypt-proxy.
 # Replaces CoreDNS orchestration.

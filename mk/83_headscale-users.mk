@@ -9,8 +9,6 @@
 # - No secrets written to disk.
 # --------------------------------------------------------------------
 
-SHELL := /bin/bash
-
 HS_BIN ?= /usr/local/bin/headscale
 
 # Global users to ensure

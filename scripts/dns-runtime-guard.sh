@@ -12,7 +12,7 @@
 # ============================================================
 
 set -euo pipefail
-source "/home/julie/src/homelab/scripts/common.sh"
+source "common.sh"
 
 SERVICE_NAME="unbound"
 UNBOUND_CONF="/etc/unbound/unbound.conf"
