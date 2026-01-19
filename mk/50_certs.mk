@@ -252,7 +252,7 @@ setup-cert-watch-%:
 	$(run_as_root) systemctl daemon-reload && \
 	$(run_as_root) systemctl enable $*-cert.path
 
-# FIX: remote machines are NOT local systemd services; remove them from watchers
+# POLICY: only local services may have certificate watchers
 setup-cert-watch-all: \
 	setup-cert-watch-caddy \
 	setup-cert-watch-dnsdist \
