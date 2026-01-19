@@ -22,7 +22,9 @@ SERVER_PUBDIR := $(WG_ROOT)/compiled/server-pubkeys
 CLIENT_KEYDIR := $(WG_ROOT)/compiled/client-keys
 EXPORT_DIR    := $(WG_ROOT)/export/clients
 
-SCRIPTS := $(CURDIR)/scripts
+WG_PLAN_IFACES   := /usr/local/bin/wg-plan-ifaces.sh
+WG_REMOVE_CLIENT := /usr/local/bin/wg-remove-client.sh
+WG_RUNTIME       := /usr/local/bin/wg-runtime.sh
 
 .PHONY: \
 	wg-clients \
@@ -38,10 +40,6 @@ SCRIPTS := $(CURDIR)/scripts
 # Helpers (kept in Make for portability, but still dumb)
 # ------------------------------------------------------------
 
-# Emit plan.tsv rows as strict TSV, skipping comments/blanks/header.
-# Columns (contract):
-# 1 base 2 iface 3 hostid 4 dns 5 client_addr4 6 client_addr6
-# 7 AllowedIPs_client 8 AllowedIPs_server 9 endpoint
 define WG_PLAN_ROWS
 awk -F'\t' '\
 	/^#/ { next } \
@@ -65,12 +63,6 @@ wg-intent:
 		printf "%-14s %-6s %-7s %-18s %s\n", $$1, $$2, $$3, $$5, $$9 \
 	}'
 
-# ------------------------------------------------------------
-# Keep: wg-clients (command generator for client inspection)
-#
-# This is intent-driven. It does NOT inspect /etc/wireguard.
-# It prints commands you can copy-paste.
-# ------------------------------------------------------------
 wg-clients:
 	@echo "📋 WireGuard client summary (make wg-clients)"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '\
@@ -88,16 +80,13 @@ wg-show-client-key-validate:
 		exit 1; \
 	fi
 
-# Show the compiled client configuration / private key.
-# Intended for secure, explicit operator-mediated client provisioning.
-# Usage: make wg-show-client-key BASE=foo-bar IFACE=wg3
 wg-show-client-key: wg-show-client-key-validate wg-show
 
 # ------------------------------------------------------------
 # Compiled artifacts view
 # ------------------------------------------------------------
 
-wg-compiled:
+wg-compiled: $(WG_PLAN_IFACES)
 	@echo "Compiled artifacts:"
 	@echo "  plan:        $(PLAN)"
 	@echo "  server pubs: $(SERVER_PUBDIR)"
@@ -105,7 +94,7 @@ wg-compiled:
 	@echo "  exports:     $(EXPORT_DIR)"
 	@echo
 	@echo "Interfaces (from intent):"
-	@$(SCRIPTS)/wg-plan-ifaces.sh "$(PLAN)" | sed 's/^/  - /'
+	@$(WG_PLAN_IFACES) "$(PLAN)" | sed 's/^/  - /'
 	@echo
 	@echo "Server pubkeys present:"
 	@ls -1 "$(SERVER_PUBDIR)"/*.pub 2>/dev/null | sed 's|.*/|  - |' || echo "  (none)"
@@ -117,7 +106,7 @@ wg-compiled:
 	@ls -1 "$(EXPORT_DIR)"/*/*.conf 2>/dev/null | sed 's|.*/|  - |' || echo "  (none)"
 
 # ------------------------------------------------------------
-# Deployed view (filesystem in /etc/wireguard)
+# Deployed view
 # ------------------------------------------------------------
 
 wg-deployed-view: ensure-run-as-root
@@ -141,48 +130,39 @@ wg-deployed-view: ensure-run-as-root
 		ls -1 "$(WG_DIR)" | grep -Ev "^(wg.*\\.(conf|pub)|\\.deploy-meta|last-known-good\\.list)$$" || echo "  (none)"; \
 	'
 
-
 # ------------------------------------------------------------
-# Runtime view (kernel state, intent-scoped)
+# Runtime view
 # ------------------------------------------------------------
 
-wg-runtime: ensure-run-as-root
+wg-runtime: ensure-run-as-root $(WG_RUNTIME)
 	@echo
 	@echo "📋 WireGuard peer state (make wg-runtime)"
-	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" "$(SCRIPTS)/wg-runtime.sh"
+	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" "$(WG_RUNTIME)"
 
-# A compact runtime summary per iface derived from intent (no WG_IFACES var).
-wg-status: ensure-run-as-root
+wg-status: ensure-run-as-root $(WG_PLAN_IFACES)
 	@echo
 	@echo "📋 WireGuard runtime interface status (make wg-status)"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "------" "------------" "------------------" "--------"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
 		set -e; \
-		IFACES="$$( "$(SCRIPTS)/wg-plan-ifaces.sh" "$(PLAN)" )"; \
+		IFACES="$$( "$(WG_PLAN_IFACES)" "$(PLAN)" )"; \
 		for dev in $$IFACES; do \
 			link_line=$$(ip -brief link show "$$dev" 2>/dev/null || echo "not-present"); \
 			link_state=$$(printf "%s" "$$link_line" | awk '\''{print ($$2 ? $$2 : $$1)}'\''); \
 			wg_out=$$($(WG_BIN) show "$$dev" 2>/dev/null || true); \
 			if [ -n "$$wg_out" ]; then \
-				pub=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*public key:[[:space:]]*//p'\'' | head -n1); \
 				port=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*listening port:[[:space:]]*//p'\'' | head -n1); \
 				peer_count=$$(printf "%s" "$$wg_out" | grep -c "^peer:" || true); \
 			else \
-				pub=""; port="-"; peer_count=0; \
-			fi; \
-			if [ -n "$$pub" ]; then \
-				pub_short=$$(printf "%s" "$$pub" | awk '\''{s=$$0; printf substr(s,1,8) "..." substr(s,length(s)-7)}'\''); \
-			else \
-				pub_short="(none)"; \
+				port="-"; peer_count=0; \
 			fi; \
 			printf "%-6s %-12s %-18s %-8s\n" "$$dev" "$$link_state" "$$port" "$$peer_count"; \
 		done \
 	'
 
 # ------------------------------------------------------------
-# Dashboard (explicitly intent-based)
-# Shows which base has which ifaces in plan.tsv (no /etc/wireguard probing).
+# Dashboard
 # ------------------------------------------------------------
 
 wg-dashboard:
@@ -196,22 +176,21 @@ wg-dashboard:
 	' | sort
 
 # ------------------------------------------------------------
-# Client removal (kept as-is)
+# Client removal
 # ------------------------------------------------------------
 
-wg-remove-client: ensure-run-as-root
-	@# Usage: make wg-remove-client BASE=<base> IFACE=<iface>
+wg-remove-client: ensure-run-as-root $(WG_REMOVE_CLIENT)
 	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
 		echo "Usage: make wg-remove-client BASE=<base> IFACE=<iface>"; exit 1; \
 	fi
 	@echo "removing client $(BASE) on $(IFACE)"
-	@$(run_as_root) "$(CURDIR)/scripts/wg-remove-client.sh" "$(BASE)" "$(IFACE)"
+	@$(run_as_root) "$(WG_REMOVE_CLIENT)" "$(BASE)" "$(IFACE)"
 
 .PHONY: wg-check-ports
 
-wg-check-ports:
+wg-check-ports: $(WG_PLAN_IFACES)
 	@echo "Checking WireGuard UDP ports..."
-	@$(CURDIR)/scripts/wg-plan-ifaces.sh "$(WG_ROOT)/compiled/plan.tsv" | sort -u | while read iface; do \
+	@$(WG_PLAN_IFACES) "$(PLAN)" | sort -u | while read iface; do \
 		port="$$(sudo wg show $$iface listen-port 2>/dev/null || true)"; \
 		if [ -z "$$port" ]; then \
 			printf "⚠️ %-5s UDP (unknown) : INTERFACE NOT FOUND \n" "$$iface"; \

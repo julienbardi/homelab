@@ -73,15 +73,18 @@ dig_q() {
 
 run_query() {
   local out tries=0
+  set +e
   while :; do
     out="$(dig_q "$@")"
-    if [[ -n "${out//[[:space:]]/}" ]] && ! printf '%s' "$out" | grep -qEi 'communications error'; then
+    if [[ -n "${out//[[:space:]]/}" ]] && ! grep -qEi 'communications error' <<<"$out"; then
       printf '%s' "$out"
+      set -e
       return 0
     fi
     tries=$((tries+1))
     if [[ $tries -ge $MAX_RETRIES ]]; then
       printf '%s' "$out"
+      set -e
       return 0
     fi
     sleep 1
@@ -130,9 +133,28 @@ flags_has() {
 }
 
 # ------------------------------------------------------------
+# Parallel query execution
+# ------------------------------------------------------------
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
+run_query_bg() {
+  local name="$1"; shift
+  run_query "$@" >"$tmpdir/$name.out" 2>&1
+}
+
+run_query_bg rec www.example.com A &
+run_query_bg pos sigok.verteiltesysteme.net A +dnssec &
+run_query_bg neg sigfail.verteiltesysteme.net A +dnssec &
+wait
+
+rec_raw="$(cat "$tmpdir/rec.out")"
+pos_raw="$(cat "$tmpdir/pos.out")"
+neg_raw="$(cat "$tmpdir/neg.out")"
+
+# ------------------------------------------------------------
 # 1) Recursion
 # ------------------------------------------------------------
-rec_raw="$(run_query www.example.com A)"
 rec_status="$(get_status "$rec_raw")"
 rec_flags="$(get_flags "$rec_raw")"
 
@@ -144,7 +166,6 @@ fi
 # ------------------------------------------------------------
 # 2) DNSSEC positive
 # ------------------------------------------------------------
-pos_raw="$(run_query sigok.verteiltesysteme.net A +dnssec)"
 pos_status="$(get_status "$pos_raw")"
 pos_flags="$(get_flags "$pos_raw")"
 
@@ -157,12 +178,13 @@ pos_ok=false
 # ------------------------------------------------------------
 # 3) DNSSEC negative
 # ------------------------------------------------------------
-neg_raw="$(run_query sigfail.verteiltesysteme.net A +dnssec)"
 neg_status="$(get_status "$neg_raw")"
 
 neg_ok=false
-if [[ "$neg_status" == "SERVFAIL" ]] || grep -qEi 'no servers could be reached|timed out' <<<"$neg_raw"; then
-    neg_ok=true
+if [[ "$neg_status" == "SERVFAIL" ]]; then
+  neg_ok=true
+elif grep -qEi 'no servers could be reached|timed out' <<<"$neg_raw"; then
+  neg_ok=true
 fi
 
 # ------------------------------------------------------------
@@ -207,12 +229,12 @@ fi
 # Output
 # ------------------------------------------------------------
 log "🧪 DNS health check against resolver ${RESOLVER}"
-log "• Recursion: $([[ "$rec_ok" == true ]] && echo PASS || echo FAIL) (status=${rec_status}, flags=${rec_flags})"
-log "• DNSSEC positive (sigok): $([[ "$pos_ok" == true ]] && echo PASS || echo FAIL) (status=${pos_status}, AD=${pos_has_ad})"
-log "• DNSSEC negative (sigfail): $([[ "$neg_ok" == true ]] && echo PASS || echo FAIL) (status=${neg_status})"
+log "• Recursion: $([[ "$rec_ok" == true ]] && echo ✅ || echo ❌) (status=${rec_status}, flags=${rec_flags})"
+log "• DNSSEC positive (sigok): $([[ "$pos_ok" == true ]] && echo ✅ || echo ❌) (status=${pos_status}, AD=${pos_has_ad})"
+log "• DNSSEC negative (sigfail): $([[ "$neg_ok" == true ]] && echo ✅ || echo ❌) (status=${neg_status})"
 
 if [[ -n "$DOH_HOST" && -n "$DOH_PATH" ]]; then
-  log "• DoH DNSSEC (${DOH_HOST}): $([[ "$doh_ok" == true ]] && echo PASS || echo FAIL) (${doh_note})"
+  log "• DoH DNSSEC (${DOH_HOST}): $([[ "$doh_ok" == true ]] && echo ✅ || echo ❌) (${doh_note})"
 fi
 
 # ------------------------------------------------------------
@@ -233,7 +255,7 @@ if [[ "$pos_ok" != true ]]; then
 fi
 
 if [[ "$neg_ok" != true ]]; then
-  log "❌ DNSSEC negative test failed — sigfail must fail validation."
+  log "❌ DNSSEC negative test failed — invalid signatures were not rejected."
 fi
 
 if [[ -n "$DOH_HOST" && "$doh_ok" != true ]]; then

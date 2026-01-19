@@ -1,17 +1,15 @@
 #!/bin/bash
-# scripts/setup/deploy_certificates.sh — ECC-first certificate deploy with RSA fallback
-# v1.0 — Julien homelab
-
+# scripts/deploy_certificates.sh — ECC-first certificate deploy with RSA fallback
 # If not running as root, re-exec this script under sudo so subcommands are preserved
 if [ "$(id -u)" -ne 0 ]; then
   exec sudo -- "$0" "$@"
 fi
 set -euo pipefail
 
-HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/../..")}"
+HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
 
-source "$HOMELAB_DIR/config/homelab.env"
-source "$HOMELAB_DIR/scripts/common.sh"
+source "/volume1/homelab/homelab.env"
+source "/usr/local/bin/common.sh"
 
 ACME="$ACME_HOME/acme.sh"
 
@@ -199,11 +197,11 @@ deploy_dnsdist() {
 
 	local CHANGED_EXIT_CODE=3
 
-	"$HOMELAB_DIR/scripts/install_if_changed.sh" \
+	/usr/local/bin/install_if_changed.sh \
 		"$SRC_CHAIN" "$DNSDIST_CERT_DIR/fullchain.pem" root "$DNSDIST_GROUP" 0644
 	rc1="$?"
 
-	"$HOMELAB_DIR/scripts/install_if_changed.sh" \
+	/usr/local/bin/install_if_changed.sh \
 		"$SRC_KEY" "$DNSDIST_CERT_DIR/privkey.pem" root "$DNSDIST_GROUP" 0640
 	rc2="$?"
 

@@ -7,38 +7,63 @@
 # - Operators escaped so they survive Make parsing.
 # --------------------------------------------------------------------
 
-SHELL := /bin/bash
-
 HEADSCALE_BIN := /usr/local/bin/headscale
 HEADSCALE_URL := https://github.com/juanfont/headscale/releases/download/v0.28.0-beta.1/headscale_0.28.0-beta.1_linux_amd64
 
+HEADSCALE_CONFIG_SRC := config/headscale/config.yaml
+HEADSCALE_CONFIG_DST := /etc/headscale/config.yaml
+
+HEADSCALE_DERP_CONFIG_SRC := config/headscale/derp.yaml
+HEADSCALE_DERP_CONFIG_DST := /etc/headscale/derp.yaml
+
+HEADSCALE_METRICS_ADDR := 10.89.12.4:9091
+
+WAIT_FOR_COMMAND := /usr/local/bin/wait_for_command.sh
+
 .NOTPARALLEL: headscale headscale-restart headscale-verify
+
+.PHONY: headscale-config
+headscale-config: ensure-run-as-root $(HEADSCALE_CONFIG_SRC)
+	@echo "📦 Installing Headscale configuration"
+	@$(run_as_root) $(INSTALL_IF_CHANGED) \
+		"$(HEADSCALE_CONFIG_SRC)" \
+		"$(HEADSCALE_CONFIG_DST)" \
+		headscale headscale 0640 || [ $$? -eq 3 ]
+
+.PHONY: headscale-derp-config
+headscale-derp-config: ensure-run-as-root $(HEADSCALE_DERP_CONFIG_SRC)
+	@echo "📦 Installing Headscale DERP configuration"
+	@$(run_as_root) $(INSTALL_IF_CHANGED) \
+		"$(HEADSCALE_DERP_CONFIG_SRC)" \
+		"$(HEADSCALE_DERP_CONFIG_DST)" \
+		headscale headscale 0640 || [ $$? -eq 3 ]
 
 # --------------------------------------------------------------------
 # Ensure Headscale binary is installed
 # --------------------------------------------------------------------
 .PHONY: headscale-bin
 headscale-bin: ensure-run-as-root
-	@if [ -x "$(HEADSCALE_BIN)" ]; then \
-		echo "[make] ✅ Headscale binary already present"; \
-	else \
-		echo "[make] Installing Headscale binary"; \
-		$(run_as_root) curl -fsSL "$(HEADSCALE_URL)" -o "$(HEADSCALE_BIN)"; \
-		$(run_as_root) chmod 0755 "$(HEADSCALE_BIN)"; \
-	fi
+	@echo "📦 Ensuring Headscale binary"
+	@$(run_as_root) bash -c '\
+		set -euo pipefail; \
+		tmp=$$(mktemp); \
+		trap "rm -f $$tmp" EXIT; \
+		curl -fsSL "$(HEADSCALE_URL)" -o "$$tmp"; \
+		$(INSTALL_IF_CHANGED) "$$tmp" "$(HEADSCALE_BIN)" root root 0755 || [ $$? -eq 3 ]; \
+	'
 
 # --------------------------------------------------------------------
 # Rotate Noise private key
 # --------------------------------------------------------------------
 .PHONY: rotate-noise-key
 rotate-noise-key: ensure-run-as-root headscale-bin
-	@echo "[make] Rotating Headscale Noise private key..."
+	@echo "🔐 Rotating Headscale Noise private key"
 	@$(run_as_root) systemctl stop headscale
 	@$(run_as_root) rm -f /etc/headscale/noise_private.key
 	@$(run_as_root) bash -c "umask 077; /usr/local/bin/headscale generate private-key > /etc/headscale/noise_private.key && chown headscale:headscale /etc/headscale/noise_private.key && chmod 600 /etc/headscale/noise_private.key"
 	@$(run_as_root) systemctl start headscale
-	@echo "[make] Noise private key rotated and Headscale restarted"
-	@echo "[make] Validating Headscale service..."
+	@echo "🔄 Noise private key rotated and Headscale restarted"
+	@echo "🔍 Validating Headscale service"
 	@$(run_as_root) bash -c "systemctl is-active --quiet headscale && echo '✔ Headscale service is running' || (echo '✘ Headscale service not active'; exit 1)"
 	@$(run_as_root) bash -c "headscale version >/dev/null && echo '✔ Headscale CLI responsive' || (echo '✘ Headscale CLI failed to connect'; exit 1)"
 
@@ -47,7 +72,7 @@ rotate-noise-key: ensure-run-as-root headscale-bin
 # --------------------------------------------------------------------
 .PHONY: headscale-logs
 headscale-logs: ensure-run-as-root
-	@echo "[make] Tailing headscale logs (Ctrl-C to exit)..."
+	@echo "📜 Tailing Headscale logs (Ctrl-C to exit)"
 	@$(run_as_root) journalctl -u headscale -f -n 100
 
 # --------------------------------------------------------------------
@@ -56,8 +81,8 @@ headscale-logs: ensure-run-as-root
 .PHONY: headscale-prereqs
 headscale-prereqs: \
 	harden-groups \
-	config/headscale.yaml \
-	config/derp.yaml \
+	headscale-config \
+	headscale-derp-config \
 	deploy-headscale \
 	headscale-bin \
 	headscale-systemd
@@ -71,15 +96,16 @@ headscale: \
 	headscale-restart \
 	headscale-acls \
 	headscale-verify
-	@echo ""
-	@echo "[headscale] ℹ️  For detailed status:"
-	@echo "           sudo systemctl status headscale"
-	@echo "           sudo journalctl -u headscale -n 200"
-	@echo ""
+	@$(run_as_root) systemctl status headscale --no-pager --lines=0
+	@echo "ℹ️  For detailed Headscale status:"
+	@echo "      sudo systemctl status headscale"
+	@echo "      sudo journalctl -u headscale -n 200"
+	@echo "📊 Metrics available at: http://$(HEADSCALE_METRICS_ADDR)/metrics"
+	@echo "🚀 Headscale control plane ready"
 
 .PHONY: headscale-restart
 headscale-restart: ensure-run-as-root
-	@echo "[make] Restarting Headscale..."
+	@echo "🔁 Restarting Headscale"
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl restart headscale
 
@@ -88,6 +114,7 @@ headscale-restart: ensure-run-as-root
 # --------------------------------------------------------------------
 .PHONY: headscale-systemd
 headscale-systemd: ensure-run-as-root
+	@echo "⚙️ Installing Headscale systemd unit"
 	@$(run_as_root) install -m 0644 config/systemd/headscale.service /etc/systemd/system/headscale.service
 	@$(run_as_root) install -d -m 0755 /etc/systemd/system/headscale.service.d
 	@$(run_as_root) install -m 0644 config/systemd/headscale.service.d/override.conf /etc/systemd/system/headscale.service.d/override.conf
@@ -153,7 +180,12 @@ headscale-verify: \
 	@echo "[verify] 🎉 Parallel verification complete"
 
 .PHONY: headscale-wait-ready
-headscale-wait-ready: ensure-run-as-root
-	@echo "[make] Waiting for Headscale API..."
-	@$(run_as_root) scripts/helpers/wait_for_command.sh headscale version
-	@echo "[make] Headscale API ready"
+headscale-wait-ready: ensure-run-as-root install-all
+	@echo "⏳ Waiting for Headscale API"
+	@$(run_as_root) $(WAIT_FOR_COMMAND) curl -fsS http://127.0.0.1:8910/health
+	@echo "✅ Headscale API ready"
+
+.PHONY: headscale-metrics
+headscale-metrics:
+	@echo "📊 Headscale metrics:"
+	@curl -fsS http://$(HEADSCALE_METRICS_ADDR)/metrics | sed -n '1,40p'

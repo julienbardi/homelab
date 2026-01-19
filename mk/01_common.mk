@@ -7,6 +7,12 @@
 # - Do not wrap entire command in quotes.
 # - Escape operators (\>, \|, \&\&, \|\|) so they survive Make parsing.
 # --------------------------------------------------------------------
+# Script naming contract:
+# - Script filenames (including .sh) are preserved verbatim at install time.
+# - No extension stripping or renaming occurs.
+# - Example:
+#     scripts/foo.sh → /usr/local/bin/foo.sh
+#     scripts/bar.sh → /usr/local/sbin/bar.sh
 
 
 # Fallback for recursive make (do not force; let make set it if present)
@@ -21,6 +27,8 @@ ensure-run-as-root:
 	fi
 
 INSTALL_PATH ?= /usr/local/bin
+INSTALL_SBIN_PATH ?= /usr/local/sbin
+
 OWNER ?= root
 GROUP ?= root
 MODE ?= 0755
@@ -146,22 +154,50 @@ check-prereqs:
 	done; \
 	echo "All required commands present"
 
-# All scripts are installed to /usr/local/bin.
+# Scripts are installed to /usr/local/bin or /usr/local/sbin based on classification.
 # No script is executed directly from the repository.
 
 # pattern rule: install scripts/<name>.sh -> $(INSTALL_PATH)/<name>
 # requires install_if_changed.sh to exist first (order-only prerequisite)
 $(INSTALL_PATH)/%.sh: $(HOMELAB_DIR)/scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
-	$(call install_script,$<,$*)
+	$(call install_script,$<,$(notdir $<))
 
-SCRIPTS := $(notdir $(wildcard $(HOMELAB_DIR)/scripts/*.sh))
-FILES   := $(addprefix $(INSTALL_PATH)/,$(SCRIPTS))
+$(INSTALL_SBIN_PATH)/%.sh: $(HOMELAB_DIR)/scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
+	@$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh --quiet \
+		$< $@ $(OWNER) $(GROUP) $(MODE) || [ $$? -eq 3 ]
+
+
+# Script classification:
+# - BIN_SCRIPTS  → operator / user-facing tools
+# - SBIN_SCRIPTS → root-only system automation
+SBIN_SCRIPTS := apt-proxy-auto.sh
+ALL_SCRIPTS := $(notdir $(wildcard $(HOMELAB_DIR)/scripts/*.sh))
+BIN_SCRIPTS := $(filter-out $(SBIN_SCRIPTS),$(ALL_SCRIPTS))
+
+BIN_FILES  := $(addprefix $(INSTALL_PATH)/,$(BIN_SCRIPTS))
+SBIN_FILES := $(addprefix $(INSTALL_SBIN_PATH)/,$(SBIN_SCRIPTS))
 
 .PHONY: install-all uninstall-all
 
-install-all: $(FILES)
+install-all: assert-sanity $(BIN_FILES) $(SBIN_FILES)
 
 uninstall-all:
-		@for s in $(SCRIPTS); do \
-				$(call uninstall_script,$$s); \
-		done
+	@for s in $(BIN_SCRIPTS); do \
+		$(call uninstall_script,$$s); \
+	done
+	@for s in $(SBIN_SCRIPTS); do \
+		@$(run_as_root) rm -f $(INSTALL_SBIN_PATH)/$$s; \
+	done
+
+# --------------------------------------------------------------------
+# Homelab environment configuration
+# --------------------------------------------------------------------
+
+HOMELAB_ENV_SRC  := $(HOMELAB_DIR)/config/homelab.env
+HOMELAB_ENV_DST  := /volume1/homelab/homelab.env
+
+$(HOMELAB_ENV_DST): ensure-run-as-root $(HOMELAB_ENV_SRC)
+	@$(run_as_root) install -D -m 0600 \
+		$(HOMELAB_ENV_SRC) \
+		$(HOMELAB_ENV_DST)
+	@echo "🔐 homelab.env installed → $(HOMELAB_ENV_DST)"

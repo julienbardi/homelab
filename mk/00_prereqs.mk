@@ -25,7 +25,7 @@ prereqs-network: ensure-run-as-root
 		tcpdump
 
 # everything else
-prereqs: ensure-run-as-root prereqs-network
+prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 	@echo "[check] Verifying public DNS CNAME for apt.bardi.ch by asking a public DNS"
 	@cname=$$(dig +short @1.1.1.1 apt.bardi.ch CNAME | sed 's/\.$$//'); \
 	if [ "$$cname" != "bardi.ch" ]; then \

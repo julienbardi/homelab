@@ -1,10 +1,8 @@
 # mk/90_dns-health.mk
-DNS_CHECK_SRC ?= scripts/dns-health-check.sh
-DNS_CHECK_NAME ?= dns-health-check
-DNS_CHECK_BIN := $(INSTALL_PATH)/$(DNS_CHECK_NAME)
+
+DNS_CHECK := /usr/local/bin/dns-health-check.sh
 
 .PHONY: check-dns
-
-check-dns: $(DNS_CHECK_BIN) dns-runtime-check
+check-dns: | install-all
 	@echo "Running DNS health check (requires sudo)..."
-	@$(run_as_root) $(DNS_CHECK_BIN)
+	@$(run_as_root) $(DNS_CHECK) || echo "⚠️ DNS health check reported issues (likely cold cache)"

@@ -6,4 +6,4 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/apt-proxy-auto
+ExecStart=/usr/local/sbin/apt-proxy-auto.sh
