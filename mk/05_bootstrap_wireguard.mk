@@ -3,9 +3,11 @@
 #  make prereqs
 #  make wg-bootstrap
 
+WG_ENSURE_SERVER_KEYS := /usr/local/bin/wg-ensure-server-keys.sh
+
 .PHONY: wg-bootstrap
 
-wg-bootstrap: ensure-run-as-root
+wg-bootstrap: ensure-run-as-root $(WG_ENSURE_SERVER_KEYS)
 	@echo "[make] Bootstrapping WireGuard filesystem layout"
 
 	@$(run_as_root) install -d -m 0750 -o root  -g admin /volume1/homelab
@@ -25,6 +27,6 @@ wg-bootstrap: ensure-run-as-root
 	@$(run_as_root) install -d -m 0750 -o julie -g admin /volume1/homelab/wireguard/export/clients
 
 	@echo "[make] Ensuring initial WireGuard server keys"
-	@$(run_as_root) env WG_ROOT=$(WG_ROOT) $(CURDIR)/scripts/wg-ensure-server-keys.sh
+	@$(run_as_root) env WG_ROOT=$(WG_ROOT) $(WG_ENSURE_SERVER_KEYS)
 
 	@echo "✅ [make] WireGuard filesystem bootstrapped"

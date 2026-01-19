@@ -8,8 +8,6 @@
 # - No secrets written to disk.
 # --------------------------------------------------------------------
 
-SHELL := /bin/bash
-
 ACL_SRC ?= $(HOMELAB_DIR)/config/headscale/acl.json
 ACL_DST ?= /etc/headscale/acl.json
 

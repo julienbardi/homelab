@@ -1,9 +1,5 @@
 ---
-# /etc/headscale/headscale.yaml
-# sudo python3 -c "import yaml,sys; yaml.safe_load(open('/home/julie/src/homelab/10.89.12.4/etc/headscale/headscale.yaml')); print('YAML OK')"
-# sudo cp /home/julie/src/homelab/10.89.12.4/etc/headscale/headscale.yaml /etc/headscale/headscale.yaml;sudo chown headscale:headscale /etc/headscale/headscale.yaml;sudo chmod 640 /etc/headscale/headscale.yaml
-# sudo systemctl restart headscale;sudo systemctl status headscale;sudo journalctl -u headscale -f
-# 
+# /etc/headscale/config.yaml
 # 
 
 # sudo ss -tulnp | grep 8912
@@ -14,7 +10,9 @@ server_url: http://vpn.bardi.ch
 # Headscale API (internal only, proxied via Caddy, must NOT be 127.0.0.1 due to UGOS limitation, see note in Caddyfile)
 listen_addr: :8910
 # grpc_listen_addr: 0.0.0.0:5000
-# metrics_listen_addr: 127.0.0.1:9090
+
+# Prometheus metrics and debug endpoints
+metrics_listen_addr: 10.89.12.4:9091
 
 # grpc_allow_insecure: true
 
