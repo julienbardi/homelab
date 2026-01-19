@@ -75,11 +75,22 @@ certs-expiry:
 	  echo "❌ CA public cert missing: $(CA_PUB)"; exit 2; \
 	fi
 
-# Rotate CA (dangerous: creates a new CA and lists clients that must be reissued)
+# --------------------------------------------------------------------
+# ⚠️  DESTRUCTIVE OPERATION — CA ROTATION
+#
+# - Invalidates ALL existing client certificates
+# - Requires manual confirmation
+# - Must never be called implicitly
+# - Safe only when operator is present
+# --------------------------------------------------------------------
+.PHONY: certs-rotate-dangerous
+certs-rotate-dangerous: certs-rotate
+
 .PHONY: certs-rotate
 certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	@echo "🔥 ROTATE CA - this will create a new CA and invalidate existing client certs"; \
-	read -p "Type YES to proceed: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1); \
+	read -p "Type YES to ROTATE THE CA: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1); \
+	@echo "⚠️  Proceeding with CA rotation — this cannot be undone"; \
 	# exclusive lock to avoid concurrent runs
 	$(run_as_root) bash -c 'exec 9>/var/lock/certs-rotate.lock || exit 1; flock -n 9 || { echo "another certs-rotate is running"; exit 1; }; \
 	set -euo pipefail; \
