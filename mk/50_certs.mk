@@ -43,7 +43,7 @@ gen-client-cert: $(GEN_CLIENT_WRAPPER)
 	  echo "[make] usage: make gen-client-cert CN=<name> [FORCE=1]"; exit 1; \
 	fi
 	@FORCE_FLAG=''; if [ "$(FORCE)" = "1" ]; then FORCE_FLAG="--force"; fi; \
-	$(GEN_CLIENT_WRAPPER) "$(CN)" "$(run_as_root)" "$(SCRIPT_DIR)" "$$FORCE_FLAG"
+	$(GEN_CLIENT_WRAPPER) "$(CN)" "$(run_as_root)" "/usr/local/bin" "$$FORCE_FLAG"
 
 # Deploy CA public cert into canonical store and caddy deploy dir (idempotent)
 certs-deploy: certs-create $(CERTS_DEPLOY)
@@ -151,10 +151,17 @@ certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	logger -t "$$TAG" -p user.info "Expiry monitor installed and enabled (weekly -> journal)"; \
 	logger -t "$$TAG" -p user.info "View logs: journalctl -t certs-expiry-check --no-pager"; \
 	# flock released on shell exit; exit 0'
+# --------------------------------------------------------------------
+# End of internal CA lifecycle
+# --------------------------------------------------------------------
 
 # --------------------------------------------------------------------
 # ACME / service certificate workflow
 # --------------------------------------------------------------------
+# NOTE:
+# - ACME certificates are derived artifacts
+# - They depend on the internal CA being present
+# - They must never mutate CA material
 .PHONY: issue renew prepare \
 	deploy-caddy deploy-headscale deploy-dnsdist deploy-router deploy-diskstation deploy-qnap \
 	validate-caddy validate-headscale validate-router validate-diskstation validate-qnap \
@@ -166,17 +173,17 @@ certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 
 # Base actions
 issue:
-	@$(run_as_root) $(DEPLOY) issue || { echo "[make] ❌ issue failed"; exit 1; }
+	@$(run_as_root) $(CERTS_DEPLOY) issue || { echo "[make] ❌ issue failed"; exit 1; }
 
-renew:
-	@$(run_as_root) $(DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE) || { echo "[make] ❌ renew failed"; exit 1; }
+renew: issue
+	@$(run_as_root) $(CERTS_DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE) || { echo "[make] ❌ renew failed"; exit 1; }
 
 prepare: renew fix-acme-perms
-	@$(run_as_root) $(DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
+	@$(run_as_root) $(CERTS_DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
 
 # Deploy targets
 define deploy_with_status
-	@$(run_as_root) $(DEPLOY) deploy $(1) 2>/dev/null
+	@$(run_as_root) $(CERTS_DEPLOY) deploy $(1) 2>/dev/null
 	@echo "🔄 Certificate deploy requested → $(1)"
 endef
 
@@ -200,7 +207,7 @@ deploy-qnap: prepare
 
 # Validate targets
 define validate_with_status
-	@$(run_as_root) $(DEPLOY) validate $(1)
+	@$(run_as_root) $(CERTS_DEPLOY) validate $(1)
 	@echo "🔁 $(1) validation OK"
 endef
 
