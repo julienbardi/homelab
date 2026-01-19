@@ -13,23 +13,24 @@
 # - Keeps all cert watchers passive until a cert actually changes
 # --------------------------------------------------------------------
 
-CERTS_CREATE       := /usr/local/bin/certs-create.sh
-CERTS_DEPLOY       := /usr/local/bin/certs-deploy.sh
-GEN_CLIENT_CERT    := /usr/local/bin/generate-client-cert.sh
-GEN_CLIENT_WRAPPER := /usr/local/bin/gen-client-cert-wrapper.sh
+# Installed certificate helpers (authoritative execution surface)
+CERTS_CREATE        := /usr/local/bin/certs-create.sh
+CERTS_DEPLOY        := /usr/local/bin/certs-deploy.sh
+GEN_CLIENT_CERT     := /usr/local/bin/generate-client-cert.sh
+GEN_CLIENT_WRAPPER  := /usr/local/bin/gen-client-cert-wrapper.sh
 
-SCRIPT_DIR := $(HOMELAB_DIR)/scripts
-DEPLOY     := $(SCRIPT_DIR)/deploy_certificates.sh
-
-# --------------------------------------------------------------------
-# Idempotent internal CA creation and deployment helpers
-# --------------------------------------------------------------------
+# Internal CA material (authoritative)
 SSL_CANONICAL_DIR ?= /var/lib/ssl/canonical
-CA_KEY := /etc/ssl/private/ca/homelab_bardi_CA.key
-CA_PUB := /etc/ssl/certs/homelab_bardi_CA.pem
-CANON_CA := $(SSL_CANONICAL_DIR)/ca.cer
+CA_KEY            := /etc/ssl/private/ca/homelab_bardi_CA.key
+CA_PUB            := /etc/ssl/certs/homelab_bardi_CA.pem
+CANON_CA          := $(SSL_CANONICAL_DIR)/ca.cer
+
+# Service deployment targets
 CADDY_DEPLOY_DIR ?= /etc/ssl/caddy
 
+# --------------------------------------------------------------------
+# Internal CA lifecycle (authoritative, idempotent)
+# --------------------------------------------------------------------
 .PHONY: certs-create certs-deploy certs-ensure certs-status
 
 # Create CA (idempotent). Uses EC P-384 by default.
@@ -151,9 +152,9 @@ certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	logger -t "$$TAG" -p user.info "View logs: journalctl -t certs-expiry-check --no-pager"; \
 	# flock released on shell exit; exit 0'
 
-########
-
-
+# --------------------------------------------------------------------
+# ACME / service certificate workflow
+# --------------------------------------------------------------------
 .PHONY: issue renew prepare \
 	deploy-caddy deploy-headscale deploy-dnsdist deploy-router deploy-diskstation deploy-qnap \
 	validate-caddy validate-headscale validate-router validate-diskstation validate-qnap \
