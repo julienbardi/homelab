@@ -37,11 +37,11 @@ SYSTEMD_DST_DIR ?= /etc/systemd/system
 # Verify dependencies (fail fast)
 # --------------------------------------------------------------------
 tailscaled-check-deps:
-	@command -v jq >/dev/null 2>&1 || { echo "❌ jq not installed"; exit 1; }
-	@command -v xargs >/dev/null 2>&1 || { echo "❌ xargs not installed"; exit 1; }
-	@command -v $(TS_BIN) >/dev/null 2>&1 || { echo "❌ tailscale not found"; exit 1; }
-	@command -v $(HS_BIN) >/dev/null 2>&1 || { echo "❌ headscale not found"; exit 1; }
+	@for c in jq xargs $(TS_BIN) $(HS_BIN); do \
+		command -v $$c >/dev/null 2>&1 || { echo "❌ $$c not found"; exit 1; }; \
+	done
 
+.NOTPARALLEL: tailscaled-lan tailscaled-wan
 # --------------------------------------------------------------------
 # LAN client (trusted: LAN + exit-node)
 # --------------------------------------------------------------------

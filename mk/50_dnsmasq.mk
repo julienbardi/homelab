@@ -11,7 +11,9 @@ CADDY_INTERNAL_HOSTS_FILE := $(HOMELAB_DIR)/config/caddy/internal-hosts.txt
 
 .PHONY: \
 	install-pkg-dnsmasq \
+	remove-pkg-dnsmasq \
 	deploy-dnsmasq-config \
+	dnsmasq-status \
 	check-dnsmasq-udp-buffers \
 	apply-dnsmasq-udp-buffers \
 	restore-dnsmasq-udp-buffers
@@ -56,10 +58,13 @@ deploy-dnsmasq-config: install-pkg-dnsmasq apply-dnsmasq-udp-buffers
 	\
 	$(run_as_root) systemctl is-active --quiet dnsmasq || \
 		( echo "❌ dnsmasq failed to start"; \
-		  $(run_as_root) systemctl status --no-pager dnsmasq; \
+		  echo "ℹ️  Run: make dnsmasq-status"; \
 		  exit 1 ); \
 	\
 	echo "✅ dnsmasq running"
+
+dnsmasq-status:
+	@$(run_as_root) systemctl status dnsmasq --no-pager --lines=0
 
 check-dnsmasq-udp-buffers:
 	@echo "🔍 Checking kernel UDP receive buffers for dnsmasq (UGOS defaults: net.core.rmem_max = 8388608, net.core.rmem_default = 212992)"
@@ -84,4 +89,3 @@ restore-dnsmasq-udp-buffers:
 		sysctl -w net.core.rmem_max=8388608 >/dev/null; \
 		sysctl -w net.core.rmem_default=212992 >/dev/null; \
 		echo "✅ [make] UGOS defaults restored"'
-

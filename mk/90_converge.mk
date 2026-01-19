@@ -14,6 +14,9 @@
 		check-forwarding network-status nft-verify \
 		runtime-snapshot-before runtime-snapshot-after runtime-diff
 
+WG_CLIENTS_DRIFT   := /usr/local/bin/wg-clients-drift.sh
+SNAPSHOT_NETWORK  := /usr/local/bin/snapshot-network.sh
+
 # ------------------------------------------------------------
 # Runtime snapshot locations (ephemeral, root-owned)
 # ------------------------------------------------------------
@@ -45,8 +48,8 @@ wg-stack: wg-converge-server wg-converge-clients wg-converge-runtime
 
 wg-converge-server: wg-deployed
 
-wg-converge-clients: regen-clients
-	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(HOMELAB_DIR)/scripts/wg-clients-drift.sh" && \
+wg-converge-clients: regen-clients $(WG_CLIENTS_DRIFT)
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) $(WG_CLIENTS_DRIFT) && \
 		echo "♻️  Client configs already converged" || \
 		echo "🔧 Client configs regenerated"
 
@@ -58,16 +61,17 @@ wg-converge-runtime: runtime-snapshot-before wg-deployed runtime-snapshot-after 
 # ------------------------------------------------------------
 # Runtime drift detection (implementation detail)
 # ------------------------------------------------------------
+runtime-snapshot-before runtime-snapshot-after: | install-all
 
 runtime-snapshot-before:
 	@echo "📸 Capturing runtime network state (before)"
-	@$(run_as_root) "$(HOMELAB_DIR)/scripts/runtime/snapshot-network.sh" "$(RUNTIME_SNAP_BEFORE)"
+	@$(run_as_root) $(SNAPSHOT_NETWORK) "$(RUNTIME_SNAP_BEFORE)"
 	@$(run_as_root) chmod 755 "$(RUNTIME_SNAP_BEFORE)"
 	@$(run_as_root) chmod 644 "$(RUNTIME_SNAP_BEFORE)"/* || true
 
 runtime-snapshot-after:
 	@echo "📸 Capturing runtime network state (after)"
-	@$(run_as_root) "$(HOMELAB_DIR)/scripts/runtime/snapshot-network.sh" "$(RUNTIME_SNAP_AFTER)"
+	@$(run_as_root) $(SNAPSHOT_NETWORK) "$(RUNTIME_SNAP_AFTER)"
 	@$(run_as_root) chmod 755 "$(RUNTIME_SNAP_AFTER)"
 	@$(run_as_root) chmod 644 "$(RUNTIME_SNAP_AFTER)"/* || true
 
@@ -101,7 +105,7 @@ runtime-diff:
 # ------------------------------------------------------------
 
 wg-clients-diff:
-	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(HOMELAB_DIR)/scripts/wg-clients-drift.sh" || true
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) $(WG_CLIENTS_DRIFT) || true
 
 # ------------------------------------------------------------
 # Infrastructure checks and status
