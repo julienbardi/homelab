@@ -17,7 +17,6 @@ $(if $(NET_TUNNEL_PREFLIGHT_DONE),,\
 endef
 endif
 
-
 .PHONY: net-tunnel-preflight
 
 net-tunnel-preflight: ensure-run-as-root
