@@ -12,11 +12,13 @@
 			  runtime-snapshot-before runtime-snapshot-after runtime-diff \
 			  wg-converge-runtime
 
-.PHONY: converge-network converge-audit \
-		wg-stack wg-converge-server wg-converge-clients wg-converge-runtime \
-		wg-clients-diff \
-		check-forwarding network-status nft-verify \
-		runtime-snapshot-before runtime-snapshot-after runtime-diff
+.PHONY: \
+	converge-network converge-audit \
+	wg-stack wg-converge-server wg-converge-clients wg-converge-runtime \
+	wg-clients-diff \
+	check-forwarding network-status \
+	nft-verify \
+	runtime-snapshot-before runtime-snapshot-after runtime-diff
 
 WG_CLIENTS_DRIFT   := /usr/local/bin/wg-clients-drift.sh
 SNAPSHOT_NETWORK  := /usr/local/bin/snapshot-network.sh
@@ -102,25 +104,23 @@ runtime-diff:
 			exit 1; \
 		fi; \
 	fi
-
 	@echo "♻️  Runtime network state already converged"
 
 # ------------------------------------------------------------
 # Client-only inspection
 # ------------------------------------------------------------
-
 wg-clients-diff:
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) $(WG_CLIENTS_DRIFT) || true
 
 # ------------------------------------------------------------
 # Infrastructure checks and status
 # ------------------------------------------------------------
-
 check-forwarding:
 	@$(run_as_root) sysctl -n net.ipv4.ip_forward | grep -q '^1$$' || \
-		{ echo "ERROR: IPv4 forwarding disabled"; exit 1; }
+		{ echo "❌ IPv4 forwarding disabled"; exit 1; }
 	@$(run_as_root) sysctl -n net.ipv6.conf.all.forwarding | grep -q '^1$$' || \
-		{ echo "ERROR: IPv6 forwarding disabled"; exit 1; }
+		{ echo "❌ IPv6 forwarding disabled"; exit 1; }
+	@echo "♻️ Kernel forwarding already enabled"
 
 network-status:
 	@echo "🔎 Kernel forwarding"
@@ -133,7 +133,6 @@ network-status:
 # ------------------------------------------------------------
 # nftables verification
 # ------------------------------------------------------------
-
 HOMELAB_NFT_ETC_DIR   := /etc/nftables
 HOMELAB_NFT_RULESET   := $(HOMELAB_NFT_ETC_DIR)/homelab.nft
 HOMELAB_NFT_HASH_FILE := /var/lib/homelab/nftables.applied.sha256
@@ -150,20 +149,17 @@ nft-verify: check-forwarding
 		echo "   sudo make nft-apply && sudo make nft-confirm"; \
 		exit 1; \
 	fi
-
 	@if [ ! -f "$(HOMELAB_NFT_HASH_FILE)" ]; then \
 		echo "❌ No recorded applied hash found: $(HOMELAB_NFT_HASH_FILE)"; \
 		echo "👉 Firewall was never applied intentionally"; \
 		echo "👉 Run: make nft-apply && make nft-confirm"; \
 		exit 1; \
 	fi
-
 	@if [ ! -s "$(HOMELAB_NFT_HASH_FILE)" ]; then \
 		echo "❌ Recorded nftables hash is empty"; \
 		echo "👉 Run: make nft-apply && make nft-confirm"; \
 		exit 1; \
 	fi
-
 	@current=$$($(run_as_root) sha256sum "$(HOMELAB_NFT_RULESET)" | awk '{print $$1}'); \
 	recorded=$$($(run_as_root) cat "$(HOMELAB_NFT_HASH_FILE)"); \
 	if [ "$$current" != "$$recorded" ]; then \
@@ -173,5 +169,4 @@ nft-verify: check-forwarding
 		echo "👉 Review and run: make nft-apply && make nft-confirm"; \
 		exit 1; \
 	fi
-
 	@echo "♻️  nftables ruleset matches recorded applied state"
