@@ -22,6 +22,9 @@ WAIT_FOR_COMMAND := /usr/local/bin/wait_for_command.sh
 
 .NOTPARALLEL: headscale headscale-restart headscale-verify
 
+# --------------------------------------------------------------------
+# Configuration rendering (idempotent)
+# --------------------------------------------------------------------
 .PHONY: headscale-config
 headscale-config: ensure-run-as-root $(HEADSCALE_CONFIG_SRC)
 	@echo "📦 Installing Headscale configuration"
@@ -39,7 +42,7 @@ headscale-derp-config: ensure-run-as-root $(HEADSCALE_DERP_CONFIG_SRC)
 		headscale headscale 0640 || [ $$? -eq 3 ]
 
 # --------------------------------------------------------------------
-# Ensure Headscale binary is installed
+# Bootstrap (one-time, idempotent)
 # --------------------------------------------------------------------
 .PHONY: headscale-bin
 headscale-bin: ensure-run-as-root
@@ -53,8 +56,16 @@ headscale-bin: ensure-run-as-root
 	'
 
 # --------------------------------------------------------------------
-# Rotate Noise private key
+# ⚠️  Destructive operations (operator-only)
 # --------------------------------------------------------------------
+# WARNING:
+# - Invalidates Headscale identity
+# - Disconnects all clients
+# - Requires client re-authentication
+# - Must never be run casually
+.PHONY: rotate-noise-key-dangerous
+rotate-noise-key-dangerous: rotate-noise-key
+
 .PHONY: rotate-noise-key
 rotate-noise-key: ensure-run-as-root headscale-bin
 	@echo "🔐 Rotating Headscale Noise private key"
@@ -88,7 +99,7 @@ headscale-prereqs: \
 	headscale-systemd
 
 # --------------------------------------------------------------------
-# Headscale orchestration (serialized)
+# Runtime orchestration (safe to re-run)
 # --------------------------------------------------------------------
 .PHONY: headscale
 headscale: \
@@ -127,9 +138,8 @@ headscale-systemd: ensure-run-as-root
 
 
 # --------------------------------------------------------------------
-# Atomic Headscale verification tests (parallel-safe)
+# Verification (post-deploy, read-only)
 # --------------------------------------------------------------------
-
 .PHONY: test-headscale-service
 test-headscale-service: ensure-run-as-root
 	@$(run_as_root) systemctl is-active --quiet headscale \
