@@ -205,7 +205,7 @@ headscale-metrics:
 rotate-noise-key-dangerous: rotate-noise-key
 
 .PHONY: rotate-noise-key
-rotate-noise-key: ensure-run-as-root headscale-bin
+rotate-noise-key: ensure-run-as-root headscale-bin headscale-systemd
 	@echo "🔥 ROTATE HEADSCALE NOISE KEY — this will disconnect all clients"
 	@read -p "Type YES to ROTATE THE NOISE KEY: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1)
 	@echo "⚠️  Proceeding with Noise key rotation — clients must re-authenticate"
@@ -215,5 +215,5 @@ rotate-noise-key: ensure-run-as-root headscale-bin
 	@$(run_as_root) systemctl start headscale
 	@echo "🔄 Noise private key rotated and Headscale restarted"
 	@echo "🔍 Validating Headscale service"
-	@$(run_as_root) bash -c "systemctl is-active --quiet headscale && echo '✔ Headscale service is running' || (echo '✘ Headscale service not active'; exit 1)"
-	@$(run_as_root) bash -c "headscale version >/dev/null && echo '✔ Headscale CLI responsive' || (echo '✘ Headscale CLI failed to connect'; exit 1)"
+	@$(run_as_root) bash -c "systemctl is-active --quiet headscale && echo '✅ Headscale service is running' || (echo '✘ Headscale service not active'; exit 1)"
+	@$(run_as_root) bash -c "headscale version >/dev/null && echo '✅ Headscale CLI responsive' || (echo '✘ Headscale CLI failed to connect'; exit 1)"
