@@ -217,5 +217,16 @@ table ip homelab_nat {
 
         # Tailscale NAT (IPv4)
         oifname "eth0" ip saddr 100.64.0.0/10 masquerade comment "sr:nat-ts-v4"
+
+        # WG LAN IPv4 NAT (LAN access bit set)
+        oifname "eth0" ip saddr 10.1.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg1-lan-v4"
+        oifname "eth0" ip saddr 10.3.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg3-lan-v4"
+        oifname "eth0" ip saddr 10.5.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg5-lan-v4"
+        oifname "eth0" ip saddr 10.7.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg7-lan-v4"
+        oifname "eth0" ip saddr 10.9.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg9-lan-v4"
+        oifname "eth0" ip saddr 10.11.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg11-lan-v4"
+        oifname "eth0" ip saddr 10.13.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg13-lan-v4"
+        oifname "eth0" ip saddr 10.15.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg15-lan-v4"
+
     }
 }
