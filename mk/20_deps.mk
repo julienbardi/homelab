@@ -75,8 +75,11 @@ verify-pkg-tailscale: ensure-run-as-root
 # ------------------------------------------------------------
 # Go (Debian package)
 # ------------------------------------------------------------
-install-pkg-go:
+install-pkg-go: ensure-run-as-root
+	@echo "🐹 Installing Go toolchain"
 	$(call apt_install,go,golang-go)
+	@command -v go >/dev/null || { \
+		echo "❌ go missing after install"; exit 1; }
 
 remove-pkg-go:
 	$(call apt_remove,golang-go)
@@ -87,12 +90,12 @@ remove-pkg-go:
 install-pkg-vnstat: ensure-run-as-root
 	@echo "📦 Installing vnstat"
 	$(call apt_install,vnstat,vnstat)
-	@echo "[make] Initializing vnstat database for tailscale0..."
+	@echo "Initializing vnstat database for tailscale0..."
 	@if ! $(run_as_root) vnstat --iflist | grep -q tailscale0; then \
 		$(run_as_root) vnstat --add -i tailscale0; \
 	fi
 	@$(run_as_root) systemctl enable --now vnstat >/dev/null 2>&1 || true
-	@echo "[make] vnstat installed and initialized for tailscale0"
+	@echo "✅ vnstat installed and initialized for tailscale0"
 
 remove-pkg-vnstat:
 	$(call apt_remove,vnstat)
@@ -147,11 +150,11 @@ CHECKMAKE_BIN := /usr/local/bin/checkmake
 STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
 
 install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go
-	@echo "[make] Installing checkmake (v$(CHECKMAKE_VERSION))"
+	@echo "🛠️ Installing checkmake (v$(CHECKMAKE_VERSION))"
 	@if [ -f "$(STAMP_CHECKMAKE)" ]; then \
 		INST_VER=$$(grep '^version=' "$(STAMP_CHECKMAKE)" | cut -d= -f2); \
 		if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
-			echo "[make] checkmake $(CHECKMAKE_VERSION) already installed; skipping"; \
+			echo "checkmake $(CHECKMAKE_VERSION) already installed; skipping"; \
 			exit 0; \
 		fi; \
 	fi; \
@@ -164,7 +167,7 @@ install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go
 	$(run_as_root) install -m 0755 $(HOME)/src/checkmake/checkmake $(CHECKMAKE_BIN); \
 	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null
-	@echo "[make] Installed checkmake $(CHECKMAKE_VERSION)"
+	@echo "✅ Installed checkmake $(CHECKMAKE_VERSION)"
 
 remove-pkg-checkmake:
 	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake && rm -f $(STAMP_CHECKMAKE))
@@ -184,7 +187,7 @@ remove-pkg-strace:
 HEADSCALE_VERSION ?= v0.27.1
 
 headscale-build: install-pkg-go
-	@echo "[make] Building Headscale $(HEADSCALE_VERSION)..."
+	@echo "🛠️ Building Headscale $(HEADSCALE_VERSION)..."
 	@if ! command -v headscale >/dev/null 2>&1; then \
 		GOBIN=$(INSTALL_PATH) go install github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION); \
 	else \
@@ -219,7 +222,7 @@ install-pkg-pandoc: ensure-run-as-root fetch-pandoc
 	if [ -n "$$installed_bin" ] && [ -f "$(PANDOC_DEB)" ] && \
 	   [ "$$(sha256sum "$(PANDOC_DEB)" | cut -d' ' -f1)" = "$(PANDOC_SHA256)" ] && \
 	   [ "$$installed_version_base" = "$(PANDOC_VERSION)" ]; then \
-		echo "[make] pandoc $(PANDOC_VERSION) already installed"; \
+		echo "ℹ️ pandoc $(PANDOC_VERSION) already installed"; \
 		exit 0; \
 	fi; \
 	set -euo pipefail; \
@@ -231,25 +234,25 @@ install-pkg-pandoc: ensure-run-as-root fetch-pandoc
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
 	installed_version_base=$${installed_version%%-*}; \
 	if [ "$$installed_version_base" != "$(PANDOC_VERSION)" ]; then \
-	  echo "[make] ERROR: pandoc wrong version (installed=$$installed_version)"; rm -f "$(PANDOC_DEB)"; trap - EXIT; exit 1; \
+	  echo "ERROR: pandoc wrong version (installed=$$installed_version)"; rm -f "$(PANDOC_DEB)"; trap - EXIT; exit 1; \
 	fi; \
 	echo "version=$$installed_version sha256=$(PANDOC_SHA256) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee "$(STAMP_PANDOC)" >/dev/null; \
 	trap - EXIT; \
-	echo "[make] pandoc $(PANDOC_VERSION) installed"
+	echo "✅ pandoc $(PANDOC_VERSION) installed"
 
 upgrade-pkg-pandoc: ensure-run-as-root $(STAMP_PANDOC)
-	@echo "[make] Upgrading pandoc..."
+	@echo "⬆️ Upgrading pandoc..."
 	@$(call apt_update_if_needed)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
 	@tmp=$$(mktemp); dpkg-query -W -f='${Version}\n' pandoc > "$$tmp" 2>/dev/null || echo "unknown" > "$$tmp"; \
 	echo "version=$$(cat $$tmp) upgraded_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee $(STAMP_PANDOC) >/dev/null; \
 	rm -f "$$tmp"
-	@echo "[make] pandoc upgrade complete"
+	@echo "✅ pandoc upgrade complete"
 
 remove-pkg-pandoc: ensure-run-as-root
-	@echo "[make] Removing pandoc..."
+	@echo "🗑️ Removing pandoc..."
 	@if dpkg -s pandoc >/dev/null 2>&1; then \
 		$(run_as_root) apt-get remove -y pandoc; \
 	fi
