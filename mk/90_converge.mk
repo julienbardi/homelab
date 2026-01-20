@@ -1,6 +1,10 @@
 # ============================================================
 # mk/90_converge.mk — Explicit network convergence (safe by default)
 # ============================================================
+# NOTE:
+# - converge-network verifies and reconciles network state
+# - Safe by default: no live mutation without FORCE=1
+# - Intended for steady-state convergence, not first-time setup
 
 .NOTPARALLEL: dns enable-unbound deploy-unbound-config deploy-unbound-local-internal \
 			  deploy-unbound-service deploy-unbound-control-config \
@@ -54,8 +58,9 @@ wg-converge-clients: regen-clients $(WG_CLIENTS_DRIFT)
 		echo "🔧 Client configs regenerated"
 
 # wg-converge-runtime:
-# - May reconcile live kernel state
-# - Gated by runtime-diff + FORCE
+# - Detects live kernel drift
+# - Never mutates state unless FORCE=1
+# - Acts as a safety valve, not a default action
 wg-converge-runtime: runtime-snapshot-before wg-deployed runtime-snapshot-after runtime-diff
 
 # ------------------------------------------------------------
