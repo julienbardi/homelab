@@ -37,7 +37,7 @@ assert-dnsdist-certs:
 		done'
 
 # --------------------------------------------------------------------
-# High-level target
+# Runtime orchestration (safe to re-run)
 # --------------------------------------------------------------------
 dnsdist: harden-groups install-kdig \
 		dnsdist-install dnsdist-systemd-dropin deploy-dnsdist-certs \
@@ -47,7 +47,7 @@ dnsdist: harden-groups install-kdig \
 	@echo "🚀 dnsdist DoH frontend ready"
 
 # --------------------------------------------------------------------
-# Install dnsdist (Debian package)
+# Bootstrap (one-time, idempotent)
 # --------------------------------------------------------------------
 dnsdist-install:
 	@if command -v $(DNSDIST_BIN) >/dev/null; then \
@@ -59,14 +59,22 @@ dnsdist-install:
 	fi
 
 # --------------------------------------------------------------------
-# Deploy TLS certificates for dnsdist (least privilege)
+# Certificate consumption (external authority)
 # --------------------------------------------------------------------
+# NOTE:
+# - dnsdist consumes certificates
+# - Certificate lifecycle is owned elsewhere
+# - dnsdist must never mutate cert material
 deploy-dnsdist-certs: install-all $(HOMELAB_ENV_DST) $(DEPLOY_CERTS)
 	$(DEPLOY_CERTS) deploy dnsdist
 
 # --------------------------------------------------------------------
-# Deploy dnsdist configuration
+# Configuration rendering (idempotent)
 # --------------------------------------------------------------------
+# NOTE:
+# - The following targets may restart dnsdist
+# - Restarts are disruptive to active clients
+# - Destructive behavior will be isolated explicitly
 .PHONY: dnsdist-config
 dnsdist-config:
 	@set -eu; \
@@ -82,7 +90,7 @@ dnsdist-config:
 	fi
 
 # --------------------------------------------------------------------
-# Validate dnsdist configuration (no daemon)
+# Verification (post-deploy, read-only)
 # --------------------------------------------------------------------
 dnsdist-validate:
 	@echo "🔍 Validating dnsdist configuration"
@@ -101,6 +109,10 @@ dnsdist-enable:
 dnsdist-status:
 	@$(run_as_root) systemctl status $(DNSDIST_UNIT) --no-pager || true
 
+# NOTE:
+# - The following targets may restart dnsdist
+# - Restarts are disruptive to active clients
+# - Destructive behavior will be isolated explicitly
 dnsdist-systemd-dropin:
 	@set -eu; \
 	echo "⚙️ Installing dnsdist systemd drop-in"; \
