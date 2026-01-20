@@ -1,10 +1,7 @@
-# ============================================================
-# Makefile.help — Homelab operator interface
-# ============================================================
-
+# help.mk
 .PHONY: help
 help:
-	@echo "[make] Available targets:"
+	@echo "Available targets:"
 	@echo ""
 
 	@echo "🧱 Prerequisites"
@@ -42,7 +39,7 @@ help:
 	@echo "    make bootstrap-headscale   # First-time cert setup for Headscale"
 	@echo "    make bootstrap-all         # Bootstrap all local services"
 	@echo ""
-	@echo "  ⚠️  Dangerous"
+	@echo "  ⚠️ Dangerous"
 	@echo "    make certs-rotate          # Rotate internal CA (invalidates client certs)"
 	@echo ""
 
@@ -69,7 +66,7 @@ help:
 	@echo "  make wg-apply                # Compile, deploy, and export client configs"
 	@echo "  make wg-check                # Run WireGuard consistency checks"
 	@echo ""
-	@echo "  ⚠️  Destructive"
+	@echo "  ⚠️ Destructive"
 	@echo "    make wg-rebuild-all        # Full WireGuard rebuild (invalidates all clients)"
 	@echo ""
 
@@ -81,7 +78,7 @@ help:
 	@echo "  make wg-dashboard            # Show interface assignment per client"
 	@echo "  make wg-check-ports          # Verify WireGuard UDP ports"
 	@echo ""
-	@echo "  ✏️  Mutating"
+	@echo "  ✏️ Mutating"
 	@echo "    make wg-remove-client BASE=… IFACE=…   # Remove a WireGuard client"
 	@echo ""
 
@@ -98,7 +95,7 @@ help:
 	@echo "  make wg-bootstrap             # Initialize WireGuard filesystem layout (run once)"
 	@echo ""
 
-	@echo "🛠️  Maintenance"
+	@echo "🛠️ Maintenance"
 	@echo "  make fix-acme-perms           # Repair ACME certificate permissions"
 	@echo "  make check-acme-perms         # Inspect ACME certificate permissions"
 	@echo ""
@@ -113,7 +110,7 @@ help:
 	@echo "  make uninstall-all            # Remove all homelab scripts"
 	@echo ""
 
-	@echo "[make] Notes:"
+	@echo "Notes:"
 	@echo "  - All state is intent-driven; validation failures never modify deployed state."
 	@echo "  - Scripts are never executed from the repository."
 	@echo "  - Destructive targets are explicit and never run implicitly."
