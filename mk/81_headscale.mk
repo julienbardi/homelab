@@ -89,14 +89,22 @@ headscale-logs: ensure-run-as-root
 # --------------------------------------------------------------------
 # Headscale provisioning prerequisites (parallel-safe)
 # --------------------------------------------------------------------
-.PHONY: headscale-prereqs
-headscale-prereqs: \
+.PHONY: headscale-bootstrap
+headscale-bootstrap: \
+	headscale-bin \
+	headscale-systemd
+
+.PHONY: headscale-runtime
+headscale-runtime: \
 	harden-groups \
 	headscale-config \
 	headscale-derp-config \
-	deploy-headscale \
-	headscale-bin \
-	headscale-systemd
+	deploy-headscale
+
+.PHONY: headscale-prereqs
+headscale-prereqs: \
+	headscale-bootstrap \
+	headscale-runtime
 
 # --------------------------------------------------------------------
 # Runtime orchestration (safe to re-run)
@@ -179,6 +187,10 @@ test-headscale-override:
 # --------------------------------------------------------------------
 # Parallel verification suite (runs atomic tests concurrently)
 # --------------------------------------------------------------------
+# NOTE:
+# - Verification targets must never mutate state
+# - Safe to run repeatedly
+# - Intended for post-deploy validation
 headscale-verify: \
 	headscale-wait-ready \
 	test-headscale-service \
