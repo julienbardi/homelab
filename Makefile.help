@@ -53,6 +53,11 @@ help:
 	@echo "  make dnsmasq-status          # Show dnsmasq service status"
 	@echo ""
 
+	@echo "🔐 DNS over HTTPS (dnsdist)"
+	@echo "  make dnsdist                 # Converge dnsdist DoH frontend"
+	@echo "  make dnsdist-verify          # Verify dnsdist runtime and listener state"
+	@echo ""
+
 	@echo "🌍 Web / ingress"
 	@echo "  make caddy                   # Deploy and run Caddy reverse proxy"
 	@echo "  make caddy-validate          # Validate Caddyfile"
@@ -98,6 +103,11 @@ help:
 	@echo "  make check-acme-perms         # Inspect ACME certificate permissions"
 	@echo ""
 
+	@echo "🌐 Network convergence"
+	@echo "  make converge-network        # Verify and reconcile network state (safe by default)"
+	@echo "  make converge-audit          # Show convergence plan (dry-run guidance)"
+	@echo ""
+
 	@echo "📦 Infrastructure"
 	@echo "  make install-all              # Install all homelab scripts"
 	@echo "  make uninstall-all            # Remove all homelab scripts"
@@ -108,3 +118,4 @@ help:
 	@echo "  - Scripts are never executed from the repository."
 	@echo "  - Destructive targets are explicit and never run implicitly."
 	@echo "  - Re-running targets is safe unless explicitly marked dangerous."
+	@echo "  - Runtime reconciliation is gated; use FORCE=1 only after reviewing reported drift."
