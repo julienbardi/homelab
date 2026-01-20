@@ -12,8 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_IF_CHANGED="$SCRIPT_DIR/install_if_changed.sh"
 
 [ -x "$INSTALL_IF_CHANGED" ] || {
-    echo "wg-compile-keys: ERROR: install_if_changed.sh not found or not executable" >&2
-    exit 1
+	echo "wg-compile-keys: ERROR: install_if_changed.sh not found or not executable" >&2
+	exit 1
 }
 
 [ -f "$PLAN" ] || {
@@ -87,4 +87,8 @@ awk -F'\t' '
 	}
 ' "$EXISTING_KEYS" "$PLAN" >>"$tmp"
 
-"$INSTALL_IF_CHANGED" --quiet "$tmp" "$OUT" root root 600
+"$INSTALL_IF_CHANGED" --quiet "$tmp" "$OUT" root root 600 || rc=$?
+case "${rc:-0}" in
+	0|3) exit 0 ;;
+	*)   exit "$rc" ;;
+esac
