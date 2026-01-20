@@ -1,6 +1,13 @@
 # ============================================================
 # mk/99_lint.mk — lint orchestration
 # ============================================================
+# CONTRACT:
+# - lint targets never mutate system state
+# - install-* targets must either:
+#   - have a corresponding verify-* target, or
+#   - perform an explicit sentinel check
+# - apt_install must not appear without post-install verification
+# - lint-ci enforces all semantic invariants
 
 # Tools (allow override)
 SHELLCHECK ?= shellcheck
@@ -33,6 +40,33 @@ define require_tool
 fi
 endef
 
+.PHONY: lint-semantic lint-semantic-strict
+lint-semantic:
+	@echo "[lint] Checking semantic invariants (permissive)..."
+	@bad=$$(grep -R "^[[:space:]]*install-pkg-" mk/*.mk \
+		| sed 's/:.*//' | sort -u \
+		| while read f; do \
+			grep -q "verify-pkg-" "$$f" || echo "$$f"; \
+		  done); \
+	if [ -n "$$bad" ]; then \
+		echo "[lint] ⚠️ install targets without verify targets:"; \
+		echo "$$bad"; \
+	fi
+
+lint-semantic-strict:
+	@echo "[lint-ci] Enforcing semantic invariants..."
+	@bad=$$(grep -R "^[[:space:]]*install-pkg-" mk/*.mk \
+		| sed 's/:.*//' | sort -u \
+		| while read f; do \
+			grep -q "verify-pkg-" "$$f" || echo "$$f"; \
+		  done); \
+	if [ -n "$$bad" ]; then \
+		echo "[lint-ci] ERROR: install targets missing verification:"; \
+		echo "$$bad"; \
+		exit 1; \
+	fi
+
+
 .PHONY: lint lint-all lint-fast lint-ci lint-scripts-partial lint-scripts \
 		lint-shellcheck \
 		lint-shellcheck-strict \
@@ -48,7 +82,7 @@ lint-fast: lint-scripts lint-makefile
 lint-all: lint-fast lint-spell lint-headscale
 
 # Strict CI lint: fail on any issue (ShellCheck warnings, checkmake errors, codespell, aspell)
-lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale-strict
+lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale-strict lint-semantic-strict
 	@echo "[lint-ci] All checks passed (strict mode)."
 
 # Run shell syntax check and ShellCheck across all tracked .sh files (permissive)
@@ -96,7 +130,7 @@ lint-shellcheck-strict:
 	else \
 		rc=0; \
 		for f in $(SH_FILES); do \
-		    [ -f "$$f" ] || { echo "[shellcheck] Skipping missing file: $$f"; continue; }; \
+			[ -f "$$f" ] || { echo "[shellcheck] Skipping missing file: $$f"; continue; }; \
 			echo "[shellcheck] $$f"; \
 			$(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || rc=$$?; \
 		done; \
@@ -108,7 +142,7 @@ lint-spell:
 	@echo "[lint] Running codespell and aspell (permissive)..."
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
-	  $(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg,.git,dns-warm-async" $(HOMELAB_DIR) || true; \
+	  $(CODESPELL) --skip="archive/*,*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" $(HOMELAB_DIR) || true; \
 	else \
 	  echo "[lint] codespell not installed; skipping codespell"; \
 	fi
