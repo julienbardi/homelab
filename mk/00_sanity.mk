@@ -11,11 +11,19 @@ assert-sanity: \
 	assert-scripts-layout
 
 assert-no-repo-exec:
-	@! grep -R 'scripts/.*\.sh' --include='*.mk' \
+ifneq ($(filter -j%,$(MAKEFLAGS)),)
+	@grep -R 'scripts/.*\.sh' --include='*.mk' \
 		--exclude=00_sanity.mk \
 		--exclude=01_common.mk \
-		--exclude-dir=archive . || \
-		{ echo "❌ Repo script execution detected"; exit 1; }
+		--exclude-dir=archive . >/dev/null && \
+	{ \
+		echo "⚠️  Parallel execution (-j) is not supported."; \
+		echo "    Safety checks detected repo-local script references during graph expansion."; \
+		echo "    No scripts were executed."; \
+		echo "    Rerun without -j (or use -j1)."; \
+		exit 1; \
+	}
+endif
 
 assert-scripts-layout:
 	@bad=$$(find "$(HOMELAB_DIR)/scripts" \

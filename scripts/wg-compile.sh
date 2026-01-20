@@ -217,8 +217,12 @@ EOF
 		allowed_client="10.${ifnum}.0.0/16, 2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::/64"
 
 		if [ "$has_lan" -eq 1 ]; then
-			: # LAN access is server-routed; never add LAN prefixes to AllowedIPs_client
-			#allowed_client="${allowed_client}
+			if [ "$has_v4" -eq 1 ]; then
+				allowed_client="${allowed_client}, 10.89.12.0/24"
+			fi
+			if [ "$has_v6" -eq 1 ]; then
+				allowed_client="${allowed_client}, 2a01:8b81:4800:9c00::/64"
+			fi
 		fi
 
 		if [ "$is_full" -eq 1 ]; then
