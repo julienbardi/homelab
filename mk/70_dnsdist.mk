@@ -36,14 +36,28 @@ assert-dnsdist-certs:
 			fi; \
 		done'
 
+.PHONY: dnsdist-bootstrap
+dnsdist-bootstrap: \
+	dnsdist-install \
+	dnsdist-systemd-dropin
+
+.PHONY: dnsdist-runtime
+dnsdist-runtime: \
+	install-kdig \
+	deploy-dnsdist-certs \
+	assert-dnsdist-certs \
+	dnsdist-config \
+	dnsdist-enable
+
 # --------------------------------------------------------------------
 # Runtime orchestration (safe to re-run)
 # --------------------------------------------------------------------
-dnsdist: harden-groups install-kdig \
-		dnsdist-install dnsdist-systemd-dropin deploy-dnsdist-certs \
-		assert-dnsdist-certs \
-		dnsdist-config dnsdist-validate dnsdist-enable \
-		assert-dnsdist-running
+dnsdist: \
+	harden-groups \
+	dnsdist-bootstrap \
+	dnsdist-runtime \
+	dnsdist-validate \
+	assert-dnsdist-running
 	@echo "🚀 dnsdist DoH frontend ready"
 
 # --------------------------------------------------------------------
