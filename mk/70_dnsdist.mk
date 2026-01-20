@@ -17,10 +17,13 @@ DNSDIST_KEY        := $(DNSDIST_CERT_DIR)/privkey.pem
 
 DNSDIST_RESTART_CMD := $(run_as_root) systemctl restart $(DNSDIST_UNIT)
 
-.PHONY: dnsdist dnsdist-install deploy-dnsdist-certs \
-		dnsdist-config dnsdist-validate dnsdist-enable \
-		dnsdist-status dnsdist-systemd-dropin \
-		install-kdig assert-dnsdist-certs
+.PHONY: \
+	dnsdist dnsdist-bootstrap dnsdist-runtime dnsdist-verify \
+	dnsdist-install dnsdist-config dnsdist-enable dnsdist-validate \
+	dnsdist-status dnsdist-systemd-dropin \
+	deploy-dnsdist-certs install-kdig \
+	assert-dnsdist-certs assert-dnsdist-running \
+	check-dnsdist-doh-local
 
 .NOTPARALLEL: dnsdist dnsdist-config dnsdist-systemd-dropin \
 			  deploy-dnsdist-certs dnsdist-install dnsdist-enable
@@ -38,12 +41,10 @@ assert-dnsdist-certs:
 			fi; \
 		done'
 
-.PHONY: dnsdist-bootstrap
 dnsdist-bootstrap: \
 	dnsdist-install \
 	dnsdist-systemd-dropin
 
-.PHONY: dnsdist-runtime
 dnsdist-runtime: \
 	install-kdig \
 	deploy-dnsdist-certs \
@@ -58,8 +59,7 @@ dnsdist: \
 	harden-groups \
 	dnsdist-bootstrap \
 	dnsdist-runtime \
-	dnsdist-validate \
-	assert-dnsdist-running
+	dnsdist-verify
 	@echo "🚀 dnsdist DoH frontend ready"
 
 # --------------------------------------------------------------------
@@ -94,7 +94,6 @@ deploy-dnsdist-certs: install-all $(HOMELAB_ENV_DST) $(DEPLOY_CERTS)
 # - dnsdist restarts interrupt active DNS clients
 # - Safe but disruptive
 # - Restart behavior is isolated for clarity
-.PHONY: dnsdist-config
 dnsdist-config:
 	@set -eu; \
 	$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
@@ -146,15 +145,14 @@ dnsdist-systemd-dropin:
 	if [ "$$rc" -eq 3 ]; then \
 		echo "🔄 dnsdist drop-in updated"; \
 		echo "🔁 restarting dnsdist.service"; \
-		$(run_as_root) systemctl restart $(DNSDIST_UNIT); \
+		$(DNSDIST_RESTART_CMD); \
 	fi
 
-.PHONY: assert-dnsdist-running
 assert-dnsdist-running:
-	@systemctl is-active --quiet dnsdist || \
-		( echo "❌ dnsdist is not running"; exit 1 )
+	@systemctl is-active --quiet dnsdist \
+	&& echo "[verify] ✅ dnsdist service active" \
+	|| ( echo "[verify] ❌ dnsdist service NOT active"; exit 1 )
 
-.PHONY: check-dnsdist-doh-local
 check-dnsdist-doh-local:
 	@curl -fsS \
 		--connect-timeout 2 \
@@ -164,3 +162,8 @@ check-dnsdist-doh-local:
 		http://127.0.0.1:8053/dns-query >/dev/null || \
 		( echo "❌ dnsdist DoH endpoint not responding locally within 5s"; exit 1 )
 
+dnsdist-verify: \
+	dnsdist-validate \
+	assert-dnsdist-running \
+	check-dnsdist-doh-local
+	@echo "[verify] 🎉 dnsdist verification complete"
