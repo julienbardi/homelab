@@ -15,6 +15,8 @@ DNSDIST_CERT_DIR := /etc/dnsdist/certs
 DNSDIST_CERT       := $(DNSDIST_CERT_DIR)/fullchain.pem
 DNSDIST_KEY        := $(DNSDIST_CERT_DIR)/privkey.pem
 
+DNSDIST_RESTART_CMD := $(run_as_root) systemctl restart $(DNSDIST_UNIT)
+
 .PHONY: dnsdist dnsdist-install deploy-dnsdist-certs \
 		dnsdist-config dnsdist-validate dnsdist-enable \
 		dnsdist-status dnsdist-systemd-dropin \
@@ -85,10 +87,13 @@ deploy-dnsdist-certs: install-all $(HOMELAB_ENV_DST) $(DEPLOY_CERTS)
 # --------------------------------------------------------------------
 # Configuration rendering (idempotent)
 # --------------------------------------------------------------------
+# --------------------------------------------------------------------
+# ⚠️  Destructive operations (operator-visible)
+# --------------------------------------------------------------------
 # NOTE:
-# - The following targets may restart dnsdist
-# - Restarts are disruptive to active clients
-# - Destructive behavior will be isolated explicitly
+# - dnsdist restarts interrupt active DNS clients
+# - Safe but disruptive
+# - Restart behavior is isolated for clarity
 .PHONY: dnsdist-config
 dnsdist-config:
 	@set -eu; \
@@ -100,7 +105,7 @@ dnsdist-config:
 	if [ "$$rc" -eq 3 ]; then \
 		echo "🔄 dnsdist.conf updated"; \
 		echo "🔁 restarting dnsdist.service"; \
-		$(run_as_root) systemctl restart $(DNSDIST_UNIT); \
+		$(DNSDIST_RESTART_CMD); \
 	fi
 
 # --------------------------------------------------------------------
