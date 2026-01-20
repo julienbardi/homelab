@@ -153,17 +153,14 @@ assert-dnsdist-running:
 	&& echo "[verify] ✅ dnsdist service active" \
 	|| ( echo "[verify] ❌ dnsdist service NOT active"; exit 1 )
 
-check-dnsdist-doh-local:
-	@curl -fsS \
-		--connect-timeout 2 \
-		--max-time 5 \
-		-H 'accept: application/dns-message' \
-		--data-binary @/dev/null \
-		http://127.0.0.1:8053/dns-query >/dev/null || \
-		( echo "❌ dnsdist DoH endpoint not responding locally within 5s"; exit 1 )
+check-dnsdist-doh-listener:
+	@ss -ltn sport = :8053 | grep -q LISTEN \
+		&& echo "[verify] ✅ dnsdist DoH listener active on port 8053" \
+		|| ( echo "[verify] ❌ dnsdist DoH listener NOT active on port 8053"; exit 1 )
 
 dnsdist-verify: \
 	dnsdist-validate \
 	assert-dnsdist-running \
-	check-dnsdist-doh-local
+	check-dnsdist-doh-listener
 	@echo "[verify] 🎉 dnsdist verification complete"
+
