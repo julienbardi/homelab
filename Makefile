@@ -4,12 +4,8 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help
+HOMELAB_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+export HOMELAB_DIR
 
-help:
-	@$(MAKE) --no-print-directory -f Makefile.help help
-
-# Only load the real graph when not asking for help
-ifneq ($(MAKECMDGOALS),help) 
-include Makefile.real
-endif
+include mk/graph.mk
+include mk/help.mk
