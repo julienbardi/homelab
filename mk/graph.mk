@@ -1,4 +1,4 @@
-# Makefile.real
+# graph.mk
 # --------------------------------------------------------------------
 # CONTRACT:
 # - Includes mk/01_common.mk to set run_as_root.
@@ -7,12 +7,6 @@
 #
 # - The WireGuard graph must be evaluated exactly once per make invocation.
 # --------------------------------------------------------------------
-# Absolute path to the directory containing this Makefile
-MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-
-# Directory of the including Makefile (normally the repo root).
-# before any includes
-HOMELAB_DIR ?= $(patsubst %/,%,$(MAKEFILE_DIR))
 
 SHELL := /bin/bash
 
@@ -37,39 +31,39 @@ INTERNAL_HOSTS := \
 	apt.bardi.ch
 
 # --- Includes (ordered by prefix) ---
-include $(MAKEFILE_DIR)/mk/00_sanity.mk
-include $(MAKEFILE_DIR)/mk/00_prereqs.mk
-include $(MAKEFILE_DIR)/mk/01_common.mk
-include $(MAKEFILE_DIR)/mk/05_bootstrap_wireguard.mk
-include $(MAKEFILE_DIR)/mk/10_groups.mk      # group membership enforcement (security bootstrap)
-include $(MAKEFILE_DIR)/mk/20_deps.mk        # package dependencies (apt installs, base tools)
-include $(MAKEFILE_DIR)/mk/20_net-tunnel.mk
-include $(MAKEFILE_DIR)/mk/20_sysctl.mk
-include $(MAKEFILE_DIR)/mk/30_config_validation.mk
-include $(MAKEFILE_DIR)/mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
-include $(MAKEFILE_DIR)/mk/40_code-server.mk
-include $(MAKEFILE_DIR)/mk/40_wireguard.mk   # Wireguard orchestration
-include $(MAKEFILE_DIR)/mk/41_wireguard-status.mk
-include $(MAKEFILE_DIR)/mk/42_wireguard-qr.mk
-include $(MAKEFILE_DIR)/mk/43_wireguard-runtime.mk
-include $(MAKEFILE_DIR)/mk/40_caddy.mk
-include $(MAKEFILE_DIR)/mk/50_certs.mk       # certificate handling (issue, renew, deploy)
-include $(MAKEFILE_DIR)/mk/50_dnsmasq.mk
-include $(MAKEFILE_DIR)/mk/60_unbound.mk     # Unbound DNS resolver setup
-include $(MAKEFILE_DIR)/mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
-include $(MAKEFILE_DIR)/mk/70_dnsdist.mk     #
-include $(MAKEFILE_DIR)/mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
-include $(MAKEFILE_DIR)/mk/70_apt_proxy_auto.mk
-include $(MAKEFILE_DIR)/mk/80_tailnet.mk     # Tailscale/Headscale orchestration
-include $(MAKEFILE_DIR)/mk/81_headscale.mk              # Headscale service + binary + systemd
-include $(MAKEFILE_DIR)/mk/83_headscale-users.mk        # Users (future)
-include $(MAKEFILE_DIR)/mk/84_headscale-acls.mk         # ACLs (future)
-include $(MAKEFILE_DIR)/mk/85_monitoring.mk
-include $(MAKEFILE_DIR)/mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
-include $(MAKEFILE_DIR)/mk/90_dns-health.mk  # DNS health checks and monitoring
-include $(MAKEFILE_DIR)/mk/90_converge.mk
-include $(MAKEFILE_DIR)/mk/95_status.mk
-include $(MAKEFILE_DIR)/mk/99_lint.mk        # lint and safety checks (always last)
+include mk/00_sanity.mk
+include mk/00_prereqs.mk
+include mk/01_common.mk
+include mk/05_bootstrap_wireguard.mk
+include mk/10_groups.mk      # group membership enforcement (security bootstrap)
+include mk/20_deps.mk        # package dependencies (apt installs, base tools)
+include mk/20_net-tunnel.mk
+include mk/20_sysctl.mk
+include mk/30_config_validation.mk
+include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
+include mk/40_code-server.mk
+include mk/40_wireguard.mk   # Wireguard orchestration
+include mk/41_wireguard-status.mk
+include mk/42_wireguard-qr.mk
+include mk/43_wireguard-runtime.mk
+include mk/40_caddy.mk
+include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
+include mk/50_dnsmasq.mk
+include mk/60_unbound.mk     # Unbound DNS resolver setup
+include mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
+include mk/70_dnsdist.mk     #
+include mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
+include mk/70_apt_proxy_auto.mk
+include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
+include mk/81_headscale.mk              # Headscale service + binary + systemd
+include mk/83_headscale-users.mk        # Users (future)
+include mk/84_headscale-acls.mk         # ACLs (future)
+include mk/85_monitoring.mk
+include mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
+include mk/90_dns-health.mk  # DNS health checks and monitoring
+include mk/90_converge.mk
+include mk/95_status.mk
+include mk/99_lint.mk        # lint and safety checks (always last)
 
 # ============================================================
 # Makefile — homelab certificate orchestration
