@@ -8,8 +8,12 @@
 # - failures must be explicit and actionable
 #
 # This file must be run before any router, firewall, or WireGuard targets.
+# ROLE gates prerequisites by responsibility: routers must manage NICs; services must not.
 
 PUBLIC_DNS ?= 1.1.1.1
+# Host responsibility (router | service | client)
+ROLE ?= service
+
 APT_CNAME_EXPECTED ?= bardi.ch
 
 TAILSCALE_KEYRING := /usr/share/keyrings/tailscale-archive-keyring.gpg
@@ -23,9 +27,17 @@ TAILSCALE_REPO_LINE := deb [signed-by=$(TAILSCALE_KEYRING)] https://pkgs.tailsca
 
 prereqs-network-verify:
 	@command -v wg >/dev/null || { echo "❌ wireguard missing"; exit 1; }
-	@command -v ethtool >/dev/null || { echo "❌ ethtool missing"; exit 1; }
+ifeq ($(ROLE),router)
+	@command -v ethtool >/dev/null || { \
+		echo "❌ ethtool missing (required for ROLE=router)"; exit 1; }
+else
+	@command -v ethtool >/dev/null || \
+		echo "ℹ️  ethtool not required for ROLE=$(ROLE)"
+endif
+ifeq ($(ROLE),router)
 	@sysctl net.ipv4.ip_forward >/dev/null || \
 		echo "⚠️  Cannot read net.ipv4.ip_forward (sysctl unavailable?)"
+endif
 
 # minimum required to route packets
 prereqs-network: ensure-run-as-root prereqs-network-verify
@@ -80,7 +92,6 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 		echo "ℹ️  No Tailscale repo configured yet"; \
 	fi
 
-
 	# apt-cacher-ng: local APT proxy for homelab clients
 	@echo "Ensuring installation of prerequisite tools"
 	@$(call apt_update_if_needed)
@@ -93,10 +104,12 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 		qrencode \
 		libc-ares-dev \
 		apt-cacher-ng
-	@for bin in curl jq git nft iperf3 qrencode; do \
+	@for bin in curl jq git iperf3 qrencode; do \
 		command -v $$bin >/dev/null || { \
 			echo "❌ $$bin missing after install"; exit 1; }; \
 	done
+	@test -x /usr/sbin/nft || { \
+		echo "❌ nft binary missing at /usr/sbin/nft"; exit 1; }
 	@echo "✅ Base prerequisites installed"
 
 fix-tailscale-repo: ensure-run-as-root
