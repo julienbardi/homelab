@@ -2,8 +2,6 @@
 # scripts/wg-deploy.sh
 set -euo pipefail
 
-WG_ROLE="${WG_ROLE:-nas}"
-
 WG_DIR="/etc/wireguard"
 ROOT="/volume1/homelab/wireguard"
 
@@ -262,12 +260,12 @@ if [ "$DRY_RUN" != "1" ]; then
 		ip -6 address replace "$server_addr6" dev "$dev"
 
 		ip link set up dev "$dev"
+		# Remove legacy wrong LAN routes (LAN is NOT behind wgX)
+		ip -4 route del 10.89.12.0/24 dev "$dev" 2>/dev/null || true
+		ip -6 route del 2a01:8b81:4800:9c00::/64 dev "$dev" 2>/dev/null || true
 
-		# Install server_routes (col 12). Empty means "no routes".
-		if [ -n "${server_routes:-}" ]; then
-			if [ "$WG_ROLE" != "router" ]; then
-				die "refusing to install server_routes on role '$WG_ROLE'"
-			fi
+		# WRONG FOR LAN routing Install server_routes (col 12). Empty means "no routes".
+		if false && [ -n "${server_routes:-}" ]; then
 			IFS=',' read -r -a routes <<<"$server_routes"
 			for cidr in "${routes[@]}"; do
 				# trim

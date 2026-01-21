@@ -11,13 +11,15 @@ set -eu
 #       (never .0/.255, never .0.1 for clients)
 #   - (A,B) is deterministic per base and identical across all interfaces
 #
-# IPv6 is symmetric and embeds the same (A,B):
-#   wgN (N=1..15): 2a01:8b81:4800:9c0X::A:B  (X = hex(N))
-#   2a01:8b81:4800:9c00::/64 is the LAN and cannot be used for Wireguard subnets.
-#   wg1 -> 2a01:8b81:4800:9c01::/64
-#   ...
-#   wg10-> 2a01:8b81:4800:9c0a::/64
-#   wg15-> 2a01:8b81:4800:9c0f::/64
+# IPv6 contract (LOCKED, Option B):
+#   - Internal IPv6 uses ULA only (no delegated/global IPv6 in WireGuard).
+#   - ULA prefix: fd89:7a3b:42c0::/48
+#   - LAN ULA:    fd89:7a3b:42c0::/64
+#   - wgN subnet: fd89:7a3b:42c0:N::/64   (N = decimal 1..15, embedded as a hextet)
+#   - Server on wgN: fd89:7a3b:42c0:N::1/64
+#   - Clients:       fd89:7a3b:42c0:N::A:B/128   (same A,B allocator as IPv4)
+#
+# Delegated/global IPv6 prefixes (e.g. 2a01:...) must never appear in compiled outputs.
 #
 # Authoritative input:
 #   /volume1/homelab/wireguard/input/clients.csv   (user,machine,iface)
@@ -33,8 +35,6 @@ set -eu
 # - Fails loudly on any contract violation.
 
 # --------------------------------------------------------------------
-
-WG_ROLE="${WG_ROLE:-nas}"   # nas | router
 
 # WireGuard profile bitmask model (wg1..wg15)
 BIT_LAN=0
@@ -54,17 +54,46 @@ PLAN="$OUT_DIR/plan.tsv"
 ENDPOINT_HOST_BASE="vpn.bardi.ch"
 ENDPOINT_PORT_BASE="51420"
 
+# IPv6 (ULA-only) — authoritative constants
+WG_ULA_PREFIX="fd89:7a3b:42c0"     # /48, written as 3 hextets
+WG_ULA_LAN_CIDR="fd89:7a3b:42c0::/64"
+WG_ULA_NAS="fd89:7a3b:42c0::4"
+WG_ULA_WG_PREFIXLEN="64"
+
+
 STAGE="$OUT_DIR/.staging.$$"
 umask 077
 
 die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
 
-wg_hextet_from_ifnum() {
+wg_ifnum_sanity() {
 	n="$1"
 	if [ "$n" -lt 1 ] || [ "$n" -gt 15 ]; then
 		die "invalid ifnum '$n' for wg subnet"
 	fi
-	printf "9c0%x" "$n"
+}
+
+wg_ula_subnet6_for_ifnum() {
+	ifnum="$1"
+	wg_ifnum_sanity "$ifnum"
+	# fd89:7a3b:42c0:<ifnum>::/64
+	printf "%s:%s::/%s\n" "$WG_ULA_PREFIX" "$ifnum" "$WG_ULA_WG_PREFIXLEN"
+}
+
+server_addr6_for_ifnum() {
+	ifnum="$1"
+	wg_ifnum_sanity "$ifnum"
+	# fd89:7a3b:42c0:<ifnum>::1/64
+	printf "%s:%s::1/%s\n" "$WG_ULA_PREFIX" "$ifnum" "$WG_ULA_WG_PREFIXLEN"
+}
+
+client_addr6_for_ifnum_ab() {
+	ifnum="$1"
+	A="$2"
+	B="$3"
+	wg_ifnum_sanity "$ifnum"
+	# fd89:7a3b:42c0:<ifnum>::A:B/128
+	printf "%s:%s::%s:%s/128\n" "$WG_ULA_PREFIX" "$ifnum" "$A" "$B"
 }
 
 # --------------------------------------------------------------------
@@ -93,12 +122,6 @@ ab_from_slot() {
 }
 
 server_addr4_for_ifnum() { printf "10.%s.0.1/16\n" "$1"; }
-server_addr6_for_ifnum() {
-	ifnum="$1"
-	hextet="$(wg_hextet_from_ifnum "$ifnum")"
-	printf "2a01:8b81:4800:%s::1/128\n" "$hextet"
-}
-
 
 # --------------------------------------------------------------------
 
@@ -184,7 +207,7 @@ EOF
 		unset ab
 
 		client_addr4="10.${ifnum}.${A}.${B}/16"
-		client_addr6="2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::${A}:${B}/128"
+		client_addr6="$(client_addr6_for_ifnum_ab "$ifnum" "$A" "$B")"
   	
 		server_addr4="$(server_addr4_for_ifnum "$ifnum")"
 		server_addr6="$(server_addr6_for_ifnum "$ifnum")"
@@ -200,28 +223,41 @@ EOF
 		has_v6=$(( (ifnum >> BIT_V6) & 1 ))
 		is_full=$(( (ifnum >> BIT_FULL) & 1 ))
 
-		server_allowed_v4="10.${ifnum}.0.0/16"
-		server_allowed_v6="2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::/64"
+		# WRONG (shared ownership, breaks WG)
+		#server_allowed_v4="10.${ifnum}.0.0/16"
+		#server_allowed_v6="2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::/64"
+		#allowed_server="${server_allowed_v4}, ${server_allowed_v6}"
 
-		allowed_server="${server_allowed_v4}, ${server_allowed_v6}"
+		# CORRECT (exclusive ownership)
+		client_owner4="10.${ifnum}.${A}.${B}/32"
+		client_owner6="${client_addr6}"   # already /128
+
+		allowed_server=""
+		[ "$has_v4" -eq 1 ] && allowed_server="${allowed_server}${client_owner4}, "
+		[ "$has_v6" -eq 1 ] && allowed_server="${allowed_server}${client_owner6}, "
+		allowed_server="${allowed_server%, }"
+
+		[ -n "$allowed_server" ] || die "iface ${iface}: AllowedIPs_server is empty (bad inet bits?)"
 
 		server_routes=""
-		if [ "$WG_ROLE" = "router" ] && [ "$has_lan" -eq 1 ]; then
-			server_routes="10.89.12.0/24, 2a01:8b81:4800:9c00::/64"
+		if [ "$has_lan" -eq 1 ]; then
+			[ "$has_v4" -eq 1 ] && server_routes="${server_routes}10.89.12.0/24, "
+			[ "$has_v6" -eq 1 ] && server_routes="${server_routes}${WG_ULA_LAN_CIDR}, "
+			server_routes="${server_routes%, }"
 		fi
 
 		# AllowedIPs for the client:
 		# - Always include wgN subnets (v4 + v6) so the tunnel itself is routable.
 		# - Add LAN prefixes when BIT_LAN is set.
 		# - Add default routes only when BIT_FULL is set, gated by the inet bits.
-		allowed_client="10.${ifnum}.0.0/16, 2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::/64"
+		allowed_client="10.${ifnum}.0.0/16, $(wg_ula_subnet6_for_ifnum "$ifnum")"
 
 		if [ "$has_lan" -eq 1 ]; then
 			if [ "$has_v4" -eq 1 ]; then
 				allowed_client="${allowed_client}, 10.89.12.0/24"
 			fi
 			if [ "$has_v6" -eq 1 ]; then
-				allowed_client="${allowed_client}, 2a01:8b81:4800:9c00::/64"
+				allowed_client="${allowed_client}, ${WG_ULA_LAN_CIDR}"
 			fi
 		fi
 
@@ -235,7 +271,7 @@ EOF
 
 		dns=""
 		if [ "$has_lan" -eq 1 ] || [ "$is_full" -eq 1 ]; then
-			dns="10.89.12.4, 2a01:8b81:4800:9c00::4"
+			dns="10.89.12.4, ${WG_ULA_NAS}"
 		fi
 		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
 			"$base" "$iface" "$slot" \
@@ -246,6 +282,10 @@ EOF
 			"$server_addr4" "$server_addr6" "$server_routes"
 	done <"$NORM"
 } >"$PLAN_TMP"
+
+if grep -qE '(^|[[:space:]])2a01:' "$PLAN_TMP"; then
+	die "refusing to write plan: delegated/global IPv6 detected (2a01:...)"
+fi
 
 install -m 0644 -o root -g root "$PLAN_TMP" "$PLAN"
 install -m 0644 -o root -g root "$LOCK_TMP" "$LOCK"

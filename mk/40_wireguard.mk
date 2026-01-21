@@ -72,7 +72,26 @@ wg-deployed: ensure-run-as-root net-tunnel-preflight wg-compile wg-check
 wg-apply: wg-deployed
 	@test -x "$(WG_EXPORT_SCRIPT)"
 	@$(run_as_root) $(WG_EXPORT_SCRIPT)
-	@echo "✅ WireGuard converged"
+
+	@echo "🔁 Reconciling WireGuard kernel state"
+
+	@$(run_as_root) sh -ec '\
+	PLAN_IFACES="$$(awk -F'\''\t'\'' \
+		'\''/^#/ { next } NR<=2 { next } { print $$2 }'\'' \
+		$(WG_ROOT)/compiled/plan.tsv | sort -u)"; \
+	ACTIVE_IFACES="$$(wg show interfaces || true)"; \
+	\
+	for iface in $$PLAN_IFACES; do \
+		wg syncconf "$$iface" <(wg-quick strip "$$iface"); \
+	done; \
+	\
+	for iface in $$ACTIVE_IFACES; do \
+		echo "$$PLAN_IFACES" | grep -qx "$$iface" || \
+			wg-quick down "$$iface"; \
+	done \
+	'
+
+	@echo "✅ WireGuard kernel state converged"
 
 # ------------------------------------------------------------
 # Consistency / sanity checks
