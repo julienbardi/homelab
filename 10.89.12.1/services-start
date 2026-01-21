@@ -44,6 +44,7 @@ iptables -C INPUT $SSH_RULE 2>/dev/null || iptables -I INPUT $SSH_RULE
 # connectivity. This ip rule forces packets sourced from the LAN subnet to use
 # the normal routing table.
 # More background: https://tailscale.com/kb/1019/subnets#policy-routing
+ip rule del from 10.89.12.0/24 lookup main 2>/dev/null || true
 ip rule add from 10.89.12.0/24 lookup main
 
 # --- Tailscale ---

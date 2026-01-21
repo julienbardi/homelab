@@ -14,11 +14,12 @@
 IP_ENTWARE="/opt/sbin/ip"
 
 NAS4="10.89.12.4"
+# NAS6 used only for IPv6 firewall allowances (not for routing)
 NAS6="2a01:8b81:4800:9c00::4"
 
 WG_V4_PREFIXLEN="16"
-WG_V6_PREFIXLEN="64"
-WG_IF_MIN="0"
+#WG_V6_PREFIXLEN="64"
+WG_IF_MIN="1"
 WG_IF_MAX="15"
 
 #
@@ -90,10 +91,12 @@ fi
 n="$WG_IF_MIN"
 while [ "$n" -le "$WG_IF_MAX" ]; do
 	# IPv4: 10.<n>.0.0/16
-	ip route replace "10.${n}.0.0/${WG_V4_PREFIXLEN}" via "$NAS4" dev br0
+	ip route replace "10.${n}.0.0/${WG_V4_PREFIXLEN}" via "$NAS4" dev br0 || true
 
-	# IPv6: 2a01:8b81:4800:9c00:<n>::/64
-	ip -6 route replace "2a01:8b81:4800:9c00:${n}::/${WG_V6_PREFIXLEN}" via "$NAS6" dev br0
+	# KEEP COMMENTED: IPv6 WG routing intentionally disabled
+	# Reason: ISP IPv6 prefix delegation is dynamic; static routes would break.
+	#hextet="$(printf '9c0%x' "$n")"
+	#ip -6 route replace "2a01:8b81:4800:${hextet}::/${WG_V6_PREFIXLEN}" via "$NAS6" dev br0
 
 	n=$((n + 1))
 done
