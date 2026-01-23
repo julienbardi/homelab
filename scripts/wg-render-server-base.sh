@@ -52,7 +52,7 @@ while read -r iface; do
 
 [Interface]
 PrivateKey = __REPLACED_AT_DEPLOY__
-ListenPort = $(awk -F'\t' -v i="${iface}" '$2==i {print $9; exit}' "${PLAN}")
+ListenPort = $(awk -F'\t' -v i="${iface}" '$2==i {print $3; exit}' "${PLAN}")
 EOF
 
 	rc=0
