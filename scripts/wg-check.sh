@@ -101,9 +101,9 @@ if ip route show | grep -Eq '10\.89\.12\.0/24.*wg'; then
 	exit 1
 fi
 
-if ip -6 route show | grep -Eq '2a01:8b81:4800:9c00::/64.*wg'; then
-	echo "❌ wg-check: LAN IPv6 route leaked into WireGuard" >&2
-	ip -6 route show | grep -E '2a01:8b81:4800:9c00::/64.*wg' >&2
+# Guard: no global IPv6 must ever be routed via WireGuard
+if ip -6 route show | grep -E 'wg[0-9]+' | grep -Ev 'fd89:7a3b:42c0:'; then
+	echo "❌ wg-check: global IPv6 route leaked into WireGuard" >&2
+	ip -6 route show | grep -E 'wg[0-9]+' | grep -Ev 'fd89:7a3b:42c0:' >&2
 	exit 1
 fi
-
