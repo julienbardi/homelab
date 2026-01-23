@@ -58,7 +58,16 @@ while read -r iface; do
 ListenPort = $(awk -F'\t' -v i="${iface}" '$2==i {print $9; exit}' "${PLAN}")
 EOF
 
-	"$INSTALL_IF_CHANGED" --quiet "$tmp" "$conf" root root 600
+	rc=0
+	CHANGED_EXIT_CODE=3 \
+	"$INSTALL_IF_CHANGED" --quiet "$tmp" "$conf" root root 600 || rc="$?"
+
+	if [ "$rc" -eq 3 ]; then
+		echo "🟢 wrote ${conf}"
+	elif [ "$rc" -ne 0 ]; then
+		exit "$rc"
+	fi
+
 	echo "🟢 wrote ${conf}"
 done < <(
 	awk -F'\t' '
