@@ -76,13 +76,9 @@ wg-apply: wg-deployed
 	@echo "🔁 Reconciling WireGuard kernel state"
 
 	@$(run_as_root) bash -euo pipefail -c '\
-	PLAN_IFACES="$$(awk -F'\''\t'\'' '\
-		/^#/ { next } \
-		/^[[:space:]]*$$/ { next } \
-		$$1=="base" && $$2=="iface" { next } \
-		{ print $$2 }' \
-		$(WG_ROOT)/compiled/plan.tsv | sort -u)"; \
-	ACTIVE_IFACES="$$(wg show interfaces || true)"; \
+		PLAN_IFACES="$$(awk -F'\''\t'\'' '\''/^#/ { next } /^[[:space:]]*$$/ { next } $$1=="base" && $$2=="iface" { next } { print $$2 }'\'' \
+			$(WG_ROOT)/compiled/plan.tsv | sort -u)"; \
+		ACTIVE_IFACES="$$(wg show interfaces || true)"; \
 	\
 	for iface in $$PLAN_IFACES; do \
 		conf="/etc/wireguard/$${iface}.conf"; \
