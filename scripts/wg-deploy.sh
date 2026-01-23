@@ -246,7 +246,6 @@ if [ "$DRY_RUN" != "1" ]; then
 			' "$PLAN"
 		) || die "plan.tsv: missing or inconsistent server fields for iface '$dev'"
 
-
 		[ -n "${server_addr4:-}" ] || die "plan.tsv: missing server_addr4 for iface '$dev'"
 		[ -n "${server_addr6:-}" ] || die "plan.tsv: missing server_addr6 for iface '$dev'"
 
@@ -260,26 +259,6 @@ if [ "$DRY_RUN" != "1" ]; then
 		ip -6 address replace "$server_addr6" dev "$dev"
 
 		ip link set up dev "$dev"
-		# Remove legacy wrong LAN routes (LAN is NOT behind wgX)
-		ip -4 route del 10.89.12.0/24 dev "$dev" 2>/dev/null || true
-		ip -6 route del 2a01:8b81:4800:9c00::/64 dev "$dev" 2>/dev/null || true
-
-		# WRONG FOR LAN routing Install server_routes (col 12). Empty means "no routes".
-		if false && [ -n "${server_routes:-}" ]; then
-			IFS=',' read -r -a routes <<<"$server_routes"
-			for cidr in "${routes[@]}"; do
-				# trim
-				cidr="${cidr#"${cidr%%[![:space:]]*}"}"
-				cidr="${cidr%"${cidr##*[![:space:]]}"}"
-				[ -n "$cidr" ] || continue
-
-				case "$cidr" in
-					*:*/*) ip -6 route replace "$cidr" dev "$dev" ;;
-					*.*/*) ip -4 route replace "$cidr" dev "$dev" ;;
-					*) die "plan.tsv: invalid server_routes entry '$cidr' for iface '$dev'" ;;
-				esac
-			done
-		fi
 	done
 else
 	echo "🧪 DRY-RUN: skipping wg runtime apply"

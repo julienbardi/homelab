@@ -60,7 +60,7 @@ for iface in $ifaces; do
 
 	cat >"$tmp" <<EOF
 [Interface]
-Address = 10.${i}.0.1/16, 2a01:8b81:4800:9c00:${i}::1/128
+Address = 10.${i}.0.1/16, fd89:7a3b:42c0:${i}::1/64
 ListenPort = $((51420 + i))
 PrivateKey = __REPLACED_AT_DEPLOY__
 EOF

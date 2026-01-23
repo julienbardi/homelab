@@ -223,12 +223,6 @@ EOF
 		has_v6=$(( (ifnum >> BIT_V6) & 1 ))
 		is_full=$(( (ifnum >> BIT_FULL) & 1 ))
 
-		# WRONG (shared ownership, breaks WG)
-		#server_allowed_v4="10.${ifnum}.0.0/16"
-		#server_allowed_v6="2a01:8b81:4800:$(wg_hextet_from_ifnum "$ifnum")::/64"
-		#allowed_server="${server_allowed_v4}, ${server_allowed_v6}"
-
-		# CORRECT (exclusive ownership)
 		client_owner4="10.${ifnum}.${A}.${B}/32"
 		client_owner6="${client_addr6}"   # already /128
 
