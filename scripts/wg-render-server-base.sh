@@ -40,9 +40,6 @@ while read -r iface; do
 
 	[ -f "${pub}" ] || { echo "❌ missing ${pub}"; exit 1; }
 
-	# Ensure semantics: never overwrite existing base config
-	[ -f "${conf}" ] && continue
-
 	tmp="$(mktemp)"
 	trap 'rm -f "$tmp"' EXIT
 
@@ -54,7 +51,7 @@ while read -r iface; do
 # --------------------------------------------------
 
 [Interface]
-# PrivateKey intentionally omitted (already provisioned)
+PrivateKey = __SERVER_PRIVATE_KEY__
 ListenPort = $(awk -F'\t' -v i="${iface}" '$2==i {print $9; exit}' "${PLAN}")
 EOF
 
@@ -67,8 +64,6 @@ EOF
 	elif [ "$rc" -ne 0 ]; then
 		exit "$rc"
 	fi
-
-	echo "🟢 wrote ${conf}"
 done < <(
 	awk -F'\t' '
 		/^#/ { next }
