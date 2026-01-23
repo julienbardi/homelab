@@ -40,8 +40,37 @@ while read -r iface; do
 
 	[ -f "${pub}" ] || { echo "❌ missing ${pub}"; exit 1; }
 
+	read -r server_addr4 server_addr6 < <(
+		awk -F'\t' -v i="${iface}" '
+			/^#/ || /^[[:space:]]*$/ { next }
+
+			# Header row
+			$1=="base" && $2=="iface" {
+				for (n=1; n<=NF; n++) {
+					if ($n=="server_addr4") c4=n
+					if ($n=="server_addr6") c6=n
+				}
+				if (!c4 || !c6) {
+					print "" > "/dev/stderr"
+					exit 11
+				}
+				next
+			}
+
+			$2==i { print $(c4), $(c6); exit 0 }
+		' "${PLAN}"
+	)
+
+	[ -n "${server_addr4}" ] || { echo "❌ missing server_addr4 for ${iface}"; exit 1; }
+	[ -n "${server_addr6}" ] || { echo "❌ missing server_addr6 for ${iface}"; exit 1; }
+
+	printf '%s\n' "$server_addr4" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$' \
+		|| { echo "❌ ${iface}: invalid server_addr4 '${server_addr4}'"; exit 1; }
+
+	printf '%s\n' "$server_addr6" | grep -qE '^[0-9a-f:]+/[0-9]+$' \
+		|| { echo "❌ ${iface}: invalid server_addr6 '${server_addr6}'"; exit 1; }
+
 	tmp="$(mktemp)"
-	trap 'rm -f "$tmp"' EXIT
 
 	cat >"$tmp" <<EOF
 # --------------------------------------------------
@@ -53,6 +82,7 @@ while read -r iface; do
 [Interface]
 PrivateKey = __REPLACED_AT_DEPLOY__
 ListenPort = $(awk -F'\t' -v i="${iface}" '$2==i {print $3; exit}' "${PLAN}")
+Address = ${server_addr4}, ${server_addr6}
 EOF
 
 	rc=0
@@ -62,8 +92,10 @@ EOF
 	if [ "$rc" -eq 3 ]; then
 		echo "🟢 wrote ${conf}"
 	elif [ "$rc" -ne 0 ]; then
+		rm -f "$tmp"
 		exit "$rc"
 	fi
+	rm -f "$tmp"
 done < <(
 	awk -F'\t' '
 		/^#/ { next }

@@ -76,25 +76,80 @@ wg-apply: wg-deployed
 	@echo "🔁 Reconciling WireGuard kernel state"
 
 	@$(run_as_root) bash -euo pipefail -c '\
-		PLAN_IFACES="$$(awk -F'\''\t'\'' '\''/^#/ { next } /^[[:space:]]*$$/ { next } $$1=="base" && $$2=="iface" { next } { print $$2 }'\'' \
-			$(WG_ROOT)/compiled/plan.tsv | sort -u)"; \
-		ACTIVE_IFACES="$$(wg show interfaces || true)"; \
+		: "$${WG_ROOT:?WG_ROOT not set}"; \
+		PLAN="$$WG_ROOT/compiled/plan.tsv"; \
+		PLAN_IFACES="$$(awk -F "\t" '\'' \
+			/^#/ { next } \
+			/^[[:space:]]*$$/ { next } \
+			$$1=="base" && $$2=="iface" { next } \
+			{ print $$2 } \
+		'\'' "$$PLAN" | sort -u)"; \
 	\
-	for iface in $$PLAN_IFACES; do \
-		conf="/etc/wireguard/$${iface}.conf"; \
-		[ -f "$$conf" ] || { echo "wg-apply: ERROR: missing $$conf" >&2; exit 1; }; \
-		if ! ip link show "$$iface" >/dev/null 2>&1; then \
-			wg-quick up "$$conf"; \
-		else \
-			wg syncconf "$$iface" <(wg-quick strip "$$conf"); \
-			ip link set up dev "$$iface"; \
+		for iface in $$(wg show interfaces 2>/dev/null || true); do \
+			case "$$iface" in wg[0-9]|wg1[0-5]) ;; *) continue ;; esac; \
+			echo "$$PLAN_IFACES" | grep -qx "$$iface" || { \
+				echo "🧹 wg-apply: tearing down stale interface $$iface"; \
+				wg-quick down "$$iface" || true; \
+			}; \
+		done; \
+	\
+		for conf in /etc/wireguard/wg*.conf; do \
+			[ -e "$$conf" ] || continue; \
+			iface="$$(basename "$$conf" .conf)"; \
+			case "$$iface" in wg[0-9]|wg1[0-5]) ;; *) continue ;; esac; \
+			echo "$$PLAN_IFACES" | grep -qx "$$iface" || { \
+				echo "🧹 wg-apply: removing stale server config $$conf"; \
+				rm -f "$$conf"; \
+			}; \
+		done; \
+	\
+		if [ -d "$$WG_ROOT/out/clients" ]; then \
+			find "$$WG_ROOT/out/clients" -type f -name "wg*.conf" -print 2>/dev/null | while IFS= read -r conf; do \
+				[ -e "$$conf" ] || continue; \
+				iface="$$(basename "$$conf" .conf)"; \
+				case "$$iface" in wg[0-9]|wg1[0-5]) ;; *) continue ;; esac; \
+				echo "$$PLAN_IFACES" | grep -qx "$$iface" || { \
+					echo "🧹 wg-apply: removing stale client config $$conf"; \
+					rm -f "$$conf"; \
+				}; \
+			done; \
 		fi; \
-	done; \
 	\
-	for iface in $$ACTIVE_IFACES; do \
-		case "$$iface" in wg[0-9]|wg1[0-5]) ;; *) continue ;; esac; \
-		echo "$$PLAN_IFACES" | grep -qx "$$iface" || wg-quick down "$$iface"; \
-	done \
+		for iface in $$PLAN_IFACES; do \
+			conf="/etc/wireguard/$${iface}.conf"; \
+			[ -f "$$conf" ] || { echo "wg-apply: ERROR: missing $$conf" >&2; exit 1; }; \
+			grep -qE '\''^[[:space:]]*Address[[:space:]]*='\'' "$$conf" || { \
+				echo "wg-apply: ERROR: $$conf missing Address= (refusing to bring up $$iface)" >&2; \
+				exit 1; \
+			}; \
+			# Always converge via syncconf; wg-quick is only for first creation. \
+			STRIPPED="$$(wg-quick strip "$$conf")"; \
+			if ! ip link show "$$iface" >/dev/null 2>&1; then \
+				# Create empty kernel interface (no routes/rules side-effects). \
+				ip link add "$$iface" type wireguard; \
+			fi; \
+			# Apply WireGuard config (keys/peers) idempotently. \
+			printf "%s\n" "$$STRIPPED" | wg setconf "$$iface" /dev/fd/0; \
+			# Converge MTU (wg-quick used to do this). \
+			ip link set mtu 1420 dev "$$iface" 2>/dev/null || true; \
+			# Ensure link is up. \
+			ip link set up dev "$$iface" 2>/dev/null || true; \
+			# Converge addresses (no duplicate-add failures). \
+			ADDRS="$$(sed -n '\''s/^[[:space:]]*Address[[:space:]]*=[[:space:]]*//p'\'' "$$conf" \
+				| tr ",\n" "  " \
+				| awk '\''{ for (i=1;i<=NF;i++) print $$i }'\'')"; \
+			if [ -n "$$ADDRS" ]; then \
+				for cidr in $$ADDRS; do \
+					ip_only="$${cidr%/*}"; \
+					owner="$$(ip -o addr show | awk -v ip="$$ip_only" '\''{ split($$4,a,"/"); if (a[1]==ip) { print $$2; exit } }'\'')"; \
+					[ -z "$$owner" -o "$$owner" = "$$iface" ] || { \
+						echo "wg-apply: ERROR: $$ip_only already assigned on interface $$owner (cannot bring up $$iface)" >&2; \
+						exit 1; \
+					}; \
+					ip addr replace "$$cidr" dev "$$iface"; \
+				done; \
+			fi; \
+		done \
 	'
 
 	@echo "✅ WireGuard kernel state converged"
