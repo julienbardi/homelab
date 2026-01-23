@@ -6,7 +6,7 @@ set -eu
 # Addressing contract (LOCKED):
 #   - Interface wgN uses IPv4 prefix: 10.N.0.0/16
 #   - Server on wgN:                10.N.0.1/16
-#   - Clients on wgN:               10.N.A.B/16
+#   - Clients on wgN:               10.N.A.B/32
 #       A in [1..253], B in [2..254]
 #       (never .0/.255, never .0.1 for clients)
 #   - (A,B) is deterministic per base and identical across all interfaces
@@ -206,7 +206,7 @@ $ab
 EOF
 		unset ab
 
-		client_addr4="10.${ifnum}.${A}.${B}/16"
+		client_addr4="10.${ifnum}.${A}.${B}/32"
 		client_addr6="$(client_addr6_for_ifnum_ab "$ifnum" "$A" "$B")"
   	
 		server_addr4="$(server_addr4_for_ifnum "$ifnum")"
