@@ -258,7 +258,13 @@ EOF
 		if [ "$is_full" -eq 1 ]; then
 			[ "$has_v4" -eq 1 ] || die "iface ${iface} sets FULL without inet-v4 bit"
 			[ "$has_v6" -eq 1 ] || die "iface ${iface} sets FULL without inet-v6 bit"
-			allowed_client="${allowed_client}, 0.0.0.0/0, ::/0"
+
+			if [ "$has_v4" -eq 1 ]; then
+				allowed_client="${allowed_client}, 0.0.0.0/1, 128.0.0.0/1"
+			fi
+			if [ "$has_v6" -eq 1 ]; then
+				allowed_client="${allowed_client}, ::/1, 8000::/1"
+			fi
 		fi
 
 		endpoint="${ENDPOINT_HOST_BASE}:$((ENDPOINT_PORT_BASE + ifnum))"
