@@ -5,10 +5,9 @@ set -euo pipefail
 WG_DIR="/etc/wireguard"
 ROOT="/volume1/homelab/wireguard"
 
-PLAN="$ROOT/compiled/plan.tsv"
-
 WG_BIN="/usr/bin/wg"
-WG_QUICK="/usr/bin/wg-quick"
+
+PLAN="$ROOT/compiled/plan.tsv"
 
 SERVER_KEYS_DIR="$ROOT/server-keys"
 
@@ -144,36 +143,6 @@ for dev in "${ACTIVE_IFACES[@]}"; do
 	echo "$dev.pub"  >>"$KEEP"
 done
 
-
-# --------------------------------------------------------------------
-# No-op fast path: if NEW matches current /etc/wireguard, do nothing
-# --------------------------------------------------------------------
-if [ "$DRY_RUN" != "1" ] && [ -d "$WG_DIR" ]; then
-	unchanged=1
-
-	while IFS= read -r rel; do
-		[ -n "$rel" ] || continue
-		[ -f "$NEW/$rel" ] || die "internal error: missing $NEW/$rel"
-		[ -f "$WG_DIR/$rel" ] || { unchanged=0; break; }
-		cmp -s "$WG_DIR/$rel" "$NEW/$rel" || { unchanged=0; break; }
-	done <"$KEEP"
-
-	# If /etc/wireguard contains extra files outside keep-list (excluding legacy/meta), treat as change.
-	if [ "$unchanged" = "1" ]; then
-		if find "$WG_DIR" -maxdepth 1 -type f \
-			! -name 'last-known-good.list' \
-			! -name '.deploy-meta' \
-			-print -quit | grep -q .; then
-			unchanged=0
-		fi
-	fi
-
-	if [ "$unchanged" = "1" ]; then
-		rm -rf "$NEW" 2>/dev/null || true
-		exit 0
-	fi
-fi
-
 if [ "$DRY_RUN" = "1" ] && [ ! -d "$WG_DIR" ]; then
 	echo "🧪 DRY-RUN: /etc/wireguard does not exist yet; showing proposed tree only"
 	find "$NEW" -maxdepth 2 -type f | sort
@@ -200,6 +169,7 @@ if [ "$DRY_RUN" != "1" ]; then
 
 	mv "$NEW" "$WG_DIR"
 	swapped=1
+	echo "✅ deployed WireGuard config files (kernel apply handled by wg-apply)"
 else
 	echo "🧪 DRY-RUN: skipping /etc/wireguard swap"
 fi
@@ -225,44 +195,6 @@ for f in "$OLD"/*; do
 	b="$(basename "$f")"
 	grep -qx "$b" "$KEEP" || mv "$f" "$LEGACY/"
 done
-
-if [ "$DRY_RUN" != "1" ]; then
-	for dev in "${ACTIVE_IFACES[@]}"; do
-
-		# Read authoritative server config from plan.tsv (cols 10-12)
-		read -r server_addr4 server_addr6 server_routes < <(
-			awk -F'\t' -v iface="$dev" '
-				/^#/ || /^[[:space:]]*$/ { next }
-				$1=="base" && $2=="iface" { next }
-				$2!=iface { next }
-				{
-					if (!seen) { a4=$10; a6=$11; r=$12; seen=1; next }
-					if ($10!=a4 || $11!=a6 || $12!=r) { exit 2 }
-				}
-				END {
-					if (!seen) exit 1
-					print a4, a6, r
-				}
-			' "$PLAN"
-		) || die "plan.tsv: missing or inconsistent server fields for iface '$dev'"
-
-		[ -n "${server_addr4:-}" ] || die "plan.tsv: missing server_addr4 for iface '$dev'"
-		[ -n "${server_addr6:-}" ] || die "plan.tsv: missing server_addr6 for iface '$dev'"
-
-		if ! ip link show "$dev" >/dev/null 2>&1; then
-			ip link add "$dev" type wireguard
-		fi
-
-		"$WG_BIN" setconf "$dev" <("$WG_QUICK" strip "$dev")
-
-		ip -4 address replace "$server_addr4" dev "$dev"
-		ip -6 address replace "$server_addr6" dev "$dev"
-
-		ip link set up dev "$dev"
-	done
-else
-	echo "🧪 DRY-RUN: skipping wg runtime apply"
-fi
 
 rm -rf "$OLD" || true
 swapped=0
