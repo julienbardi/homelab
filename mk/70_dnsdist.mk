@@ -97,14 +97,16 @@ deploy-dnsdist-certs: install-all $(HOMELAB_ENV_DST) $(DEPLOY_CERTS)
 dnsdist-config:
 	@set -eu; \
 	$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
+	rc=0; \
 	CHANGED_EXIT_CODE=3 \
 	$(run_as_root) $(INSTALL_IF_CHANGED) \
-		"$(DNSDIST_CONF_SRC)" "$(DNSDIST_CONF_DST)" root root 0644; \
-	rc="$$?"; \
+		"$(DNSDIST_CONF_SRC)" "$(DNSDIST_CONF_DST)" root root 0644 || rc="$$?"; \
 	if [ "$$rc" -eq 3 ]; then \
 		echo "🔄 dnsdist.conf updated"; \
 		echo "🔁 restarting dnsdist.service"; \
 		$(DNSDIST_RESTART_CMD); \
+	elif [ "$$rc" -ne 0 ]; then \
+		exit "$$rc"; \
 	fi
 
 # --------------------------------------------------------------------
