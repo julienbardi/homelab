@@ -26,15 +26,15 @@
 # ------------------------------------------------------------
 # ------------------------------------------------------------
 # SAFETY:
-# This Caddyfile MUST NOT bind to :80 or :443.
-# UGOS nginx requires those ports and will fail hard otherwise.
+# This Caddyfile MUST NOT bind to :80.
+# Port 443 is explicitly managed here; UGOS nginx must not own it.
 #
 # a) CNAMEs to define
 #    - vpn.bardi.ch      → CNAME to bardi.ch   (Headscale control plane, proxied internally)
 #    - derp.vpn.bardi.ch → CNAME to bardi.ch   (Headscale DERP relay, exposed externally)
 #    - bardi.ch          → A record or CNAME to your dynamic DNS (jam9.synology.me)
 #    - www.bardi.ch      → not needed in your setup
-#    - WireGuard (wg0–wg7) → no extra CNAMEs required; clients use vpn.bardi.ch + port
+#    - WireGuard (wgX) → no extra CNAMEs required; clients use vpn.bardi.ch + port
 #
 # b) Ports to forward
 #    Forward to DiskStation (10.89.12.2):
@@ -45,7 +45,7 @@
 #    Forward to Headscale host (10.89.12.4):
 #      - 8912 (Headscale DERP relay, exposed externally)
 #      - 3478 (UDP STUN/DERP for NAT traversal)
-#      - 51420–51427 (UDP, WireGuard wg0–wg7 interfaces)
+#      - 51420–51427 (UDP, WireGuard wgX interfaces)
 #      - 80   (HTTP, for Let's Encrypt renewal)
 #      - 443  (HTTPS, DSM / DiskStation services)
 #
@@ -53,7 +53,7 @@
 #      - Reason: 8910 is the Headscale API. Exposing it directly increases attack surface.
 #        Instead, clients connect via vpn.bardi.ch on 443, with Caddy proxying internally.
 #
-# c) WireGuard VPN (wg0–wg7 on 51420–51427 UDP)
+# c) WireGuard VPN (wgX on 51420–51427 UDP)
 #    - No extra CNAMEs are needed: WireGuard clients connect directly to your public IP + port.
 #    - You can use vpn.bardi.ch as the hostname for convenience:
 #        wg0 → udp://vpn.bardi.ch:51420
@@ -100,7 +100,7 @@ bardi.ch:8384 {
 	@syno5001_internal {
 		host bardi.ch
 		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
+		remote_ip fd89:7a3b:42c0::/64
 	}
 	reverse_proxy @syno5001_internal 10.89.12.2:5001 {
 		header_up Host bardi.ch
@@ -110,7 +110,7 @@ bardi.ch:8384 {
 	@syno5006_internal {
 		host bardi.ch
 		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
+		remote_ip fd89:7a3b:42c0::/64
 	}
 	reverse_proxy @syno5006_internal 10.89.12.2:5006 {
 		header_up Host bardi.ch
@@ -120,7 +120,7 @@ bardi.ch:8384 {
 	@syno6690_internal {
 		host bardi.ch
 		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
+		remote_ip fd89:7a3b:42c0::/64
 	}
 	reverse_proxy @syno6690_internal 10.89.12.2:6690 {
 		header_up Host bardi.ch
@@ -143,7 +143,7 @@ bardi.ch:8384 {
 	@qnap_internal {
 		host qnap.bardi.ch
 		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
+		remote_ip fd89:7a3b:42c0::/64
 	}
 	reverse_proxy @qnap_internal 10.89.12.3:8080
 
@@ -151,7 +151,7 @@ bardi.ch:8384 {
 	@nas_internal {
 		host nas.bardi.ch
 		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
+		remote_ip fd89:7a3b:42c0::/64
 	}
 	reverse_proxy @nas_internal 10.89.12.4:9999
 
@@ -159,7 +159,7 @@ bardi.ch:8384 {
 	@router_internal {
 		host router.bardi.ch
 		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
+		remote_ip fd89:7a3b:42c0::/64
 	}
 	reverse_proxy @router_internal 10.89.12.1:8080
 
@@ -169,27 +169,13 @@ bardi.ch:8384 {
 
 		# LAN IPv4 + IPv6
 		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
+		remote_ip fd89:7a3b:42c0::/64
 
-		# WireGuard IPv4 subnets (wg0–wg7)
-		remote_ip 10.0.0.0/24
-		remote_ip 10.1.0.0/24
-		remote_ip 10.2.0.0/24
-		remote_ip 10.3.0.0/24
-		remote_ip 10.4.0.0/24
-		remote_ip 10.5.0.0/24
-		remote_ip 10.6.0.0/24
-		remote_ip 10.7.0.0/24
+		# WireGuard IPv4
+		remote_ip 10.0.0.0/8
 
-		# WireGuard IPv6 /128s
-		remote_ip 2a01:8b81:4800:9c00:10::1/128
-		remote_ip 2a01:8b81:4800:9c00:11::1/128
-		remote_ip 2a01:8b81:4800:9c00:12::1/128
-		remote_ip 2a01:8b81:4800:9c00:13::1/128
-		remote_ip 2a01:8b81:4800:9c00:14::1/128
-		remote_ip 2a01:8b81:4800:9c00:15::1/128
-		remote_ip 2a01:8b81:4800:9c00:16::1/128
-		remote_ip 2a01:8b81:4800:9c00:17::1/128
+		# WireGuard IPv6 (ULA)
+		remote_ip fd89:7a3b:42c0::/48
 
 		# Tailscale CGNAT range
 		remote_ip 100.64.0.0/10
@@ -204,27 +190,13 @@ bardi.ch:8384 {
 
 		# LAN IPv4 + IPv6
 		remote_ip 10.89.12.0/24
-		remote_ip 2a01:8b81:4800:9c00::/64
+		remote_ip fd89:7a3b:42c0::/64
 
-		# WireGuard IPv4 subnets (wg0–wg7)
-		remote_ip 10.0.0.0/24
-		remote_ip 10.1.0.0/24
-		remote_ip 10.2.0.0/24
-		remote_ip 10.3.0.0/24
-		remote_ip 10.4.0.0/24
-		remote_ip 10.5.0.0/24
-		remote_ip 10.6.0.0/24
-		remote_ip 10.7.0.0/24
+		# WireGuard IPv4 subnets
+		remote_ip 10.0.0.0/8
 
-		# WireGuard IPv6 /128s
-		remote_ip 2a01:8b81:4800:9c00:10::1/128
-		remote_ip 2a01:8b81:4800:9c00:11::1/128
-		remote_ip 2a01:8b81:4800:9c00:12::1/128
-		remote_ip 2a01:8b81:4800:9c00:13::1/128
-		remote_ip 2a01:8b81:4800:9c00:14::1/128
-		remote_ip 2a01:8b81:4800:9c00:15::1/128
-		remote_ip 2a01:8b81:4800:9c00:16::1/128
-		remote_ip 2a01:8b81:4800:9c00:17::1/128
+		# WireGuard IPv6 (ULA)
+		remote_ip fd89:7a3b:42c0::/48
 
 		# Tailscale CGNAT range
 		remote_ip 100.64.0.0/10
