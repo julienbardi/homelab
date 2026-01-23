@@ -3,8 +3,11 @@
 # Declarative firewall ruleset for the homelab network
 #
 # First-run safe: replaces the entire ruleset atomically when loaded via `nft -f`.
-flush ruleset
+# NOTE: WG interfaces never route to each other
+# NOTE: No delegated global IPv6 to WG clients
+# NOTE: IPv6 Internet requires NAT66 by design
 
+flush ruleset
 # -----------------------------------------------------------------------------
 # Filter table (inet)
 # -----------------------------------------------------------------------------
@@ -13,7 +16,7 @@ table inet homelab_filter {
         type filter hook input priority 0; policy drop;
 
         # Baseline
-        ct state established,related accept comment "sr:input-ct"
+        ct state established,related accept counter comment "sr:input-ct"
         iifname "lo" accept comment "sr:input-lo"
 
         # DNS Queries to Unbound (preserved loopback logic)
@@ -21,13 +24,14 @@ table inet homelab_filter {
         iifname "lo" tcp dport 5335 accept comment "sr:input-lo-dns-tcp"
 
         # Host Access
-        iifname "eth0" ip saddr 10.89.12.0/24 accept comment "sr:input-lan-v4"
-        iifname "eth0" ip6 saddr 2a01:8b81:4800:9c00::/64 accept comment "sr:input-lan-v6"
+        iifname "eth0" ip  saddr 10.89.12.0/24 accept comment "sr:input-lan-v4"
+        # Any IPv6 not in the internal ULA realm is treated as LAN/global
+        iifname "eth0" ip6 saddr != fd89:7a3b:42c0::/48 accept comment "sr:input-lan-v6"
         ip protocol icmp accept comment "sr:input-icmp-v4"
         ip6 nexthdr icmpv6 accept comment "sr:input-icmp-v6"
 
         # Trusted Router Clients
-        iifname "eth0" ip saddr 10.6.0.0/24 accept comment "sr:input-trusted-v4"
+        iifname "eth0" ip  saddr 10.6.0.0/24        accept comment "sr:input-trusted-v4"
         iifname "eth0" ip6 saddr fd5e:d23d:70e:111::/64 accept comment "sr:input-trusted-v6"
 
         # Essential Services
@@ -39,120 +43,141 @@ table inet homelab_filter {
 
         # --- WireGuard: host access rules + per-iface handshake ports (wg1..wg15) ---
         iifname "wg1"  ip  saddr 10.1.0.0/16  accept comment "sr:input-wg1-host-v4"
-        iifname "wg1"  ip6 saddr 2a01:8b81:4800:9c01::/64 accept comment "sr:input-wg1-host-v6"
         iifname "eth0" udp dport 51421 ct state new,established accept comment "sr:input-wg1-hs"
 
         iifname "wg2"  ip  saddr 10.2.0.0/16  accept comment "sr:input-wg2-host-v4"
-        iifname "wg2"  ip6 saddr 2a01:8b81:4800:9c02::/64 accept comment "sr:input-wg2-host-v6"
         iifname "eth0" udp dport 51422 ct state new,established accept comment "sr:input-wg2-hs"
 
         iifname "wg3"  ip  saddr 10.3.0.0/16  accept comment "sr:input-wg3-host-v4"
-        iifname "wg3"  ip6 saddr 2a01:8b81:4800:9c03::/64 accept comment "sr:input-wg3-host-v6"
         iifname "eth0" udp dport 51423 ct state new,established accept comment "sr:input-wg3-hs"
 
         iifname "wg4"  ip  saddr 10.4.0.0/16  accept comment "sr:input-wg4-host-v4"
-        iifname "wg4"  ip6 saddr 2a01:8b81:4800:9c04::/64 accept comment "sr:input-wg4-host-v6"
         iifname "eth0" udp dport 51424 ct state new,established accept comment "sr:input-wg4-hs"
 
         iifname "wg5"  ip  saddr 10.5.0.0/16  accept comment "sr:input-wg5-host-v4"
-        iifname "wg5"  ip6 saddr 2a01:8b81:4800:9c05::/64 accept comment "sr:input-wg5-host-v6"
         iifname "eth0" udp dport 51425 ct state new,established accept comment "sr:input-wg5-hs"
 
         iifname "wg6"  ip  saddr 10.6.0.0/16  accept comment "sr:input-wg6-host-v4"
-        iifname "wg6"  ip6 saddr 2a01:8b81:4800:9c06::/64 accept comment "sr:input-wg6-host-v6"
         iifname "eth0" udp dport 51426 ct state new,established accept comment "sr:input-wg6-hs"
 
         iifname "wg7"  ip  saddr 10.7.0.0/16  accept comment "sr:input-wg7-host-v4"
-        iifname "wg7"  ip6 saddr 2a01:8b81:4800:9c07::/64 accept comment "sr:input-wg7-host-v6"
         iifname "eth0" udp dport 51427 ct state new,established accept comment "sr:input-wg7-hs"
 
         iifname "wg8"  ip  saddr 10.8.0.0/16  accept comment "sr:input-wg8-host-v4"
-        iifname "wg8"  ip6 saddr 2a01:8b81:4800:9c08::/64 accept comment "sr:input-wg8-host-v6"
         iifname "eth0" udp dport 51428 ct state new,established accept comment "sr:input-wg8-hs"
 
         iifname "wg9"  ip  saddr 10.9.0.0/16  accept comment "sr:input-wg9-host-v4"
-        iifname "wg9"  ip6 saddr 2a01:8b81:4800:9c09::/64 accept comment "sr:input-wg9-host-v6"
         iifname "eth0" udp dport 51429 ct state new,established accept comment "sr:input-wg9-hs"
 
         iifname "wg10" ip  saddr 10.10.0.0/16 accept comment "sr:input-wg10-host-v4"
-        iifname "wg10" ip6 saddr 2a01:8b81:4800:9c0a::/64 accept comment "sr:input-wg10-host-v6"
         iifname "eth0" udp dport 51430 ct state new,established accept comment "sr:input-wg10-hs"
 
         iifname "wg11" ip  saddr 10.11.0.0/16 accept comment "sr:input-wg11-host-v4"
-        iifname "wg11" ip6 saddr 2a01:8b81:4800:9c0b::/64 accept comment "sr:input-wg11-host-v6"
         iifname "eth0" udp dport 51431 ct state new,established accept comment "sr:input-wg11-hs"
 
         iifname "wg12" ip  saddr 10.12.0.0/16 accept comment "sr:input-wg12-host-v4"
-        iifname "wg12" ip6 saddr 2a01:8b81:4800:9c0c::/64 accept comment "sr:input-wg12-host-v6"
         iifname "eth0" udp dport 51432 ct state new,established accept comment "sr:input-wg12-hs"
 
         iifname "wg13" ip  saddr 10.13.0.0/16 accept comment "sr:input-wg13-host-v4"
-        iifname "wg13" ip6 saddr 2a01:8b81:4800:9c0d::/64 accept comment "sr:input-wg13-host-v6"
         iifname "eth0" udp dport 51433 ct state new,established accept comment "sr:input-wg13-hs"
 
         iifname "wg14" ip  saddr 10.14.0.0/16 accept comment "sr:input-wg14-host-v4"
-        iifname "wg14" ip6 saddr 2a01:8b81:4800:9c0e::/64 accept comment "sr:input-wg14-host-v6"
         iifname "eth0" udp dport 51434 ct state new,established accept comment "sr:input-wg14-hs"
 
         iifname "wg15" ip  saddr 10.15.0.0/16 accept comment "sr:input-wg15-host-v4"
-        iifname "wg15" ip6 saddr 2a01:8b81:4800:9c0f::/64 accept comment "sr:input-wg15-host-v6"
         iifname "eth0" udp dport 51435 ct state new,established accept comment "sr:input-wg15-hs"
 
+        iifname "wg1"  ip6 saddr fd89:7a3b:42c0:1::/64  accept comment "sr:input-wg1-host-ula-v6"
+        iifname "wg2"  ip6 saddr fd89:7a3b:42c0:2::/64  accept comment "sr:input-wg2-host-ula-v6"
+        iifname "wg3"  ip6 saddr fd89:7a3b:42c0:3::/64  accept comment "sr:input-wg3-host-ula-v6"
+        iifname "wg4"  ip6 saddr fd89:7a3b:42c0:4::/64  accept comment "sr:input-wg4-host-ula-v6"
+        iifname "wg5"  ip6 saddr fd89:7a3b:42c0:5::/64  accept comment "sr:input-wg5-host-ula-v6"
+        iifname "wg6"  ip6 saddr fd89:7a3b:42c0:6::/64  accept comment "sr:input-wg6-host-ula-v6"
+        iifname "wg7"  ip6 saddr fd89:7a3b:42c0:7::/64  accept comment "sr:input-wg7-host-ula-v6"
+        iifname "wg8"  ip6 saddr fd89:7a3b:42c0:8::/64  accept comment "sr:input-wg8-host-ula-v6"
+        iifname "wg9"  ip6 saddr fd89:7a3b:42c0:9::/64  accept comment "sr:input-wg9-host-ula-v6"
+        iifname "wg10" ip6 saddr fd89:7a3b:42c0:10::/64 accept comment "sr:input-wg10-host-ula-v6"
+        iifname "wg11" ip6 saddr fd89:7a3b:42c0:11::/64 accept comment "sr:input-wg11-host-ula-v6"
+        iifname "wg12" ip6 saddr fd89:7a3b:42c0:12::/64 accept comment "sr:input-wg12-host-ula-v6"
+        iifname "wg13" ip6 saddr fd89:7a3b:42c0:13::/64 accept comment "sr:input-wg13-host-ula-v6"
+        iifname "wg14" ip6 saddr fd89:7a3b:42c0:14::/64 accept comment "sr:input-wg14-host-ula-v6"
+        iifname "wg15" ip6 saddr fd89:7a3b:42c0:15::/64 accept comment "sr:input-wg15-host-ula-v6"
+
         # --- Tailscale ---
-        iifname "tailscale0" ip  saddr 100.64.0.0/10 accept comment "sr:input-ts-v4"
+        iifname "tailscale0" ip  saddr 100.64.0.0/10  accept comment "sr:input-ts-v4"
         iifname "tailscale0" ip6 saddr fd7a:115c:a1e0::/48 accept comment "sr:input-ts-v6"
     }
 
     chain forward {
         type filter hook forward priority 0; policy drop;
 
-        ct state established,related accept comment "sr:forward-ct"
+        ct state established,related counter accept comment "sr:forward-ct"
 
         # Trusted Router -> LAN
         iifname "eth0" oifname "eth0" ip  saddr 10.6.0.0/24        ip  daddr 10.89.12.0/24        accept comment "sr:forward-trusted-lan-v4"
-        iifname "eth0" oifname "eth0" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-trusted-lan-v6"
+        # Trusted router to any global IPv6 on LAN (non-ULA)
+        iifname "eth0" oifname "eth0" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-trusted-lan-v6"
 
         # --- WireGuard forwarding (wg1..wg15) based on the original bit model ---
         # LAN access bit (odd ifnum): allow WG <-> LAN (v4 + v6)
         iifname "wg1"  oifname "eth0" ip  saddr 10.1.0.0/16  ip  daddr 10.89.12.0/24 accept comment "sr:forward-wg1-lan-v4"
         iifname "eth0" oifname "wg1"  ip  saddr 10.89.12.0/24 ip daddr 10.1.0.0/16  accept comment "sr:forward-wg1-lan-v4-rev"
-        iifname "wg1"  oifname "eth0" ip6 saddr 2a01:8b81:4800:9c01::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg1-lan-v6"
-        iifname "eth0" oifname "wg1"  ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c01::/64 accept comment "sr:forward-wg1-lan-v6-rev"
+        iifname "wg1"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:1::/64 ip6 daddr fd89:7a3b:42c0::/64 accept comment "sr:forward-wg1-lan-ula-v6"
+        # WG1 ULA -> any global IPv6 on LAN
+        iifname "wg1"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:1::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-wg1-lan-global-v6"
+        # LAN global IPv6 -> WG1 ULA
+        iifname "eth0" oifname "wg1"  ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd89:7a3b:42c0:1::/64 accept comment "sr:forward-wg1-lan-global-v6-rev"
+        # LAN ULA <-> WG1 ULA
+        iifname "eth0" oifname "wg1"  ip6 saddr fd89:7a3b:42c0::/64 ip6 daddr fd89:7a3b:42c0:1::/64 accept comment "sr:forward-wg1-lan-ula-v6-rev"
 
         iifname "wg3"  oifname "eth0" ip  saddr 10.3.0.0/16  ip  daddr 10.89.12.0/24 accept comment "sr:forward-wg3-lan-v4"
         iifname "eth0" oifname "wg3"  ip  saddr 10.89.12.0/24 ip daddr 10.3.0.0/16  accept comment "sr:forward-wg3-lan-v4-rev"
-        iifname "wg3"  oifname "eth0" ip6 saddr 2a01:8b81:4800:9c03::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg3-lan-v6"
-        iifname "eth0" oifname "wg3"  ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c03::/64 accept comment "sr:forward-wg3-lan-v6-rev"
+        iifname "wg3"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:3::/64 ip6 daddr fd89:7a3b:42c0::/64 accept comment "sr:forward-wg3-lan-ula-v6"
+        iifname "wg3"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:3::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-wg3-lan-global-v6"
+        iifname "eth0" oifname "wg3"  ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd89:7a3b:42c0:3::/64 accept comment "sr:forward-wg3-lan-global-v6-rev"
+        iifname "eth0" oifname "wg3"  ip6 saddr fd89:7a3b:42c0::/64 ip6 daddr fd89:7a3b:42c0:3::/64 accept comment "sr:forward-wg3-lan-ula-v6-rev"
 
         iifname "wg5"  oifname "eth0" ip  saddr 10.5.0.0/16  ip  daddr 10.89.12.0/24 accept comment "sr:forward-wg5-lan-v4"
         iifname "eth0" oifname "wg5"  ip  saddr 10.89.12.0/24 ip daddr 10.5.0.0/16  accept comment "sr:forward-wg5-lan-v4-rev"
-        iifname "wg5"  oifname "eth0" ip6 saddr 2a01:8b81:4800:9c05::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg5-lan-v6"
-        iifname "eth0" oifname "wg5"  ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c05::/64 accept comment "sr:forward-wg5-lan-v6-rev"
+        iifname "wg5"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:5::/64 ip6 daddr fd89:7a3b:42c0::/64 accept comment "sr:forward-wg5-lan-ula-v6"
+        iifname "wg5"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:5::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-wg5-lan-global-v6"
+        iifname "eth0" oifname "wg5"  ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd89:7a3b:42c0:5::/64 accept comment "sr:forward-wg5-lan-global-v6-rev"
+        iifname "eth0" oifname "wg5"  ip6 saddr fd89:7a3b:42c0::/64 ip6 daddr fd89:7a3b:42c0:5::/64 accept comment "sr:forward-wg5-lan-ula-v6-rev"
 
         iifname "wg7"  oifname "eth0" ip  saddr 10.7.0.0/16  ip  daddr 10.89.12.0/24 accept comment "sr:forward-wg7-lan-v4"
         iifname "eth0" oifname "wg7"  ip  saddr 10.89.12.0/24 ip daddr 10.7.0.0/16  accept comment "sr:forward-wg7-lan-v4-rev"
-        iifname "wg7"  oifname "eth0" ip6 saddr 2a01:8b81:4800:9c07::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg7-lan-v6"
-        iifname "eth0" oifname "wg7"  ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c07::/64 accept comment "sr:forward-wg7-lan-v6-rev"
+        iifname "wg7"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:7::/64 ip6 daddr fd89:7a3b:42c0::/64 accept comment "sr:forward-wg7-lan-ula-v6"
+        iifname "wg7"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:7::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-wg7-lan-global-v6"
+        iifname "eth0" oifname "wg7"  ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd89:7a3b:42c0:7::/64 accept comment "sr:forward-wg7-lan-global-v6-rev"
+        iifname "eth0" oifname "wg7"  ip6 saddr fd89:7a3b:42c0::/64 ip6 daddr fd89:7a3b:42c0:7::/64 accept comment "sr:forward-wg7-lan-ula-v6-rev"
 
         iifname "wg9"  oifname "eth0" ip  saddr 10.9.0.0/16  ip  daddr 10.89.12.0/24 accept comment "sr:forward-wg9-lan-v4"
         iifname "eth0" oifname "wg9"  ip  saddr 10.89.12.0/24 ip daddr 10.9.0.0/16  accept comment "sr:forward-wg9-lan-v4-rev"
-        iifname "wg9"  oifname "eth0" ip6 saddr 2a01:8b81:4800:9c09::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg9-lan-v6"
-        iifname "eth0" oifname "wg9"  ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c09::/64 accept comment "sr:forward-wg9-lan-v6-rev"
+        iifname "wg9"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:9::/64 ip6 daddr fd89:7a3b:42c0::/64 accept comment "sr:forward-wg9-lan-ula-v6"
+        iifname "wg9"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:9::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-wg9-lan-global-v6"
+        iifname "eth0" oifname "wg9"  ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd89:7a3b:42c0:9::/64 accept comment "sr:forward-wg9-lan-global-v6-rev"
+        iifname "eth0" oifname "wg9"  ip6 saddr fd89:7a3b:42c0::/64 ip6 daddr fd89:7a3b:42c0:9::/64 accept comment "sr:forward-wg9-lan-ula-v6-rev"
 
         iifname "wg11" oifname "eth0" ip  saddr 10.11.0.0/16 ip  daddr 10.89.12.0/24 accept comment "sr:forward-wg11-lan-v4"
         iifname "eth0" oifname "wg11" ip  saddr 10.89.12.0/24 ip daddr 10.11.0.0/16 accept comment "sr:forward-wg11-lan-v4-rev"
-        iifname "wg11" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0b::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg11-lan-v6"
-        iifname "eth0" oifname "wg11" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c0b::/64 accept comment "sr:forward-wg11-lan-v6-rev"
+        iifname "wg11"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:11::/64 ip6 daddr fd89:7a3b:42c0::/64 accept comment "sr:forward-wg11-lan-ula-v6"
+        iifname "wg11"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:11::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-wg11-lan-global-v6"
+        iifname "eth0" oifname "wg11"  ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd89:7a3b:42c0:11::/64 accept comment "sr:forward-wg11-lan-global-v6-rev"
+        iifname "eth0" oifname "wg11"  ip6 saddr fd89:7a3b:42c0::/64 ip6 daddr fd89:7a3b:42c0:11::/64 accept comment "sr:forward-wg11-lan-ula-v6-rev"
 
         iifname "wg13" oifname "eth0" ip  saddr 10.13.0.0/16 ip  daddr 10.89.12.0/24 accept comment "sr:forward-wg13-lan-v4"
         iifname "eth0" oifname "wg13" ip  saddr 10.89.12.0/24 ip daddr 10.13.0.0/16 accept comment "sr:forward-wg13-lan-v4-rev"
-        iifname "wg13" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0d::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg13-lan-v6"
-        iifname "eth0" oifname "wg13" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c0d::/64 accept comment "sr:forward-wg13-lan-v6-rev"
+        iifname "wg13"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:13::/64 ip6 daddr fd89:7a3b:42c0::/64 accept comment "sr:forward-wg13-lan-ula-v6"
+        iifname "wg13"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:13::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-wg13-lan-global-v6"
+        iifname "eth0" oifname "wg13"  ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd89:7a3b:42c0:13::/64 accept comment "sr:forward-wg13-lan-global-v6-rev"
+        iifname "eth0" oifname "wg13"  ip6 saddr fd89:7a3b:42c0::/64 ip6 daddr fd89:7a3b:42c0:13::/64 accept comment "sr:forward-wg13-lan-ula-v6-rev"
 
         iifname "wg15" oifname "eth0" ip  saddr 10.15.0.0/16 ip  daddr 10.89.12.0/24 accept comment "sr:forward-wg15-lan-v4"
         iifname "eth0" oifname "wg15" ip  saddr 10.89.12.0/24 ip daddr 10.15.0.0/16 accept comment "sr:forward-wg15-lan-v4-rev"
-        iifname "wg15" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0f::/64 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg15-lan-v6"
-        iifname "eth0" oifname "wg15" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr 2a01:8b81:4800:9c0f::/64 accept comment "sr:forward-wg15-lan-v6-rev"
+        iifname "wg15"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:15::/64 ip6 daddr fd89:7a3b:42c0::/64 accept comment "sr:forward-wg15-lan-ula-v6"
+        iifname "wg15"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:15::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-wg15-lan-global-v6"
+        iifname "eth0" oifname "wg15"  ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd89:7a3b:42c0:15::/64 accept comment "sr:forward-wg15-lan-global-v6-rev"
+        iifname "eth0" oifname "wg15"  ip6 saddr fd89:7a3b:42c0::/64 ip6 daddr fd89:7a3b:42c0:15::/64 accept comment "sr:forward-wg15-lan-ula-v6-rev"
 
         # Internet IPv4 bit (ifnum has bit1 set): allow WG -> internet (v4) + NAT handled in homelab_nat
         iifname "wg2"  oifname "eth0" ip saddr 10.2.0.0/16  ip daddr != 10.89.12.0/24 accept comment "sr:forward-wg2-inet-v4"
@@ -164,15 +189,17 @@ table inet homelab_filter {
         iifname "wg14" oifname "eth0" ip saddr 10.14.0.0/16 ip daddr != 10.89.12.0/24 accept comment "sr:forward-wg14-inet-v4"
         iifname "wg15" oifname "eth0" ip saddr 10.15.0.0/16 ip daddr != 10.89.12.0/24 accept comment "sr:forward-wg15-inet-v4"
 
-        # Internet IPv6 bit (ifnum has bit2 set): allow WG -> internet (v6, no NAT)
-        iifname "wg4"  oifname "eth0" ip6 saddr 2a01:8b81:4800:9c04::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg4-inet-v6"
-        iifname "wg5"  oifname "eth0" ip6 saddr 2a01:8b81:4800:9c05::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg5-inet-v6"
-        iifname "wg6"  oifname "eth0" ip6 saddr 2a01:8b81:4800:9c06::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg6-inet-v6"
-        iifname "wg7"  oifname "eth0" ip6 saddr 2a01:8b81:4800:9c07::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg7-inet-v6"
-        iifname "wg12" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0c::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg12-inet-v6"
-        iifname "wg13" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0d::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg13-inet-v6"
-        iifname "wg14" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0e::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg14-inet-v6"
-        iifname "wg15" oifname "eth0" ip6 saddr 2a01:8b81:4800:9c0f::/64 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-wg15-inet-v6"
+        # Internet IPv6 bit (ifnum has bit2 set): Forwarding rule (ULA → Internet)
+        iifname "wg4"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:4::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg4-inet-ula-v6"
+        iifname "wg5"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:5::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg5-inet-ula-v6"
+        iifname "wg6"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:6::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg6-inet-ula-v6"
+        iifname "wg7"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:7::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg7-inet-ula-v6"
+        iifname "wg12" oifname "eth0" ip6 saddr fd89:7a3b:42c0:12::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg12-inet-ula-v6"
+        iifname "wg13" oifname "eth0" ip6 saddr fd89:7a3b:42c0:13::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg13-inet-ula-v6"
+        iifname "wg14" oifname "eth0" ip6 saddr fd89:7a3b:42c0:14::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg14-inet-ula-v6"
+        iifname "wg15" oifname "eth0" ip6 saddr fd89:7a3b:42c0:15::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg15-inet-ula-v6"
+
+        iifname "eth0" oifname "wg+" ip6 daddr fd89:7a3b:42c0::/48 ct state established,related counter accept comment "sr:forward-wg-inet-ula-v6-rev"
 
         # --- Tailscale forwarding ---
         iifname "tailscale0" ip  saddr 100.64.0.0/10 accept comment "sr:forward-ts-v4"
@@ -181,10 +208,13 @@ table inet homelab_filter {
         iifname "tailscale0" ip6 saddr fd7a:115c:a1e0::/48 accept comment "sr:forward-ts-v6"
         oifname "tailscale0" ip6 daddr fd7a:115c:a1e0::/48 accept comment "sr:forward-ts-v6-rev"
 
-        iifname "tailscale0" oifname "eth0" ip6 saddr fd7a:115c:a1e0::/48 ip6 daddr 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-ts-lan-v6"
-        iifname "eth0" oifname "tailscale0" ip6 saddr 2a01:8b81:4800:9c00::/64 ip6 daddr fd7a:115c:a1e0::/48 accept comment "sr:forward-ts-lan-v6-rev"
+        # Tailscale -> LAN global IPv6 (non-ULA)
+        iifname "tailscale0" oifname "eth0" ip6 saddr fd7a:115c:a1e0::/48 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-ts-lan-v6"
+        # LAN global IPv6 -> Tailscale
+        iifname "eth0" oifname "tailscale0" ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd7a:115c:a1e0::/48 accept comment "sr:forward-ts-lan-v6-rev"
 
-        iifname "tailscale0" oifname "eth0" ip6 saddr fd7a:115c:a1e0::/48 ip6 daddr != 2a01:8b81:4800:9c00::/64 accept comment "sr:forward-ts-inet-v6"
+        # Tailscale -> Internet v6 (anything non-ULA via eth0)
+        iifname "tailscale0" oifname "eth0" ip6 saddr fd7a:115c:a1e0::/48 ip6 daddr != fd89:7a3b:42c0::/48 counter accept comment "sr:forward-ts-inet-v6"
     }
 
     chain output {
@@ -227,6 +257,18 @@ table ip homelab_nat {
         oifname "eth0" ip saddr 10.11.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg11-lan-v4"
         oifname "eth0" ip saddr 10.13.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg13-lan-v4"
         oifname "eth0" ip saddr 10.15.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg15-lan-v4"
+    }
+}
 
+# -----------------------------------------------------------------------------
+# NAT66 for WG interfaces with IPv6 Internet bit set
+# NAT66 is already gated by forwarding rules, Interfaces without IPv6 Internet never reach this chain
+# -----------------------------------------------------------------------------
+table ip6 homelab_nat6 {
+    chain postrouting {
+        type nat hook postrouting priority 100; policy accept;
+
+        # Any ULA from fd89:7a3b:42c0::/48 leaving via eth0 is NAT66'd
+        oifname "eth0" ip6 saddr fd89:7a3b:42c0::/48 masquerade comment "sr:nat-wg-inet-v6"
     }
 }
