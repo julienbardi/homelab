@@ -75,19 +75,29 @@ wg-apply: wg-deployed
 
 	@echo "🔁 Reconciling WireGuard kernel state"
 
-	@$(run_as_root) sh -ec '\
-	PLAN_IFACES="$$(awk -F'\''\t'\'' \
-		'\''/^#/ { next } NR<=2 { next } { print $$2 }'\'' \
+	@$(run_as_root) bash -euo pipefail -c '\
+	PLAN_IFACES="$$(awk -F'\''\t'\'' '\
+		/^#/ { next } \
+		/^[[:space:]]*$$/ { next } \
+		$$1=="base" && $$2=="iface" { next } \
+		{ print $$2 }' \
 		$(WG_ROOT)/compiled/plan.tsv | sort -u)"; \
 	ACTIVE_IFACES="$$(wg show interfaces || true)"; \
 	\
 	for iface in $$PLAN_IFACES; do \
-		wg syncconf "$$iface" <(wg-quick strip "$$iface"); \
+		conf="/etc/wireguard/$${iface}.conf"; \
+		[ -f "$$conf" ] || { echo "wg-apply: ERROR: missing $$conf" >&2; exit 1; }; \
+		if ! ip link show "$$iface" >/dev/null 2>&1; then \
+			wg-quick up "$$conf"; \
+		else \
+			wg syncconf "$$iface" <(wg-quick strip "$$conf"); \
+			ip link set up dev "$$iface"; \
+		fi; \
 	done; \
 	\
 	for iface in $$ACTIVE_IFACES; do \
-		echo "$$PLAN_IFACES" | grep -qx "$$iface" || \
-			wg-quick down "$$iface"; \
+		case "$$iface" in wg[0-9]|wg1[0-5]) ;; *) continue ;; esac; \
+		echo "$$PLAN_IFACES" | grep -qx "$$iface" || wg-quick down "$$iface"; \
 	done \
 	'
 
