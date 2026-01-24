@@ -16,7 +16,7 @@ table inet homelab_filter {
         type filter hook input priority 0; policy drop;
 
         # Baseline
-        ct state established,related accept counter comment "sr:input-ct"
+        ct state established,related counter accept comment "sr:input-ct"
         iifname "lo" accept comment "sr:input-lo"
 
         # DNS Queries to Unbound (preserved loopback logic)
@@ -201,6 +201,10 @@ table inet homelab_filter {
 
         iifname "eth0" oifname "wg+" ip6 daddr fd89:7a3b:42c0::/48 ct state established,related counter accept comment "sr:forward-wg-inet-ula-v6-rev"
 
+        # IPv6 Internet return path for full‑tunnel profiles
+        iifname "eth0" oifname "wg14" ip6 daddr fd89:7a3b:42c0:14::/64 ct state established,related accept comment "sr:forward-wg14-inet-v6-rev"
+        iifname "eth0" oifname "wg15" ip6 daddr fd89:7a3b:42c0:15::/64 ct state established,related accept comment "sr:forward-wg15-inet-v6-rev"
+
         # --- Tailscale forwarding ---
         iifname "tailscale0" ip  saddr 100.64.0.0/10 accept comment "sr:forward-ts-v4"
         oifname "tailscale0" ip  daddr 100.64.0.0/10 accept comment "sr:forward-ts-v4-rev"
@@ -249,14 +253,15 @@ table ip homelab_nat {
         oifname "eth0" ip saddr 100.64.0.0/10 masquerade comment "sr:nat-ts-v4"
 
         # WG LAN IPv4 NAT (LAN access bit set)
-        oifname "eth0" ip saddr 10.1.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg1-lan-v4"
-        oifname "eth0" ip saddr 10.3.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg3-lan-v4"
-        oifname "eth0" ip saddr 10.5.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg5-lan-v4"
-        oifname "eth0" ip saddr 10.7.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg7-lan-v4"
-        oifname "eth0" ip saddr 10.9.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg9-lan-v4"
-        oifname "eth0" ip saddr 10.11.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg11-lan-v4"
-        oifname "eth0" ip saddr 10.13.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg13-lan-v4"
-        oifname "eth0" ip saddr 10.15.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg15-lan-v4"
+        # Routing on the router, no NAT for LAN on the NAS -> keep commented
+        #oifname "eth0" ip saddr 10.1.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg1-lan-v4"
+        #oifname "eth0" ip saddr 10.3.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg3-lan-v4"
+        #oifname "eth0" ip saddr 10.5.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg5-lan-v4"
+        #oifname "eth0" ip saddr 10.7.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg7-lan-v4"
+        #oifname "eth0" ip saddr 10.9.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg9-lan-v4"
+        #oifname "eth0" ip saddr 10.11.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg11-lan-v4"
+        #oifname "eth0" ip saddr 10.13.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg13-lan-v4"
+        #oifname "eth0" ip saddr 10.15.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg15-lan-v4"
     }
 }
 

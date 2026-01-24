@@ -51,8 +51,14 @@ ALLOC="$OUT_DIR/alloc.csv"
 LOCK="$OUT_DIR/clients.lock.csv"
 PLAN="$OUT_DIR/plan.tsv"
 
+die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
+
 ENDPOINT_HOST_BASE="vpn.bardi.ch"
 ENDPOINT_PORT_BASE="51420"
+
+# Endpoint must remain a hostname (dynamic WAN IP); clients will resolve it.
+# Note: if you ever hit a “FULL tunnel can’t resolve endpoint” bootstrap issue on a
+# specific client platform, solve it explicitly there (not by freezing a dynamic IP).
 
 # IPv6 (ULA-only) — authoritative constants
 WG_ULA_PREFIX="fd89:7a3b:42c0"     # /48, written as 3 hextets
@@ -60,11 +66,8 @@ WG_ULA_LAN_CIDR="fd89:7a3b:42c0::/64"
 WG_ULA_NAS="fd89:7a3b:42c0::4"
 WG_ULA_WG_PREFIXLEN="64"
 
-
 STAGE="$OUT_DIR/.staging.$$"
 umask 077
-
-die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
 
 wg_ifnum_sanity() {
 	n="$1"
@@ -265,6 +268,9 @@ EOF
 			if [ "$has_v6" -eq 1 ]; then
 				allowed_client="${allowed_client}, ::/1, 8000::/1"
 			fi
+
+			# Server must route IPv6 internet back to the client
+			server_routes="${server_routes}, ::/0"
 		fi
 
 		endpoint="${ENDPOINT_HOST_BASE}:$((ENDPOINT_PORT_BASE + ifnum))"
