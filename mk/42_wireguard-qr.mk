@@ -10,7 +10,7 @@ WG_QR := /usr/local/bin/wg-qr.sh
 
 # Show client config + QR
 # Usage: make wg-show BASE=julie-s22 IFACE=wg7
-wg-show: $(WG_QR)
+wg-show: ensure-run-as-root $(WG_QR)
 	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
 		echo "Usage: make wg-show BASE=<base> IFACE=<wgX>"; exit 1; \
 	fi
@@ -25,7 +25,7 @@ wg-show: $(WG_QR)
 
 # Show QR only
 # Usage: make wg-qr BASE=julie-s22 IFACE=wg7
-wg-qr: $(WG_QR)
+wg-qr: ensure-run-as-root $(WG_QR)
 	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
 		echo "Usage: make wg-qr BASE=<base> IFACE=<wgX>"; exit 1; \
 	fi

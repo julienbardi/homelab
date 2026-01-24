@@ -134,7 +134,7 @@ test: logs
 # - Brings up tailnet control plane (Headscale + tailscaled)
 # - Enables baseline observability (Prometheus)
 .PHONY: all
-all: assert-sanity converge-network tailscaled monitoring
+all: assert-sanity converge-network wg tailscaled monitoring
 	echo ""; \
 	echo "🎉 Homelab fully converged"; \
 	echo "   - Network + WireGuard ready"; \

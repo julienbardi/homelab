@@ -8,7 +8,7 @@ WG_ENSURE_SERVER_KEYS := /usr/local/bin/wg-ensure-server-keys.sh
 .PHONY: wg-bootstrap
 
 wg-bootstrap: ensure-run-as-root $(WG_ENSURE_SERVER_KEYS)
-	@echo "[make] Bootstrapping WireGuard filesystem layout"
+	@echo "🔧 Bootstrapping WireGuard filesystem layout"
 
 	@$(run_as_root) install -d -m 0750 -o root  -g admin /volume1/homelab
 	@$(run_as_root) install -d -m 0750 -o root  -g admin /volume1/homelab/wireguard
@@ -19,14 +19,13 @@ wg-bootstrap: ensure-run-as-root $(WG_ENSURE_SERVER_KEYS)
 	@$(run_as_root) install -d -m 2770 -o root  -g admin /volume1/homelab/wireguard/compiled/server-pubkeys
 	@$(run_as_root) install -d -m 0700 -o root  -g root  /volume1/homelab/wireguard/compiled/client-keys
 	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/out
-	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/out/clients
+	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/export/clients
 	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/out/server
 	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/out/server/peers
 
 	@$(run_as_root) install -d -m 0750 -o root -g admin /etc/wireguard
-	@$(run_as_root) install -d -m 0750 -o julie -g admin /volume1/homelab/wireguard/export/clients
 
-	@echo "[make] Ensuring initial WireGuard server keys"
+	@echo "🔐 Ensuring initial WireGuard server keys"
 	@$(run_as_root) env WG_ROOT=$(WG_ROOT) $(WG_ENSURE_SERVER_KEYS)
 
-	@echo "✅ [make] WireGuard filesystem bootstrapped"
+	@echo "✅ WireGuard filesystem bootstrapped"

@@ -1,6 +1,7 @@
 #!/bin/sh
 # wg-clients-drift.sh
 set -eu
+: "${WG_ROOT:?WG_ROOT not set}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -9,7 +10,7 @@ trap 'rm -rf "$TMP"' EXIT
 export WG_OUT="$TMP"
 ./scripts/wg-compile-clients.sh >/dev/null
 
-REAL="$WG_ROOT/out/clients"
+REAL="$WG_ROOT/export/clients"
 TEST="$TMP/clients"
 
 # No existing output → drift
