@@ -21,6 +21,15 @@ WG_V6_PREFIXLEN="64"
 WG_IF_MIN="1"
 WG_IF_MAX="15"
 
+#
+# IPv4 NAT invariant (DNAT):
+# Port-forward WireGuard from WAN → NAS
+#
+if ! iptables -t nat -C PREROUTING -i eth0 -p udp --dport 51420:51435 \
+        -j DNAT --to-destination "$NAS4" 2>/dev/null; then
+        iptables -t nat -A PREROUTING -i eth0 -p udp --dport 51420:51435 \
+                -j DNAT --to-destination "$NAS4"
+fi
 
 #
 # IPv4 firewall invariant:

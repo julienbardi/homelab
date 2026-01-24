@@ -1,8 +1,12 @@
 #!/bin/sh
+# wg-ensure-server-keys.sh
 set -eu
 umask 077
 
 : "${WG_ROOT:?WG_ROOT not set}"
+
+WG_DIR="/etc/wireguard"
+PUBDIR="$WG_ROOT/compiled/server-pubkeys"
 
 PLAN="$WG_ROOT/compiled/plan.tsv"
 OUT_BASE="$WG_ROOT/out/server/base"
@@ -40,6 +44,9 @@ ifaces="$(
 	exit 1
 }
 
+mkdir -p "$PUBDIR"
+chmod 700 "$PUBDIR" 2>/dev/null || true
+
 for iface in $ifaces; do
 	case "$iface" in
 		wg[0-9]|wg1[0-5]) ;;
@@ -49,25 +56,42 @@ for iface in $ifaces; do
 			;;
 	esac
 
+	priv="$WG_DIR/$iface.key"
+	pub="$WG_DIR/$iface.pub"
+
+	if [ ! -f "$priv" ] || [ ! -f "$pub" ]; then
+		mkdir -p "$WG_DIR"
+		umask 077
+		wg genkey | tee "$priv" | wg pubkey >"$pub"
+		chown root:root "$priv" "$pub" 2>/dev/null || true
+		chmod 600 "$priv" 2>/dev/null || true
+		chmod 644 "$pub" 2>/dev/null || true
+	fi
+
+	# Publish the server pubkey into the compiled artifact directory (renderer contract)
+	"$INSTALL_IF_CHANGED" --quiet "$pub" "$PUBDIR/$iface.pub" root root 644 || [ $? -eq 3 ]
+
 	i="${iface#wg}"
 	out="$OUT_BASE/$iface.conf"
 
 	# Ensure semantics: never overwrite existing base config
 	[ -f "$out" ] && continue
 
-	tmp="$(mktemp)"
-	trap 'rm -f "$tmp"' EXIT
+	(
+		tmp="$(mktemp)"
+		trap 'rm -f "$tmp"' EXIT
 
-	cat >"$tmp" <<EOF
+		cat >"$tmp" <<EOF
 [Interface]
 Address = 10.${i}.0.1/16, fd89:7a3b:42c0:${i}::1/64
 ListenPort = $((51420 + i))
 PrivateKey = __REPLACED_AT_DEPLOY__
 EOF
 
-	case "$iface" in
-		wg4|wg7) echo "Table = off" >>"$tmp" ;;
-	esac
+		case "$iface" in
+			wg4|wg7) echo "Table = off" >>"$tmp" ;;
+		esac
 
-	"$INSTALL_IF_CHANGED" --quiet "$tmp" "$out" root root 600
+		"$INSTALL_IF_CHANGED" --quiet "$tmp" "$out" root root 600
+	)
 done

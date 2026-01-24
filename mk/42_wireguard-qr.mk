@@ -14,13 +14,10 @@ wg-show: ensure-run-as-root $(WG_QR)
 	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
 		echo "Usage: make wg-show BASE=<base> IFACE=<wgX>"; exit 1; \
 	fi
-	@echo "🔐 Showing WireGuard client config + QR"
 	@$(run_as_root) sh -euc '\
 		conf="$(WG_EXPORT_ROOT)/$(BASE)/$(IFACE).conf"; \
 		[ -f "$$conf" ] || { echo "Missing $$conf"; exit 1; }; \
 		cat "$$conf"; \
-		echo ""; \
-		$(WG_QR) "$$conf" "$${conf%.conf}.png" \
 	'
 
 # Show QR only

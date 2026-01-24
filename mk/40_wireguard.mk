@@ -20,74 +20,78 @@ WG_CHECK_SCRIPT   := /usr/local/bin/wg-check.sh
 WG_SERVER_BASE_RENDER_SCRIPT := /usr/local/bin/wg-render-server-base.sh
 WG_RENDER_CHECK_SCRIPT := /usr/local/bin/wg-check-render.sh
 WG_RECORD_COMPROMISED_KEYS_SCRIPT := /usr/local/bin/wg-record-compromised-keys.sh
-WG_NUKE_SCRIPT := /usr/local/bin/wg-nuke.sh
 
-.PHONY: \
-    wg-clean-out \
-    wg-compile-intent \
-    wg-ensure-server-keys \
-    wg-compile-keys \
-    wg-render-server-base \
-    wg-render \
-    wg-compile \
-    wg-deployed \
-    wg-apply \
-    wg-check \
-    wg-check-render \
-    wg-rebuild-clean \
-    wg-rebuild-all
+.PHONY: wg-install-scripts \
+	wg-clean-out \
+	wg-compile-intent \
+	wg-ensure-server-keys \
+	wg-compile-keys \
+	wg-render-server-base \
+	wg-render \
+	wg-compile \
+	wg-deployed \
+	wg-apply \
+	wg-check \
+	wg-check-render \
+	wg-rebuild-clean \
+	wg-rebuild-all
+
+wg-install-scripts: ensure-run-as-root \
+	$(WG_COMPILE_SCRIPT) \
+	$(WG_KEYS_SCRIPT) \
+	$(WG_SERVER_KEYS_SCRIPT) \
+	$(WG_RENDER_SCRIPT) \
+	$(WG_EXPORT_SCRIPT) \
+	$(WG_DEPLOY_SCRIPT) \
+	$(WG_CHECK_SCRIPT) \
+	$(WG_SERVER_BASE_RENDER_SCRIPT) \
+	$(WG_RENDER_CHECK_SCRIPT) \
+	$(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
 
 wg-clean-out: ensure-run-as-root 
-	@echo "🧹 cleaning WireGuard scratch output"
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🧹 cleaning WireGuard scratch output"; fi
 	@$(run_as_root) rm -rf "$(WG_ROOT)/out/clients"
 
 # ------------------------------------------------------------
 # Compile intent → plan.tsv
 # ------------------------------------------------------------
-wg-compile-intent: wg-clean-out $(WG_CSV) $(WG_COMPILE_SCRIPT)
-	@test -x "$(WG_COMPILE_SCRIPT)"
+wg-compile-intent: wg-install-scripts wg-clean-out
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_COMPILE_SCRIPT)"
 
-wg-ensure-server-keys: wg-compile-intent $(WG_SERVER_KEYS_SCRIPT)
-	@test -x "$(WG_SERVER_KEYS_SCRIPT)"
+wg-ensure-server-keys: wg-install-scripts wg-compile-intent
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_KEYS_SCRIPT)"
 
 # ------------------------------------------------------------
 # Generate client keys → keys.tsv
 # ------------------------------------------------------------
-wg-compile-keys: wg-compile-intent $(WG_KEYS_SCRIPT)
-	@test -x "$(WG_KEYS_SCRIPT)"
+wg-compile-keys: wg-install-scripts wg-compile-intent
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_KEYS_SCRIPT)"
 
 # ------------------------------------------------------------
 # Render client + server configs from plan.tsv + keys.tsv
 # ------------------------------------------------------------
-wg-render-server-base: wg-compile-intent $(WG_SERVER_BASE_RENDER_SCRIPT)
-	@test -x "$(WG_SERVER_BASE_RENDER_SCRIPT)"
+wg-render-server-base: wg-install-scripts wg-ensure-server-keys
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_BASE_RENDER_SCRIPT)"
 
-wg-render: wg-compile-intent wg-compile-keys wg-ensure-server-keys wg-render-server-base
-	@test -x "$(WG_RENDER_SCRIPT)"
+wg-render: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-server-base
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_SCRIPT)"
 
 # ------------------------------------------------------------
 # Compile everything (no deployment)
 # ------------------------------------------------------------
-wg-compile: wg-compile-intent wg-compile-keys wg-render wg-check-render wg-check
+wg-compile: wg-install-scripts wg-compile-intent wg-compile-keys wg-render wg-check-render wg-check
 
 # ------------------------------------------------------------
 # Deploy compiled state (requires successful compile)
 # ------------------------------------------------------------
-wg-deployed: ensure-run-as-root net-tunnel-preflight wg-compile wg-check
-	@test -x "$(WG_DEPLOY_SCRIPT)"
-	@echo "🔄 WireGuard deployment requested"
+wg-deployed: wg-install-scripts ensure-run-as-root net-tunnel-preflight wg-compile wg-check
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔄 WireGuard deployment requested"; fi
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
 
-wg-apply: wg-deployed
-	@test -x "$(WG_EXPORT_SCRIPT)"
+wg-apply: wg-install-scripts wg-deployed
 	@$(run_as_root) $(WG_EXPORT_SCRIPT)
 
-	@echo "🔁 Reconciling WireGuard kernel state"
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔁 Reconciling WireGuard kernel state"; fi
 
 	@$(run_as_root) bash -euo pipefail -c '\
 		: "$${WG_ROOT:?WG_ROOT not set}"; \
@@ -129,65 +133,52 @@ wg-apply: wg-deployed
 			done; \
 		fi; \
 	\
-		for iface in $$PLAN_IFACES; do \
-			conf="/etc/wireguard/$${iface}.conf"; \
-			[ -f "$$conf" ] || { echo "wg-apply: ERROR: missing $$conf" >&2; exit 1; }; \
-			grep -qE '\''^[[:space:]]*Address[[:space:]]*='\'' "$$conf" || { \
-				echo "wg-apply: ERROR: $$conf missing Address= (refusing to bring up $$iface)" >&2; \
-				exit 1; \
-			}; \
-			# Always converge via syncconf; wg-quick is only for first creation. \
-			STRIPPED="$$(wg-quick strip "$$conf")"; \
-			if ! ip link show "$$iface" >/dev/null 2>&1; then \
-				# Create empty kernel interface (no routes/rules side-effects). \
-				ip link add "$$iface" type wireguard; \
-			fi; \
-			# Apply WireGuard config (keys/peers) idempotently. \
-			printf "%s\n" "$$STRIPPED" | wg setconf "$$iface" /dev/fd/0; \
-			# Converge MTU (wg-quick used to do this). \
-			ip link set mtu 1420 dev "$$iface" 2>/dev/null || true; \
-			# Ensure link is up. \
-			ip link set up dev "$$iface" 2>/dev/null || true; \
-			# Converge addresses (no duplicate-add failures). \
-			ADDRS="$$(sed -n '\''s/^[[:space:]]*Address[[:space:]]*=[[:space:]]*//p'\'' "$$conf" \
-				| tr ",\n" "  " \
-				| awk '\''{ for (i=1;i<=NF;i++) print $$i }'\'')"; \
-			if [ -n "$$ADDRS" ]; then \
-				for cidr in $$ADDRS; do \
-					ip_only="$${cidr%/*}"; \
-					owner="$$(ip -o addr show | awk -v ip="$$ip_only" '\''{ split($$4,a,"/"); if (a[1]==ip) { print $$2; exit } }'\'')"; \
-					[ -z "$$owner" -o "$$owner" = "$$iface" ] || { \
-						echo "wg-apply: ERROR: $$ip_only already assigned on interface $$owner (cannot bring up $$iface)" >&2; \
-						exit 1; \
-					}; \
-					ip addr replace "$$cidr" dev "$$iface"; \
-				done; \
-			fi; \
-		done \
+	for iface in $$PLAN_IFACES; do \
+		conf="/etc/wireguard/$${iface}.conf"; \
+		[ -f "$$conf" ] || { echo "wg-apply: ERROR: missing $$conf" >&2; exit 1; }; \
+		grep -qE '\''^[[:space:]]*Address[[:space:]]*='\'' "$$conf" || { \
+			echo "wg-apply: ERROR: $$conf missing Address= (refusing to bring up $$iface)" >&2; \
+			exit 1; \
+		}; \
+		grep -qE '\''^[[:space:]]*ListenPort[[:space:]]*='\'' "$$conf" || { \
+			echo "wg-apply: ERROR: $$conf missing ListenPort= (refusing to bring up $$iface)" >&2; \
+			exit 1; \
+		}; \
+		if ! ip link show "$$iface" >/dev/null 2>&1; then \
+			# First bring-up: wg-quick installs routes/rules derived from AllowedIPs. \
+			wg-quick up "$$iface" >/dev/null; \
+		else \
+			# Update peers/keys without tearing down interface state (routes stay). \
+			wg syncconf "$$iface" <(wg-quick strip "$$conf"); \
+		fi; \
+		ip link set mtu 1420 dev "$$iface" 2>/dev/null || true; \
+		ip link set up dev "$$iface" 2>/dev/null || true; \
+		# Hard guard: routes must exist (otherwise we’re back to “no connectivity”). \
+		if ! ip route show dev "$$iface" | grep -q . && ! ip -6 route show dev "$$iface" | grep -q .; then \
+			echo "wg-apply: ERROR: $$iface has no routes (v4 or v6)" >&2; \
+			exit 1; \
+		fi; \
+	done; \
 	'
 
-	@echo "✅ WireGuard kernel state converged"
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "✅ WireGuard kernel state converged"; fi
 
 # ------------------------------------------------------------
 # Consistency / sanity checks
 # ------------------------------------------------------------
-wg-check: ensure-run-as-root
-	@test -x "$(WG_CHECK_SCRIPT)"
+wg-check: wg-install-scripts ensure-run-as-root
 	@$(run_as_root) $(WG_CHECK_SCRIPT)
 
-wg-rebuild-clean: ensure-run-as-root $(WG_RECORD_COMPROMISED_KEYS_SCRIPT) $(WG_NUKE_SCRIPT)
+wg-rebuild-clean: wg-install-scripts ensure-run-as-root 
 	@echo "🔥 FULL WireGuard rebuild (keys + config)"
 	@echo "⚠️  This will invalidate ALL existing clients"
 	@echo "⚠️  Press Ctrl-C now if this is not intended"
 	@sleep 5
-	@echo "▶ recording compromised WireGuard keys"
+	@echo "▶ recording compromised WireGuard keys and destroying existing WireGuard state"
 	@$(run_as_root) $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
-	@echo "▶ destroying existing WireGuard state"
-	@$(run_as_root) $(WG_NUKE_SCRIPT)
 
-wg-rebuild-all: wg-rebuild-clean wg-apply
+wg-rebuild-all: wg-install-scripts wg-rebuild-clean wg-ensure-server-keys wg-apply
 	@echo "🔥 WireGuard fully rebuilt with fresh keys"
 
-wg-check-render: wg-render $(WG_RENDER_CHECK_SCRIPT)
-	@test -x "$(WG_RENDER_CHECK_SCRIPT)"
+wg-check-render: wg-install-scripts wg-render
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"

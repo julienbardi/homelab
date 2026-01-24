@@ -100,6 +100,8 @@ if [ "$dry_run" -eq 1 ]; then
 else
 	# Replace destination atomically
 	install -m "$mode" -o "$owner" -g "$group" "$tmp" "$dst"
-	echo "🔄 $dst updated"
+	if [ "$quiet" -eq 0 ]; then
+		echo "🔄 $dst updated"
+	fi
 fi
 exit "${CHANGED_EXIT_CODE:-3}"
