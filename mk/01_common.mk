@@ -18,13 +18,7 @@
 # Fallback for recursive make (do not force; let make set it if present)
 MAKE ?= $(MAKE)
 
-run_as_root := $(HOMELAB_DIR)/bin/run-as-root
-
-.PHONY: ensure-run-as-root
-ensure-run-as-root:
-	@if [ ! -x "$(run_as_root)" ]; then \
-		chmod +x $(run_as_root); \
-	fi
+run_as_root := /usr/local/sbin/run-as-root.sh
 
 INSTALL_PATH ?= /usr/local/bin
 INSTALL_SBIN_PATH ?= /usr/local/sbin
@@ -36,11 +30,17 @@ MODE ?= 0755
 # Stamp dir (overridable)
 STAMP_DIR ?= /var/lib/homelab
 
+.PHONY ensure-run-as-root
+ensure-run-as-root:
+	@command -v $(run_as_root) >/dev/null 2>&1 || { \
+		echo "ERROR: homelab tools not installed. Run 'make install-all' first." >&2; \
+		exit 1; \
+	}
+
 # log(message). Show on screen and write to syslog/journald
 define log
 	echo "$1" >&2; command -v logger >/dev/null 2>&1 && logger -t homelab-make "$1"
 endef
-
 
 # Bootstrap install for install_if_changed.sh (cannot use itself), -C means "copy only if contents differ".
 define install_install_if_changed
@@ -170,7 +170,7 @@ $(INSTALL_SBIN_PATH)/%.sh: $(HOMELAB_DIR)/scripts/%.sh ensure-run-as-root | $(IN
 # Script classification:
 # - BIN_SCRIPTS  → operator / user-facing tools
 # - SBIN_SCRIPTS → root-only system automation
-SBIN_SCRIPTS := apt-proxy-auto.sh
+SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh
 ALL_SCRIPTS := $(notdir $(wildcard $(HOMELAB_DIR)/scripts/*.sh))
 BIN_SCRIPTS := $(filter-out $(SBIN_SCRIPTS),$(ALL_SCRIPTS))
 
