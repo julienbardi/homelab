@@ -287,6 +287,11 @@ if grep -qE '(^|[[:space:]])2a01:' "$PLAN_TMP"; then
 	die "refusing to write plan: delegated/global IPv6 detected (2a01:...)"
 fi
 
+[ ! -e "$ROOT/out/clients" ] || {
+	echo "wg-compile: ERROR: forbidden path exists: $ROOT/out/clients" >&2
+	exit 1
+}
+
 install -m 0644 -o root -g root "$PLAN_TMP" "$PLAN"
 install -m 0644 -o root -g root "$LOCK_TMP" "$LOCK"
 install -m 0600 -o root -g root "$ALLOC_MERGED" "$ALLOC"

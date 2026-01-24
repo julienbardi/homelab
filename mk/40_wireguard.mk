@@ -10,28 +10,43 @@ export WG_ROOT
 WG_INPUT := $(WG_ROOT)/input
 WG_CSV   := $(WG_INPUT)/clients.csv
 
-SCRIPTS := $(CURDIR)/scripts
+WG_COMPILE_SCRIPT := /usr/local/bin/wg-compile.sh
+WG_KEYS_SCRIPT    := /usr/local/bin/wg-compile-keys.sh
+WG_SERVER_KEYS_SCRIPT := /usr/local/bin/wg-ensure-server-keys.sh
+WG_RENDER_SCRIPT  := /usr/local/bin/wg-compile-clients.sh
+WG_EXPORT_SCRIPT  := /usr/local/bin/wg-client-export.sh
+WG_DEPLOY_SCRIPT  := /usr/local/bin/wg-deploy.sh
+WG_CHECK_SCRIPT   := /usr/local/bin/wg-check.sh
+WG_SERVER_BASE_RENDER_SCRIPT := /usr/local/bin/wg-render-server-base.sh
+WG_RENDER_CHECK_SCRIPT := /usr/local/bin/wg-check-render.sh
+WG_RECORD_COMPROMISED_KEYS_SCRIPT := /usr/local/bin/wg-record-compromised-keys.sh
+WG_NUKE_SCRIPT := /usr/local/bin/wg-nuke.sh
 
-WG_COMPILE_SCRIPT := $(SCRIPTS)/wg-compile.sh
-WG_KEYS_SCRIPT    := $(SCRIPTS)/wg-compile-keys.sh
-WG_SERVER_KEYS_SCRIPT := $(SCRIPTS)/wg-ensure-server-keys.sh
-WG_RENDER_SCRIPT  := $(SCRIPTS)/wg-compile-clients.sh
-WG_EXPORT_SCRIPT  := $(SCRIPTS)/wg-client-export.sh
-WG_DEPLOY_SCRIPT  := $(SCRIPTS)/wg-deploy.sh
-WG_CHECK_SCRIPT   := $(SCRIPTS)/wg-check.sh
-WG_SERVER_BASE_RENDER_SCRIPT := $(SCRIPTS)/wg-render-server-base.sh
-WG_RENDER_CHECK_SCRIPT := $(SCRIPTS)/wg-check-render.sh
+.PHONY: \
+    wg-clean-out \
+    wg-compile-intent \
+    wg-ensure-server-keys \
+    wg-compile-keys \
+    wg-render-server-base \
+    wg-render \
+    wg-compile \
+    wg-deployed \
+    wg-apply \
+    wg-check \
+    wg-check-render \
+    wg-rebuild-clean \
+    wg-rebuild-all
 
-.PHONY: wg-validate wg-apply wg-render-server-base wg-compile wg-deployed wg-status wg-check \
-	wg-rebuild-clean wg-rebuild-all wg-check-render
+wg-clean-out: ensure-run-as-root 
+	@echo "🧹 cleaning WireGuard scratch output"
+	@$(run_as_root) rm -rf "$(WG_ROOT)/out/clients"
 
 # ------------------------------------------------------------
 # Compile intent → plan.tsv
 # ------------------------------------------------------------
-wg-compile-intent: $(WG_CSV) $(WG_COMPILE_SCRIPT)
+wg-compile-intent: wg-clean-out $(WG_CSV) $(WG_COMPILE_SCRIPT)
 	@test -x "$(WG_COMPILE_SCRIPT)"
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_COMPILE_SCRIPT)"
-
 
 wg-ensure-server-keys: wg-compile-intent $(WG_SERVER_KEYS_SCRIPT)
 	@test -x "$(WG_SERVER_KEYS_SCRIPT)"
@@ -47,10 +62,9 @@ wg-compile-keys: wg-compile-intent $(WG_KEYS_SCRIPT)
 # ------------------------------------------------------------
 # Render client + server configs from plan.tsv + keys.tsv
 # ------------------------------------------------------------
-wg-render-server-base: wg-compile-intent
+wg-render-server-base: wg-compile-intent $(WG_SERVER_BASE_RENDER_SCRIPT)
 	@test -x "$(WG_SERVER_BASE_RENDER_SCRIPT)"
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_BASE_RENDER_SCRIPT)"
-
 
 wg-render: wg-compile-intent wg-compile-keys wg-ensure-server-keys wg-render-server-base
 	@test -x "$(WG_RENDER_SCRIPT)"
@@ -103,8 +117,8 @@ wg-apply: wg-deployed
 			}; \
 		done; \
 	\
-		if [ -d "$$WG_ROOT/out/clients" ]; then \
-			find "$$WG_ROOT/out/clients" -type f -name "wg*.conf" -print 2>/dev/null | while IFS= read -r conf; do \
+		if [ -d "$$WG_ROOT/export/clients" ]; then \
+			find "$$WG_ROOT/export/clients" -type f -name "wg*.conf" -print 2>/dev/null | while IFS= read -r conf; do \
 				[ -e "$$conf" ] || continue; \
 				iface="$$(basename "$$conf" .conf)"; \
 				case "$$iface" in wg[0-9]|wg1[0-5]) ;; *) continue ;; esac; \
@@ -161,19 +175,19 @@ wg-check: ensure-run-as-root
 	@test -x "$(WG_CHECK_SCRIPT)"
 	@$(run_as_root) $(WG_CHECK_SCRIPT)
 
-wg-rebuild-clean: ensure-run-as-root
+wg-rebuild-clean: ensure-run-as-root $(WG_RECORD_COMPROMISED_KEYS_SCRIPT) $(WG_NUKE_SCRIPT)
 	@echo "🔥 FULL WireGuard rebuild (keys + config)"
 	@echo "⚠️  This will invalidate ALL existing clients"
 	@echo "⚠️  Press Ctrl-C now if this is not intended"
 	@sleep 5
 	@echo "▶ recording compromised WireGuard keys"
-	@$(run_as_root) $(SCRIPTS)/wg-record-compromised-keys.sh
+	@$(run_as_root) $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
 	@echo "▶ destroying existing WireGuard state"
-	@$(run_as_root) $(SCRIPTS)/wg-nuke.sh
+	@$(run_as_root) $(WG_NUKE_SCRIPT)
 
 wg-rebuild-all: wg-rebuild-clean wg-apply
 	@echo "🔥 WireGuard fully rebuilt with fresh keys"
 
-wg-check-render: wg-render
+wg-check-render: wg-render $(WG_RENDER_CHECK_SCRIPT)
 	@test -x "$(WG_RENDER_CHECK_SCRIPT)"
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"
