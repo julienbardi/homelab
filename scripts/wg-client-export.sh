@@ -82,7 +82,19 @@ do
 	tmp="$(mktemp "${out}.XXXXXX")"
 
 	{
-		echo "# 🔐 ${base}-${iface}"
+		echo "# ------------------------------------------------------------------"
+		echo "# 🔐 WireGuard client: ${base} / ${iface}"
+		echo "#"
+		echo "# Show this config:"
+		echo "#   make wg-show BASE=${base} IFACE=${iface}"
+		echo "#"
+		echo "# Show QR code:"
+		echo "#   make wg-qr   BASE=${base} IFACE=${iface}"
+		echo "# Routing note:"
+		echo "#   - Windows: keep 'Table = off' (prevents LAN route precedence)"
+		echo "#   - Linux: keep it if explicit routing is enabled"
+		echo "#   - Android/iOS: remove it (ignored / unsupported)"
+		echo "# ------------------------------------------------------------------"
 		if [ "$VERBOSE" -ge 2 ]; then
 			echo "#"
 			echo "# Plan metadata (documentary only):"
@@ -91,11 +103,11 @@ do
 			echo "#   server_addr4   = $server_addr4"
 			echo "#   server_addr6   = $server_addr6"
 			echo "#   server_routes  = $server_routes"
-			echo "#   endpoint        = ${WG_ENDPOINT:-$endpoint}"
-			echo "#   dns             = ${WG_DNS:-$dns}"
-			echo "#   mtu             = ${WG_MTU:-1420} (effective)"
-			echo "#   keepalive       = $WG_PERSISTENT_KEEPALIVE"
-			echo "#   generated_at    = $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+			echo "#   endpoint       = ${WG_ENDPOINT:-$endpoint}"
+			echo "#   dns            = ${WG_DNS:-$dns}"
+			echo "#   mtu            = ${WG_MTU:-1420} (effective)"
+			echo "#   keepalive      = $WG_PERSISTENT_KEEPALIVE"
+			echo "#   generated_at   = $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 			echo
 		fi
 		echo "[Interface]"
@@ -107,6 +119,7 @@ do
 		if [ -n "${WG_DNS:-$dns}" ]; then
 			echo "DNS = ${WG_DNS:-$dns}"
 		fi
+		echo "Table = off"
 		echo
 		echo "[Peer]"
 		echo "PublicKey = $server_public"
@@ -117,7 +130,6 @@ do
 
 	chmod 600 "$tmp"
 	mv -f "$tmp" "$out"
-	echo "🟢 wrote $out"
 	changed=1
 done < <("$PLAN_READER")
 

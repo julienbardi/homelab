@@ -2,7 +2,7 @@
 # wg-compile-keys.sh — idempotent client key compiler
 set -eu
 
-ROOT="/volume1/homelab/wireguard"
+ROOT="${WG_ROOT:-/volume1/homelab/wireguard}"
 PLAN="$ROOT/compiled/plan.tsv"
 OUT="$ROOT/compiled/keys.tsv"
 
@@ -11,20 +11,11 @@ umask 077
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_IF_CHANGED="$SCRIPT_DIR/install_if_changed.sh"
 
-[ -x "$INSTALL_IF_CHANGED" ] || {
-	echo "wg-compile-keys: ERROR: install_if_changed.sh not found or not executable" >&2
-	exit 1
-}
+die() { echo "wg-compile-keys: ERROR: $*" >&2; exit 1; }
 
-[ -f "$PLAN" ] || {
-	echo "wg-compile-keys: ERROR: missing plan.tsv" >&2
-	exit 1
-}
-
-command -v wg >/dev/null 2>&1 || {
-	echo "wg-compile-keys: ERROR: wg not found in PATH" >&2
-	exit 1
-}
+[ -x "$INSTALL_IF_CHANGED" ] || die "install_if_changed.sh not found or not executable"
+[ -f "$PLAN" ] || die "missing plan.tsv at $PLAN"
+command -v wg >/dev/null 2>&1 || die "wg not found in PATH"
 
 EXISTING_KEYS="$OUT"
 
@@ -33,6 +24,7 @@ trap 'rm -f "$tmp"' EXIT
 
 printf "base\tiface\tclient_pub\tclient_priv\n" >"$tmp"
 
+# If keys.tsv doesn't exist yet, treat it as empty (but don't mutate it here).
 [ -f "$EXISTING_KEYS" ] || : >"$EXISTING_KEYS"
 
 awk -F'\t' '
@@ -52,7 +44,8 @@ awk -F'\t' '
 	# ------------------------------------------------------------
 	# Process plan.tsv
 	# ------------------------------------------------------------
-	/^#/ || /^[[:space:]]*$/ { next }
+	/^#/ { next }
+	/^[[:space:]]*$/ { next }
 
 	# Skip plan.tsv header row
 	$1=="base" && $2=="iface" { next }
@@ -73,22 +66,29 @@ awk -F'\t' '
 			next
 		}
 
-		# Generate new key ONLY for new client
+		# Generate new key for new client
 		cmd = "wg genkey"
 		cmd | getline new_priv
 		close(cmd)
 		sub(/\r?\n$/, "", new_priv)
 
-		cmd = "printf \"%s\" \"" new_priv "\" | wg pubkey"
+		cmd = "echo \"" new_priv "\" | wg pubkey"
 		cmd | getline new_pub
 		close(cmd)
+		sub(/\r?\n$/, "", new_pub)
 
 		print base, iface, new_pub, new_priv
 	}
 ' "$EXISTING_KEYS" "$PLAN" >>"$tmp"
 
+# Hard invariant: header-only output is illegal.
+if [ "$(wc -l <"$tmp")" -le 1 ]; then
+	die "no keys generated from plan.tsv (plan empty/mismatched, or parsing failed)"
+fi
+
+rc=0
 "$INSTALL_IF_CHANGED" --quiet "$tmp" "$OUT" root root 600 || rc=$?
-case "${rc:-0}" in
+case "$rc" in
 	0|3) exit 0 ;;
 	*)   exit "$rc" ;;
 esac

@@ -18,10 +18,16 @@
 # Fallback for recursive make (do not force; let make set it if present)
 MAKE ?= $(MAKE)
 
-run_as_root := /usr/local/sbin/run-as-root.sh
+run_as_root := command -v /usr/local/sbin/run-as-root.sh >/dev/null 2>&1 && /usr/local/sbin/run-as-root.sh
 
 INSTALL_PATH ?= /usr/local/bin
 INSTALL_SBIN_PATH ?= /usr/local/sbin
+
+BOOTSTRAP_FILES := \
+	$(INSTALL_PATH)/install_if_changed.sh \
+	$(INSTALL_SBIN_PATH)/run-as-root.sh
+
+OTHER_SBIN_FILES := $(filter-out $(INSTALL_SBIN_PATH)/run-as-root.sh,$(SBIN_FILES))
 
 OWNER ?= root
 GROUP ?= root
@@ -30,27 +36,22 @@ MODE ?= 0755
 # Stamp dir (overridable)
 STAMP_DIR ?= /var/lib/homelab
 
-.PHONY ensure-run-as-root
+.PHONY: ensure-run-as-root
 ensure-run-as-root:
-	@command -v $(run_as_root) >/dev/null 2>&1 || { \
-		echo "ERROR: homelab tools not installed. Run 'make install-all' first." >&2; \
+	@if echo "$(MAKECMDGOALS)" | grep -qw install-all; then \
+		:; \
+	elif ! command -v /usr/local/sbin/run-as-root.sh >/dev/null 2>&1; then \
+		echo "ERROR: homelab tools not installed. Run 'sudo make install-all' first." >&2; \
 		exit 1; \
-	}
+	fi
 
 # log(message). Show on screen and write to syslog/journald
 define log
 	echo "$1" >&2; command -v logger >/dev/null 2>&1 && logger -t homelab-make "$1"
 endef
 
-# Bootstrap install for install_if_changed.sh (cannot use itself), -C means "copy only if contents differ".
-define install_install_if_changed
-	@$(run_as_root) install -C -o $(OWNER) -g $(GROUP) -m $(MODE) \
-		scripts/install_if_changed.sh \
-		$(INSTALL_PATH)/install_if_changed.sh
-endef
-
-$(INSTALL_PATH)/install_if_changed.sh: ensure-run-as-root scripts/install_if_changed.sh
-	$(call install_install_if_changed)
+$(INSTALL_PATH)/install_if_changed.sh: $(HOMELAB_DIR)/scripts/install_if_changed.sh
+	@install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $< $@
 
 # install_script(src, name), exit code 0 (unchanged) and 3 (updated) are success
 define install_script
@@ -162,10 +163,12 @@ check-prereqs:
 $(INSTALL_PATH)/%.sh: $(HOMELAB_DIR)/scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
 	$(call install_script,$<,$(notdir $<))
 
+$(INSTALL_SBIN_PATH)/run-as-root.sh: $(HOMELAB_DIR)/scripts/run-as-root.sh
+	@install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $< $@
+
 $(INSTALL_SBIN_PATH)/%.sh: $(HOMELAB_DIR)/scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
 	@$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh --quiet \
 		$< $@ $(OWNER) $(GROUP) $(MODE) || [ $$? -eq 3 ]
-
 
 # Script classification:
 # - BIN_SCRIPTS  → operator / user-facing tools
@@ -179,7 +182,10 @@ SBIN_FILES := $(addprefix $(INSTALL_SBIN_PATH)/,$(SBIN_SCRIPTS))
 
 .PHONY: install-all uninstall-all
 
-install-all: assert-sanity $(BIN_FILES) $(SBIN_FILES)
+install-all: assert-sanity \
+	$(BOOTSTRAP_FILES) \
+	$(OTHER_SBIN_FILES) \
+	$(BIN_FILES)
 
 uninstall-all:
 	@for s in $(BIN_SCRIPTS); do \

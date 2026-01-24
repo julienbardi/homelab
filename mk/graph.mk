@@ -257,7 +257,7 @@ print-debug:
 	@echo "HOMELAB_DIR=$(HOMELAB_DIR)"
 
 .PHONY: regen-clients
-regen-clients: ensure-run-as-root
+regen-clients: ensure-run-as-root wg-apply
 	@echo "🔁 Regenerating all WireGuard clients from authoritative input"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" \
 		"$(HOMELAB_DIR)/scripts/wg-compile-clients.sh"

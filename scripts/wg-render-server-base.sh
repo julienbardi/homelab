@@ -72,6 +72,13 @@ while read -r iface; do
 
 	tmp="$(mktemp)"
 
+	if [[ ! "${iface}" =~ ^wg([0-9]|1[0-5])$ ]]; then
+		echo "wg-render-server-base: ERROR: invalid iface '${iface}'" >&2
+		exit 1
+	fi
+	# ListenPort convention: 51420 + iface index (wgN)
+	listen_port=$((51420 + ${iface#wg}))
+
 	cat >"$tmp" <<EOF
 # --------------------------------------------------
 # WireGuard server base config
@@ -81,7 +88,7 @@ while read -r iface; do
 
 [Interface]
 PrivateKey = __REPLACED_AT_DEPLOY__
-ListenPort = $(awk -F'\t' -v i="${iface}" '$2==i {print $3; exit}' "${PLAN}")
+ListenPort = ${listen_port}
 Address = ${server_addr4}, ${server_addr6}
 EOF
 
@@ -89,9 +96,7 @@ EOF
 	CHANGED_EXIT_CODE=3 \
 	"$INSTALL_IF_CHANGED" --quiet "$tmp" "$conf" root root 600 || rc="$?"
 
-	if [ "$rc" -eq 3 ]; then
-		echo "🟢 wrote ${conf}"
-	elif [ "$rc" -ne 0 ]; then
+	if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
 		rm -f "$tmp"
 		exit "$rc"
 	fi

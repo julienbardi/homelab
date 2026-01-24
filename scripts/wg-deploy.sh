@@ -3,7 +3,7 @@
 set -euo pipefail
 
 WG_DIR="/etc/wireguard"
-ROOT="/volume1/homelab/wireguard"
+ROOT="${WG_ROOT:-/volume1/homelab/wireguard}"
 
 WG_BIN="/usr/bin/wg"
 
