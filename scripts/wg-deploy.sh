@@ -13,7 +13,7 @@ SERVER_KEYS_DIR="$ROOT/server-keys"
 
 DRY_RUN="${WG_DRY_RUN:-0}"
 
-die()  { echo "wg-deploy: ERROR: $*" >&2; exit 1; }
+die()  { echo "❌ wg-deploy: ERROR: $*" >&2; exit 1; }
 need() { [ -e "$1" ] || die "missing required path: $1"; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -186,17 +186,19 @@ fi
 
 KEEP="$WG_DIR/last-known-good.list"
 
-LEGACY="$WG_DIR/.legacy"
-mkdir -p "$LEGACY"
-chmod 700 "$LEGACY"
-
+# Invariant:
+# - delete drift instead of archiving it
+# - never create /etc/wireguard/.legacy
+# - never keep standalone private key files under /etc/wireguard
 for f in "$OLD"/*; do
 	[ -f "$f" ] || continue
 	b="$(basename "$f")"
-	grep -qx "$b" "$KEEP" || mv "$f" "$LEGACY/"
+	if ! grep -qx "$b" "$KEEP"; then
+		rm -f -- "$f"
+	fi
 done
 
-rm -rf "$OLD" || true
+rm -rf -- "$OLD" || true
 swapped=0
 
 META="$WG_DIR/.deploy-meta"
@@ -216,3 +218,12 @@ META_TMP="$(mktemp)"
 
 # Metadata updates are not failures
 "$INSTALL_IF_CHANGED" --quiet "$META_TMP" "$META" root root 600 || true
+
+# Hard policy guard: forbid legacy artifacts
+if [ -d "$WG_DIR/.legacy" ]; then
+	die "policy violation: $WG_DIR/.legacy exists (forbidden)"
+fi
+
+if find "$WG_DIR" -maxdepth 1 -type f -name '*.key' -print -quit | grep -q .; then
+	die "policy violation: standalone *.key exists under $WG_DIR (forbidden)"
+fi

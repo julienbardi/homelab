@@ -31,10 +31,14 @@ WG_RECORD_COMPROMISED_KEYS_SCRIPT := /usr/local/bin/wg-record-compromised-keys.s
 	wg-compile \
 	wg-deployed \
 	wg-apply \
+	wg-apply-verified \
 	wg-check \
 	wg-check-render \
 	wg-rebuild-clean \
-	wg-rebuild-all
+	wg-verify-no-key-reuse \
+	wg-verify-no-legacy-keys \
+	wg-rebuild-all \
+	wg
 
 wg-install-scripts: ensure-run-as-root \
 	$(WG_COMPILE_SCRIPT) \
@@ -76,6 +80,8 @@ wg-render-server-base: wg-install-scripts wg-ensure-server-keys
 wg-render: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-server-base
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_SCRIPT)"
 
+$(WG_ROOT)/compiled/plan.tsv: wg-compile-intent
+
 # ------------------------------------------------------------
 # Compile everything (no deployment)
 # ------------------------------------------------------------
@@ -87,6 +93,8 @@ wg-compile: wg-install-scripts wg-compile-intent wg-compile-keys wg-render wg-ch
 wg-deployed: wg-install-scripts ensure-run-as-root net-tunnel-preflight wg-compile wg-check
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔄 WireGuard deployment requested"; fi
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
+
+wg-apply-verified: wg-apply wg-verify-no-key-reuse wg-verify-no-legacy-keys
 
 wg-apply: wg-install-scripts wg-deployed
 	@$(run_as_root) $(WG_EXPORT_SCRIPT)
@@ -177,8 +185,48 @@ wg-rebuild-clean: wg-install-scripts ensure-run-as-root
 	@echo "▶ recording compromised WireGuard keys and destroying existing WireGuard state"
 	@$(run_as_root) $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
 
-wg-rebuild-all: wg-install-scripts wg-rebuild-clean wg-ensure-server-keys wg-apply
+wg-rebuild-all: wg-install-scripts wg-rebuild-clean wg-ensure-server-keys wg-apply-verified
+
 	@echo "🔥 WireGuard fully rebuilt with fresh keys"
 
 wg-check-render: wg-install-scripts wg-render
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"
+
+wg: \
+	wg-ensure-server-keys \
+	wg-render \
+	wg-apply-verified \
+	wg-intent \
+	wg-dashboard \
+	wg-status \
+	wg-runtime \
+	wg-clients
+
+wg-verify-no-key-reuse: wg-install-scripts ensure-run-as-root
+	@$(run_as_root) bash -euo pipefail -c '\
+		echo "🔍 Verifying no WireGuard key reuse against compromised ledger"; \
+		ledger="/volume1/homelab/security/compromised_keys.tsv"; \
+		tmp="$$(mktemp)"; \
+		trap "rm -f '\''$$tmp'\''" EXIT; \
+		\
+		wg show | awk '\''/^interface: /{iface=$$2} /^  public key: /{print iface "\t" $$3}'\'' \
+		| while IFS=$$'\''\t'\'' read -r iface pub; do \
+			fp="$$(printf "%s" "$$pub" | sha256sum | awk '\''{print $$1}'\'')"; \
+			printf "%s\tSHA256:%s\n" "$$iface" "$$fp"; \
+		done >"$$tmp"; \
+		\
+		if awk -F"\t" '\''{print $$2}'\'' "$$tmp" | grep -Fxf - "$$ledger" >/dev/null; then \
+			echo "❌ REUSED KEY DETECTED (active key intersects compromised ledger)"; \
+			echo "---- active fingerprints ----"; \
+			cat "$$tmp"; \
+			echo "----------------------------"; \
+			exit 1; \
+		fi; \
+		echo "✅ No compromised keys in active WireGuard state"; \
+	'
+
+wg-verify-no-legacy-keys: wg-install-scripts ensure-run-as-root
+	@test ! -d /etc/wireguard/.legacy || { \
+		echo "❌ ERROR: legacy WireGuard key directory exists (/etc/wireguard/.legacy)"; \
+		exit 1; \
+	}
