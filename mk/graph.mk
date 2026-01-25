@@ -159,10 +159,6 @@ tailscaled: \
 	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
 		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
-.PHONY: wg
-
-wg: wg-apply wg-intent wg-dashboard wg-status wg-runtime wg-clients
-
 SYSTEMD_DIR = /etc/systemd/system
 REPO_SYSTEMD = config/systemd
 
