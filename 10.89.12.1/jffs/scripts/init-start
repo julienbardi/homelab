@@ -1,0 +1,5 @@
+#!/bin/sh
+
+/jffs/addons/amtm/routerdate restore # Added by amtm
+
+[ -x /jffs/dnscrypt/manager ] && /jffs/dnscrypt/manager init-start &

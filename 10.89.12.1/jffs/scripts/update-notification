@@ -1,0 +1,69 @@
+#!/bin/sh
+# This is an amtm script that sends a notification
+# email when a new firmware version is available for this router.
+# Script created by amtm 4.9.1
+
+VERSION=1.2
+
+if [ -f /jffs/addons/amtm/mail/email.conf ]; then
+    . /jffs/addons/amtm/mail/email.conf
+
+    TEMPVERS=$(nvram get webs_state_info)
+
+    if [ "$(echo "$(nvram get buildno)" | grep "380.65")" ]; then
+        STABLEVERS=${TEMPVERS:5:3}.${TEMPVERS:8:10}
+    else
+        if echo $TEMPVERS | grep -q 3004_; then
+            STABLEVERS=$(echo $TEMPVERS | sed 's/3004_//')
+        else
+            STABLEVERS=$TEMPVERS
+        fi
+    fi
+
+    FROM_NAME="amtm Router Firmware notification"
+    [ -z "$(nvram get odmpid)" ] && routerModel=$(nvram get productid) || routerModel=$(nvram get odmpid)
+    [ -z "$FRIENDLY_ROUTER_NAME" ] && FRIENDLY_ROUTER_NAME=$routerModel
+
+    echo "From: \"$FROM_NAME\" <$FROM_ADDRESS>" >/tmp/amtm-mail-body
+    echo "To: \"$TO_NAME\" <$TO_ADDRESS>" >>/tmp/amtm-mail-body
+    echo "Subject: $FRIENDLY_ROUTER_NAME Router Asuswrt-Merlin new firmware notification" >>/tmp/amtm-mail-body
+    echo "Date: $(date -R)" >>/tmp/amtm-mail-body
+    echo >>/tmp/amtm-mail-body
+    echo "Hey there!" >>/tmp/amtm-mail-body
+    echo >>/tmp/amtm-mail-body
+    if [ "$1" = test ]; then
+        echo "Note that this is a firmware update notification test, the output below may not be correct." >>/tmp/amtm-mail-body
+        echo >>/tmp/amtm-mail-body
+    fi
+    echo "A new stable Asuswrt-Merlin firmware is available for your $FRIENDLY_ROUTER_NAME router at $(nvram get lan_ipaddr)." >>/tmp/amtm-mail-body
+    echo >>/tmp/amtm-mail-body
+    echo "Installed version: $(nvram get buildno)_$(nvram get extendno)" >>/tmp/amtm-mail-body
+    echo >>/tmp/amtm-mail-body
+    echo "Latest available stable version: $STABLEVERS" >>/tmp/amtm-mail-body
+    echo >>/tmp/amtm-mail-body
+    echo "See the Asuswrt-Merlin changelog for what's new:" >>/tmp/amtm-mail-body
+    echo "https://asuswrt-merlin.net/changelog" >>/tmp/amtm-mail-body
+    echo >>/tmp/amtm-mail-body
+    echo "Downloads are available at: https://asuswrt-merlin.net/download" >>/tmp/amtm-mail-body
+    echo >>/tmp/amtm-mail-body
+    echo "Very truly yours," >>/tmp/amtm-mail-body
+    echo "Your $FRIENDLY_ROUTER_NAME router (Model type $routerModel)" >>/tmp/amtm-mail-body
+    echo >>/tmp/amtm-mail-body
+
+    /usr/sbin/curl --url $PROTOCOL://$SMTP:$PORT/$SMTP \
+    --mail-from "$FROM_ADDRESS" --mail-rcpt "$TO_ADDRESS" \
+    --upload-file /tmp/amtm-mail-body \
+    --ssl-reqd \
+    --crlf \
+    --user "$USERNAME:$(/usr/sbin/openssl aes-256-cbc $emailPwEnc -d -in /jffs/addons/amtm/mail/emailpw.enc -pass pass:ditbabot,isoi)" $SSL_FLAG
+
+    if [ "$?" = "0" ]; then
+        logger -t amtm "sent firmware notification"
+    else
+        logger -t amtm "was unable to send firmware notification, check settings"
+    fi
+    rm -f /tmp/amtm-mail*
+else
+    logger -t amtm "was unable to send firmware notification, email.conf not found"
+fi
+

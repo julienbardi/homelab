@@ -1,0 +1,4 @@
+#!/bin/sh
+if echo "$2" | /bin/grep -q "wg_manager"; then { /jffs/addons/wireguard/wg_manager.sh service_event "$@" & }; fi # WireGuard WebUI
+if echo "$2" | /bin/grep -q "MerlinAU" ; then { /jffs/scripts/MerlinAU.sh service_event "$@" & }; fi #MerlinAU#
+if [ "$1" = "start" ] && [ "$2" = "SkynetStats" ]; then sh /jffs/scripts/firewall debug genstats; fi # Skynet
