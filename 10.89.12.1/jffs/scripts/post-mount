@@ -1,0 +1,7 @@
+#!/bin/sh
+swapon /tmp/mnt/sda/myswap.swp # Added by amtm
+. /jffs/addons/amtm/mount-entware.mod # Added by amtm
+
+
+
+

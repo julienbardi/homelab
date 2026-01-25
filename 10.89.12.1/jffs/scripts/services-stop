@@ -1,0 +1,8 @@
+#!/bin/sh
+
+/opt/etc/init.d/rc.unslung stop # Added by amtm
+
+/jffs/addons/amtm/routerdate save # Added by amtm
+
+[ -x /jffs/dnscrypt/manager ] && /jffs/dnscrypt/manager services-stop &
+sh /jffs/scripts/firewall save # Skynet
