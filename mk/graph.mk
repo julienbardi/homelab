@@ -42,6 +42,7 @@ include mk/20_sysctl.mk
 include mk/30_config_validation.mk
 include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include mk/40_code-server.mk
+include mk/40_router.mk      # Router orchestration
 include mk/40_wireguard.mk   # Wireguard orchestration
 include mk/41_wireguard-status.mk
 include mk/42_wireguard-qr.mk
