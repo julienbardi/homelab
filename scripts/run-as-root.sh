@@ -17,7 +17,7 @@ set -euo pipefail
 }
 # Environment variables allowed to cross the privilege boundary.
 # This list is policy: changes must be deliberate and reviewed.
-PRESERVE_ENV="DEBIAN_FRONTEND,SRC_ATTIC_CONFIG,SRC_ATTIC_SERVICE,ATTIC_REF,WG_ROOT,VERBOSE"
+PRESERVE_ENV="DEBIAN_FRONTEND,SRC_ATTIC_CONFIG,SRC_ATTIC_SERVICE,ATTIC_REF,WG_ROOT,VERBOSE,HOMELAB_DIR"
 if [ "$(id -u)" -eq 0 ]; then
 	exec "$@"
 else

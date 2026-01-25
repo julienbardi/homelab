@@ -48,6 +48,27 @@ if ! iptables -C FORWARD -p udp -s "$NAS4" --sport 51420:51435 \
 fi
 
 #
+# IPv4 firewall invariant:
+# Allow WireGuard clients to access LAN (bidirectional)
+#
+n="$WG_IF_MIN"
+while [ "$n" -le "$WG_IF_MAX" ]; do
+        WG_IF="wg${n}"
+
+        if ! iptables -C FORWARD -i "$WG_IF" -o br0 -j ACCEPT 2>/dev/null; then
+                iptables -I FORWARD -i "$WG_IF" -o br0 -j ACCEPT
+        fi
+
+        if ! iptables -C FORWARD -i br0 -o "$WG_IF" \
+                -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; then
+                iptables -I FORWARD -i br0 -o "$WG_IF" \
+                        -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+        fi
+
+        n=$((n + 1))
+done
+
+#
 # Policy routing exception:
 # Ensure router-originated traffic to LAN uses the LAN routing table
 #

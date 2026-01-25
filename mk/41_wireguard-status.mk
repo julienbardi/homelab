@@ -80,7 +80,13 @@ wg-show-client-key-validate:
 		exit 1; \
 	fi
 
-wg-show-client-key: wg-show-client-key-validate wg-show
+wg-show-client-key: wg-show-client-key-validate ensure-run-as-root
+	@conf="$(WG_ROOT)/export/clients/$(BASE)/$(IFACE).conf"; \
+	$(run_as_root) test -f "$$conf" || { \
+		echo "ERROR: missing $$conf — run 'make wg' first" >&2; \
+		exit 1; \
+	}; \
+	$(run_as_root) cat "$$conf"
 
 # ------------------------------------------------------------
 # Compiled artifacts view

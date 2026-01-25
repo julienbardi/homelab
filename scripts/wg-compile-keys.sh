@@ -17,6 +17,12 @@ die() { echo "wg-compile-keys: ERROR: $*" >&2; exit 1; }
 [ -f "$PLAN" ] || die "missing plan.tsv at $PLAN"
 command -v wg >/dev/null 2>&1 || die "wg not found in PATH"
 
+echo "DEBUG: PLAN=$PLAN" >&2
+echo "DEBUG: plan.tsv line count:" >&2
+wc -l "$PLAN" >&2
+echo "DEBUG: first 3 lines:" >&2
+head -n 3 "$PLAN" >&2
+
 EXISTING_KEYS="$OUT"
 
 tmp="$(mktemp)"
@@ -24,8 +30,10 @@ trap 'rm -f "$tmp"' EXIT
 
 printf "base\tiface\tclient_pub\tclient_priv\n" >"$tmp"
 
-# If keys.tsv doesn't exist yet, treat it as empty (but don't mutate it here).
-[ -f "$EXISTING_KEYS" ] || : >"$EXISTING_KEYS"
+# Ensure keys.tsv exists and has a header, so AWK FNR==NR only ever applies to it.
+if [ ! -s "$EXISTING_KEYS" ]; then
+    printf "base\tiface\tclient_pub\tclient_priv\n" >"$EXISTING_KEYS"
+fi
 
 awk -F'\t' '
 	BEGIN { OFS="\t" }
@@ -68,12 +76,18 @@ awk -F'\t' '
 
 		# Generate new key for new client
 		cmd = "wg genkey"
-		cmd | getline new_priv
+		if ((cmd | getline new_priv) <= 0) {
+			print "wg-compile-keys: ERROR: wg genkey failed" > "/dev/stderr"
+			exit 1
+		}
 		close(cmd)
 		sub(/\r?\n$/, "", new_priv)
 
 		cmd = "echo \"" new_priv "\" | wg pubkey"
-		cmd | getline new_pub
+		if ((cmd | getline new_pub) <= 0) {
+			print "wg-compile-keys: ERROR: wg pubkey failed" > "/dev/stderr"
+			exit 1
+		}
 		close(cmd)
 		sub(/\r?\n$/, "", new_pub)
 
