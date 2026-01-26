@@ -10,19 +10,9 @@
 # This file must be run before any router, firewall, or WireGuard targets.
 # ROLE gates prerequisites by responsibility: routers must manage NICs; services must not.
 
-PUBLIC_DNS ?= 1.1.1.1
-# Host responsibility (router | service | client)
-ROLE ?= service
-
-APT_CNAME_EXPECTED ?= bardi.ch
-
-TAILSCALE_KEYRING := /usr/share/keyrings/tailscale-archive-keyring.gpg
-TAILSCALE_KEY_URL := https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg
-
-TAILSCALE_REPO_FILE := /etc/apt/sources.list.d/tailscale.list
-TAILSCALE_REPO_LINE := deb [signed-by=$(TAILSCALE_KEYRING)] https://pkgs.tailscale.com/stable/debian bookworm main
-
-.PHONY: prereqs-network prereqs-network-verify prereqs fix-tailscale-repo \
+.PHONY: prereqs-network prereqs-network-verify \
+	prereqs-docs-verify \
+	prereqs fix-tailscale-repo \
 	rust-system
 
 prereqs-network-verify:
@@ -52,6 +42,10 @@ prereqs-network: ensure-run-as-root prereqs-network-verify
 		tcpdump
 
 # everything else
+prereqs-docs-verify:
+	@command -v glow >/dev/null || \
+		echo "ℹ️  glow not installed (Markdown help will be shown raw)"
+
 prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 	@echo "[check] Verifying public DNS CNAME for apt.bardi.ch by asking a public DNS"
 	@cname=$$(dig +short @$(PUBLIC_DNS) apt.bardi.ch CNAME | sed 's/\.$$//'); \

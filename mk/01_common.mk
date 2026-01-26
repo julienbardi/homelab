@@ -14,6 +14,7 @@
 #     scripts/foo.sh → /usr/local/bin/foo.sh
 #     scripts/bar.sh → /usr/local/sbin/bar.sh
 
+INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
 
 # Fallback for recursive make (do not force; let make set it if present)
 MAKE ?= $(MAKE)
@@ -25,7 +26,8 @@ INSTALL_SBIN_PATH ?= /usr/local/sbin
 
 BOOTSTRAP_FILES := \
 	$(INSTALL_PATH)/install_if_changed.sh \
-	$(INSTALL_SBIN_PATH)/run-as-root.sh
+	$(INSTALL_SBIN_PATH)/run-as-root.sh \
+	$(HOMELAB_ENV_DST)
 
 OTHER_SBIN_FILES := $(filter-out $(INSTALL_SBIN_PATH)/run-as-root.sh,$(SBIN_FILES))
 
@@ -50,13 +52,13 @@ define log
 	echo "$1" >&2; command -v logger >/dev/null 2>&1 && logger -t homelab-make "$1"
 endef
 
-$(INSTALL_PATH)/install_if_changed.sh: $(HOMELAB_DIR)/scripts/install_if_changed.sh
+$(INSTALL_PATH)/install_if_changed.sh: $(MAKEFILE_DIR)scripts/install_if_changed.sh
 	@install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $< $@
 
-# install_script(src, name), exit code 0 (unchanged) and 3 (updated) are success
+# install_script(src, name), exit code 0 (unchanged) and $(INSTALL_IF_CHANGED_EXIT_CHANGED) (updated) are success
 define install_script
 	@$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh --quiet \
-		$(1) $(INSTALL_PATH)/$(2) $(OWNER) $(GROUP) $(MODE) || [ $$? -eq 3 ]
+		$(1) $(INSTALL_PATH)/$(2) $(OWNER) $(GROUP) $(MODE) || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 endef
 
 # uninstall_script(name)
@@ -160,21 +162,21 @@ check-prereqs:
 
 # pattern rule: install scripts/<name>.sh -> $(INSTALL_PATH)/<name>
 # requires install_if_changed.sh to exist first (order-only prerequisite)
-$(INSTALL_PATH)/%.sh: $(HOMELAB_DIR)/scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
+$(INSTALL_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
 	$(call install_script,$<,$(notdir $<))
 
-$(INSTALL_SBIN_PATH)/run-as-root.sh: $(HOMELAB_DIR)/scripts/run-as-root.sh
+$(INSTALL_SBIN_PATH)/run-as-root.sh: $(MAKEFILE_DIR)scripts/run-as-root.sh
 	@install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $< $@
 
-$(INSTALL_SBIN_PATH)/%.sh: $(HOMELAB_DIR)/scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
+$(INSTALL_SBIN_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
 	@$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh --quiet \
-		$< $@ $(OWNER) $(GROUP) $(MODE) || [ $$? -eq 3 ]
+		$< $@ $(OWNER) $(GROUP) $(MODE) || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # Script classification:
 # - BIN_SCRIPTS  → operator / user-facing tools
 # - SBIN_SCRIPTS → root-only system automation
 SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh
-ALL_SCRIPTS := $(notdir $(wildcard $(HOMELAB_DIR)/scripts/*.sh))
+ALL_SCRIPTS := $(notdir $(wildcard $(MAKEFILE_DIR)scripts/*.sh))
 BIN_SCRIPTS := $(filter-out $(SBIN_SCRIPTS),$(ALL_SCRIPTS))
 
 BIN_FILES  := $(addprefix $(INSTALL_PATH)/,$(BIN_SCRIPTS))
@@ -199,11 +201,12 @@ uninstall-all:
 # Homelab environment configuration
 # --------------------------------------------------------------------
 
-HOMELAB_ENV_SRC  := $(HOMELAB_DIR)/config/homelab.env
-HOMELAB_ENV_DST  := /volume1/homelab/homelab.env
+HOMELAB_ENV_SRC := $(MAKEFILE_DIR)config/homelab.env
+HOMELAB_ENV_DST := /volume1/homelab/homelab.env
+HOMELAB_ENV_DIR := $(dir $(HOMELAB_ENV_DST))
 
 $(HOMELAB_ENV_DST): ensure-run-as-root $(HOMELAB_ENV_SRC)
-	@$(run_as_root) install -D -m 0600 \
-		$(HOMELAB_ENV_SRC) \
-		$(HOMELAB_ENV_DST)
+	@$(run_as_root) install -d -o root -g root -m 0755 $(HOMELAB_ENV_DIR)
+	@$(run_as_root) install -o root -g root -m 0600 \
+		$(HOMELAB_ENV_SRC) $(HOMELAB_ENV_DST)
 	@echo "🔐 homelab.env installed → $(HOMELAB_ENV_DST)"

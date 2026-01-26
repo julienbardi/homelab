@@ -1,118 +1,15 @@
-# help.mk
+DOCS_DIR := /volume1/homelab/docs
+
 .PHONY: help
 help:
-	@echo "Available targets:"
-	@echo ""
+	@test -r $(DOCS_DIR)/help.md || { \
+		echo "❌ Help is not installed at $(DOCS_DIR)/help.md"; \
+		echo "👉 Run: make install-docs"; \
+		exit 1; \
+	}
+	@command -v glow >/dev/null && glow $(DOCS_DIR)/help.md || cat $(DOCS_DIR)/help.md
 
-	@echo "🧱 Prerequisites"
-	@echo "  make prereqs                 # Install and verify core system prerequisites"
-	@echo "  make deps                    # Install common build and runtime dependencies"
-	@echo "  make apt-update              # Force refresh apt cache (normally cached)"
-	@echo ""
-
-	@echo "🔐 Security / access control"
-	@echo "  make harden-groups           # Verify group membership invariants (read-only)"
-	@echo "  make enforce-groups          # Enforce group membership (authorized admin only)"
-	@echo "  make check-groups            # Inspect group memberships"
-	@echo ""
-
-	@echo "🧩 System tuning"
-	@echo "  make install-homelab-sysctl  # Install and apply homelab sysctl forwarding config"
-	@echo "  make net-tunnel-preflight    # Ensure NIC offload settings for UDP tunnels"
-	@echo ""
-
-	@echo "🔐 Certificates — internal CA"
-	@echo "  make certs-ensure            # Ensure internal CA exists and is deployed"
-	@echo "  make certs-status            # Show CA and client certificate inventory"
-	@echo "  make certs-expiry            # Check CA expiry and days remaining"
-	@echo "  make gen-client-cert CN=...  # Generate or reissue a client certificate"
-	@echo "  ⚠️  make certs-rotate-dangerous   # Rotate internal CA (invalidates ALL client certs)"
-	@echo ""
-	@echo "  🚀 ACME / service certificates (derived)"
-	@echo "    make renew                 # Renew ACME certificates"
-	@echo "    make deploy-caddy          # Deploy certs to Caddy"
-	@echo "    make deploy-headscale      # Deploy certs to Headscale"
-	@echo "    make deploy-dnsdist        # Deploy certs to dnsdist"
-	@echo ""
-	@echo "  🧰 Bootstrap"
-	@echo "    make bootstrap-caddy       # First-time cert setup for Caddy"
-	@echo "    make bootstrap-headscale   # First-time cert setup for Headscale"
-	@echo "    make bootstrap-all         # Bootstrap all local services"
-	@echo ""
-	@echo "  ⚠️ Dangerous"
-	@echo "    make certs-rotate          # Rotate internal CA (invalidates client certs)"
-	@echo ""
-
-	@echo "🌐 DNS"
-	@echo "  make dns-stack               # Install and configure dnsmasq + Unbound"
-	@echo "  make dns-preflight           # Validate DNS policy and split-horizon invariants"
-	@echo "  make dns-postflight          # Validate live DNS behavior (after dns-stack)"
-	@echo "  make dnsmasq-status          # Show dnsmasq service status"
-	@echo ""
-
-	@echo "🔐 DNS over HTTPS (dnsdist)"
-	@echo "  make dnsdist                 # Converge dnsdist DoH frontend"
-	@echo "  make dnsdist-verify          # Verify dnsdist runtime and listener state"
-	@echo ""
-
-	@echo "🌍 Web / ingress"
-	@echo "  make caddy                   # Deploy and run Caddy reverse proxy"
-	@echo "  make caddy-validate          # Validate Caddyfile"
-	@echo "  make caddy-fmt               # Format Caddyfile"
-	@echo ""
-
-	@echo "🔐 WireGuard — core workflow"
-	@echo "  make wg-compile              # Compile and validate WireGuard intent (no deploy)"
-	@echo "  make wg-apply                # Compile, deploy, and export client configs"
-	@echo "  make wg-check                # Run WireGuard consistency checks"
-	@echo ""
-	@echo "  ⚠️ Destructive"
-	@echo "    make wg-rebuild-all        # Full WireGuard rebuild (invalidates all clients)"
-	@echo ""
-
-	@echo "🔍 WireGuard — status & inspection"
-	@echo "  make wg-intent               # Show authoritative WireGuard intent"
-	@echo "  make wg-clients              # List clients with helper commands"
-	@echo "  make wg-status               # Show runtime interface status"
-	@echo "  make wg-runtime              # Show detailed WireGuard peer state"
-	@echo "  make wg-dashboard            # Show interface assignment per client"
-	@echo "  make wg-check-ports          # Verify WireGuard UDP ports"
-	@echo ""
-	@echo "  ✏️ Mutating"
-	@echo "    make wg-remove-client BASE=… IFACE=…   # Remove a WireGuard client"
-	@echo ""
-
-	@echo "📱 WireGuard — client helpers"
-	@echo "  make wg-show BASE=… IFACE=…   # Show client config and QR code"
-	@echo "  make wg-qr   BASE=… IFACE=…   # Show QR code only"
-	@echo ""
-
-	@echo "🧪 WireGuard — diagnostics"
-	@echo "  make wg-runtime-recover       # Recover live WireGuard runtime state (no config changes)"
-	@echo ""
-
-	@echo "🧰 WireGuard — bootstrap"
-	@echo "  make wg-bootstrap             # Initialize WireGuard filesystem layout (run once)"
-	@echo ""
-
-	@echo "🛠️ Maintenance"
-	@echo "  make fix-acme-perms           # Repair ACME certificate permissions"
-	@echo "  make check-acme-perms         # Inspect ACME certificate permissions"
-	@echo ""
-
-	@echo "🌐 Network convergence"
-	@echo "  make converge-network        # Verify and reconcile network state (safe by default)"
-	@echo "  make converge-audit          # Show convergence plan (dry-run guidance)"
-	@echo ""
-
-	@echo "📦 Infrastructure"
-	@echo "  make install-all              # Install all homelab scripts"
-	@echo "  make uninstall-all            # Remove all homelab scripts"
-	@echo ""
-
-	@echo "Notes:"
-	@echo "  - All state is intent-driven; validation failures never modify deployed state."
-	@echo "  - Scripts are never executed from the repository."
-	@echo "  - Destructive targets are explicit and never run implicitly."
-	@echo "  - Re-running targets is safe unless explicitly marked dangerous."
-	@echo "  - Runtime reconciliation is gated; use FORCE=1 only after reviewing reported drift."
+.PHONY: install-docs
+install-docs: ensure-run-as-root
+	@$(run_as_root) install -d -o root -g root -m 0755 $(DOCS_DIR)
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)docs/help.md $(DOCS_DIR)/help.md

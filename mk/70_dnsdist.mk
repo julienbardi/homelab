@@ -2,13 +2,13 @@
 # mk/70_dnsdist.mk — dnsdist orchestration (DNS over HTTPS)
 # ============================================================
 
-DEPLOY_CERTS := /usr/local/bin/deploy_certificates.sh
-INSTALL_IF_CHANGED := /usr/local/bin/install_if_changed.sh
+DEPLOY_CERTS := $(INSTALL_PATH)/deploy_certificates.sh
+INSTALL_IF_CHANGED := $(INSTALL_PATH)/install_if_changed.sh
 
 DNSDIST_BIN        := /usr/bin/dnsdist
 DNSDIST_UNIT       := dnsdist.service
 
-DNSDIST_CONF_SRC   := $(HOMELAB_DIR)/config/dnsdist/dnsdist.conf
+DNSDIST_CONF_SRC   := $(MAKEFILE_DIR)config/dnsdist/dnsdist.conf
 DNSDIST_CONF_DST   := /etc/dnsdist/dnsdist.conf
 
 DNSDIST_CERT_DIR := /etc/dnsdist/certs
@@ -82,7 +82,7 @@ dnsdist-install:
 # - Certificate lifecycle is owned elsewhere
 # - dnsdist must never mutate cert material
 deploy-dnsdist-certs: install-all $(HOMELAB_ENV_DST) $(DEPLOY_CERTS)
-	$(DEPLOY_CERTS) deploy dnsdist
+	$(run_as_root) $(DEPLOY_CERTS) deploy dnsdist
 
 # --------------------------------------------------------------------
 # Configuration rendering (idempotent)
@@ -98,10 +98,9 @@ dnsdist-config:
 	@set -eu; \
 	$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
 	rc=0; \
-	CHANGED_EXIT_CODE=3 \
 	$(run_as_root) $(INSTALL_IF_CHANGED) \
 		"$(DNSDIST_CONF_SRC)" "$(DNSDIST_CONF_DST)" root root 0644 || rc="$$?"; \
-	if [ "$$rc" -eq 3 ]; then \
+	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsdist.conf updated"; \
 		echo "🔁 restarting dnsdist.service"; \
 		$(DNSDIST_RESTART_CMD); \
@@ -137,14 +136,13 @@ dnsdist-systemd-dropin:
 	@set -eu; \
 	echo "⚙️ Installing dnsdist systemd drop-in"; \
 	$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
-	CHANGED_EXIT_CODE=3 \
 	$(run_as_root) $(INSTALL_IF_CHANGED) \
-		"$(HOMELAB_DIR)/scripts/systemd/dnsdist.service.d/10-no-port53.conf" \
+		"$(MAKEFILE_DIR)scripts/systemd/dnsdist.service.d/10-no-port53.conf" \
 		"/etc/systemd/system/dnsdist.service.d/10-no-port53.conf" \
 		root root 0644; \
 	rc="$$?"; \
 	$(run_as_root) systemctl daemon-reload; \
-	if [ "$$rc" -eq 3 ]; then \
+	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsdist drop-in updated"; \
 		echo "🔁 restarting dnsdist.service"; \
 		$(DNSDIST_RESTART_CMD); \
@@ -152,17 +150,16 @@ dnsdist-systemd-dropin:
 
 assert-dnsdist-running:
 	@systemctl is-active --quiet dnsdist \
-	&& echo "[verify] ✅ dnsdist service active" \
-	|| ( echo "[verify] ❌ dnsdist service NOT active"; exit 1 )
+	&& echo "✅ dnsdist service active" \
+	|| ( echo "❌ dnsdist service NOT active"; exit 1 )
 
 check-dnsdist-doh-listener:
 	@ss -ltn sport = :8053 | grep -q LISTEN \
-		&& echo "[verify] ✅ dnsdist DoH listener active on port 8053" \
-		|| ( echo "[verify] ❌ dnsdist DoH listener NOT active on port 8053"; exit 1 )
+		&& echo "✅ dnsdist DoH listener active on port 8053" \
+		|| ( echo "❌ dnsdist DoH listener NOT active on port 8053"; exit 1 )
 
 dnsdist-verify: \
 	dnsdist-validate \
 	assert-dnsdist-running \
 	check-dnsdist-doh-listener
-	@echo "[verify] 🎉 dnsdist verification complete"
-
+	@echo "🎉 dnsdist verification complete"

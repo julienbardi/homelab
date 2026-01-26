@@ -11,28 +11,28 @@
 
 # Tools (allow override)
 SHELLCHECK ?= shellcheck
-SHELLCHECK_OPTS ?= -s bash -x --external-sources --source-path=$(HOMELAB_DIR)
+SHELLCHECK_OPTS ?= -s bash -x --external-sources --source-path=$(MAKEFILE_DIR)
 CODESPELL ?= codespell
 ASPELL ?= aspell
 CHECKMAKE ?= checkmake
 
 # Files to lint
 # Prefer git-tracked files; fallback to find for non-git contexts
-SH_FILES := $(shell git -C $(HOMELAB_DIR) ls-files '*.sh' 2>/dev/null || true)
+SH_FILES := $(shell git -C $(MAKEFILE_DIR) ls-files '*.sh' 2>/dev/null || true)
 ifeq ($(strip $(SH_FILES)),)
-SH_FILES := $(shell find $(HOMELAB_DIR) -type f -name '*.sh' -print)
+SH_FILES := $(shell find $(MAKEFILE_DIR) -type f -name '*.sh' -print)
 endif
 
 # Exclude archived scripts from linting
 SH_FILES := $(filter-out archive/%,$(SH_FILES))
 
 
-MK_FILES := $(shell git -C $(HOMELAB_DIR) ls-files 'mk/*.mk' 2>/dev/null || true)
+MK_FILES := $(shell git -C $(MAKEFILE_DIR) ls-files 'mk/*.mk' 2>/dev/null || true)
 ifeq ($(strip $(MK_FILES)),)
-MK_FILES := $(wildcard $(HOMELAB_DIR)/mk/*.mk)
+MK_FILES := $(wildcard $(MAKEFILE_DIR)/mk/*.mk)
 endif
 
-MAKEFILES := $(HOMELAB_DIR)/Makefile $(MK_FILES)
+MAKEFILES := $(MAKEFILE_DIR)/Makefile $(MK_FILES)
 
 define require_tool
 @if ! command -v $(1) >/dev/null 2>&1; then \
@@ -142,7 +142,7 @@ lint-spell:
 	@echo "[lint] Running codespell and aspell (permissive)..."
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
-	  $(CODESPELL) --skip="archive/*,*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" $(HOMELAB_DIR) || true; \
+	  $(CODESPELL) --skip="archive/*,*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" $(MAKEFILE_DIR) || true; \
 	else \
 	  echo "[lint] codespell not installed; skipping codespell"; \
 	fi
@@ -163,7 +163,7 @@ lint-spell-strict:
 	$(call require_tool,$(ASPELL))
 
 	@echo "[codespell] scanning..."
-	@$(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(HOMELAB_DIR)
+	@$(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(MAKEFILE_DIR)
 
 	@echo "[aspell] scanning comments (strict)"
 	@bad=$$( (for f in $(SH_FILES) $(MAKEFILES); do \
@@ -180,7 +180,7 @@ lint-spell-strict:
 lint-makefile:
 	@echo "[lint] Linting Makefiles and mk/*.mk (permissive)..."
 	@if command -v $(CHECKMAKE) >/dev/null 2>&1; then \
-	  for mf in $(HOMELAB_DIR)/Makefile $(MK_FILES); do \
+	  for mf in $(MAKEFILE_DIR)Makefile $(MK_FILES); do \
 		[ -f "$$mf" ] || continue; \
 		echo "[checkmake] $$mf"; \
 		$(CHECKMAKE) "$$mf" || true; \
@@ -193,7 +193,7 @@ lint-makefile:
 lint-makefile-strict:
 	@echo "[lint-ci] Linting Makefiles and mk/*.mk (strict)..."
 	$(call require_tool,$(CHECKMAKE))
-	@for mf in $(HOMELAB_DIR)/Makefile $(MK_FILES); do \
+	@for mf in $(MAKEFILE_DIR)Makefile $(MK_FILES); do \
 		[ -f "$$mf" ] || continue; \
 		echo "[checkmake] $$mf"; \
 		$(CHECKMAKE) "$$mf" || { echo "[checkmake] Issues in $$mf"; exit 1; }; \

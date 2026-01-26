@@ -2,13 +2,9 @@
 # Canonical entrypoint wrapper
 # This file exists ONLY to forward to the real graph.
 
-VERBOSE ?= 0
-export VERBOSE
-
 .DEFAULT_GOAL := help
 
-HOMELAB_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-export HOMELAB_DIR
+MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
 
-include mk/graph.mk
-include mk/help.mk
+include $(MAKEFILE_DIR)mk/graph.mk
+include $(MAKEFILE_DIR)mk/help.mk

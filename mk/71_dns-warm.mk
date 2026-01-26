@@ -1,14 +1,13 @@
 # mk/71_dns-warm.mk
 # DNS cache warming automation (dns-warm-rotate)
 
-BIN_DIR        ?= /usr/local/bin
-INSTALL_IF_CHANGED      := $(BIN_DIR)/install_if_changed.sh
+INSTALL_IF_CHANGED      := $(INSTALL_PATH)/install_if_changed.sh
 
 ROTATE_SCRIPT_NAME      ?= dns-warm-rotate.sh
-ROTATE_SCRIPT_PATH      ?= $(BIN_DIR)/$(ROTATE_SCRIPT_NAME)
-ROTATE_SCRIPT_SRC_INST  := $(BIN_DIR)/$(ROTATE_SCRIPT_NAME)
+ROTATE_SCRIPT_PATH      ?= $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
+ROTATE_SCRIPT_SRC_INST  := $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
 
-DNS_WARM_POLICY_SRC_INST := $(BIN_DIR)/dns-warm-update-domains.sh
+DNS_WARM_POLICY_SRC_INST := $(INSTALL_PATH)/dns-warm-update-domains.sh
 
 DOMAINS_DIR    ?= /etc/dns-warm
 DOMAINS_FILE   ?= $(DOMAINS_DIR)/domains.txt
@@ -16,7 +15,6 @@ DOMAINS_FILE   ?= $(DOMAINS_DIR)/domains.txt
 STATE_DIR      ?= /var/lib/dns-warm
 STATE_FILE     ?= $(STATE_DIR)/state.csv
 
-SYSTEMD_DIR    ?= /etc/systemd/system
 SERVICE        ?= dns-warm-rotate.service
 TIMER          ?= dns-warm-rotate.timer
 SERVICE_PATH   ?= $(SYSTEMD_DIR)/$(SERVICE)
@@ -27,13 +25,13 @@ GROUP          ?= $(USER)
 RESOLVER       ?= 127.0.0.1
 
 # --- dns-warm domain policy (domain list generation) ---
-DNS_WARM_POLICY_DST := $(BIN_DIR)/dns-warm-update-domains
+DNS_WARM_POLICY_DST := $(INSTALL_PATH)/dns-warm-update-domains
 
 .PHONY: install-dns-warm-policy update-dns-warm-domains
 
 install-dns-warm-policy:
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-		$(DNS_WARM_POLICY_SRC_INST) $(DNS_WARM_POLICY_DST) root root 0755 || [ $$? -eq 3 ]
+		$(DNS_WARM_POLICY_SRC_INST) $(DNS_WARM_POLICY_DST) root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # Fix parallel ordering
 update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-warm-dirs
@@ -109,7 +107,7 @@ dns-warm-dirs:
 
 dns-warm-install-script: dns-warm-async-install
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-		$(ROTATE_SCRIPT_SRC_INST) $(ROTATE_SCRIPT_PATH) $(USER) $(GROUP) 0755 || [ $$? -eq 3 ]
+		$(ROTATE_SCRIPT_SRC_INST) $(ROTATE_SCRIPT_PATH) $(USER) $(GROUP) 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 	@$(run_as_root) bash -n $(ROTATE_SCRIPT_PATH)
 
 # Fix parallel ordering
@@ -155,7 +153,7 @@ dns-warm-install-systemd: dns-warm-install-script
 # Async DNS cache warmer (c-ares based)
 # ------------------------------------------------------------
 
-DNS_WARM_ASYNC_SRC := $(HOMELAB_DIR)/scripts/dns-warm-async.c
+DNS_WARM_ASYNC_SRC := $(MAKEFILE_DIR)scripts/dns-warm-async.c
 
 .PHONY: dns-warm-async
 dns-warm-async: $(DNS_WARM_ASYNC_SRC) prereqs
@@ -164,4 +162,4 @@ dns-warm-async: $(DNS_WARM_ASYNC_SRC) prereqs
 .PHONY: dns-warm-async-install
 dns-warm-async-install: dns-warm-async
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-		dns-warm-async $(BIN_DIR)/dns-warm-async root root 0755 || [ $$? -eq 3 ]
+		dns-warm-async $(BIN_DIR)/dns-warm-async root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]

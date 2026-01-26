@@ -5,7 +5,7 @@ CADDY_BACKUP := /usr/bin/caddy.orig
 STAMP_CADDY  := $(STAMP_DIR)/caddy.installed
 
 CADDYFILE    := /etc/caddy/Caddyfile
-SRC_CADDYFILE:= $(HOMELAB_DIR)/config/caddy/Caddyfile
+SRC_CADDYFILE:= $(MAKEFILE_DIR)config/caddy/Caddyfile
 
 .PHONY: caddy
 caddy: ensure-run-as-root gitcheck assert-caddy-ports-free deploy-caddy

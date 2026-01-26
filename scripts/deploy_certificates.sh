@@ -8,7 +8,9 @@ set -euo pipefail
 
 HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
 
+# shellcheck disable=SC1091
 source "/volume1/homelab/homelab.env"
+# shellcheck disable=SC1091
 source "/usr/local/bin/common.sh"
 
 ACME="$ACME_HOME/acme.sh"
@@ -195,8 +197,6 @@ deploy_dnsdist() {
 
 	local rc1 rc2
 
-	local CHANGED_EXIT_CODE=3
-
 	/usr/local/bin/install_if_changed.sh \
 		"$SRC_CHAIN" "$DNSDIST_CERT_DIR/fullchain.pem" root "$DNSDIST_GROUP" 0644
 	rc1="$?"
@@ -210,7 +210,7 @@ deploy_dnsdist() {
 		return 0
 	fi
 
-	if [[ "$rc1" -eq 3 || "$rc2" -eq 3 ]]; then
+	if [[ "$rc1" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" || "$rc2" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]]; then
 		log "🔄 Restarting dnsdist (TLS material updated)"
 		systemctl restart dnsdist
 	else

@@ -68,10 +68,10 @@ remove-pkg-unbound:
 	$(call apt_remove,unbound)
 
 # --- Deployment ---
-UNBOUND_CONF_SRC := $(HOMELAB_DIR)/config/unbound/unbound.conf
+UNBOUND_CONF_SRC := $(MAKEFILE_DIR)config/unbound/unbound.conf
 UNBOUND_CONF_DST := /etc/unbound/unbound.conf
 
-UNBOUND_CONTROL_CONF_SRC := $(HOMELAB_DIR)/config/unbound/unbound-control.conf
+UNBOUND_CONTROL_CONF_SRC := $(MAKEFILE_DIR)config/unbound/unbound-control.conf
 UNBOUND_CONTROL_CONF_DST := /etc/unbound/unbound-control.conf
 
 assert-unbound-tools:
@@ -115,7 +115,7 @@ deploy-unbound-config: update-root-hints ensure-root-key
 	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
 		$(UNBOUND_CONF_SRC) $(UNBOUND_CONF_DST) root root 0644; \
 	rc=$$?; \
-	if [ $$rc -eq 3 ]; then \
+	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		changed=1; \
 	elif [ $$rc -ne 0 ]; then \
 		exit $$rc; \
@@ -133,7 +133,7 @@ deploy-unbound-control-config:
 		$(UNBOUND_CONTROL_CONF_DST) \
 		root root 0644; \
 	rc=$$?; \
-	if [ $$rc -eq 3 ]; then \
+	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		changed=1; \
 	elif [ $$rc -ne 0 ]; then \
 		exit $$rc; \
@@ -143,7 +143,7 @@ deploy-unbound-control-config:
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
 	fi
 
-UNBOUND_SERVICE_SRC := $(HOMELAB_DIR)/config/systemd/unbound.service
+UNBOUND_SERVICE_SRC := $(MAKEFILE_DIR)config/systemd/unbound.service
 UNBOUND_SERVICE_DST := /etc/systemd/system/unbound.service
 
 deploy-unbound-service:
@@ -153,7 +153,7 @@ deploy-unbound-service:
 		$(UNBOUND_SERVICE_DST) \
 		root root 0644; \
 	rc=$$?; \
-	if [ $$rc -eq 3 ]; then \
+	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		changed=1; \
 	elif [ $$rc -ne 0 ]; then \
 		exit $$rc; \
@@ -164,7 +164,7 @@ deploy-unbound-service:
 		$(run_as_root) systemctl daemon-reload; \
 	fi
 
-UNBOUND_LOCAL_INTERNAL_SRC := $(HOMELAB_DIR)/config/unbound/local-internal.conf
+UNBOUND_LOCAL_INTERNAL_SRC := $(MAKEFILE_DIR)config/unbound/local-internal.conf
 UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
 
 deploy-unbound-local-internal:
@@ -174,7 +174,7 @@ deploy-unbound-local-internal:
 		$(UNBOUND_LOCAL_INTERNAL_DST) \
 		root root 0644; \
 	rc=$$?; \
-	if [ $$rc -eq 3 ]; then \
+	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		changed=1; \
 	elif [ $$rc -ne 0 ]; then \
 		exit $$rc; \
@@ -187,7 +187,7 @@ deploy-unbound-local-internal:
 	fi
 
 # --- Systemd drop-in for fixing /run/unbound.ctl ownership ---
-UNBOUND_DROPIN_SRC := $(HOMELAB_DIR)/config/systemd/unbound.service.d/99-fix-unbound-ctl.conf
+UNBOUND_DROPIN_SRC := $(MAKEFILE_DIR)config/systemd/unbound.service.d/99-fix-unbound-ctl.conf
 UNBOUND_DROPIN_DST := /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.conf
 
 install-unbound-systemd-dropin:
@@ -198,7 +198,7 @@ install-unbound-systemd-dropin:
 		$(UNBOUND_DROPIN_DST) \
 		root root 0644; \
 	rc=$$?; \
-	if [ $$rc -eq 3 ]; then \
+	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		changed=1; \
 	elif [ $$rc -ne 0 ]; then \
 		exit $$rc; \
