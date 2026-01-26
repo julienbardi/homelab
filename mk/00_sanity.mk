@@ -26,7 +26,7 @@ ifneq ($(filter -j%,$(MAKEFLAGS)),)
 endif
 
 assert-scripts-layout:
-	@bad=$$(find "$(HOMELAB_DIR)/scripts" \
+	@bad=$$(find "$(MAKEFILE_DIR)scripts" \
 		-mindepth 2 -type f -name '*.sh' \
 		! -path '*/helpers/*' \
 		! -path '*/lib/*' \

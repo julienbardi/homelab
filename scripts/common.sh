@@ -5,13 +5,28 @@
 # Shared helpers for homelab scripts
 # Provides: log(), run_as_root(), ensure_rule()
 # ============================================================
-
 set -euo pipefail
 
-# Force HOME to julie's home even under sudo
-HOME="/home/julie"
+[[ -n "${_HOMELAB_COMMON_SH_LOADED:-}" ]] && return
+readonly _HOMELAB_COMMON_SH_LOADED=1
 
 SCRIPT_NAME="$(basename "$0" .sh)"
+
+export INSTALL_IF_CHANGED_EXIT_CHANGED=3
+# Run install_if_changed and treat "changed" as success.
+# Propagates any other non-zero exit code.
+run_install_if_changed() {
+	local install_if_changed="$1"; shift
+	local rc=0
+
+	"$install_if_changed" "$@" || rc=$?
+
+	if [[ "$rc" -eq 0 || "$rc" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]]; then
+		return 0
+	fi
+
+	return "$rc"
+}
 
 # shellcheck disable=SC2317
 log() {
@@ -25,9 +40,6 @@ log() {
 	# Syslog: keep timestamp for auditability
 	logger -t "${SCRIPT_NAME:-${0##*/}}" "$syslog_msg"
 }
-
-# shellcheck source=./scripts/lib/run_as_root.sh
-source "$HOME/src/homelab/scripts/lib/run_as_root.sh"
 
 # Idempotent rule inserter: checks with -C first
 ensure_rule() {
@@ -50,11 +62,6 @@ ensure_rule() {
 # Require file exists and is non-empty
 require_file() {
 	[[ -s "$1" ]] || { log "[ERROR] missing file: $1"; exit 1; }
-}
-
-# SHA256 helper
-sha256() {
-	sha256sum "$1" | awk '{print $1}'
 }
 
 # Compare hash of source file against stored hash file
@@ -179,5 +186,3 @@ reload_service() {
 	log "[svc] ERROR: $svc reload/restart failed completely"
 	return 1
 }
-
-

@@ -1,7 +1,10 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # wg-ensure-server-keys.sh
 set -eu
 umask 077
+
+# shellcheck disable=SC1091
+source /usr/local/bin/common.sh
 
 : "${WG_ROOT:?WG_ROOT not set}"
 
@@ -11,8 +14,7 @@ PUBDIR="$WG_ROOT/compiled/server-pubkeys"
 PLAN="$WG_ROOT/compiled/plan.tsv"
 OUT_BASE="$WG_ROOT/out/server/base"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-INSTALL_IF_CHANGED="$SCRIPT_DIR/install_if_changed.sh"
+INSTALL_IF_CHANGED="/usr/local/bin/install_if_changed.sh"
 
 [ -x "$INSTALL_IF_CHANGED" ] || {
 	echo "wg-ensure-server-keys: ERROR: install_if_changed.sh not found or not executable" >&2
@@ -69,7 +71,12 @@ for iface in $ifaces; do
 	fi
 
 	# Publish the server pubkey into the compiled artifact directory (renderer contract)
-	"$INSTALL_IF_CHANGED" --quiet "$pub" "$PUBDIR/$iface.pub" root root 644 || [ $? -eq 3 ]
+	rc=0
+	"$INSTALL_IF_CHANGED" --quiet "$pub" "$PUBDIR/$iface.pub" root root 644 || rc=$?
+	if [ "$rc" -ne 0 ] && [ "$rc" -ne "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]; then
+		exit "$rc"
+	fi
+
 
 	i="${iface#wg}"
 	out="$OUT_BASE/$iface.conf"

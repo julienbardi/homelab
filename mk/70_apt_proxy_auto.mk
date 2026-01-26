@@ -4,8 +4,8 @@
 
 APT_PROXY_AUTO := /usr/local/sbin/apt-proxy-auto.sh
 
-APT_PROXY_AUTO_SERVICE_SRC := $(HOMELAB_DIR)/config/systemd/apt-proxy-auto.service
-APT_PROXY_AUTO_TIMER_SRC   := $(HOMELAB_DIR)/config/systemd/apt-proxy-auto.timer
+APT_PROXY_AUTO_SERVICE_SRC := $(MAKEFILE_DIR)config/systemd/apt-proxy-auto.service
+APT_PROXY_AUTO_TIMER_SRC   := $(MAKEFILE_DIR)config/systemd/apt-proxy-auto.timer
 
 APT_PROXY_AUTO_SERVICE_DST := /etc/systemd/system/apt-proxy-auto.service
 APT_PROXY_AUTO_TIMER_DST   := /etc/systemd/system/apt-proxy-auto.timer
