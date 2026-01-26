@@ -2,12 +2,12 @@
 # mk/50_dnsmasq.mk — dnsmasq orchestration
 # ============================================================
 
-DNSMASQ_CONF_SRC_DIR := $(HOMELAB_DIR)/config/dnsmasq
+DNSMASQ_CONF_SRC_DIR := $(MAKEFILE_DIR)config/dnsmasq
 DNSMASQ_CONF_FILES := $(wildcard $(DNSMASQ_CONF_SRC_DIR)/*.conf)
 
 DNSMASQ_CONF_DIR := /usr/ugreen/etc/dnsmasq/dnsmasq.d
 
-CADDY_INTERNAL_HOSTS_FILE := $(HOMELAB_DIR)/config/caddy/internal-hosts.txt
+CADDY_INTERNAL_HOSTS_FILE := $(MAKEFILE_DIR)config/caddy/internal-hosts.txt
 
 .PHONY: \
 	install-pkg-dnsmasq \

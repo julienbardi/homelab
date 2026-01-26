@@ -7,7 +7,7 @@
 # - Operators escaped so they survive Make parsing.
 # --------------------------------------------------------------------
 
-HEADSCALE_BIN := /usr/local/bin/headscale
+HEADSCALE_BIN := $(INSTALL_PATH)/headscale
 HEADSCALE_URL := https://github.com/juanfont/headscale/releases/download/v0.28.0-beta.1/headscale_0.28.0-beta.1_linux_amd64
 
 HEADSCALE_CONFIG_SRC := config/headscale/config.yaml
@@ -18,7 +18,7 @@ HEADSCALE_DERP_CONFIG_DST := /etc/headscale/derp.yaml
 
 HEADSCALE_METRICS_ADDR := 10.89.12.4:9091
 
-WAIT_FOR_COMMAND := /usr/local/bin/wait_for_command.sh
+WAIT_FOR_COMMAND := $(INSTALL_PATH)/wait_for_command.sh
 
 .NOTPARALLEL: headscale headscale-restart headscale-verify
 
@@ -31,7 +31,7 @@ headscale-config: ensure-run-as-root $(HEADSCALE_CONFIG_SRC)
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
 		"$(HEADSCALE_CONFIG_SRC)" \
 		"$(HEADSCALE_CONFIG_DST)" \
-		headscale headscale 0640 || [ $$? -eq 3 ]
+		headscale headscale 0640 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 .PHONY: headscale-derp-config
 headscale-derp-config: ensure-run-as-root $(HEADSCALE_DERP_CONFIG_SRC)
@@ -39,7 +39,7 @@ headscale-derp-config: ensure-run-as-root $(HEADSCALE_DERP_CONFIG_SRC)
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
 		"$(HEADSCALE_DERP_CONFIG_SRC)" \
 		"$(HEADSCALE_DERP_CONFIG_DST)" \
-		headscale headscale 0640 || [ $$? -eq 3 ]
+		headscale headscale 0640 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # --------------------------------------------------------------------
 # Bootstrap (one-time, idempotent)
@@ -52,7 +52,7 @@ headscale-bin: ensure-run-as-root
 		tmp=$$(mktemp); \
 		trap "rm -f $$tmp" EXIT; \
 		curl -fsSL "$(HEADSCALE_URL)" -o "$$tmp"; \
-		$(INSTALL_IF_CHANGED) "$$tmp" "$(HEADSCALE_BIN)" root root 0755 || [ $$? -eq 3 ]; \
+		$(INSTALL_IF_CHANGED) "$$tmp" "$(HEADSCALE_BIN)" root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
 	'
 
 # --------------------------------------------------------------------
@@ -211,7 +211,7 @@ rotate-noise-key: ensure-run-as-root headscale-bin headscale-systemd
 	@echo "⚠️  Proceeding with Noise key rotation — clients must re-authenticate"
 	@$(run_as_root) systemctl stop headscale
 	@$(run_as_root) rm -f /etc/headscale/noise_private.key
-	@$(run_as_root) bash -c "umask 077; /usr/local/bin/headscale generate private-key > /etc/headscale/noise_private.key && chown headscale:headscale /etc/headscale/noise_private.key && chmod 600 /etc/headscale/noise_private.key"
+	@$(run_as_root) bash -c "umask 077; $(HEADSCALE_BIN) generate private-key > /etc/headscale/noise_private.key && chown headscale:headscale /etc/headscale/noise_private.key && chmod 600 /etc/headscale/noise_private.key"
 	@$(run_as_root) systemctl start headscale
 	@echo "🔄 Noise private key rotated and Headscale restarted"
 	@echo "🔍 Validating Headscale service"

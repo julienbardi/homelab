@@ -31,40 +31,41 @@ INTERNAL_HOSTS := \
 	apt.bardi.ch
 
 # --- Includes (ordered by prefix) ---
-include mk/00_sanity.mk
-include mk/00_prereqs.mk
-include mk/01_common.mk
-include mk/05_bootstrap_wireguard.mk
-include mk/10_groups.mk      # group membership enforcement (security bootstrap)
-include mk/20_deps.mk        # package dependencies (apt installs, base tools)
-include mk/20_net-tunnel.mk
-include mk/20_sysctl.mk
-include mk/30_config_validation.mk
-include mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
-include mk/40_code-server.mk
-include mk/40_router.mk      # Router orchestration
-include mk/40_wireguard.mk   # Wireguard orchestration
-include mk/41_wireguard-status.mk
-include mk/42_wireguard-qr.mk
-include mk/43_wireguard-runtime.mk
-include mk/40_caddy.mk
-include mk/50_certs.mk       # certificate handling (issue, renew, deploy)
-include mk/50_dnsmasq.mk
-include mk/60_unbound.mk     # Unbound DNS resolver setup
-include mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
-include mk/70_dnsdist.mk     #
-include mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
-include mk/70_apt_proxy_auto.mk
-include mk/80_tailnet.mk     # Tailscale/Headscale orchestration
-include mk/81_headscale.mk              # Headscale service + binary + systemd
-include mk/83_headscale-users.mk        # Users (future)
-include mk/84_headscale-acls.mk         # ACLs (future)
-include mk/85_monitoring.mk
-include mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
-include mk/90_dns-health.mk  # DNS health checks and monitoring
-include mk/90_converge.mk
-include mk/95_status.mk
-include mk/99_lint.mk        # lint and safety checks (always last)
+include $(MAKEFILE_DIR)mk/00_constants.mk
+include $(MAKEFILE_DIR)mk/00_sanity.mk
+include $(MAKEFILE_DIR)mk/00_prereqs.mk
+include $(MAKEFILE_DIR)mk/01_common.mk
+include $(MAKEFILE_DIR)mk/05_bootstrap_wireguard.mk
+include $(MAKEFILE_DIR)mk/10_groups.mk      # group membership enforcement (security bootstrap)
+include $(MAKEFILE_DIR)mk/20_deps.mk        # package dependencies (apt installs, base tools)
+include $(MAKEFILE_DIR)mk/20_net-tunnel.mk
+include $(MAKEFILE_DIR)mk/20_sysctl.mk
+include $(MAKEFILE_DIR)mk/30_config_validation.mk
+include $(MAKEFILE_DIR)mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
+include $(MAKEFILE_DIR)mk/40_code-server.mk
+include $(MAKEFILE_DIR)mk/40_router.mk      # Router orchestration
+include $(MAKEFILE_DIR)mk/40_wireguard.mk   # Wireguard orchestration
+include $(MAKEFILE_DIR)mk/41_wireguard-status.mk
+include $(MAKEFILE_DIR)mk/42_wireguard-qr.mk
+include $(MAKEFILE_DIR)mk/43_wireguard-runtime.mk
+include $(MAKEFILE_DIR)mk/40_caddy.mk
+include $(MAKEFILE_DIR)mk/50_certs.mk       # certificate handling (issue, renew, deploy)
+include $(MAKEFILE_DIR)mk/50_dnsmasq.mk
+include $(MAKEFILE_DIR)mk/60_unbound.mk     # Unbound DNS resolver setup
+include $(MAKEFILE_DIR)mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
+include $(MAKEFILE_DIR)mk/70_dnsdist.mk     #
+include $(MAKEFILE_DIR)mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
+include $(MAKEFILE_DIR)mk/70_apt_proxy_auto.mk
+include $(MAKEFILE_DIR)mk/80_tailnet.mk     # Tailscale/Headscale orchestration
+include $(MAKEFILE_DIR)mk/81_headscale.mk              # Headscale service + binary + systemd
+include $(MAKEFILE_DIR)mk/83_headscale-users.mk        # Users (future)
+include $(MAKEFILE_DIR)mk/84_headscale-acls.mk         # ACLs (future)
+include $(MAKEFILE_DIR)mk/85_monitoring.mk
+include $(MAKEFILE_DIR)mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
+include $(MAKEFILE_DIR)mk/90_dns-health.mk  # DNS health checks and monitoring
+include $(MAKEFILE_DIR)mk/90_converge.mk
+include $(MAKEFILE_DIR)mk/95_status.mk
+include $(MAKEFILE_DIR)mk/99_lint.mk        # lint and safety checks (always last)
 
 # ============================================================
 # Makefile — homelab certificate orchestration
@@ -73,36 +74,36 @@ include mk/99_lint.mk        # lint and safety checks (always last)
 # --------------------------------------------------------------------
 
 # Path to the interactive known_hosts installer
-KNOWN_HOSTS_FILE := $(HOMELAB_DIR)/known_hosts_to_check.txt
-KNOWN_HOSTS_SCRIPT := $(HOMELAB_DIR)/scripts/helpers/verify_and_install_known_hosts.sh
+KNOWN_HOSTS_FILE := $(MAKEFILE_DIR)known_hosts_to_check.txt
+KNOWN_HOSTS_SCRIPT := $(MAKEFILE_DIR)scripts/verify_and_install_known_hosts.sh
 
 # Allow skipping in CI or when explicitly requested
 SKIP_KNOWN_HOSTS ?= 0
 
 .PHONY: ensure-known-hosts
-ensure-known-hosts:
+ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
 	@echo "[make] Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE) (SKIP_KNOWN_HOSTS=$(SKIP_KNOWN_HOSTS))"
 	@if [ "$(SKIP_KNOWN_HOSTS)" = "1" ]; then \
 	  echo "[make] Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
 	else \
-	  $(run_as_root) bash "$(KNOWN_HOSTS_SCRIPT)" "$(KNOWN_HOSTS_FILE)" || true; \
+	  $(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
 	fi
 
 .PHONY: gitcheck update
 gitcheck:
-	@if [ ! -d $(HOMELAB_DIR)/.git ]; then \
+	@if [ ! -d $(MAKEFILE_DIR)/.git ]; then \
 		echo "[make] Cloning homelab repo..."; \
-		mkdir -p $(dir $(HOMELAB_DIR)); \
-		git clone $(HOMELAB_REPO) $(HOMELAB_DIR); \
+		mkdir -p $(dir $(MAKEFILE_DIR)); \
+		git clone $(HOMELAB_REPO) $(MAKEFILE_DIR); \
 	else \
-		echo "[make] homelab repo already present at $(HOMELAB_DIR)"; \
-		git -C $(HOMELAB_DIR) rev-parse --short HEAD; \
+		echo "[make] homelab repo already present at $(MAKEFILE_DIR)"; \
+		git -C $(MAKEFILE_DIR) rev-parse --short HEAD; \
 	fi
 
 update: gitcheck
 	@echo "[make] Updating homelab repo..."
-	@git -C $(HOMELAB_DIR) pull --rebase || true
-	@echo "[make] Repo now at commit $$(git -C $(HOMELAB_DIR) rev-parse --short HEAD)"
+	@git -C $(MAKEFILE_DIR) pull --rebase || true
+	@echo "[make] Repo now at commit $$(git -C $(MAKEFILE_DIR) rev-parse --short HEAD)"
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake
 .PHONY: test logs clean-soft
@@ -127,7 +128,7 @@ restart:
 
 test: logs
 	@echo "[make] Running run_as_root harness..."
-	@$(run_as_root) bash $(HOMELAB_DIR)/scripts/test_run_as_root.sh
+	@$(run_as_root) bash $(INSTALL_PATH)/test_run_as_root.sh
 
 # all:
 # - Enforces invariants
@@ -157,7 +158,7 @@ tailscaled: \
 	enable-tailscaled \
 	start-tailscaled \
 	tailscaled-status
-	@COMMIT_HASH=$$(git -C $(HOMELAB_DIR) rev-parse --short HEAD); \
+	@COMMIT_HASH=$$(git -C $(MAKEFILE_DIR) rev-parse --short HEAD); \
 		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
 SYSTEMD_DIR = /etc/systemd/system
@@ -167,18 +168,18 @@ REPO_SYSTEMD = config/systemd
 
 install-systemd: ## Install systemd units and reload systemd (idempotent)
 	@echo "[make] Installing systemd units..."
-	@if [ ! -d "$(HOMELAB_DIR)/$(REPO_SYSTEMD)" ]; then \
-		echo "[make] ERROR: $(HOMELAB_DIR)/$(REPO_SYSTEMD) not found"; exit 1; \
+	@if [ ! -d "$(MAKEFILE_DIR)$(REPO_SYSTEMD)" ]; then \
+		echo "[make] ERROR: $(MAKEFILE_DIR)$(REPO_SYSTEMD) not found"; exit 1; \
 	fi
 	# ensure target dirs
 	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
 	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)/unbound-ctl-fix.service.d
 	@$(run_as_root) mkdir -p /etc/systemd/system/unbound.service.d
 	# install unit files with safe perms (path+oneshot helper kept as fallback)
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf
 	@$(run_as_root) systemctl daemon-reload
 
 enable-systemd: install-systemd
@@ -213,21 +214,21 @@ uninstall-systemd:
 .NOTPARALLEL: nft-confirm nft-apply
 
 nft-apply:
-	@$(run_as_root) scripts/homelab-nft-apply.sh
+	@$(run_as_root) $(INSTALL_PATH)/homelab-nft-apply.sh
 	@echo "🧾 Recording applied nftables ruleset hash"
 	@$(run_as_root) sh -c 'sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"'
 
 nft-confirm:
-	sudo scripts/homelab-nft-confirm.sh
+	@$(run_as_root) $(INSTALL_PATH)/homelab-nft-confirm.sh
 
 nft-install:
 	@echo "[make] Installing homelab nftables firewall..."
-	@$(run_as_root) install -o root -g root -m 0755 $(HOMELAB_DIR)/scripts/homelab-nft-apply.sh /usr/local/bin/homelab-nft-apply.sh
-	@$(run_as_root) install -o root -g root -m 0755 $(HOMELAB_DIR)/scripts/homelab-nft-confirm.sh /usr/local/bin/homelab-nft-confirm.sh
-	@$(run_as_root) install -o root -g root -m 0755 $(HOMELAB_DIR)/scripts/homelab-nft-rollback.sh /usr/local/bin/homelab-nft-rollback.sh
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
+	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-apply.sh /usr/local/bin/homelab-nft-apply.sh
+	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-confirm.sh /usr/local/bin/homelab-nft-confirm.sh
+	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-rollback.sh /usr/local/bin/homelab-nft-rollback.sh
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft.service homelab-nft-rollback.timer
 	@echo "[make] ✅ Firewall units installed (not yet applied)"
@@ -237,13 +238,14 @@ nft-install:
 	@echo "[make]   (If not confirmed, rollback runs automatically)"
 
 nft-status:
-	sudo nft list table inet homelab_filter
+	@$(run_as_root) nft list table inet homelab_filter
 
 nft-install-rollback:
 	@echo "[make] Installing homelab nft rollback units..."
-	@$(run_as_root) install -o root -g root -m 0644 $(HOMELAB_DIR)/config/systemd/homelab-nft-rollback.service \
-		/etc/systemd/system/homelab-nft-rollback.service @$(run_as_root) install -o root -g root -m 0644 \
-		$(HOMELAB_DIR)/config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.service \
+		/etc/systemd/system/homelab-nft-rollback.service \
+	@$(run_as_root) install -o root -g root -m 0644 \
+		$(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft-rollback.timer
 
@@ -251,12 +253,10 @@ nft-install-rollback:
 print-debug:
 	@echo "CURDIR=$(CURDIR)"
 	@echo "MAKEFILE_LIST=$(MAKEFILE_LIST)"
-	@echo "HOMELAB_DIR=$(HOMELAB_DIR)"
+	@echo "MAKEFILE_DIR=$(MAKEFILE_DIR)"
+	@echo "INSTALL_PATH=$(INSTALL_PATH)"
 
 .PHONY: regen-clients
 regen-clients: ensure-run-as-root wg-apply
 	@echo "🔁 Regenerating all WireGuard clients from authoritative input"
-	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" \
-		"$(HOMELAB_DIR)/scripts/wg-compile-clients.sh"
-
-
+	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" $(INSTALL_PATH)/wg-compile-clients.sh

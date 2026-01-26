@@ -12,6 +12,12 @@
 #   ephemeral+non-reusable keys only, safe file ownership/permissions.
 # --------------------------------------------------------------------
 
+TAILSCALE_KEYRING := /usr/share/keyrings/tailscale-archive-keyring.gpg
+TAILSCALE_KEY_URL := https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg
+
+TAILSCALE_REPO_FILE := /etc/apt/sources.list.d/tailscale.list
+TAILSCALE_REPO_LINE := deb [signed-by=$(TAILSCALE_KEYRING)] https://pkgs.tailscale.com/stable/debian bookworm main
+
 TS_BIN ?= /usr/bin/tailscale
 HS_BIN ?= /usr/local/bin/headscale
 
@@ -25,8 +31,7 @@ endef
 HS_USER_LAN := $(call headscale_user_id,lan)
 HS_USER_WAN := $(call headscale_user_id,wan)
 
-SYSTEMD_SRC_DIR ?= /home/julie/src/homelab/config/systemd
-SYSTEMD_DST_DIR ?= /etc/systemd/system
+SYSTEMD_SRC_DIR := $(MAKEFILE_DIR)config/systemd
 
 .PHONY: tailscaled-check-deps \
 	tailscaled-lan tailscaled-wan \
@@ -84,7 +89,7 @@ enable-tailscaled:
 	@echo "🧩 Installing systemd role units"
 	@$(run_as_root) install -o root -g root -m 644 \
 		$(SYSTEMD_SRC_DIR)/tailscaled-lan.service \
-		$(SYSTEMD_DST_DIR)/tailscaled-lan.service
+		$(SYSTEMD_DIR)/tailscaled-lan.service
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable tailscaled tailscaled-lan.service
 	@echo "🚀 Enabled at boot: tailscaled + role service"

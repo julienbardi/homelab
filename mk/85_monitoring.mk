@@ -8,12 +8,14 @@
 # - Configuration is owned by the repo and installed idempotently.
 # --------------------------------------------------------------------
 
-PROMETHEUS_CONFIG_SRC := $(HOMELAB_DIR)/config/prometheus/prometheus.yml
+PROMETHEUS_CONFIG_SRC := $(MAKEFILE_DIR)config/prometheus/prometheus.yml
 PROMETHEUS_CONFIG_DST := /etc/prometheus/prometheus.yml
 
 PROMETHEUS_ADDR := 10.89.12.4:9090
 
 PROMETHEUS_SERVICE := prometheus.service
+
+INSTALL_IF_CHANGED := $(INSTALL_PATH)/install_if_changed.sh
 
 .PHONY: \
 	monitoring \
@@ -54,7 +56,7 @@ prometheus-config: ensure-run-as-root $(PROMETHEUS_CONFIG_SRC)
 		"$(PROMETHEUS_CONFIG_DST)" \
 		root root 0644; \
 	rc=$$?; \
-	if [ $$rc -eq 3 ]; then changed=1; \
+	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then changed=1; \
 	elif [ $$rc -ne 0 ]; then exit $$rc; fi; \
 	if [ $$changed -eq 1 ]; then \
 		echo "→ Prometheus config updated"; \
