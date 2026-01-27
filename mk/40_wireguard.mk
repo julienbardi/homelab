@@ -4,7 +4,7 @@
 # - No FORCE flags; failures leave last-known-good intact
 # ============================================================
 
-WG_ROOT := /volume1/homelab/wireguard
+WG_ROOT := $(WG_ROOT)
 export WG_ROOT
 
 WG_INPUT := $(WG_ROOT)/input
@@ -205,7 +205,7 @@ wg: \
 wg-verify-no-key-reuse: wg-install-scripts ensure-run-as-root
 	@$(run_as_root) bash -euo pipefail -c '\
 		echo "🔍 Verifying no WireGuard key reuse against compromised ledger"; \
-		ledger="/volume1/homelab/security/compromised_keys.tsv"; \
+		ledger="$(SECURITY_DIR)/compromised_keys.tsv"; \
 		tmp="$$(mktemp)"; \
 		trap "rm -f '\''$$tmp'\''" EXIT; \
 		\

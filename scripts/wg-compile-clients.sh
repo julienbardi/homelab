@@ -6,7 +6,7 @@
 # One worker per interface (parallel-safe).
 #
 # Input (authoritative for rendering):
-#   /volume1/homelab/wireguard/compiled/plan.tsv
+#   ${WG_ROOT}/compiled/plan.tsv
 #
 # This script MUST be a dumb renderer:
 # - no address math

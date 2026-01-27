@@ -10,18 +10,18 @@ WG_ENSURE_SERVER_KEYS := /usr/local/bin/wg-ensure-server-keys.sh
 wg-bootstrap: ensure-run-as-root $(WG_ENSURE_SERVER_KEYS)
 	@echo "🔧 Bootstrapping WireGuard filesystem layout"
 
-	@$(run_as_root) install -d -m 0750 -o root  -g admin /volume1/homelab
-	@$(run_as_root) install -d -m 0750 -o root  -g admin /volume1/homelab/wireguard
-	@$(run_as_root) install -d -m 0750 -o root  -g admin /volume1/homelab/wireguard/input
-	@$(run_as_root) install -d -m 2770 -o root  -g admin /volume1/homelab/wireguard/compiled
-	@$(run_as_root) install -d -m 0750 -o root  -g admin /volume1/homelab/wireguard/scripts
-	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/server-keys
-	@$(run_as_root) install -d -m 2770 -o root  -g admin /volume1/homelab/wireguard/compiled/server-pubkeys
-	@$(run_as_root) install -d -m 0700 -o root  -g root  /volume1/homelab/wireguard/compiled/client-keys
-	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/out
-	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/export/clients
-	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/out/server
-	@$(run_as_root) install -d -m 0700 -o julie -g admin /volume1/homelab/wireguard/out/server/peers
+	@$(run_as_root) install -d -m 0750 -o root  -g admin $(HOMELAB_ROOT)
+	@$(run_as_root) install -d -m 0750 -o root  -g admin $(WG_ROOT)
+	@$(run_as_root) install -d -m 0750 -o root  -g admin $(WG_ROOT)/input
+	@$(run_as_root) install -d -m 2770 -o root  -g admin $(WG_ROOT)/compiled
+	@$(run_as_root) install -d -m 0750 -o root  -g admin $(WG_ROOT)/scripts
+	@$(run_as_root) install -d -m 0700 -o julie -g admin $(WG_ROOT)/server-keys
+	@$(run_as_root) install -d -m 2770 -o root  -g admin $(WG_ROOT)/compiled/server-pubkeys
+	@$(run_as_root) install -d -m 0700 -o root  -g root  $(WG_ROOT)/compiled/client-keys
+	@$(run_as_root) install -d -m 0700 -o julie -g admin $(WG_ROOT)/out
+	@$(run_as_root) install -d -m 0700 -o julie -g admin $(WG_ROOT)/export/clients
+	@$(run_as_root) install -d -m 0700 -o julie -g admin $(WG_ROOT)/out/server
+	@$(run_as_root) install -d -m 0700 -o julie -g admin $(WG_ROOT)/out/server/peers
 
 	@$(run_as_root) install -d -m 0750 -o root -g admin /etc/wireguard
 

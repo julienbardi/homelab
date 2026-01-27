@@ -19,7 +19,7 @@ INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
 # Fallback for recursive make (do not force; let make set it if present)
 MAKE ?= $(MAKE)
 
-run_as_root := command -v /usr/local/sbin/run-as-root.sh >/dev/null 2>&1 && /usr/local/sbin/run-as-root.sh
+run_as_root := /usr/local/sbin/run-as-root.sh
 
 INSTALL_PATH ?= /usr/local/bin
 INSTALL_SBIN_PATH ?= /usr/local/sbin
@@ -35,7 +35,7 @@ OWNER ?= root
 GROUP ?= root
 MODE ?= 0755
 
-# Stamp dir (overridable)
+# Stamp file is written as root so subsequent runs by non-root users still see it.
 STAMP_DIR ?= /var/lib/homelab
 
 .PHONY: ensure-run-as-root
@@ -152,7 +152,7 @@ homelab-cleanup-deps: ensure-run-as-root
 .PHONY: check-prereqs
 check-prereqs:
 	@echo "Checking required commands..."; \
-	for cmd in sudo apt-get curl git ip wg awk sort mktemp; do \
+	for cmd in apt-get curl git ip wg awk sort mktemp; do \
 		command -v $$cmd >/dev/null 2>&1 || { echo "Missing required command: $$cmd"; exit 1; }; \
 	done; \
 	echo "All required commands present"

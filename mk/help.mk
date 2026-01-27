@@ -1,4 +1,4 @@
-DOCS_DIR := /volume1/homelab/docs
+DOCS_DIR := $(DOCS_DIR)
 
 .PHONY: help
 help:
