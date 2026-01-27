@@ -2,7 +2,17 @@
 set -euo pipefail
 # wg-record-compromised-keys.sh  (including what was wg-nuke.sh)
 
-REGISTRY="/volume1/homelab/security/compromised_keys.tsv"
+# shellcheck disable=SC1091
+source /volume1/homelab/homelab.env
+: "${HOMELAB_DIR:?HOMELAB_DIR not set}"
+: "${SECURITY_DIR:?SECURITY_DIR not set}"
+[ "$(id -u)" -eq 0 ] || {
+    echo "wg-record-compromised-keys: ERROR: must run as root" >&2
+    exit 1
+}
+
+REGISTRY="$SECURITY_DIR/compromised_keys.tsv"
+
 WG_DIR="/etc/wireguard"
 
 mkdir -p "$(dirname "$REGISTRY")"
@@ -68,6 +78,6 @@ rm -rf \
 	"$WG_DIR"/*.conf \
 	"$WG_DIR"/*.key \
 	"$WG_DIR"/*.pub \
-	/volume1/homelab/wireguard/compiled/server-pubkeys
+	"$WG_ROOT/compiled/server-pubkeys"
 
 echo "💥 WireGuard state fully nuked"

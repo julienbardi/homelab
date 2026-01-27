@@ -1,10 +1,13 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # wg-compile-keys.sh — idempotent client key compiler
 set -eu
 
-ROOT="${WG_ROOT:-/volume1/homelab/wireguard}"
-PLAN="$ROOT/compiled/plan.tsv"
-OUT="$ROOT/compiled/keys.tsv"
+# shellcheck disable=SC1091
+source /volume1/homelab/homelab.env
+: "${WG_ROOT:?WG_ROOT not set}"
+
+PLAN="$WG_ROOT/compiled/plan.tsv"
+OUT="$WG_ROOT/compiled/keys.tsv"
 
 umask 077
 
@@ -16,12 +19,6 @@ die() { echo "wg-compile-keys: ERROR: $*" >&2; exit 1; }
 [ -x "$INSTALL_IF_CHANGED" ] || die "install_if_changed.sh not found or not executable"
 [ -f "$PLAN" ] || die "missing plan.tsv at $PLAN"
 command -v wg >/dev/null 2>&1 || die "wg not found in PATH"
-
-echo "DEBUG: PLAN=$PLAN" >&2
-echo "DEBUG: plan.tsv line count:" >&2
-wc -l "$PLAN" >&2
-echo "DEBUG: first 3 lines:" >&2
-head -n 3 "$PLAN" >&2
 
 EXISTING_KEYS="$OUT"
 

@@ -11,3 +11,8 @@ STAMP_DIR := /var/lib/homelab
 ROLE := service
 
 APT_CNAME_EXPECTED := bardi.ch
+
+HOMELAB_ROOT := /volume1/homelab
+WG_ROOT := $(HOMELAB_ROOT)/wireguard
+DOCS_DIR := $(HOMELAB_ROOT)/docs
+SECURITY_DIR := $(HOMELAB_ROOT)/security

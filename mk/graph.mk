@@ -137,7 +137,7 @@ test: logs
 # - Enables baseline observability (Prometheus)
 .PHONY: all
 all: assert-sanity converge-network wg tailscaled monitoring
-	echo ""; \
+	@echo ""; \
 	echo "🎉 Homelab fully converged"; \
 	echo "   - Network + WireGuard ready"; \
 	echo "   - Tailnet control plane active"; \
