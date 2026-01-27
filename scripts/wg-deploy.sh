@@ -2,8 +2,13 @@
 # scripts/wg-deploy.sh
 set -euo pipefail
 
+# shellcheck disable=SC1091
+source /volume1/homelab/homelab.env
+: "${WG_ROOT:?WG_ROOT not set}"
+
+ROOT="$WG_ROOT"
+
 WG_DIR="/etc/wireguard"
-ROOT="${WG_ROOT:-/volume1/homelab/wireguard}"
 
 WG_BIN="/usr/bin/wg"
 

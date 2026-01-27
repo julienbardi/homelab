@@ -1,5 +1,5 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
 # wg-compile.sh — validate staged CSV, allocate deterministic slots, render a plan snapshot
 #
@@ -22,19 +22,28 @@ set -eu
 # Delegated/global IPv6 prefixes (e.g. 2a01:...) must never appear in compiled outputs.
 #
 # Authoritative input:
-#   /volume1/homelab/wireguard/input/clients.csv   (user,machine,iface)
+#   $WG_ROOT/input/clients.csv   (user,machine,iface)
 #
 # Compiled outputs (atomic):
-#   /volume1/homelab/wireguard/compiled/clients.lock.csv
-#   /volume1/homelab/wireguard/compiled/alloc.csv	(base,slot)
-#   /volume1/homelab/wireguard/compiled/plan.tsv	(AUTHORITATIVE for deploy; derived from clients.csv + alloc.csv)
+#   $WG_ROOT/compiled/clients.lock.csv
+#   $WG_ROOT/compiled/alloc.csv	(base,slot)
+#   $WG_ROOT/compiled/plan.tsv	(AUTHORITATIVE for deploy; derived from clients.csv + alloc.csv)
 #
 # Notes:
 # - Deterministic allocator with collision resolution.
 # - alloc.csv is authoritative and never rewritten silently.
 # - Fails loudly on any contract violation.
 
-# --------------------------------------------------------------------
+# Bootstrap contract:
+# - homelab.env is the single absolute anchor
+# - All other paths must be derived from variables defined there
+
+# shellcheck disable=SC1091
+source /volume1/homelab/homelab.env
+: "${HOMELAB_DIR:?HOMELAB_DIR not set}"
+: "${WG_ROOT:?WG_ROOT not set}"
+die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
+[ "$(id -u)" -eq 0 ] || die "must run as root"
 
 # WireGuard profile bitmask model (wg1..wg15)
 BIT_LAN=0
@@ -42,7 +51,7 @@ BIT_V4=1
 BIT_V6=2
 BIT_FULL=3
 
-ROOT="/volume1/homelab/wireguard"
+ROOT="$WG_ROOT"
 IN_DIR="$ROOT/input"
 IN_CSV="$IN_DIR/clients.csv"
 
@@ -50,8 +59,6 @@ OUT_DIR="$ROOT/compiled"
 ALLOC="$OUT_DIR/alloc.csv"
 LOCK="$OUT_DIR/clients.lock.csv"
 PLAN="$OUT_DIR/plan.tsv"
-
-die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
 
 ENDPOINT_HOST_BASE="vpn.bardi.ch"
 ENDPOINT_PORT_BASE="51420"

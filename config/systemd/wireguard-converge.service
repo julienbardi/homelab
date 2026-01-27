@@ -16,12 +16,13 @@ Group=root
 
 # Hard fail on errors inside scripts
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=/volume1/homelab/homelab.env
 
-# Compile authoritative intent
-ExecStart=/volume1/homelab/wireguard/scripts/wg-compile.sh
+# Compile authoritative intent (must succeed)
+ExecStart=/bin/bash -c 'exec "$WG_ROOT/scripts/wg-compile.sh"'
 
 # Deploy atomically if compile succeeded
-ExecStart=/volume1/homelab/wireguard/scripts/wg-deploy.sh
+ExecStart=/bin/bash -c 'exec "$WG_ROOT/scripts/wg-deploy.sh"'
 
 # Never tear down existing WG state on failure
 RemainAfterExit=yes

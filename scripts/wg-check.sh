@@ -2,7 +2,11 @@
 # wg-check.sh
 set -euo pipefail
 
-ROOT="/volume1/homelab/wireguard"
+# shellcheck disable=SC1091
+source /volume1/homelab/homelab.env
+: "${WG_ROOT:?WG_ROOT not set}"
+
+ROOT="$WG_ROOT"
 
 PLAN="$ROOT/compiled/plan.tsv"
 ALLOC="$ROOT/compiled/alloc.csv"

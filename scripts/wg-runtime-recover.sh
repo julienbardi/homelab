@@ -2,11 +2,15 @@
 set -euo pipefail
 # shellcheck shell=bash
 
+# shellcheck disable=SC1091
+source /volume1/homelab/homelab.env
+: "${WG_ROOT:?WG_ROOT not set}"
+
 # wg-runtime-recover.sh
 # Plan-driven runtime restart + diagnostics (no config mutation, no peer programming).
 #
 # Usage:
-#   sudo WG_ROOT=/volume1/homelab/wireguard ./scripts/wg-runtime-recover.sh \
+#   sudo wg-runtime-recover.sh \
 #        [--ifaces wg0,wg1] [--tries N] [--no-down] [--dry-run]
 #
 # Exit:

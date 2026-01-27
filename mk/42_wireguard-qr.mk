@@ -3,7 +3,7 @@
 # WireGuard client display helpers
 # ============================================================
 
-WG_EXPORT_ROOT := /volume1/homelab/wireguard/export/clients
+WG_EXPORT_ROOT := $(WG_ROOT)/export/clients
 WG_QR := /usr/local/bin/wg-qr.sh
 
 .PHONY: wg-show wg-qr

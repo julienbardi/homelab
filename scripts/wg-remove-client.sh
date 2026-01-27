@@ -3,12 +3,17 @@
 # Usage: remove-client.sh <base> <iface>
 set -eu
 
+# shellcheck disable=SC1091
+source /volume1/homelab/homelab.env
+: "${WG_ROOT:?WG_ROOT not set}"
+
+PLAN="$WG_ROOT/compiled/plan.tsv"
+
 WG_DIR="${WG_DIR:-/etc/wireguard}"
 MAP_FILE="${MAP_FILE:-${WG_DIR}/client-map.csv}"
 WG_BIN="${WG_BIN:-/usr/bin/wg}"
 RUN_AS_ROOT="${RUN_AS_ROOT:-./bin/run-as-root}"
 
-PLAN="${PLAN:-/volume1/homelab/wireguard/compiled/plan.tsv}"
 SCRIPTS="${SCRIPTS:-$(dirname "$0")}"
 
 err() { printf '%s\n' "$*" >&2; }
