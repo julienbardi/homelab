@@ -4,7 +4,7 @@
 # ============================================================
 
 WG_EXPORT_ROOT := $(WG_ROOT)/export/clients
-WG_QR := /usr/local/bin/wg-qr.sh
+WG_QR := $(INSTALL_PATH)/wg-qr.sh
 
 .PHONY: wg-show wg-qr
 

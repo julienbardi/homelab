@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# wg-remove-client.sh — permanently revoke a WireGuard client
-# Usage: wg-remove-client.sh <base> <iface>
+# wg-rotate-client.sh — explicit per-client key rotation
+# Usage: wg-rotate-client.sh <base> <iface>
 set -euo pipefail
 
 # --------------------------------------------------------------------
@@ -13,7 +13,7 @@ source /volume1/homelab/homelab.env
 : "${SECURITY_DIR:?SECURITY_DIR not set}"
 
 [ "$(id -u)" -eq 0 ] || {
-	echo "wg-remove-client: ERROR: must run as root" >&2
+	echo "wg-rotate-client: ERROR: must run as root" >&2
 	exit 1
 }
 
@@ -24,7 +24,7 @@ fi
 
 base="$1"
 iface="$2"
-client_id="${base}-${iface}"
+key="${base}-${iface}"
 
 KEYS="$WG_ROOT/compiled/keys.tsv"
 LEDGER="$SECURITY_DIR/compromised_keys.tsv"
@@ -40,7 +40,7 @@ if ! awk -F'\t' -v b="$base" -v i="$iface" '
 	$1==b && $2==i { found=1 }
 	END { exit(found?0:1) }
 ' "$KEYS"; then
-	echo "wg-remove-client: ERROR: no key entry for $base $iface in keys.tsv" >&2
+	echo "wg-rotate-client: ERROR: no key entry for $base $iface in keys.tsv" >&2
 	exit 1
 fi
 
@@ -52,17 +52,17 @@ pubkey="$(awk -F'\t' -v b="$base" -v i="$iface" '
 ' "$KEYS")"
 
 if [ -z "$pubkey" ]; then
-	echo "wg-remove-client: ERROR: failed to extract public key for $base $iface" >&2
+	echo "wg-rotate-client: ERROR: failed to extract public key for $base $iface" >&2
 	exit 1
 fi
 
 # --------------------------------------------------------------------
-# Append to compromised ledger (status=revoked)
+# Append to compromised ledger (status=rotated)
 # --------------------------------------------------------------------
 mkdir -p "$SECURITY_DIR"
 timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-printf "%s\trevoked\t%s\t%s\t%s\n" \
+printf "%s\trotated\t%s\t%s\t%s\n" \
 	"$pubkey" "$base" "$iface" "$timestamp" >>"$LEDGER"
 
 # --------------------------------------------------------------------
@@ -82,18 +82,18 @@ install -m 0600 -o root -g root "$tmp_keys" "$KEYS"
 # --------------------------------------------------------------------
 # Remove keypair files (idempotent)
 # --------------------------------------------------------------------
-rm -f "$CLIENT_KEYS_DIR/${client_id}.key" 2>/dev/null || true
-rm -f "$CLIENT_KEYS_DIR/${client_id}.pub" 2>/dev/null || true
+rm -f "$CLIENT_KEYS_DIR/${key}.key" 2>/dev/null || true
+rm -f "$CLIENT_KEYS_DIR/${key}.pub" 2>/dev/null || true
 
 # --------------------------------------------------------------------
 # Remove rendered configs (idempotent)
 # --------------------------------------------------------------------
-rm -f "$OUT_CLIENT/${client_id}.conf" 2>/dev/null || true
+rm -f "$OUT_CLIENT/${key}.conf" 2>/dev/null || true
 rm -f "$OUT_SERVER/$iface/$base.conf" 2>/dev/null || true
 
-echo "🗑️  Removed WireGuard client: $base $iface"
-echo "   - Key marked as revoked in compromised ledger"
+echo "🔁 Rotated WireGuard client: $base $iface"
+echo "   - Old key added to compromised ledger"
 echo "   - keys.tsv entry removed"
 echo "   - keypair files removed"
 echo "   - rendered configs removed"
-echo "   - Run 'make wg' to converge cleanly"
+echo "   - Run 'make wg' to generate a fresh keypair"
