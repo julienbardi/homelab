@@ -98,7 +98,7 @@ $(WG_ROOT)/compiled/plan.tsv: wg-compile-intent
 # ------------------------------------------------------------
 # Compile everything (no deployment)
 # ------------------------------------------------------------
-wg-compile: wg-install-scripts wg-compile-intent wg-compile-keys wg-render wg-check-render wg-check
+wg-compile: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-missing wg-check-render wg-check
 
 # ------------------------------------------------------------
 # Deploy compiled state (requires successful compile)
@@ -212,7 +212,7 @@ wg-rebuild-all: \
 	wg-apply-verified
 	@echo "🔥 WireGuard fully rebuilt with fresh keys"
 
-wg-check-render: wg-install-scripts wg-render
+wg-check-render: wg-install-scripts wg-render-missing
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"
 
 wg: \
