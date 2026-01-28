@@ -11,8 +11,8 @@
 # - Script filenames (including .sh) are preserved verbatim at install time.
 # - No extension stripping or renaming occurs.
 # - Example:
-#     scripts/foo.sh → /usr/local/bin/foo.sh
-#     scripts/bar.sh → /usr/local/sbin/bar.sh
+#     scripts/foo.sh → $(INSTALL_PATH)/foo.sh
+#     scripts/bar.sh → $(INSTALL_SBIN_PATH)/bar.sh
 
 INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
 
