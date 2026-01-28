@@ -3,7 +3,7 @@
 #  make prereqs
 #  make wg-bootstrap
 
-WG_ENSURE_SERVER_KEYS := /usr/local/bin/wg-ensure-server-keys.sh
+WG_ENSURE_SERVER_KEYS := $(INSTALL_PATH)/wg-ensure-server-keys.sh
 
 .PHONY: wg-bootstrap
 

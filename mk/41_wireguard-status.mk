@@ -22,9 +22,8 @@ SERVER_PUBDIR := $(WG_ROOT)/compiled/server-pubkeys
 CLIENT_KEYDIR := $(WG_ROOT)/compiled/client-keys
 EXPORT_DIR    := $(WG_ROOT)/export/clients
 
-WG_PLAN_IFACES   := /usr/local/bin/wg-plan-ifaces.sh
-WG_REMOVE_CLIENT := /usr/local/bin/wg-remove-client.sh
-WG_RUNTIME       := /usr/local/bin/wg-runtime.sh
+WG_PLAN_IFACES   := $(INSTALL_PATH)/wg-plan-ifaces.sh
+WG_RUNTIME       := $(INSTALL_PATH)/wg-runtime.sh
 
 .PHONY: \
 	wg-clients \
@@ -33,8 +32,7 @@ WG_RUNTIME       := /usr/local/bin/wg-runtime.sh
 	wg-intent \
 	wg-compiled wg-deployed-view \
 	wg-status wg-runtime \
-	wg-dashboard \
-	wg-remove-client
+	wg-dashboard
 
 # ------------------------------------------------------------
 # Helpers (kept in Make for portability, but still dumb)

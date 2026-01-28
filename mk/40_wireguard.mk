@@ -1,25 +1,27 @@
 # ============================================================
 # mk/40_wireguard.mk — Essential WireGuard workflow
 # - Authoritative CSV → validated compile → atomic deploy
-# - No FORCE flags; failures leave last-known-good intact
+# - All paths anchored to mk/00_constants.mk
 # ============================================================
-
-WG_ROOT := $(WG_ROOT)
-export WG_ROOT
 
 WG_INPUT := $(WG_ROOT)/input
 WG_CSV   := $(WG_INPUT)/clients.csv
 
-WG_COMPILE_SCRIPT := /usr/local/bin/wg-compile.sh
-WG_KEYS_SCRIPT    := /usr/local/bin/wg-compile-keys.sh
-WG_SERVER_KEYS_SCRIPT := /usr/local/bin/wg-ensure-server-keys.sh
-WG_RENDER_SCRIPT  := /usr/local/bin/wg-compile-clients.sh
-WG_EXPORT_SCRIPT  := /usr/local/bin/wg-client-export.sh
-WG_DEPLOY_SCRIPT  := /usr/local/bin/wg-deploy.sh
-WG_CHECK_SCRIPT   := /usr/local/bin/wg-check.sh
-WG_SERVER_BASE_RENDER_SCRIPT := /usr/local/bin/wg-render-server-base.sh
-WG_RENDER_CHECK_SCRIPT := /usr/local/bin/wg-check-render.sh
-WG_RECORD_COMPROMISED_KEYS_SCRIPT := /usr/local/bin/wg-record-compromised-keys.sh
+WG_COMPILE_SCRIPT := $(INSTALL_PATH)/wg-compile.sh
+WG_KEYS_SCRIPT    := $(INSTALL_PATH)/wg-compile-keys.sh
+WG_SERVER_KEYS_SCRIPT := $(INSTALL_PATH)/wg-ensure-server-keys.sh
+WG_RENDER_SCRIPT  := $(INSTALL_PATH)/wg-compile-clients.sh
+WG_EXPORT_SCRIPT  := $(INSTALL_PATH)/wg-client-export.sh
+WG_DEPLOY_SCRIPT  := $(INSTALL_PATH)/wg-deploy.sh
+WG_CHECK_SCRIPT   := $(INSTALL_PATH)/wg-check.sh
+WG_SERVER_BASE_RENDER_SCRIPT := $(INSTALL_PATH)/wg-render-server-base.sh
+WG_RENDER_CHECK_SCRIPT := $(INSTALL_PATH)/wg-check-render.sh
+WG_RECORD_COMPROMISED_KEYS_SCRIPT := $(INSTALL_PATH)/wg-record-compromised-keys.sh
+WG_REMOVE_CLIENT := $(INSTALL_PATH)/wg-remove-client.sh
+WG_ROTATE_CLIENT := $(INSTALL_PATH)/wg-rotate-client.sh
+
+# No need to export WG_ROOT here
+# It is already exported globally by mk/00_constants.mk
 
 .PHONY: wg-install-scripts \
 	wg-clean-out \
@@ -38,7 +40,9 @@ WG_RECORD_COMPROMISED_KEYS_SCRIPT := /usr/local/bin/wg-record-compromised-keys.s
 	wg-verify-no-key-reuse \
 	wg-verify-no-legacy-keys \
 	wg-rebuild-all \
-	wg
+	wg \
+	wg-rotate-client \
+	wg-remove-client
 
 wg-install-scripts: ensure-run-as-root \
 	$(WG_COMPILE_SCRIPT) \
@@ -50,7 +54,9 @@ wg-install-scripts: ensure-run-as-root \
 	$(WG_CHECK_SCRIPT) \
 	$(WG_SERVER_BASE_RENDER_SCRIPT) \
 	$(WG_RENDER_CHECK_SCRIPT) \
-	$(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
+	$(WG_RECORD_COMPROMISED_KEYS_SCRIPT) \
+	$(WG_REMOVE_CLIENT) \
+	$(WG_ROTATE_CLIENT)
 
 wg-clean-out: ensure-run-as-root 
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🧹 cleaning WireGuard scratch output"; fi
@@ -230,3 +236,21 @@ wg-verify-no-legacy-keys: wg-install-scripts ensure-run-as-root
 		echo "❌ ERROR: legacy WireGuard key directory exists (/etc/wireguard/.legacy)"; \
 		exit 1; \
 	}
+
+wg-rotate-client: wg-install-scripts ensure-run-as-root
+	@if [ -z "$(base)" ] || [ -z "$(iface)" ]; then \
+		echo "Usage: make wg-rotate-client base=<base> iface=<iface>"; \
+		exit 1; \
+	fi
+	@echo "🔁 Rotating WireGuard client: base=$(base) iface=$(iface)"
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) $(INSTALL_PATH)/wg-rotate-client.sh "$(base)" "$(iface)"
+	@echo "➡️  Now run: make wg"
+
+wg-remove-client: wg-install-scripts ensure-run-as-root
+	@if [ -z "$(base)" ] || [ -z "$(iface)" ]; then \
+		echo "Usage: make wg-remove-client base=<base> iface=<iface>"; \
+		exit 1; \
+	fi
+	@echo "🗑️  Removing WireGuard client: base=$(base) iface=$(iface)"
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) $(INSTALL_PATH)/wg-remove-client.sh "$(base)" "$(iface)"
+	@echo "➡️  Now run: make wg"

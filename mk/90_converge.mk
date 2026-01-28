@@ -20,8 +20,8 @@
 	nft-verify \
 	runtime-snapshot-before runtime-snapshot-after runtime-diff
 
-WG_CLIENTS_DRIFT   := /usr/local/bin/wg-clients-drift.sh
-SNAPSHOT_NETWORK  := /usr/local/bin/snapshot-network.sh
+WG_CLIENTS_DRIFT   := $(INSTALL_PATH)/wg-clients-drift.sh
+SNAPSHOT_NETWORK  := $(INSTALL_PATH)/snapshot-network.sh
 
 # ------------------------------------------------------------
 # Runtime snapshot locations (ephemeral, root-owned)

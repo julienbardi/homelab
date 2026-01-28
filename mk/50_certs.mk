@@ -14,10 +14,10 @@
 # --------------------------------------------------------------------
 
 # Installed certificate helpers (authoritative execution surface)
-CERTS_CREATE        := /usr/local/bin/certs-create.sh
-CERTS_DEPLOY        := /usr/local/bin/certs-deploy.sh
-GEN_CLIENT_CERT     := /usr/local/bin/generate-client-cert.sh
-GEN_CLIENT_WRAPPER  := /usr/local/bin/gen-client-cert-wrapper.sh
+CERTS_CREATE        := $(INSTALL_PATH)/certs-create.sh
+CERTS_DEPLOY        := $(INSTALL_PATH)/certs-deploy.sh
+GEN_CLIENT_CERT     := $(INSTALL_PATH)/generate-client-cert.sh
+GEN_CLIENT_WRAPPER  := $(INSTALL_PATH)/gen-client-cert-wrapper.sh
 
 # Internal CA material (authoritative)
 SSL_CANONICAL_DIR ?= /var/lib/ssl/canonical
@@ -151,9 +151,9 @@ certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	"if [ \$$days_left -le 90 ]; then" \
 	"  logger -t \"\$$TAG\" -p user.warn \"WARNING: CA expires in \$$days_left days\"" \
 	"fi" > "$$tmp_script"; \
-	chmod 0755 "$$tmp_script"; install -m 0755 "$$tmp_script" /usr/local/bin/certs-expiry-check.sh; rm -f "$$tmp_script"; \
+	chmod 0755 "$$tmp_script"; install -m 0755 "$$tmp_script" $(INSTALL_PATH)/certs-expiry-check.sh; rm -f "$$tmp_script"; \
 	tmp_svc=$$(mktemp /root/certs-expiry-XXXXXX.service); \
-	printf "%s\n" "[Unit]" "Description=Check CA expiry and log status to journal" "" "[Service]" "Type=oneshot" "ExecStart=/usr/local/bin/certs-expiry-check.sh" "StandardOutput=journal" "StandardError=journal" > "$$tmp_svc"; \
+	printf "%s\n" "[Unit]" "Description=Check CA expiry and log status to journal" "" "[Service]" "Type=oneshot" "ExecStart=$(INSTALL_PATH)/certs-expiry-check.sh" "StandardOutput=journal" "StandardError=journal" > "$$tmp_svc"; \
 	install -m 0644 "$$tmp_svc" /etc/systemd/system/certs-expiry-check.service; rm -f "$$tmp_svc"; \
 	tmp_timer=$$(mktemp /root/certs-expiry-XXXXXX.timer); \
 	printf "%s\n" "[Unit]" "Description=Run CA expiry check weekly" "" "[Timer]" "OnCalendar=weekly" "Persistent=true" "" "[Install]" "WantedBy=timers.target" > "$$tmp_timer"; \
