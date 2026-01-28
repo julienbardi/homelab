@@ -21,7 +21,7 @@
 - `make gen-client-cert CN=...`
 - ⚠️ `make certs-rotate-dangerous`
 
-### 🚀 ACME / service certificates
+## 🚀 ACME / service certificates
 - `make renew`
 - `make deploy-caddy`
 - `make deploy-headscale`
@@ -33,19 +33,30 @@
 - `make dns-postflight`
 - `make dnsmasq-status`
 
-## 🔐 WireGuard
-- `make wg-compile`
-- `make wg-apply`
-- `make wg-check`
-- ⚠️ `make wg-rebuild-all`
+## 🔐 WireGuard — lifecycle
+- `make wg-install-scripts` — Install WireGuard operational scripts
+- `make wg` — Compile, deploy, apply, and verify WireGuard state
+- `make wg-compile` — Compile intent and keys
+- `make wg-apply` — Apply rendered configuration to runtime
+- `make wg-check` — Validate rendered and runtime state
+- ⚠️ `make wg-rebuild-all` — Full destructive rebuild
+
+## 🔐 WireGuard — client lifecycle
+- `make wg-rotate-client base=<base> iface=<iface>` — Rotate client key (revokes old key)
+- `make wg-remove-client base=<base> iface=<iface>` — Permanently remove client
+
+## 🔐 WireGuard — inspection (read-only)
+- `make wg-status` — Interface and peer summary
+- `make wg-runtime` — Kernel peer state
+- `make wg-dashboard` — Client ↔ interface mapping
+- `make wg-clients` — Client inventory
+- `make wg-intent` — Addressing and endpoint intent
 
 ## 📦 Infrastructure
 - `make install-all`
 - `make uninstall-all`
 
----
-
-### Notes
+## Notes
 - All state is intent-driven; validation failures never modify deployed state.
 - Scripts are never executed from the repository.
 - Destructive targets are explicit and never run implicitly.
