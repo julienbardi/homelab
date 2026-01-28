@@ -32,7 +32,8 @@ WG_RUNTIME       := $(INSTALL_PATH)/wg-runtime.sh
 	wg-intent \
 	wg-compiled wg-deployed-view \
 	wg-status wg-runtime \
-	wg-dashboard
+	wg-dashboard \
+	wg-check-ports
 
 # ------------------------------------------------------------
 # Helpers (kept in Make for portability, but still dumb)
@@ -178,19 +179,6 @@ wg-dashboard:
 		{ seen[$$1]=seen[$$1] " " $$2 } \
 		END { for (b in seen) printf "%-24s%s\n", b, seen[b] } \
 	' | sort
-
-# ------------------------------------------------------------
-# Client removal
-# ------------------------------------------------------------
-
-wg-remove-client: ensure-run-as-root $(WG_REMOVE_CLIENT)
-	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
-		echo "Usage: make wg-remove-client BASE=<base> IFACE=<iface>"; exit 1; \
-	fi
-	@echo "removing client $(BASE) on $(IFACE)"
-	@$(run_as_root) "$(WG_REMOVE_CLIENT)" "$(BASE)" "$(IFACE)"
-
-.PHONY: wg-check-ports
 
 wg-check-ports: $(WG_PLAN_IFACES)
 	@echo "Checking WireGuard UDP ports..."
