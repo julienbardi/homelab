@@ -199,18 +199,18 @@ wg-rebuild-clean: wg-install-scripts ensure-run-as-root
 	@$(run_as_root) $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
 
 wg-rebuild-guard:
-    @if [ "$(FORCE)" != "1" ]; then \
-        echo "❌ wg-rebuild-all is destructive. Re-run with FORCE=1"; \
-        exit 1; \
-    fi
+	@if [ "$(FORCE)" != "1" ]; then \
+		echo "❌ wg-rebuild-all is destructive. Re-run with FORCE=1"; \
+		exit 1; \
+	fi
 
 wg-rebuild-all: \
-    wg-rebuild-guard \
-    wg-install-scripts \
-    wg-rebuild-clean \
-    wg-ensure-server-keys \
-    wg-apply-verified
-    @echo "🔥 WireGuard fully rebuilt with fresh keys"
+	wg-rebuild-guard \
+	wg-install-scripts \
+	wg-rebuild-clean \
+	wg-ensure-server-keys \
+	wg-apply-verified
+	@echo "🔥 WireGuard fully rebuilt with fresh keys"
 
 wg-check-render: wg-install-scripts wg-render
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"
