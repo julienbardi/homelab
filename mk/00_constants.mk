@@ -16,3 +16,8 @@ HOMELAB_ROOT := /volume1/homelab
 WG_ROOT := $(HOMELAB_ROOT)/wireguard
 DOCS_DIR := $(HOMELAB_ROOT)/docs
 SECURITY_DIR := $(HOMELAB_ROOT)/security
+
+# Export global paths for all scripts
+export WG_ROOT
+export SECURITY_DIR
+export HOMELAB_ROOT

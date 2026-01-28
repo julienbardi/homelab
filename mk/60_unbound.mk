@@ -278,7 +278,7 @@ dns-runtime-check: assert-unbound-running
 dns: enable-unbound dns-runtime dns-warm-install dns-health
 	@echo "✅ DNS stack converged and healthy"
 
-ROTATE_ROOTKEYS := /usr/local/bin/rotate-unbound-rootkeys.sh
+ROTATE_ROOTKEYS := $(INSTALL_PATH)/rotate-unbound-rootkeys.sh
 
 rotate: $(ROTATE_ROOTKEYS)
 	@echo "🔄 Refreshing DNSSEC trust anchors"
