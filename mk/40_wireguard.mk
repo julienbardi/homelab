@@ -11,6 +11,7 @@ WG_COMPILE_SCRIPT := $(INSTALL_PATH)/wg-compile.sh
 WG_KEYS_SCRIPT    := $(INSTALL_PATH)/wg-compile-keys.sh
 WG_SERVER_KEYS_SCRIPT := $(INSTALL_PATH)/wg-ensure-server-keys.sh
 WG_RENDER_SCRIPT  := $(INSTALL_PATH)/wg-compile-clients.sh
+WG_RENDER_MISSING_SCRIPT := $(INSTALL_PATH)/wg-render-missing-clients.sh
 WG_EXPORT_SCRIPT  := $(INSTALL_PATH)/wg-client-export.sh
 WG_DEPLOY_SCRIPT  := $(INSTALL_PATH)/wg-deploy.sh
 WG_CHECK_SCRIPT   := $(INSTALL_PATH)/wg-check.sh
@@ -30,6 +31,7 @@ WG_ROTATE_CLIENT := $(INSTALL_PATH)/wg-rotate-client.sh
 	wg-compile-keys \
 	wg-render-server-base \
 	wg-render \
+	wg-render-missing \
 	wg-compile \
 	wg-deployed \
 	wg-apply \
@@ -39,6 +41,7 @@ WG_ROTATE_CLIENT := $(INSTALL_PATH)/wg-rotate-client.sh
 	wg-rebuild-clean \
 	wg-verify-no-key-reuse \
 	wg-verify-no-legacy-keys \
+	wg-rebuild-guard \
 	wg-rebuild-all \
 	wg \
 	wg-rotate-client \
@@ -49,6 +52,7 @@ wg-install-scripts: ensure-run-as-root \
 	$(WG_KEYS_SCRIPT) \
 	$(WG_SERVER_KEYS_SCRIPT) \
 	$(WG_RENDER_SCRIPT) \
+	$(WG_RENDER_MISSING_SCRIPT) \
 	$(WG_EXPORT_SCRIPT) \
 	$(WG_DEPLOY_SCRIPT) \
 	$(WG_CHECK_SCRIPT) \
@@ -85,6 +89,9 @@ wg-render-server-base: wg-install-scripts wg-ensure-server-keys
 
 wg-render: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-server-base
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_SCRIPT)"
+
+wg-render-missing: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-server-base
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_MISSING_SCRIPT)"
 
 $(WG_ROOT)/compiled/plan.tsv: wg-compile-intent
 
@@ -191,16 +198,26 @@ wg-rebuild-clean: wg-install-scripts ensure-run-as-root
 	@echo "▶ recording compromised WireGuard keys and destroying existing WireGuard state"
 	@$(run_as_root) $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
 
-wg-rebuild-all: wg-install-scripts wg-rebuild-clean wg-ensure-server-keys wg-apply-verified
+wg-rebuild-guard:
+    @if [ "$(FORCE)" != "1" ]; then \
+        echo "❌ wg-rebuild-all is destructive. Re-run with FORCE=1"; \
+        exit 1; \
+    fi
 
-	@echo "🔥 WireGuard fully rebuilt with fresh keys"
+wg-rebuild-all: \
+    wg-rebuild-guard \
+    wg-install-scripts \
+    wg-rebuild-clean \
+    wg-ensure-server-keys \
+    wg-apply-verified
+    @echo "🔥 WireGuard fully rebuilt with fresh keys"
 
 wg-check-render: wg-install-scripts wg-render
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"
 
 wg: \
 	wg-ensure-server-keys \
-	wg-render \
+	wg-render-missing \
 	wg-apply-verified \
 	wg-intent \
 	wg-dashboard \
