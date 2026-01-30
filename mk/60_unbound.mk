@@ -285,15 +285,28 @@ rotate: $(ROTATE_ROOTKEYS)
 	@$(run_as_root) $(ROTATE_ROOTKEYS)
 
 dns-bench:
-	@echo "🌐 Downloading OpenDNS top domains list..."
-	@curl -s -o /tmp/opendns-top-domains.txt https://raw.githubusercontent.com/opendns/public-domain-lists/master/opendns-top-domains.txt
-	@echo "⚡ Priming Unbound cache..."
-	@while read -r domain; do \
-		dig @"$(NAS_LAN_IP)" $$domain A +short >/dev/null; \
-	done < /tmp/opendns-top-domains.txt
-	@echo "🔥 Running dnsperf load test (30s @ 1000 qps)..."
-	@dnsperf -s $(NAS_LAN_IP) -d /tmp/opendns-top-domains.txt -l 30 -q 1000
-	@echo "✅ DNS benchmark complete"
+	@set -eu; \
+	echo "🌐 Downloading OpenDNS top domains list..."; \
+	raw=/tmp/opendns-top-domains.raw.txt; \
+	qry=/tmp/opendns-top-domains.qry.txt; \
+	tmp=/tmp/opendns-top-domains.slice.txt; \
+	curl -fsSL -o "$$raw" https://raw.githubusercontent.com/opendns/public-domain-lists/master/opendns-top-domains.txt; \
+	awk 'NF==0{next} $$1 ~ /^[0-9]+$$/ {d=$$2; next} {d=$$1} \
+		 d ~ /^[A-Za-z0-9._-]+(\.[A-Za-z0-9._-]+)+$$/ {print d " A"}' "$$raw" >"$$qry"; \
+	total=$$(wc -l <"$$qry" | tr -d ' '); \
+	echo "ℹ️  Prepared $$total queries"; \
+	for n in 10 100 1000; do \
+		echo "⚡ Priming first $$n domains (parallel, best-effort)…"; \
+		head -n $$n "$$qry" >"$$tmp"; \
+		xargs -a "$$tmp" -P $$(nproc) -n 2 \
+			sh -c 'dig @127.0.0.1 -p 5335 "$$1" "$$2" +tries=1 +time=1 >/dev/null 2>&1 || true' _; \
+		echo "🔥 dnsperf against Unbound (127.0.0.1:5335), $$n domains…"; \
+		dnsperf -s 127.0.0.1 -p 5335 -d "$$tmp" -l 10 -q 200 \
+			| grep -v '^\[Timeout\]'; \
+	done; \
+	rm -f "$$tmp"; \
+	echo "✅ DNS benchmark complete"
+
 
 dns-runtime: \
 	enable-systemd \
