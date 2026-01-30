@@ -16,7 +16,7 @@ HEADSCALE_CONFIG_DST := /etc/headscale/config.yaml
 HEADSCALE_DERP_CONFIG_SRC := config/headscale/derp.yaml
 HEADSCALE_DERP_CONFIG_DST := /etc/headscale/derp.yaml
 
-HEADSCALE_METRICS_ADDR := 10.89.12.4:9091
+HEADSCALE_METRICS_ADDR := $(NAS_LAN_IP):9091
 
 WAIT_FOR_COMMAND := $(INSTALL_PATH)/wait_for_command.sh
 
