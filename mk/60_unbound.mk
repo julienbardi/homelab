@@ -289,10 +289,10 @@ dns-bench:
 	@curl -s -o /tmp/opendns-top-domains.txt https://raw.githubusercontent.com/opendns/public-domain-lists/master/opendns-top-domains.txt
 	@echo "⚡ Priming Unbound cache..."
 	@while read -r domain; do \
-		dig @"10.89.12.4" $$domain A +short >/dev/null; \
+		dig @"$(NAS_LAN_IP)" $$domain A +short >/dev/null; \
 	done < /tmp/opendns-top-domains.txt
 	@echo "🔥 Running dnsperf load test (30s @ 1000 qps)..."
-	@dnsperf -s 10.89.12.4 -d /tmp/opendns-top-domains.txt -l 30 -q 1000
+	@dnsperf -s $(NAS_LAN_IP) -d /tmp/opendns-top-domains.txt -l 30 -q 1000
 	@echo "✅ DNS benchmark complete"
 
 dns-runtime: \
