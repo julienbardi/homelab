@@ -11,7 +11,7 @@
 PROMETHEUS_CONFIG_SRC := $(MAKEFILE_DIR)config/prometheus/prometheus.yml
 PROMETHEUS_CONFIG_DST := /etc/prometheus/prometheus.yml
 
-PROMETHEUS_ADDR := 10.89.12.4:9090
+PROMETHEUS_ADDR := $(NAS_LAN_IP):9090
 
 PROMETHEUS_SERVICE := prometheus.service
 
