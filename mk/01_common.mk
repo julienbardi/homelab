@@ -2,7 +2,7 @@
 # mk/01_common.mk
 # --------------------------------------------------------------------
 # CONTRACT:
-# - Defines run_as_root := ./bin/run-as-root
+# - Defines run_as_root := /usr/local/sbin/run-as-root.sh
 # - All recipes must call $(run_as_root) with argv tokens.
 # - Do not wrap entire command in quotes.
 # - Escape operators (\>, \|, \&\&, \|\|) so they survive Make parsing.
@@ -175,7 +175,7 @@ $(INSTALL_SBIN_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh ensure-run-as-root | $(IN
 # Script classification:
 # - BIN_SCRIPTS  → operator / user-facing tools
 # - SBIN_SCRIPTS → root-only system automation
-SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh
+SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh systemd-override-sync.sh
 ALL_SCRIPTS := $(notdir $(wildcard $(MAKEFILE_DIR)scripts/*.sh))
 BIN_SCRIPTS := $(filter-out $(SBIN_SCRIPTS),$(ALL_SCRIPTS))
 
@@ -194,7 +194,7 @@ uninstall-all:
 		$(call uninstall_script,$$s); \
 	done
 	@for s in $(SBIN_SCRIPTS); do \
-		@$(run_as_root) rm -f $(INSTALL_SBIN_PATH)/$$s; \
+		$(run_as_root) rm -f $(INSTALL_SBIN_PATH)/$$s; \
 	done
 
 # --------------------------------------------------------------------

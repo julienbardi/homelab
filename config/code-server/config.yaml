@@ -1,3 +1,4 @@
 # config.yaml (safe baseline)
+bind-addr: 0.0.0.0:8080
 auth: none
 cert: false
