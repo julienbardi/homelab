@@ -119,7 +119,7 @@ do
 		if [ -n "${WG_DNS:-$dns}" ]; then
 			echo "DNS = ${WG_DNS:-$dns}"
 		fi
-		echo "Table = off"
+		echo "# Table = off   # Linux-only; uncomment for Windows / server-side routing"
 		echo
 		echo "[Peer]"
 		echo "PublicKey = $server_public"
