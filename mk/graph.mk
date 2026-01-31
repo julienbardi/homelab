@@ -9,6 +9,7 @@
 # --------------------------------------------------------------------
 
 SHELL := /bin/bash
+.SHELLFLAGS := -euo pipefail -c
 
 HOMELAB_REPO := git@github.com:Jambo15/homelab.git
 
@@ -82,52 +83,53 @@ SKIP_KNOWN_HOSTS ?= 0
 
 .PHONY: ensure-known-hosts
 ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
-	@echo "[make] Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE) (SKIP_KNOWN_HOSTS=$(SKIP_KNOWN_HOSTS))"
+	@echo "🔐 Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE) (SKIP_KNOWN_HOSTS=$(SKIP_KNOWN_HOSTS))"
 	@if [ "$(SKIP_KNOWN_HOSTS)" = "1" ]; then \
-	  echo "[make] Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
+		echo "⏭️ Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
 	else \
-	  $(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
+		# best-effort: interactive / non-fatal
+		$(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
 	fi
 
 .PHONY: gitcheck update
 gitcheck:
 	@if [ ! -d $(MAKEFILE_DIR)/.git ]; then \
-		echo "[make] Cloning homelab repo..."; \
+		echo "📦 Cloning homelab repo"; \
 		mkdir -p $(dir $(MAKEFILE_DIR)); \
 		git clone $(HOMELAB_REPO) $(MAKEFILE_DIR); \
 	else \
-		echo "[make] homelab repo already present at $(MAKEFILE_DIR)"; \
+		echo "📍 homelab repo already present at $(MAKEFILE_DIR)"; \
 		git -C $(MAKEFILE_DIR) rev-parse --short HEAD; \
 	fi
 
 update: gitcheck
-	@echo "[make] Updating homelab repo..."
+	@echo "⬆️ Updating homelab repo"
 	@git -C $(MAKEFILE_DIR) pull --rebase || true
-	@echo "[make] Repo now at commit $$(git -C $(MAKEFILE_DIR) rev-parse --short HEAD)"
+	@echo "🧬 Repo now at commit $$(git -C $(MAKEFILE_DIR) rev-parse --short HEAD)"
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake
 .PHONY: test logs clean-soft
 
 .PHONY: clean
 clean:
-	@echo "[make] Removing tailscaled role units..."
+	@echo "Removing tailscaled role units"
 	@$(run_as_root) systemctl disable tailscaled-lan.service tailscaled || true
 	@$(run_as_root) rm -f /etc/systemd/system/tailscaled-lan.service || true
 	@$(run_as_root) systemctl daemon-reload
-	@echo "[make] ✅ Cleaned tailscaled units and disabled services"
+	@echo "✅ Cleaned tailscaled units and disabled services"
 
 .PHONY: reload
 reload:
 	@$(run_as_root) systemctl daemon-reload
-	@echo "[make] 🔄 systemd reloaded"
+	@echo "🔄 systemd reloaded"
 
 .PHONY: restart
 restart:
 	@$(run_as_root) systemctl restart tailscaled tailscaled-lan.service
-	@echo "[make] 🔁 Restarted tailscaled + family + guest services"
+	@echo "🔁 Restarted tailscaled + family + guest services"
 
 test: logs
-	@echo "[make] Running run_as_root harness..."
+	@echo "🧪 Running run_as_root harness"
 	@$(run_as_root) bash $(INSTALL_PATH)/test_run_as_root.sh
 
 # all:
@@ -148,7 +150,7 @@ headscale-stack: \
 	headscale \
 	headscale-users \
 	headscale-acls
-	@echo "[make] Headscale control plane ready"
+	@echo "🧠 Headscale control plane ready"
 
 .PHONY: tailscaled
 
@@ -159,7 +161,7 @@ tailscaled: \
 	start-tailscaled \
 	tailscaled-status
 	@COMMIT_HASH=$$(git -C $(MAKEFILE_DIR) rev-parse --short HEAD); \
-		echo "[make] Completed tailscaled orchestration at commit $$COMMIT_HASH"
+		echo "🧬 Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
 SYSTEMD_DIR = /etc/systemd/system
 REPO_SYSTEMD = config/systemd
@@ -167,9 +169,9 @@ REPO_SYSTEMD = config/systemd
 .PHONY: install-systemd enable-systemd uninstall-systemd verify-systemd
 
 install-systemd: ## Install systemd units and reload systemd (idempotent)
-	@echo "[make] Installing systemd units..."
+	@echo "🧩 Installing systemd units"
 	@if [ ! -d "$(MAKEFILE_DIR)$(REPO_SYSTEMD)" ]; then \
-		echo "[make] ERROR: $(MAKEFILE_DIR)$(REPO_SYSTEMD) not found"; exit 1; \
+		echo "ERROR: $(MAKEFILE_DIR)$(REPO_SYSTEMD) not found"; exit 1; \
 	fi
 	# ensure target dirs
 	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
@@ -183,7 +185,7 @@ install-systemd: ## Install systemd units and reload systemd (idempotent)
 	@$(run_as_root) systemctl daemon-reload
 
 enable-systemd: install-systemd
-	@echo "[make] Enabling and starting path watcher and ensuring unbound drop-in is active..."
+	@echo "▶️ Enabling and starting path watcher and ensuring unbound drop-in is active"
 	@$(run_as_root) systemctl enable --now unbound-ctl-fix.path || true
 	@$(run_as_root) systemctl reset-failed unbound-ctl-fix.service unbound-ctl-fix.path || true
 	@$(run_as_root) systemctl start unbound-ctl-fix.service || true
@@ -192,14 +194,14 @@ enable-systemd: install-systemd
 	@$(run_as_root) systemctl status unbound --no-pager || true
 
 verify-systemd:
-	@echo "[make] Status and socket ownership:"
+	@echo "🔍 Status and socket ownership:"
 	@$(run_as_root) systemctl status unbound --no-pager || true
 	@$(run_as_root) systemctl status unbound-ctl-fix.path unbound-ctl-fix.service --no-pager || true
 	@$(run_as_root) ls -l /run/unbound.ctl /var/run/unbound.ctl || true
 	@$(run_as_root) -u unbound sh -c 'unbound-control status' || true
 
 uninstall-systemd:
-	@echo "[make] Removing systemd units..."
+	@echo "🧹 Removing systemd units"
 	@$(run_as_root) systemctl stop --now unbound-ctl-fix.path unbound-ctl-fix.service || true
 	@$(run_as_root) systemctl disable unbound-ctl-fix.path || true
 	@$(run_as_root) rm -f $(SYSTEMD_DIR)/unbound-ctl-fix.path \
@@ -222,7 +224,7 @@ nft-confirm:
 	@$(run_as_root) $(INSTALL_PATH)/homelab-nft-confirm.sh
 
 nft-install:
-	@echo "[make] Installing homelab nftables firewall..."
+	@echo "🛡️ Installing homelab nftables firewall"
 	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
 	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh
 	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh
@@ -231,19 +233,19 @@ nft-install:
 	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft.service homelab-nft-rollback.timer
-	@echo "[make] ✅ Firewall units installed (not yet applied)"
-	@echo "[make] Next steps:"
-	@echo "[make]   make nft-apply    # Apply firewall rules (arms rollback timer)"
-	@echo "[make]   make nft-confirm  # Confirm rules (disarms rollback)"
-	@echo "[make]   (If not confirmed, rollback runs automatically)"
+	@echo "✅ Firewall units installed (not yet applied)"
+	@echo "Next steps:"
+	@echo " make nft-apply    # Apply firewall rules (arms rollback timer)"
+	@echo " make nft-confirm  # Confirm rules (disarms rollback)"
+	@echo " (If not confirmed, rollback runs automatically)"
 
 nft-status:
 	@$(run_as_root) nft list table inet homelab_filter
 
 nft-install-rollback:
-	@echo "[make] Installing homelab nft rollback units..."
+	@echo "⏪ Installing homelab nft rollback units"
 	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.service \
-		/etc/systemd/system/homelab-nft-rollback.service \
+		/etc/systemd/system/homelab-nft-rollback.service
 	@$(run_as_root) install -o root -g root -m 0644 \
 		$(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
