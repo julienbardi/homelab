@@ -25,8 +25,14 @@ net-tunnel-preflight: ensure-run-as-root net-tunnel-routing
 		$(run_as_root) ethtool -K "$$NETDEV" rx-udp-gro-forwarding on rx-gro-list off
 	$(eval NET_TUNNEL_PREFLIGHT_DONE := yes)
 
+# Router-terminated WireGuard return path
+# Required for symmetric routing when WG terminates on the router
+ROUTER_WG_SUBNET := 10.89.13.0/24
+ROUTER_LAN_GW    := 10.89.12.1
+
 .PHONY: net-tunnel-routing
 
 net-tunnel-routing: ensure-run-as-root
-	@echo "🛣️  Ensuring routing to router-terminated WireGuard subnet"
-	@$(run_as_root) ip route replace 10.89.13.0/24 via 10.89.12.1
+	@echo "🛣️  Ensuring return route for router-terminated WireGuard"
+	@$(run_as_root) ip route replace $(ROUTER_WG_SUBNET) via $(ROUTER_LAN_GW)
+
