@@ -51,7 +51,7 @@ tailscaled-check-deps:
 # LAN client (trusted: LAN + exit-node)
 # --------------------------------------------------------------------
 # do not use --accept-dns=true as it hijacks DNS entries in /etc/resolv.conf
-tailscaled-lan: tailscaled-check-deps net-tunnel-preflight
+tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 	$(call warn_if_no_net_tunnel_preflight)
 	@echo "🔑 Enrolling LAN client (bardi-lan / lan)"
 	@$(run_as_root) $(TS_BIN) up --reset \
