@@ -42,6 +42,7 @@ include $(MAKEFILE_DIR)mk/20_deps.mk        # package dependencies (apt installs
 include $(MAKEFILE_DIR)mk/20_net-tunnel.mk
 include $(MAKEFILE_DIR)mk/20_sysctl.mk
 include $(MAKEFILE_DIR)mk/30_config_validation.mk
+include $(MAKEFILE_DIR)mk/30_firewall-nas.mk
 include $(MAKEFILE_DIR)mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include $(MAKEFILE_DIR)mk/40_code-server.mk
 include $(MAKEFILE_DIR)mk/40_router.mk      # Router orchestration
