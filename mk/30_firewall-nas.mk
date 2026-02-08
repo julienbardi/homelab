@@ -7,8 +7,10 @@
 # - Idempotent and safe to re-run
 # --------------------------------------------------------------------
 
-NAS_IP              := 10.89.12.4
-ROUTER_WG_SUBNET    := 10.89.13.0/24
+ROUTER_WG_SUBNET := 10.89.13.0/24
+IPTABLES         := /usr/sbin/iptables
+
+$(if $(wildcard $(IPTABLES)),,$(error iptables not found at $(IPTABLES)))
 
 .PHONY: firewall-nas
 
@@ -16,11 +18,11 @@ firewall-nas: ensure-run-as-root
 	@echo "🔥 Allowing router-terminated WireGuard clients to access NAS"
 
 	# Allow all TCP services from router-terminated WG
-	@if ! iptables -C INPUT -s $(ROUTER_WG_SUBNET) -d $(NAS_IP) -p tcp -j ACCEPT 2>/dev/null; then \
-		iptables -I INPUT -s $(ROUTER_WG_SUBNET) -d $(NAS_IP) -p tcp -j ACCEPT; \
+	@if ! $(IPTABLES) -C INPUT -s $(ROUTER_WG_SUBNET) -d $(NAS_LAN_IP) -p tcp -j ACCEPT 2>/dev/null; then \
+		$(IPTABLES) -I INPUT -s $(ROUTER_WG_SUBNET) -d $(NAS_LAN_IP) -p tcp -j ACCEPT; \
 	fi
 
 	# Allow all UDP services from router-terminated WG
-	@if ! iptables -C INPUT -s $(ROUTER_WG_SUBNET) -d $(NAS_IP) -p udp -j ACCEPT 2>/dev/null; then \
-		iptables -I INPUT -s $(ROUTER_WG_SUBNET) -d $(NAS_IP) -p udp -j ACCEPT; \
+	@if ! $(IPTABLES) -C INPUT -s $(ROUTER_WG_SUBNET) -d $(NAS_LAN_IP) -p udp -j ACCEPT 2>/dev/null; then \
+		$(IPTABLES) -I INPUT -s $(ROUTER_WG_SUBNET) -d $(NAS_LAN_IP) -p udp -j ACCEPT; \
 	fi
