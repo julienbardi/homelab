@@ -14,6 +14,10 @@
 - `make install-homelab-sysctl` — Install and apply homelab sysctl forwarding config
 - `make net-tunnel-preflight` — Ensure NIC offload settings for UDP tunnels
 
+## 🔥 NAS firewall — service exposure
+- `make firewall-nas` — Allow trusted tunnel subnets (e.g. router‑terminated WireGuard)
+  to access NAS services (bootstrap invariant)
+
 ## 🔐 Certificates — internal CA
 - `make certs-ensure`
 - `make certs-status`

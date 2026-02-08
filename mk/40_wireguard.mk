@@ -103,7 +103,7 @@ wg-compile: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-missi
 # ------------------------------------------------------------
 # Deploy compiled state (requires successful compile)
 # ------------------------------------------------------------
-wg-deployed: wg-install-scripts ensure-run-as-root net-tunnel-preflight wg-compile wg-check
+wg-deployed: wg-install-scripts ensure-run-as-root net-tunnel-preflight firewall-nas wg-compile wg-check
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔄 WireGuard deployment requested"; fi
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
 
