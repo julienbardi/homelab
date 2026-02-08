@@ -19,8 +19,14 @@ endif
 
 .PHONY: net-tunnel-preflight
 
-net-tunnel-preflight: ensure-run-as-root
+net-tunnel-preflight: ensure-run-as-root net-tunnel-routing
 	@NETDEV="$$(ip -o route get 8.8.8.8 | awk '{print $$5}')" && \
 		$(run_as_root) ethtool -k "$$NETDEV" | grep -q 'rx-udp-gro-forwarding: on' || \
 		$(run_as_root) ethtool -K "$$NETDEV" rx-udp-gro-forwarding on rx-gro-list off
 	$(eval NET_TUNNEL_PREFLIGHT_DONE := yes)
+
+.PHONY: net-tunnel-routing
+
+net-tunnel-routing: ensure-run-as-root
+	@echo "🛣️  Ensuring routing to router-terminated WireGuard subnet"
+	@$(run_as_root) ip route replace 10.89.13.0/24 via 10.89.12.1
