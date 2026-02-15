@@ -698,6 +698,50 @@ Rationale:
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Connectivity preservation & management access
+-------------------------------------------------------------------------------
+
+Loss of LAN connectivity or management access is the highest-severity failure.
+
+Rules:
+
+  - Firewall changes MUST preserve uninterrupted LAN connectivity at all times
+  - Router management access (SSH, HTTPS) MUST remain reachable from the LAN
+  - Intranet access for LAN users MUST NOT be disrupted by firewall changes
+  - Internet access for LAN users MUST NOT be interrupted by control-plane
+    deployment or firewall mutation
+
+Protected services (non-exhaustive):
+
+  - SSH access to the router (TCP/22 or configured alternative)
+  - HTTPS access to the router and NAS (TCP/443)
+  - Administrative access ports explicitly declared as critical (e.g. TCP/2222)
+
+Failure semantics:
+
+  - Any change that risks loss of connectivity is forbidden
+  - Any firewall logic that could transiently drop management access
+    is a contract violation
+  - Safety of existing connectivity takes precedence over architectural
+    cleanliness, refactoring, or optimization
+
+Enforcement:
+
+  - Firewall implementations MUST explicitly preserve critical allow rules
+  - Review MUST reject any change that removes or weakens connectivity guarantees
+  - Connectivity preservation MUST be validated before deployment
+
+Rationale:
+
+  - The router is a family-critical infrastructure component
+  - Loss of connectivity has immediate real-world impact
+  - Recoverability is irrelevant if access is lost
+  - Safety dominates elegance
+
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Router mutation exclusivity
 -------------------------------------------------------------------------------
 
