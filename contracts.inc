@@ -13,6 +13,29 @@ these contracts.
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Contract authority & precedence
+-------------------------------------------------------------------------------
+
+Contracts are the source of truth.
+
+Rules:
+
+  - Contracts may only change via an explicit Git commit
+  - Implementations MUST follow contracts; contracts MUST NOT be altered
+    to accommodate existing implementations
+  - If an implementation conflicts with a contract, the implementation
+    MUST be corrected or removed
+  - Contract amendments MUST be intentional, reviewed, and justified
+
+Rationale:
+
+  - Contracts define architecture, not behavior after the fact
+  - Reversing precedence (code over contract) invalidates the system
+
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Scope & applicability
 -------------------------------------------------------------------------------
 
@@ -179,6 +202,38 @@ Any script or Make target that:
   - or assumes PATH resolution
 
 is a contract violation.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Control-plane language boundaries
+-------------------------------------------------------------------------------
+
+Python is a control-plane implementation detail.
+
+Rules:
+
+  - Python MAY be used for control-plane compilation, validation, and rendering
+    executed off-router (e.g. WSL)
+  - No script deployed to the router may require Python at runtime
+  - Router-resident scripts MUST be POSIX shell compatible and rely exclusively
+    on BusyBox-provided tools
+  - Absence of Python on the router is expected and MUST NOT be treated as an
+    error condition
+
+Tool availability semantics:
+
+  - BusyBox-provided tools listed in the runtime tool availability contract
+    are authoritative
+  - Non-availability of any required BusyBox tool is a code defect, not an
+    environmental failure
+  - Scripts MUST fail loudly if a required BusyBox tool is missing
+
+Rationale:
+
+  - The router is a constrained execution environment
+  - Python is not a guaranteed runtime dependency
+  - Control-plane logic must not leak into runtime execution
 -------------------------------------------------------------------------------
 
 
