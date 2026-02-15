@@ -28,7 +28,7 @@ net-tunnel-preflight: ensure-run-as-root net-tunnel-routing
 # Router-terminated WireGuard return path
 # Required for symmetric routing when WG terminates on the router
 ROUTER_WG_SUBNET := 10.89.13.0/24
-ROUTER_LAN_GW    := 10.89.12.1
+ROUTER_LAN_GW    := $(ROUTER_LAN_IP)
 
 .PHONY: net-tunnel-routing
 

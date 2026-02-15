@@ -20,8 +20,9 @@ ROUTER_SYNC_SCRIPT := $(INSTALL_PATH)/router-sync-scripts.sh
 
 .PHONY: router-ssh-ready git-clean router-sync-scripts
 
+# Explicit SSH reachability check (no mutation)
 router-ssh-ready:
-	@ssh -p 2222 julie@10.89.12.1 true
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) true
 
 git-clean:
 	@git diff --quiet || { echo "❌ Working tree not clean"; exit 1; }
