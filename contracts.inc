@@ -36,6 +36,138 @@ Rationale:
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Authority & decision ownership
+-------------------------------------------------------------------------------
+
+This system is intentionally single-authority.
+
+Roles:
+
+  - The operator executes, maintains, and deploys the system.
+  - The repository owner is the ultimate authority over architectural intent.
+
+Rules:
+
+  - All architectural decisions are defined exclusively by the repository owner
+    via explicit contract amendments.
+  - No implementation, automation, or operational process may reinterpret,
+    override, or evolve intent without an explicit contract change committed
+    by the repository owner.
+  - Operator actions MUST comply with the current contracts as written.
+  - Disagreement between operator behavior and contract text MUST be resolved
+    in favor of the contract.
+  - Repository owner authority is enforced via repository access controls
+    (e.g. protected branches, required approvals), not by commit authorship alone.
+
+Governance:
+
+  - Authority is exercised through Git history.
+  - The repository owner’s commits define intent.
+  - There is no autonomous or emergent decision-making in the system.
+
+Rationale:
+
+  - Prevents authority drift over time.
+  - Ensures all evolution is intentional, reviewable, and auditable.
+  - Makes ownership explicit rather than implicit.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Delegated authority
+-------------------------------------------------------------------------------
+
+The repository owner MAY designate a deputy.
+
+Rules:
+
+  - A deputy acts solely by explicit delegation from the repository owner.
+  - Delegation MUST be documented in this contract via an explicit amendment.
+  - Delegation MUST define scope and duration.
+  - Delegation is revocable at any time by the repository owner.
+  - A deputy MUST NOT further delegate authority.
+  - In case of conflict, the repository owner’s intent always prevails.
+
+Governance:
+
+  - Delegation is exercised through Git history.
+  - Absence of an explicit delegation implies no deputy authority.
+  - There is no implicit, automatic, or time-based succession.
+
+Rationale:
+
+  - Enables continuity without diluting authority.
+  - Prevents shared or emergent decision-making.
+  - Keeps ultimate control centralized and auditable.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Temporary incapacity
+-------------------------------------------------------------------------------
+
+In the event of temporary incapacity of the repository owner,
+pre-authorized delegated authority MAY become active.
+
+Rules:
+
+  - Temporary incapacity MUST NOT create new authority.
+  - Only an explicitly designated deputy MAY act during incapacity.
+  - Deputy authority during incapacity MUST be pre-authorized in advance
+    by contract amendment; no new authority may be created during incapacity.
+  - Scope and limits of authority during incapacity MUST be predefined.
+  - Upon recovery of the repository owner, all deputy authority
+    immediately reverts.
+
+Governance:
+
+  - There is no automatic determination of incapacity.
+  - The system MUST NOT infer incapacity based on time, inactivity,
+    or external signals.
+  - Absence of a predefined incapacity delegation implies no authority
+    during incapacity.
+
+Rationale:
+
+  - Preserves continuity without guessing intent.
+  - Prevents emergency-driven authority drift.
+  - Keeps all power transitions explicit and auditable.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Authority succession
+-------------------------------------------------------------------------------
+
+In the event of death or permanent incapacity of the repository owner,
+authority MAY transfer to a designated successor.
+
+Rules:
+
+  - A successor MUST be explicitly designated by the repository owner
+    via a contract amendment.
+  - Succession MUST be documented in this contract.
+  - Absence of an explicit successor designation implies no succession.
+  - A successor assumes full repository owner authority upon succession.
+  - Succession is a one-time transfer; further delegation follows
+    standard delegation rules.
+  - Succession requires the successor to possess or be granted repository
+    ownership or equivalent merge authority via repository access controls.
+
+Governance:
+
+  - Succession is exercised through Git history.
+  - There is no implicit, automatic, or external succession mechanism.
+
+Rationale:
+
+  - Preserves continuity without introducing ambiguity.
+  - Prevents authority vacuum or contested control.
+  - Keeps governance explicit, intentional, and auditable.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Scope & applicability
 -------------------------------------------------------------------------------
 
@@ -790,6 +922,131 @@ This license applies to the contract text itself,
 independent of any code governed by it.
 
 Use of this contract implies acceptance of its terms.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Interface lifecycle & revocation
+-------------------------------------------------------------------------------
+
+Each WireGuard interface has an explicit lifecycle state.
+
+States:
+  - active       → fully supported and rendered
+  - deprecated   → still rendered, scheduled for removal
+  - revoked      → MUST NOT be rendered or deployed
+
+Rules:
+
+  - Every interface MUST declare exactly one lifecycle state
+  - Revoked interfaces MUST NOT appear in any compiled dump
+  - Deprecated interfaces MAY be rendered but MUST emit a warning
+  - Lifecycle transitions MUST be explicit and version-controlled
+
+Grace periods:
+
+  - Deprecation MAY include a documented revocation date
+  - Enforcement of revocation dates MUST be deterministic
+
+Rationale:
+
+  - Prevents silent zombie interfaces
+  - Enables controlled peer migration
+  - Makes interface retirement auditable and predictable
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Interface host binding
+-------------------------------------------------------------------------------
+
+WireGuard interfaces are host-bound and immutable.
+
+Rules:
+
+  - Each interface is bound to exactly one host
+  - Host binding MUST NOT change over the lifetime of an interface
+  - Changing host requires interface replacement
+  - Interface replacement implies new server key material
+
+Migration semantics:
+
+  - Live migration of an interface between hosts is forbidden
+  - Replacement MUST be explicit and disruptive by design
+
+Rationale:
+
+  - Host identity defines trust, routing, and firewall authority
+  - Migration would introduce ambiguous state and hidden coupling
+  - Replacement preserves auditability and correctness
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: NAT66 capability constraints
+-------------------------------------------------------------------------------
+
+NAT66 is an explicit, opt-in capability.
+
+Rules:
+
+  - NAT66 MUST NOT be enabled implicitly
+  - NAT66 MAY be enabled on any host only if explicitly requested
+  - NAT66 requests MUST fail if IPv6 egress is unavailable
+  - Renderers MUST NOT infer or synthesize NAT66 behavior
+
+Host semantics:
+
+  - Router-hosted NAT66 is expected and supported
+  - NAS-hosted NAT66 is permitted but MUST be explicit
+
+Rationale:
+
+  - Prevents accidental IPv6 policy changes
+  - Preserves safety while allowing controlled experimentation
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Routing authority
+-------------------------------------------------------------------------------
+
+Routing authority is centralized on the router.
+
+Rules:
+
+  - Routing intent MAY originate from any host
+  - Only the router may install or modify routing state
+  - Router MAY refuse routing intent that violates firewall or
+    connectivity preservation contracts
+
+Rationale:
+
+  - Preserves a single source of routing truth
+  - Prevents split-brain routing behavior
+  - Aligns with Step 6 firewall invariants
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Host identity
+-------------------------------------------------------------------------------
+
+The WireGuard control plane recognizes exactly two hosts:
+
+  - router
+  - nas
+
+Rules:
+
+  - All interfaces MUST be bound to one of these hosts
+  - Introducing additional hosts requires an explicit contract amendment
+  - Host identity is semantic, not address-based
+
+Rationale:
+
+  - Prevents accidental expansion of the trust and routing domain
+  - Makes host authority explicit and reviewable
 -------------------------------------------------------------------------------
 
 
