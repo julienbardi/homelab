@@ -9,7 +9,10 @@
 #
 # This file must be run before any router, firewall, or WireGuard targets.
 # ROLE gates prerequisites by responsibility: routers must manage NICs; services must not.
-
+# NON-GOAL:
+# - This file does NOT cache system package state
+# - Capability checks are intentionally re-evaluated on each invocation
+# ------------------------------------------------------------
 .PHONY: prereqs-network prereqs-network-verify \
 	prereqs-docs-verify \
 	prereqs fix-tailscale-repo \
@@ -129,3 +132,18 @@ rust-system: ensure-run-as-root
 		$(run_as_root) ln -sf /root/.cargo/bin/cargo /usr/local/bin/cargo; \
 		$(run_as_root) ln -sf /root/.cargo/bin/rustc /usr/local/bin/rustc; \
 	}
+
+.PHONY: prereqs-python-venv-verify
+prereqs-python-venv-verify:
+	@python3 -c 'import venv' >/dev/null 2>&1 || { \
+		echo "❌ python3-venv missing"; \
+		echo "➡️  Required for WireGuard Python compiler"; \
+		echo "➡️  Fix with: make prereqs-python-venv"; \
+		exit 1; \
+	}
+
+.PHONY: prereqs-python-venv
+prereqs-python-venv: ensure-run-as-root prereqs-python-venv-verify
+	@echo "➕ Ensuring python3-venv is installed"
+	@$(call apt_update_if_needed)
+	@$(run_as_root) apt-get install -y --no-install-recommends python3-venv

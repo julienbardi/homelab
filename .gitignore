@@ -173,3 +173,16 @@ dns-warm-async
 10.89.12.1/cloudflare_ddns*
 10.89.12.1/.cloudflare
 10.89.12.1/.ddns_confidential
+
+# Build / runtime state
+.state/
+wg/
+
+# Python virtual environments (generated, non-reproducible)
+__pycache__/
+pip-wheel-metadata/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
