@@ -38,6 +38,18 @@
 set -e
 cd "$(dirname "$0")"
 
+# NOTE: This script intentionally refuses execution unless:
+#   - it resides in /jffs/scripts
+#   - it is invoked as ./firewall-step6.sh from /jffs/scripts
+if [ "$(pwd -P)" != "/jffs/scripts" ]; then
+	echo "REFUSING: must be executed from /jffs/scripts on the router"
+	exit 1
+fi
+case "$0" in
+	./firewall-step6.sh) : ;;
+	*) echo "REFUSING: must be invoked as ./firewall-step6.sh from /jffs/scripts"; exit 1 ;;
+esac
+
 # Required inputs
 [ -n "${WG_INTERFACES:-}" ] || { echo "WG_INTERFACES is empty or undefined"; exit 1; }
 [ -n "${LAN_IF:-}" ]        || { echo "LAN_IF is empty or undefined"; exit 1; }
