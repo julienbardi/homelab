@@ -1,6 +1,16 @@
 # mk/00_constants.mk
 # Canonical Make constants (build-time)
 
+# Router connection (single source of truth for deployment)
+ROUTER_HOST      ?= julie@10.89.12.1
+ROUTER_USER      := $(word 1,$(subst @, ,$(ROUTER_HOST)))
+ROUTER_ADDR      := $(word 2,$(subst @, ,$(ROUTER_HOST)))
+ROUTER_SSH_PORT  ?= 2222
+ROUTER_SCRIPTS   ?= /jffs/scripts
+
+# ---------------------------------------------------------------------------
+# Network identities (do not alias; roles are distinct by contract)
+# ---------------------------------------------------------------------------
 NAS_LAN_IP := 10.89.12.4
 NAS_LAN_IP6 := fd89:7a3b:42c0::4
 
@@ -28,3 +38,7 @@ VERBOSE ?= 0
 export WG_ROOT
 export SECURITY_DIR
 export HOMELAB_ROOT
+export ROUTER_HOST
+export ROUTER_SSH_PORT
+export ROUTER_USER
+export ROUTER_SCRIPTS

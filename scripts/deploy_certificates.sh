@@ -5,6 +5,10 @@ if [ "$(id -u)" -ne 0 ]; then
   exec sudo -- "$0" "$@"
 fi
 set -euo pipefail
+# Router deployment target (control plane)
+ROUTER_HOST="${ROUTER_HOST:-julie@10.89.12.1}"
+ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
+ROUTER_USER="${ROUTER_USER:-julie}"
 
 HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
 
@@ -222,21 +226,23 @@ deploy_dnsdist() {
 deploy_router() {
 	log "🔐 Deploying ECC TLS material to router"
 
-	if ! timeout 5 ssh -o BatchMode=yes -o ConnectTimeout=5 julie@10.89.12.1 true; then
+	if ! timeout 5 ssh -p "$ROUTER_SSH_PORT" \
+        -o BatchMode=yes -o ConnectTimeout=5 \
+        "$ROUTER_HOST" true; then
 		log "❌ Router unreachable — TLS deployment aborted"
 		return 1
 	fi
 
-	# Push cert and key to the router (remote host 10.89.12.1, user julie, group root)
+	# Push cert and key to the router (remote host $ROUTER_HOST, user $ROUTER_USER, group root)
 	local res1
 	res1=$(atomic_install "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
 						  "/jffs/ssl/fullchain.pem" \
-						  "julie:root" 0644 10.89.12.1)
+						  "$ROUTER_USER:root" 0644 "$ROUTER_HOST")
 
 	local res2
 	res2=$(atomic_install "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
 						  "/jffs/ssl/privkey.pem" \
-						  "julie:root" 0600 10.89.12.1)
+						  "$ROUTER_USER:root" 0600 "$ROUTER_HOST")
 
 	# Only log update if either file changed
 	if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then

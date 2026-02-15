@@ -1,5 +1,6 @@
 #!/bin/sh
-# /jffs/scripts/firewall-start
+# Managed by git: homelab/10.89.12.1/jffs/scripts/firewall-start
+# DO NOT EDIT ON ROUTER
 #
 # Enforces router-side network invariants:
 #   - Policy routing exception for router-originated LAN traffic
@@ -11,6 +12,16 @@
 #
 # Added on 2026-01-03 by julie
 
+set -e
+cd "$(dirname "$0")"
+
+###############################################################################
+# SECTION 0 — Connectivity preservation & management access (non-negotiable)
+# - LAN connectivity must not be disrupted
+# - Router management access (SSH/HTTPS) must remain reachable from LAN
+# - NAS management access (443/2222) must remain reachable
+###############################################################################
+
 IP_ENTWARE="/opt/sbin/ip"
 
 NAS4="10.89.12.4"
@@ -19,6 +30,15 @@ NAS6="fd89:7a3b:42c0::4"
 WG_V4_PREFIXLEN="16"
 WG_IF_MIN="1"
 WG_IF_MAX="15"
+# WireGuard profile bitmask model (wg1..wg15)
+BIT_LAN=0
+BIT_V4=1
+BIT_V6=2
+BIT_FULL=3
+
+###############################################################################
+# SECTION 1 — IPv4 NAT invariant (DNAT): WAN → NAS (WireGuard)
+###############################################################################
 
 #
 # IPv4 NAT invariant (DNAT):
@@ -30,14 +50,18 @@ if ! iptables -t nat -C PREROUTING -i eth0 -p udp --dport 51420:51435 \
                 -j DNAT --to-destination "$NAS4"
 fi
 
+###############################################################################
+# SECTION 2 — IPv4 firewall invariants: WireGuard handshakes (WAN ↔ NAS)
+###############################################################################
+
 #
 # IPv4 firewall invariant:
 # Allow inbound WireGuard handshakes (WAN → NAS)
 #
 if ! iptables -C FORWARD -p udp -d "$NAS4" --dport 51420:51435 \
-	-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
-	iptables -I FORWARD -p udp -d "$NAS4" --dport 51420:51435 \
-		-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+    -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+    iptables -I FORWARD -p udp -d "$NAS4" --dport 51420:51435 \
+        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 fi
 
 if ! iptables -C FORWARD -p udp -s "$NAS4" --sport 51420:51435 \
@@ -46,66 +70,223 @@ if ! iptables -C FORWARD -p udp -s "$NAS4" --sport 51420:51435 \
         -m conntrack --ctstate ESTABLISHED -j ACCEPT
 fi
 
+###############################################################################
+# SECTION 3 — Router-terminated WireGuard forwarding (wgs1) — strict convergence
+###############################################################################
+
+#
+# Router-terminated WireGuard forwarding (wgs1) — strict convergence
+#
+
+# Ensure chain exists
+iptables -N WGSF 2>/dev/null || true
+
+# Ensure chain rules exist (no flush, no duplicates)
+if ! iptables -C WGSF -o br0 -j ACCEPT 2>/dev/null; then
+    iptables -A WGSF -o br0 -j ACCEPT
+fi
+
+if ! iptables -C WGSF -i br0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; then
+    iptables -A WGSF -i br0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+fi
+
+# Remove legacy direct FORWARD rules from older versions (must not exist anymore)
+while iptables -C FORWARD -i wgs1 -o br0 -j ACCEPT 2>/dev/null; do
+    iptables -D FORWARD -i wgs1 -o br0 -j ACCEPT
+done
+
+while iptables -C FORWARD -i br0 -o wgs1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; do
+    iptables -D FORWARD -i br0 -o wgs1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+done
+
+# Ensure exactly one jump, and ensure it is rule #1
+while iptables -C FORWARD -i wgs1 -j WGSF 2>/dev/null; do
+    iptables -D FORWARD -i wgs1 -j WGSF
+done
+iptables -I FORWARD 1 -i wgs1 -j WGSF
+
+###############################################################################
+# SECTION 4 — IPv4 WireGuard forwarding (FORWARD): intent-aware, UI-chain only
+###############################################################################
+
 #
 # IPv4 firewall invariant:
 # Allow WireGuard clients to access LAN (bidirectional)
+#
+# NOTE:
+# This keeps using the router UI chain (FORWARD) and does not introduce
+# any new firewall chains. WAN forwarding is only allowed when encoded
+# as intent in the wgN bitmask model.
 #
 n="$WG_IF_MIN"
 while [ "$n" -le "$WG_IF_MAX" ]; do
         WG_IF="wg${n}"
 
-        if ! iptables -C FORWARD -i "$WG_IF" -o br0 -j ACCEPT 2>/dev/null; then
-                iptables -I FORWARD -i "$WG_IF" -o br0 -j ACCEPT
+        has_lan=$(( (n >> BIT_LAN) & 1 ))
+        has_v4=$(( (n >> BIT_V4) & 1 ))
+        is_full=$(( (n >> BIT_FULL) & 1 ))
+
+        # wgN <-> LAN (br0) only when LAN bit is set
+        if [ "$has_lan" -eq 1 ]; then
+                if ! iptables -C FORWARD -i "$WG_IF" -o br0 -j ACCEPT 2>/dev/null; then
+                        iptables -I FORWARD -i "$WG_IF" -o br0 -j ACCEPT
+                fi
+
+                if ! iptables -C FORWARD -i br0 -o "$WG_IF" \
+                        -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; then
+                        iptables -I FORWARD -i br0 -o "$WG_IF" \
+                                -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+                fi
         fi
 
-        if ! iptables -C FORWARD -i br0 -o "$WG_IF" \
-                -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; then
-                iptables -I FORWARD -i br0 -o "$WG_IF" \
-                        -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+        # wgN -> WAN (eth0) only when FULL bit is set and IPv4 is present
+        if [ "$has_v4" -eq 1 ] && [ "$is_full" -eq 1 ]; then
+                if ! iptables -C FORWARD -i "$WG_IF" -o eth0 -j ACCEPT 2>/dev/null; then
+                        iptables -I FORWARD -i "$WG_IF" -o eth0 -j ACCEPT
+                fi
         fi
 
         n=$((n + 1))
 done
 
+###############################################################################
+# SECTION 5 — Router management access (INPUT): HTTPS to router (Caddy on :443)
+###############################################################################
+
+#
+# IPv4 firewall invariant (INPUT):
+# Allow inbound HTTPS to router itself (Caddy on :443)
+#
+if ! iptables -C INPUT -i eth0 -p tcp --dport 443 \
+        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+        iptables -I INPUT -i eth0 -p tcp --dport 443 \
+                -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+fi
+
+#
+# IPv6 firewall invariant (INPUT):
+# Allow inbound HTTPS to router itself (Caddy on :443)
+#
+if command -v ip6tables >/dev/null 2>&1; then
+        if ! ip6tables -C INPUT -i eth0 -p tcp --dport 443 \
+                -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+                ip6tables -I INPUT -i eth0 -p tcp --dport 443 \
+                        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+        fi
+fi
+
+###############################################################################
+# SECTION 6 — IPv6 WireGuard forwarding invariant (FORWARD): bitmask model
+###############################################################################
+
+#
+# IPv6 WireGuard forwarding invariant (FORWARD):
+# Enforce per-wg interface intent using the same bitmask model as the generator.
+#
+# Model:
+#   - Default FORWARD policy remains DROP (checked elsewhere)
+#   - Only explicit wgN forwarding is allowed
+#   - LAN access requires BIT_LAN + BIT_V6
+#   - IPv6 internet egress requires BIT_FULL + BIT_V6
+#
+if command -v ip6tables >/dev/null 2>&1; then
+    # Ensure chain exists and is clean (local flush only)
+    ip6tables -N WGSF6 2>/dev/null || true
+    ip6tables -F WGSF6
+
+    # Ensure scoped jumps exist (WireGuard only), no global FORWARD hijack
+    while ip6tables -C FORWARD -j WGSF6 2>/dev/null; do
+        ip6tables -D FORWARD -j WGSF6
+    done
+    while ip6tables -C FORWARD -i wg+ -j WGSF6 2>/dev/null; do
+        ip6tables -D FORWARD -i wg+ -j WGSF6
+    done
+    while ip6tables -C FORWARD -o wg+ -j WGSF6 2>/dev/null; do
+        ip6tables -D FORWARD -o wg+ -j WGSF6
+    done
+
+    ip6tables -I FORWARD 1 -i wg+ -j WGSF6
+    ip6tables -I FORWARD 2 -o wg+ -j WGSF6
+
+    # Always allow return traffic (stateful)
+    ip6tables -A WGSF6 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+    n="$WG_IF_MIN"
+    while [ "$n" -le "$WG_IF_MAX" ]; do
+        WG_IF="wg${n}"
+
+        has_lan=$(( (n >> BIT_LAN) & 1 ))
+        has_v6=$(( (n >> BIT_V6) & 1 ))
+        is_full=$(( (n >> BIT_FULL) & 1 ))
+
+        # Only enforce IPv6 rules for profiles that actually carry IPv6
+        if [ "$has_v6" -eq 1 ]; then
+            # wgN <-> LAN (br0) only when LAN bit is set
+            if [ "$has_lan" -eq 1 ]; then
+                ip6tables -A WGSF6 -i "$WG_IF" -o br0 -j ACCEPT
+                ip6tables -A WGSF6 -i br0 -o "$WG_IF" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+            fi
+
+            # wgN -> WAN (eth0) only when FULL bit is set
+            if [ "$is_full" -eq 1 ]; then
+                ip6tables -A WGSF6 -i "$WG_IF" -o eth0 -j ACCEPT
+            fi
+        fi
+
+        n=$((n + 1))
+    done
+
+    # Explicit terminal drop—no fallthrough surprises
+    ip6tables -A WGSF6 -j DROP
+fi
+
+###############################################################################
+# SECTION 7 — Policy routing exception: router-originated LAN traffic
+###############################################################################
 
 #
 # Policy routing exception:
 # Ensure router-originated traffic to LAN uses the LAN routing table
 #
 if [ -x "$IP_ENTWARE" ]; then
-	LAN_TABLE="$($IP_ENTWARE route show table all | awk '
-		/10\.89\.12\.0\/24/ && /dev br0/ && /table/ {
-			for (i=1;i<=NF;i++) if ($i=="table") {print $(i+1); exit}
-		}
-	')"
+    LAN_TABLE="$($IP_ENTWARE route show table all | awk '
+        /10\.89\.12\.0\/24/ && /dev br0/ && /table/ {
+            for (i=1;i<=NF;i++) if ($i=="table") {print $(i+1); exit}
+        }
+    ')"
 
-	if [ -n "$LAN_TABLE" ]; then
-		if ! $IP_ENTWARE rule show | grep -q "^5206:.*from 10\.89\.12\.1 .*lookup $LAN_TABLE"; then
-			$IP_ENTWARE rule del priority 5206 2>/dev/null
-			$IP_ENTWARE rule add priority 5206 from 10.89.12.1 lookup "$LAN_TABLE"
-		fi
-	fi
+    if [ -n "$LAN_TABLE" ]; then
+        if ! $IP_ENTWARE rule show | grep -q "^5206:.*from 10\.89\.12\.1 .*lookup $LAN_TABLE"; then
+            $IP_ENTWARE rule del priority 5206 2>/dev/null
+            $IP_ENTWARE rule add priority 5206 from 10.89.12.1 lookup "$LAN_TABLE"
+        fi
+    fi
 fi
+
+###############################################################################
+# SECTION 8 — NAS service firewall allowances (LAN + Tailscale), idempotent
+###############################################################################
 
 #
 # NOTE:
 # These rules replace implicit forwarding previously provided by
 # ASUSWRT UI static routes. They are intentionally explicit.
+#
 
 #
 # IPv4 firewall invariants:
 # Allow inbound services to NAS (LAN + Tailscale), idempotent
 #
 if ! iptables -C FORWARD -p tcp -d "$NAS4" --dport 443 \
-	-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
-	iptables -I FORWARD -p tcp -d "$NAS4" --dport 443 \
-		-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+    -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+    iptables -I FORWARD -p tcp -d "$NAS4" --dport 443 \
+        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 fi
 
 if ! iptables -C FORWARD -p tcp -d "$NAS4" --dport 2222 \
-	-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
-	iptables -I FORWARD -p tcp -d "$NAS4" --dport 2222 \
-		-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+    -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+    iptables -I FORWARD -p tcp -d "$NAS4" --dport 2222 \
+        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 fi
 
 #
@@ -113,9 +294,9 @@ fi
 # Allow STUN (DERP / Tailscale NAT discovery) to NAS
 #
 if ! iptables -C FORWARD -p udp -d "$NAS4" --dport 3478 \
-	-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
-	iptables -I FORWARD -p udp -d "$NAS4" --dport 3478 \
-		-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+    -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+    iptables -I FORWARD -p udp -d "$NAS4" --dport 3478 \
+        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 fi
 
 #
@@ -123,12 +304,16 @@ fi
 # Allow inbound HTTPS to NAS (idempotent)
 #
 if command -v ip6tables >/dev/null 2>&1; then
-	if ! ip6tables -C FORWARD -p tcp -d "$NAS6" --dport 443 \
-		-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
-		ip6tables -I FORWARD -p tcp -d "$NAS6" --dport 443 \
-			-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
-	fi
+    if ! ip6tables -C FORWARD -p tcp -d "$NAS6" --dport 443 \
+        -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT 2>/dev/null; then
+        ip6tables -I FORWARD -p tcp -d "$NAS6" --dport 443 \
+            -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+    fi
 fi
+
+###############################################################################
+# SECTION 9 — Static routes for WireGuard VPN subnets (self-healing)
+###############################################################################
 
 #
 # IPv4 + IPv6 routing invariants:
@@ -136,52 +321,93 @@ fi
 #
 n="$WG_IF_MIN"
 while [ "$n" -le "$WG_IF_MAX" ]; do
-	# IPv4: 10.<n>.0.0/16
-	ip route replace "10.${n}.0.0/${WG_V4_PREFIXLEN}" via "$NAS4" dev br0 || true
+    # IPv4: 10.<n>.0.0/16
+    ip route replace "10.${n}.0.0/${WG_V4_PREFIXLEN}" via "$NAS4" dev br0 || true
 
         # IPv6 (legacy removed):
         # Delegated-prefix routing to WireGuard clients used to live here.
         # Retired in favor of ULA-only WireGuard + NAT66 for IPv6 Internet.
         # Do not re-enable delegated IPv6 routing.
 
-	n=$((n + 1))
+    n=$((n + 1))
 done
+
+#
+# Dual-WireGuard routing invariant:
+# Ensure router-terminated WireGuard subnet is locally routable
+#
+ip route replace 10.89.13.0/24 dev wgs1 || true
+
+###############################################################################
+# SECTION 10 — Optional service restart: Tailscale (best effort)
+###############################################################################
 
 #
 # Optional service restart:
 # Tailscale is best-effort and must not affect routing correctness
 #
 if [ -x /opt/bin/tailscale ]; then
-	tailscale down >/dev/null 2>&1 || :
-	tailscale up   >/dev/null 2>&1 || :
+    tailscale down >/dev/null 2>&1 || :
+    tailscale up   >/dev/null 2>&1 || :
 fi
+
+###############################################################################
+# SECTION 11 — Audit only: duplicated FORWARD rules (IPv4 / IPv6)
+###############################################################################
 
 #
 # Audit only — must never affect boot or routing
 # Detect duplicated FORWARD rules (IPv4 / IPv6)
 #
-
 DUP4="$(iptables -S FORWARD | sort | uniq -c | awk '$1 > 1')"
 if command -v ip6tables >/dev/null 2>&1; then
-	DUP6="$(ip6tables -S FORWARD | sort | uniq -c | awk '$1 > 1')"
+    DUP6="$(ip6tables -S FORWARD | sort | uniq -c | awk '$1 > 1')"
 else
-	DUP6=""
+    DUP6=""
 fi
 
 if [ -n "$DUP4" ] || [ -n "$DUP6" ]; then
-	echo "❌ Firewall invariant violated: duplicated FORWARD rules detected"
+    echo "❌ Firewall invariant violated: duplicated FORWARD rules detected"
 
-	if [ -n "$DUP4" ]; then
-		echo "⚠️  IPv4 duplicates:"
-		echo "$DUP4"
-	fi
+    if [ -n "$DUP4" ]; then
+        echo "⚠️  IPv4 duplicates:"
+        echo "$DUP4"
+    fi
 
-	if [ -n "$DUP6" ]; then
-		echo "⚠️  IPv6 duplicates:"
-		echo "$DUP6"
-	fi
+    if [ -n "$DUP6" ]; then
+        echo "⚠️  IPv6 duplicates:"
+        echo "$DUP6"
+    fi
 # else
 #     echo "✅ Firewall audit: no duplicated FORWARD rules"
 fi
 
-sh /jffs/scripts/firewall start skynetloc=/tmp/mnt/sda/skynet # Skynet
+###############################################################################
+# SECTION 12 — Skynet (best-effort, boot-only)
+###############################################################################
+
+# Skynet (best-effort, boot-only)
+if [ -x /jffs/scripts/firewall ] && [ ! -f /tmp/skynet.lock ]; then
+    echo "🛡️  Starting Skynet (best-effort)"
+    sh /jffs/scripts/firewall start skynetloc=/tmp/mnt/sda/skynet || \
+        echo "⚠️  Skynet failed — continuing without it"
+fi
+
+###############################################################################
+# SECTION 13 — Bridge stabilization (AiMesh / switch recovery)
+###############################################################################
+
+# ------------------------------------------------------------------------------
+# Bridge stabilization (AiMesh / switch recovery)
+# ASUSWRT-Merlin may apply firewall rules before all LAN interfaces are attached.
+# Force a clean bridge forwarding state once everything is up.
+# ------------------------------------------------------------------------------
+
+sleep 10
+
+if ip link show br0 >/dev/null 2>&1; then
+    echo "🔧 Stabilizing LAN bridge (br0)"
+    ip link set br0 down
+    sleep 1
+    ip link set br0 up
+fi
