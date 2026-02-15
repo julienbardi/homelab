@@ -12,6 +12,9 @@
 # NON-GOAL:
 # - This file does NOT cache system package state
 # - Capability checks are intentionally re-evaluated on each invocation
+# NOTE:
+# - apt installs may upgrade packages within the dependency closure
+# - system-wide upgrades (apt upgrade/dist-upgrade) are explicitly forbidden
 # ------------------------------------------------------------
 .PHONY: prereqs-network prereqs-network-verify \
 	prereqs-docs-verify \
@@ -99,6 +102,7 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 		unbound dnsutils dnsperf \
 		iperf3 \
 		qrencode \
+		ripgrep \
 		libc-ares-dev \
 		apt-cacher-ng
 	@for bin in curl jq git iperf3 qrencode; do \
