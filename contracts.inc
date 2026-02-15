@@ -698,6 +698,39 @@ Rationale:
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Router mutation exclusivity
+-------------------------------------------------------------------------------
+
+All mutation of router runtime state (firewall, routing, interfaces, services)
+MUST occur exclusively inside router-resident scripts deployed under
+/jffs/scripts/.
+
+Rules:
+
+  - Makefile recipes MUST NOT invoke iptables, ip6tables, nft, sysctl,
+    or any other router-mutating command directly.
+  - Makefile recipes MUST NOT stream commands over SSH for execution.
+  - Router state MUST NOT be mutated via ad-hoc SSH command execution.
+  - All router mutations MUST be performed by a deployed script that:
+      - resides under /jffs/scripts/
+      - is owned by exactly one Make target
+      - is deployed atomically
+      - is executable independently of the control plane
+
+Rationale:
+
+  - Prevents partial execution and mid-flight failure
+  - Preserves atomicity and rollback guarantees
+  - Enforces single-writer ownership
+  - Keeps control-plane logic off the router
+  - Makes runtime behavior auditable and reconstructible
+
+Any Makefile that mutates router state without deploying and invoking
+a router-resident script is invalid.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: License & reuse
 -------------------------------------------------------------------------------
 
