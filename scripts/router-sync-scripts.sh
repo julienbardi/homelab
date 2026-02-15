@@ -9,14 +9,13 @@
 # - Rollback is guaranteed via git commit before deployment.
 
 set -eu
-
+ROUTER_HOST="${ROUTER_HOST:-julie@10.89.12.1}"
+ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
+ROUTER_USER="${ROUTER_USER:-julie}"
+ROUTER_SCRIPTS="${ROUTER_SCRIPTS:-/jffs/scripts}"
 HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
 
-router_host="10.89.12.1"
-router_user="julie"
-router_port="2222"
-router_root="/jffs/scripts"
-
+# NOTE: repo_root is identity, not transport — do not parameterize
 repo_root="$HOMELAB_DIR/10.89.12.1/jffs/scripts"
 
 [ -d "$repo_root" ] || {
@@ -44,15 +43,15 @@ trap 'cleanup; exit 130' INT
 trap 'cleanup; exit 143' TERM
 trap 'cleanup; exit 129' HUP
 
-echo "📌 Router: $router_user@$router_host:$router_root"
+echo "📌 Router: $ROUTER_HOST:$ROUTER_SCRIPTS"
 echo "📌 Repo authority: $repo_root"
 
 # Enumerate repo-managed files once
-find "$repo_root" -type f >"$repo_list"
+find "$repo_root" -type f -print0 >"$repo_list"
 
 echo "📥 Snapshotting router state (read-only)…"
-scp -O -P "$router_port" -r \
-	"$router_user@$router_host:$router_root" \
+scp -O -P "$ROUTER_SSH_PORT" -r \
+	"$ROUTER_HOST:$ROUTER_SCRIPTS" \
 	"$tmp_router_snapshot"
 
 router_snapshot="$tmp_router_snapshot/scripts"
@@ -111,19 +110,19 @@ echo "🚀 Deploying repo-managed files to router…"
 
 while IFS= read -r repo_file; do
 	rel=$(printf '%s\n' "$repo_file" | sed "s|^$escaped_repo_root/||")
-	remote_path="$router_root/$rel"
+	remote_path="$ROUTER_SCRIPTS/$rel"
 
-	ssh -n -p "$router_port" "$router_user@$router_host" \
+	ssh -n -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" \
 		"mkdir -p \"$(dirname "$remote_path")\""
 
-	scp -O -P "$router_port" \
+	scp -O -P "$ROUTER_SSH_PORT" \
 		"$repo_file" \
-		"$router_user@$router_host:$remote_path"
+		"$ROUTER_HOST:$remote_path"
 done <"$repo_list"
 
 echo "🔎 Verifying deployed state…"
-scp -O -P "$router_port" -r \
-	"$router_user@$router_host:$router_root" \
+scp -O -P "$ROUTER_SSH_PORT" -r \
+	"$ROUTER_HOST:$ROUTER_SCRIPTS" \
 	"$tmp_router_verify"
 
 verify_root="$tmp_router_verify/scripts"
