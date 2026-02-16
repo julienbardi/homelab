@@ -59,6 +59,7 @@ OUT_DIR="$ROOT/compiled"
 ALLOC="$OUT_DIR/alloc.csv"
 LOCK="$OUT_DIR/clients.lock.csv"
 PLAN="$OUT_DIR/plan.tsv"
+PLAN_V2="$OUT_DIR/plan.v2.tsv"
 
 ENDPOINT_HOST_BASE="vpn.bardi.ch"
 ENDPOINT_PORT_BASE="51420"
@@ -157,14 +158,15 @@ NORM="$STAGE/clients.norm.tsv"
 awk -F',' '
 	BEGIN { OFS="\t" }
 	/^[[:space:]]*#/ { next }
-	$1=="user" && $2=="machine" && $3=="iface" { next }
-	NF < 3 { next }
+	$1=="user" && $2=="machine" && $3=="iface" && $4=="profile" { next }
+	NF < 4 { next }
 	{
 		gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1)
 		gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
 		gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3)
+		gsub(/^[[:space:]]+|[[:space:]]+$/, "", $4)
 		base=$1 "-" $2
-		print $1, $2, $3, base
+		print $1, $2, $3, $4, base
 	}
 ' "$IN_CSV" | sort -u >"$NORM"
 
@@ -296,7 +298,58 @@ EOF
 	done <"$NORM"
 } >"$PLAN_TMP"
 
+PLAN_V2_TMP="$STAGE/plan.v2.tsv"
+{
+	printf "# GENERATED FILE — DO NOT EDIT\n"
+	printf "node\tiface\tprofile\ttunnel_mode\tlan_access\tegress_v4\tegress_v6\tclient_addr_v4\tclient_addr_v6\tclient_allowed_ips_v4\tclient_allowed_ips_v6\tserver_allowed_ips_v4\tserver_allowed_ips_v6\tdns\n"
+
+	while IFS="$(printf '\t')" read -r user machine iface profile base; do
+		# reuse allocator + address derivation exactly as before
+		# reuse client_addr4 / client_addr6 exactly as before
+
+		# resolve intent from profile (new, explicit)
+		set -- $(profile_intent "$profile")
+		tunnel_mode="$1"
+		lan_access="$2"
+		egress_v4="$3"
+		egress_v6="$4"
+
+		# client AllowedIPs (explicit, no inference)
+		client_allowed_v4="10.${ifnum}.0.0/16"
+		client_allowed_v6="$(wg_ula_subnet6_for_ifnum "$ifnum")"
+
+		[ "$lan_access" -eq 1 ] && {
+			client_allowed_v4="${client_allowed_v4},10.89.12.0/24"
+			client_allowed_v6="${client_allowed_v6},${WG_ULA_LAN_CIDR}"
+		}
+
+		[ "$tunnel_mode" = "full" ] && {
+			[ "$egress_v4" -eq 1 ] && client_allowed_v4="${client_allowed_v4},0.0.0.0/1,128.0.0.0/1"
+			[ "$egress_v6" -eq 1 ] && client_allowed_v6="${client_allowed_v6},::/1,8000::/1"
+		}
+
+		# server AllowedIPs: strictly client tunnel IPs only
+		server_allowed_v4="$client_addr4"
+		server_allowed_v6="$client_addr6"
+
+		# DNS: per interface (NAS‑specific)
+		dns="10.89.12.4,${WG_ULA_NAS}"
+
+		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+			"$base" "$iface" "$profile" \
+			"$tunnel_mode" "$lan_access" "$egress_v4" "$egress_v6" \
+			"$client_addr4" "$client_addr6" \
+			"$client_allowed_v4" "$client_allowed_v6" \
+			"$server_allowed_v4" "$server_allowed_v6" \
+			"$dns"
+	done <"$NORM"
+} >"$PLAN_V2_TMP"
+
 if grep -qE '(^|[[:space:]])2a01:' "$PLAN_TMP"; then
+	die "refusing to write plan: delegated/global IPv6 detected (2a01:...)"
+fi
+
+if grep -qE '(^|[[:space:]])2a01:' "$PLAN_V2_TMP"; then
 	die "refusing to write plan: delegated/global IPv6 detected (2a01:...)"
 fi
 
@@ -306,5 +359,7 @@ fi
 }
 
 install -m 0644 -o root -g root "$PLAN_TMP" "$PLAN"
+install -m 0644 -o root -g root "$PLAN_V2_TMP" "$PLAN_V2"
+
 install -m 0644 -o root -g root "$LOCK_TMP" "$LOCK"
 install -m 0600 -o root -g root "$ALLOC_MERGED" "$ALLOC"
