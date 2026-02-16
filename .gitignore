@@ -176,7 +176,6 @@ dns-warm-async
 
 # Build / runtime state
 .state/
-wg/
 
 # Python virtual environments (generated, non-reproducible)
 __pycache__/
