@@ -419,6 +419,49 @@ fi
 	exit 1
 }
 
+normalize_allowed() {
+	sed -E '
+		s/[[:space:]]*,[[:space:]]*/,/g;
+		s/,/\n/g
+	' | sort | tr '\n' ','
+}
+
+normalize_dns() {
+	sed -E 's/[[:space:]]*,[[:space:]]*/,/g; s/^[[:space:]]+|[[:space:]]+$//g'
+}
+
+CANON_DNS="10.89.12.4,fd89:7a3b:42c0::4"
+
+V1_VIEW="$STAGE/plan.v1.view"
+V2_VIEW="$STAGE/plan.v2.view"
+
+# v1 normalized view
+awk -F'\t' 'NR>2{print $1"\t"$2"\t"$5"\t"$6"\t"$7"\t"$4}' "$PLAN_TMP" \
+| while IFS=$'\t' read -r b i a4 a6 allow dns; do
+	[ -z "$dns" ] && dns="$CANON_DNS"
+	dns="$(printf "%s" "$dns" | normalize_dns)"
+	printf "%s\t%s\t%s\t%s\t%s\t%s\n" \
+		"$b" "$i" "$a4" "$a6" \
+		"$(printf "%s" "$allow" | normalize_allowed)" \
+		"$dns"
+done | sort >"$V1_VIEW"
+
+# v2 normalized view
+awk -F'\t' 'NR>2{print $1"\t"$2"\t"$8"\t"$9"\t"$10","$11"\t"$14}' "$PLAN_V2_TMP" \
+| while IFS=$'\t' read -r b i a4 a6 allow dns; do
+	dns="$(printf "%s" "$dns" | normalize_dns)"
+	printf "%s\t%s\t%s\t%s\t%s\t%s\n" \
+		"$b" "$i" "$a4" "$a6" \
+		"$(printf "%s" "$allow" | normalize_allowed)" \
+		"$dns"
+done | sort >"$V2_VIEW"
+
+if ! diff -u "$V1_VIEW" "$V2_VIEW" >/dev/null; then
+	echo "wg-compile: ERROR: plan.tsv and plan.v2.tsv are not semantically equivalent" >&2
+	diff -u "$V1_VIEW" "$V2_VIEW" >&2
+	exit 1
+fi
+
 install -m 0644 -o root -g root "$PLAN_TMP" "$PLAN"
 install -m 0644 -o root -g root "$PLAN_V2_TMP" "$PLAN_V2"
 
