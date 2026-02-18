@@ -106,6 +106,54 @@ client_addr6_for_ifnum_ab() {
 	# fd89:7a3b:42c0:<ifnum>::A:B/128
 	printf "%s:%s::%s:%s/128\n" "$WG_ULA_PREFIX" "$ifnum" "$A" "$B"
 }
+# profile is the authoritative intent model; iface numbers are no longer semantic.
+profile_intent() {
+	# profile format:
+	# tunnel_<split|full>_lan_<0|1>_v4_<0|1>_v6_<0|1>
+
+	local profile="$1"
+
+	# Defensive defaults (required under set -u)
+	TUNNEL_FULL=0
+	ALLOW_LAN=0
+	ALLOW_V4=0
+	ALLOW_V6=0
+
+	case "$profile" in
+		tunnel_full_*)
+			TUNNEL_FULL=1
+			;;
+		tunnel_split_*)
+			TUNNEL_FULL=0
+			;;
+		*)
+			echo "ERROR: invalid tunnel mode in profile: $profile" >&2
+			return 1
+			;;
+	esac
+
+	case "$profile" in
+		*_lan_1_*) ALLOW_LAN=1 ;;
+		*_lan_0_*) ALLOW_LAN=0 ;;
+		*) echo "ERROR: invalid LAN bit in profile: $profile" >&2; return 1 ;;
+	esac
+
+	case "$profile" in
+		*_v4_1_*) ALLOW_V4=1 ;;
+		*_v4_0_*) ALLOW_V4=0 ;;
+		*) echo "ERROR: invalid IPv4 bit in profile: $profile" >&2; return 1 ;;
+	esac
+
+	case "$profile" in
+		*_v6_1) ALLOW_V6=1 ;;
+		*_v6_0) ALLOW_V6=0 ;;
+		*) echo "ERROR: invalid IPv6 bit in profile: $profile" >&2; return 1 ;;
+	esac
+
+	tunnel_mode="split"
+	[ "$TUNNEL_FULL" -eq 1 ] && tunnel_mode="full"
+	printf "%s %s %s %s\n" "$tunnel_mode" "$ALLOW_LAN" "$ALLOW_V4" "$ALLOW_V6"
+}
 
 # --------------------------------------------------------------------
 # Deterministic allocator helpers
@@ -205,7 +253,7 @@ PLAN_TMP="$STAGE/plan.tsv"
 {
 	printf "# GENERATED FILE — DO NOT EDIT\n"
 	printf "base\tiface\tslot\tdns\tclient_addr4\tclient_addr6\tAllowedIPs_client\tAllowedIPs_server\tendpoint\tserver_addr4\tserver_addr6\tserver_routes\n"
-	while IFS="$(printf '\t')" read -r _ _ iface base; do
+	while IFS="$(printf '\t')" read -r _ _ iface profile base; do
 		ifnum="${iface#wg}"
 		if [ "$ifnum" -lt 1 ] || [ "$ifnum" -gt 15 ]; then
 			die "invalid iface wg${ifnum} — only wg1..wg15 are allowed"
@@ -225,15 +273,13 @@ EOF
 		server_addr6="$(server_addr6_for_ifnum "$ifnum")"
 
 		# Initialize flags (required with set -u)
-		has_lan=0
-		has_v4=0
-		has_v6=0
+		set -- $(profile_intent "$profile")
+		tunnel_mode="$1"
+		has_lan="$2"
+		has_v4="$3"
+		has_v6="$4"
 		is_full=0
-
-		has_lan=$(( (ifnum >> BIT_LAN) & 1 ))
-		has_v4=$(( (ifnum >> BIT_V4) & 1 ))
-		has_v6=$(( (ifnum >> BIT_V6) & 1 ))
-		is_full=$(( (ifnum >> BIT_FULL) & 1 ))
+		[ "$tunnel_mode" = "full" ] && is_full=1
 
 		client_owner4="10.${ifnum}.${A}.${B}/32"
 		client_owner6="${client_addr6}"   # already /128
@@ -304,8 +350,23 @@ PLAN_V2_TMP="$STAGE/plan.v2.tsv"
 	printf "node\tiface\tprofile\ttunnel_mode\tlan_access\tegress_v4\tegress_v6\tclient_addr_v4\tclient_addr_v6\tclient_allowed_ips_v4\tclient_allowed_ips_v6\tserver_allowed_ips_v4\tserver_allowed_ips_v6\tdns\n"
 
 	while IFS="$(printf '\t')" read -r user machine iface profile base; do
-		# reuse allocator + address derivation exactly as before
-		# reuse client_addr4 / client_addr6 exactly as before
+		ifnum="${iface#wg}"
+		if [ "$ifnum" -lt 1 ] || [ "$ifnum" -gt 15 ]; then
+			die "invalid iface wg${ifnum} — only wg1..wg15 are allowed"
+		fi
+
+		slot="$(awk -F'\t' -v b="$base" '$1==b{print $2}' "$STAGE/alloc.tsv")"
+		[ -n "$slot" ] || die "no slot allocated for base '$base'"
+
+		ab="$(ab_from_slot "$slot")"
+		IFS=' ' read -r A B <<EOF
+$ab
+EOF
+		unset ab
+
+		client_addr4="10.${ifnum}.${A}.${B}/32"
+		client_addr6="$(client_addr6_for_ifnum_ab "$ifnum" "$A" "$B")"
+
 
 		# resolve intent from profile (new, explicit)
 		set -- $(profile_intent "$profile")
