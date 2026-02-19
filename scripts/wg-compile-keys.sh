@@ -6,18 +6,18 @@ set -eu
 source /volume1/homelab/homelab.env
 : "${WG_ROOT:?WG_ROOT not set}"
 
-PLAN_V2="${WG_ROOT}/compiled/plan.v2.tsv"
+PLAN_V2="${WG_ROOT}/compiled/plan.tsv"
 export USE_PLAN_V2=1
 
 [ -f "$PLAN_V2" ] || {
-	echo "FATAL: plan.v2.tsv is required and missing" >&2
+	echo "FATAL: plan.tsv is required and missing" >&2
 	exit 1
 }
 
 if [ "$USE_PLAN_V2" -eq 1 ]; then
 	PLAN="$PLAN_V2"
 else
-	PLAN="$WG_ROOT/compiled/plan.v2.tsv"
+	PLAN="$WG_ROOT/compiled/plan.tsv"
 fi
 
 OUT="$WG_ROOT/compiled/keys.tsv"
@@ -30,7 +30,7 @@ INSTALL_IF_CHANGED="$SCRIPT_DIR/install_if_changed.sh"
 die() { echo "wg-compile-keys: ERROR: $*" >&2; exit 1; }
 
 [ -x "$INSTALL_IF_CHANGED" ] || die "install_if_changed.sh not found or not executable"
-[ -f "$PLAN" ] || die "missing plan.v2.tsv at $PLAN"
+[ -f "$PLAN" ] || die "missing plan.tsv at $PLAN"
 command -v wg >/dev/null 2>&1 || die "wg not found in PATH"
 
 EXISTING_KEYS="$OUT"
@@ -60,7 +60,7 @@ awk -F'\t' '
 	}
 
 	# ------------------------------------------------------------
-	# Process plan.v2.tsv
+	# Process plan.tsv
 	# ------------------------------------------------------------
 	/^#/ { next }
 	/^[[:space:]]*$/ { next }
@@ -106,7 +106,7 @@ awk -F'\t' '
 
 # Hard invariant: header-only output is illegal.
 if [ "$(wc -l <"$tmp")" -le 1 ]; then
-	die "no keys generated from plan.v2.tsv (plan empty/mismatched, or parsing failed)"
+	die "no keys generated from plan.tsv (plan empty/mismatched, or parsing failed)"
 fi
 
 rc=0

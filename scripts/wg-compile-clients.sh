@@ -2,11 +2,11 @@
 #
 # scripts/wg-compile-clients.sh
 #
-# Render deterministic client + server peer configs from compiled plan.v2.tsv.
+# Render deterministic client + server peer configs from compiled plan.tsv.
 # One worker per interface (parallel-safe).
 #
 # Input (authoritative for rendering):
-#   ${WG_ROOT}/compiled/plan.v2.tsv
+#   ${WG_ROOT}/compiled/plan.tsv
 #
 # This script MUST be a dumb renderer:
 # - no address math
@@ -19,18 +19,18 @@ IFS=$'\n\t'
 
 : "${WG_ROOT:?WG_ROOT not set}"
 
-PLAN_V2="${WG_ROOT}/compiled/plan.v2.tsv"
+PLAN_V2="${WG_ROOT}/compiled/plan.tsv"
 export USE_PLAN_V2=1
 
 [ -f "$PLAN_V2" ] || {
-	echo "FATAL: plan.v2.tsv is required and missing" >&2
+	echo "FATAL: plan.tsv is required and missing" >&2
 	exit 1
 }
 
 if [ "$USE_PLAN_V2" -eq 1 ]; then
 	PLAN="$PLAN_V2"
 else
-	PLAN="${WG_ROOT}/compiled/plan.v2.tsv"
+	PLAN="${WG_ROOT}/compiled/plan.tsv"
 fi
 
 KEYS="${WG_ROOT}/compiled/keys.tsv"
@@ -45,7 +45,7 @@ KEY_WIDTH=16
 mkdir -p "$OUT_CLIENT" "$OUT_SERVER"
 chmod 700 "$OUT_CLIENT" "$OUT_SERVER" 2>/dev/null || true
 
-[ -f "$PLAN" ] || { echo "ERROR: missing plan.v2.tsv at $PLAN" >&2; exit 1; }
+[ -f "$PLAN" ] || { echo "ERROR: missing plan.tsv at $PLAN" >&2; exit 1; }
 [ -f "$KEYS" ] || { echo "ERROR: missing keys.tsv at $KEYS" >&2; exit 1; }
 
 # --------------------------------------------------------------------
@@ -222,7 +222,7 @@ mapfile -t IFACES < <(
 
 
 [ "${#IFACES[@]}" -gt 0 ] || {
-	echo "ERROR: no interfaces found in plan.v2.tsv" >&2
+	echo "ERROR: no interfaces found in plan.tsv" >&2
 	exit 1
 }
 
