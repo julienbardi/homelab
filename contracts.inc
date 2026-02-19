@@ -401,8 +401,9 @@ There are:
 
 Invalid combinations are excluded ONLY by hard constraints.
 
-All valid combinations MUST be representable in the compiled dump.
-
+All valid combinations MUST be representable explicitly in the
+authoritative compiled dump (plan.v2.tsv).
+plan.v2.tsv is the sole source of truth for intent resolution.
 
 -------------------------------------------------------------------------------
 CONTRACT: Compiled dumps
@@ -410,9 +411,12 @@ CONTRACT: Compiled dumps
 
 The following files are materialized database snapshots:
 
-  - plan.tsv
+  - plan.v2.tsv   (authoritative intent representation)
   - alloc.tsv
   - keys.tsv
+
+The file plan.tsv is a legacy compatibility artifact and MUST NOT be
+consumed by renderers, key generators, or runtime components.
 
 Properties:
   - Deterministic
@@ -520,7 +524,7 @@ Profile or OS changes MUST NOT affect key identity.
 CONTRACT: Renderers
 -------------------------------------------------------------------------------
 
-Renderers are dumb consumers of plan.tsv.
+Renderers are dumb consumers of the authoritative compiled plan (plan.v2.tsv).
 
 Renderers MUST perform:
   - no address math
