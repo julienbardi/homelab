@@ -3,7 +3,7 @@ set -eu
 
 : "${WG_ROOT:?WG_ROOT not set}"
 
-PLAN="$WG_ROOT/compiled/plan.tsv"
+PLAN="$WG_ROOT/compiled/plan.v2.tsv"
 BASE_DIR="$WG_ROOT/out/server/base"
 PEERS_DIR="$WG_ROOT/out/server/peers"
 
@@ -25,7 +25,7 @@ ifaces="$(
 	' "$PLAN" | sort -u
 )"
 
-[ -n "$ifaces" ] || die "no interfaces found in plan.tsv"
+[ -n "$ifaces" ] || die "no interfaces found in plan.v2.tsv"
 
 for iface in $ifaces; do
 	base="$BASE_DIR/$iface.conf"

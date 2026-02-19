@@ -27,7 +27,7 @@ set -euo pipefail
 # Compiled outputs (atomic):
 #   $WG_ROOT/compiled/clients.lock.csv
 #   $WG_ROOT/compiled/alloc.csv	(base,slot)
-#   $WG_ROOT/compiled/plan.tsv	(AUTHORITATIVE for deploy; derived from clients.csv + alloc.csv)
+#   $WG_ROOT/compiled/plan.v2.tsv	(AUTHORITATIVE for deploy; derived from clients.csv + alloc.csv)
 #
 # Notes:
 # - Deterministic allocator with collision resolution.
@@ -58,7 +58,6 @@ IN_CSV="$IN_DIR/clients.csv"
 OUT_DIR="$ROOT/compiled"
 ALLOC="$OUT_DIR/alloc.csv"
 LOCK="$OUT_DIR/clients.lock.csv"
-PLAN="$OUT_DIR/plan.tsv"
 PLAN_V2="$OUT_DIR/plan.v2.tsv"
 
 ENDPOINT_HOST_BASE="vpn.bardi.ch"
@@ -221,8 +220,8 @@ awk -F',' '
 # Lock file
 LOCK_TMP="$STAGE/clients.lock.csv"
 {
-	printf "user,machine,iface\n"
-	awk -F'\t' 'BEGIN{OFS=","}{print $1,$2,$3}' "$NORM"
+	printf "user,machine,iface,profile\n"
+	awk -F'\t' 'BEGIN{OFS=","}{print $1,$2,$3,$4}' "$NORM"
 } >"$LOCK_TMP"
 
 # --------------------------------------------------------------------
@@ -247,102 +246,7 @@ done
 awk -F',' 'NR>1{printf "%s\t%s\n",$1,$2}' "$ALLOC_MERGED" >"$STAGE/alloc.tsv"
 
 # --------------------------------------------------------------------
-# Emit plan.tsv
-
-PLAN_TMP="$STAGE/plan.tsv"
-{
-	printf "# GENERATED FILE — DO NOT EDIT\n"
-	printf "base\tiface\tslot\tdns\tclient_addr4\tclient_addr6\tAllowedIPs_client\tAllowedIPs_server\tendpoint\tserver_addr4\tserver_addr6\tserver_routes\n"
-	while IFS="$(printf '\t')" read -r _ _ iface profile base; do
-		ifnum="${iface#wg}"
-		if [ "$ifnum" -lt 1 ] || [ "$ifnum" -gt 15 ]; then
-			die "invalid iface wg${ifnum} — only wg1..wg15 are allowed"
-		fi
-
-		slot="$(awk -F'\t' -v b="$base" '$1==b{print $2}' "$STAGE/alloc.tsv")"
-		ab="$(ab_from_slot "$slot")"
-		IFS=' ' read -r A B <<EOF
-$ab
-EOF
-		unset ab
-
-		client_addr4="10.${ifnum}.${A}.${B}/32"
-		client_addr6="$(client_addr6_for_ifnum_ab "$ifnum" "$A" "$B")"
-  	
-		server_addr4="$(server_addr4_for_ifnum "$ifnum")"
-		server_addr6="$(server_addr6_for_ifnum "$ifnum")"
-
-		# Initialize flags (required with set -u)
-		set -- $(profile_intent "$profile")
-		tunnel_mode="$1"
-		has_lan="$2"
-		has_v4="$3"
-		has_v6="$4"
-		is_full=0
-		[ "$tunnel_mode" = "full" ] && is_full=1
-
-		client_owner4="10.${ifnum}.${A}.${B}/32"
-		client_owner6="${client_addr6}"   # already /128
-
-		allowed_server=""
-		[ "$has_v4" -eq 1 ] && allowed_server="${allowed_server}${client_owner4}, "
-		[ "$has_v6" -eq 1 ] && allowed_server="${allowed_server}${client_owner6}, "
-		allowed_server="${allowed_server%, }"
-
-		[ -n "$allowed_server" ] || die "iface ${iface}: AllowedIPs_server is empty (bad inet bits?)"
-
-		server_routes=""
-		if [ "$has_lan" -eq 1 ]; then
-			[ "$has_v4" -eq 1 ] && server_routes="${server_routes}10.89.12.0/24, "
-			[ "$has_v6" -eq 1 ] && server_routes="${server_routes}${WG_ULA_LAN_CIDR}, "
-			server_routes="${server_routes%, }"
-		fi
-
-		# AllowedIPs for the client:
-		# - Always include wgN subnets (v4 + v6) so the tunnel itself is routable.
-		# - Add LAN prefixes when BIT_LAN is set.
-		# - Add default routes only when BIT_FULL is set, gated by the inet bits.
-		allowed_client="10.${ifnum}.0.0/16, $(wg_ula_subnet6_for_ifnum "$ifnum")"
-
-		if [ "$has_lan" -eq 1 ]; then
-			if [ "$has_v4" -eq 1 ]; then
-				allowed_client="${allowed_client}, 10.89.12.0/24"
-			fi
-			if [ "$has_v6" -eq 1 ]; then
-				allowed_client="${allowed_client}, ${WG_ULA_LAN_CIDR}"
-			fi
-		fi
-
-		if [ "$is_full" -eq 1 ]; then
-			[ "$has_v4" -eq 1 ] || die "iface ${iface} sets FULL without inet-v4 bit"
-			[ "$has_v6" -eq 1 ] || die "iface ${iface} sets FULL without inet-v6 bit"
-
-			if [ "$has_v4" -eq 1 ]; then
-				allowed_client="${allowed_client}, 0.0.0.0/1, 128.0.0.0/1"
-			fi
-			if [ "$has_v6" -eq 1 ]; then
-				allowed_client="${allowed_client}, ::/1, 8000::/1"
-			fi
-
-			# Server must route IPv6 internet back to the client
-			server_routes="${server_routes}, ::/0"
-		fi
-
-		endpoint="${ENDPOINT_HOST_BASE}:$((ENDPOINT_PORT_BASE + ifnum))"
-
-		dns=""
-		if [ "$has_lan" -eq 1 ] || [ "$is_full" -eq 1 ]; then
-			dns="10.89.12.4, ${WG_ULA_NAS}"
-		fi
-		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-			"$base" "$iface" "$slot" \
-			"$dns" \
-			"$client_addr4" "$client_addr6" \
-			"$allowed_client" "$allowed_server" \
-			"$endpoint" \
-			"$server_addr4" "$server_addr6" "$server_routes"
-	done <"$NORM"
-} >"$PLAN_TMP"
+# Emit plan.v2.tsv (authoritative)
 
 PLAN_V2_TMP="$STAGE/plan.v2.tsv"
 {
@@ -367,15 +271,14 @@ EOF
 		client_addr4="10.${ifnum}.${A}.${B}/32"
 		client_addr6="$(client_addr6_for_ifnum_ab "$ifnum" "$A" "$B")"
 
-
-		# resolve intent from profile (new, explicit)
+		# resolve intent from profile (explicit)
 		set -- $(profile_intent "$profile")
 		tunnel_mode="$1"
 		lan_access="$2"
 		egress_v4="$3"
 		egress_v6="$4"
 
-		# client AllowedIPs (explicit, no inference)
+		# client AllowedIPs (explicit)
 		client_allowed_v4="10.${ifnum}.0.0/16"
 		client_allowed_v6="$(wg_ula_subnet6_for_ifnum "$ifnum")"
 
@@ -406,10 +309,6 @@ EOF
 	done <"$NORM"
 } >"$PLAN_V2_TMP"
 
-if grep -qE '(^|[[:space:]])2a01:' "$PLAN_TMP"; then
-	die "refusing to write plan: delegated/global IPv6 detected (2a01:...)"
-fi
-
 if grep -qE '(^|[[:space:]])2a01:' "$PLAN_V2_TMP"; then
 	die "refusing to write plan: delegated/global IPv6 detected (2a01:...)"
 fi
@@ -419,50 +318,6 @@ fi
 	exit 1
 }
 
-normalize_allowed() {
-	sed -E '
-		s/[[:space:]]*,[[:space:]]*/,/g;
-		s/,/\n/g
-	' | sort | tr '\n' ','
-}
-
-normalize_dns() {
-	sed -E 's/[[:space:]]*,[[:space:]]*/,/g; s/^[[:space:]]+|[[:space:]]+$//g'
-}
-
-CANON_DNS="10.89.12.4,fd89:7a3b:42c0::4"
-
-V1_VIEW="$STAGE/plan.v1.view"
-V2_VIEW="$STAGE/plan.v2.view"
-
-# v1 normalized view
-awk -F'\t' 'NR>2{print $1"\t"$2"\t"$5"\t"$6"\t"$7"\t"$4}' "$PLAN_TMP" \
-| while IFS=$'\t' read -r b i a4 a6 allow dns; do
-	[ -z "$dns" ] && dns="$CANON_DNS"
-	dns="$(printf "%s" "$dns" | normalize_dns)"
-	printf "%s\t%s\t%s\t%s\t%s\t%s\n" \
-		"$b" "$i" "$a4" "$a6" \
-		"$(printf "%s" "$allow" | normalize_allowed)" \
-		"$dns"
-done | sort >"$V1_VIEW"
-
-# v2 normalized view
-awk -F'\t' 'NR>2{print $1"\t"$2"\t"$8"\t"$9"\t"$10","$11"\t"$14}' "$PLAN_V2_TMP" \
-| while IFS=$'\t' read -r b i a4 a6 allow dns; do
-	dns="$(printf "%s" "$dns" | normalize_dns)"
-	printf "%s\t%s\t%s\t%s\t%s\t%s\n" \
-		"$b" "$i" "$a4" "$a6" \
-		"$(printf "%s" "$allow" | normalize_allowed)" \
-		"$dns"
-done | sort >"$V2_VIEW"
-
-if ! diff -u "$V1_VIEW" "$V2_VIEW" >/dev/null; then
-	echo "wg-compile: ERROR: plan.tsv and plan.v2.tsv are not semantically equivalent" >&2
-	diff -u "$V1_VIEW" "$V2_VIEW" >&2
-	exit 1
-fi
-
-install -m 0644 -o root -g root "$PLAN_TMP" "$PLAN"
 install -m 0644 -o root -g root "$PLAN_V2_TMP" "$PLAN_V2"
 
 install -m 0644 -o root -g root "$LOCK_TMP" "$LOCK"
