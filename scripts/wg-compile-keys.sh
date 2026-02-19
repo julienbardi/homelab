@@ -6,7 +6,15 @@ set -eu
 source /volume1/homelab/homelab.env
 : "${WG_ROOT:?WG_ROOT not set}"
 
-PLAN="$WG_ROOT/compiled/plan.tsv"
+PLAN_V2="${WG_ROOT}/compiled/plan.v2.tsv"
+export USE_PLAN_V2="${USE_PLAN_V2:-1}"
+
+if [ "$USE_PLAN_V2" -eq 1 ]; then
+	PLAN="$PLAN_V2"
+else
+	PLAN="$WG_ROOT/compiled/plan.tsv"
+fi
+
 OUT="$WG_ROOT/compiled/keys.tsv"
 
 umask 077
@@ -29,7 +37,7 @@ printf "base\tiface\tclient_pub\tclient_priv\n" >"$tmp"
 
 # Ensure keys.tsv exists and has a header, so AWK FNR==NR only ever applies to it.
 if [ ! -s "$EXISTING_KEYS" ]; then
-    printf "base\tiface\tclient_pub\tclient_priv\n" >"$EXISTING_KEYS"
+	printf "base\tiface\tclient_pub\tclient_priv\n" >"$EXISTING_KEYS"
 fi
 
 awk -F'\t' '
@@ -52,18 +60,17 @@ awk -F'\t' '
 	/^#/ { next }
 	/^[[:space:]]*$/ { next }
 
-	# Skip plan.tsv header row
-	$1=="base" && $2=="iface" { next }
+	# Skip plan header row (v1 or v2)
+	(ENVIRON["USE_PLAN_V2"]=="1" && $1=="node" && $2=="iface" && $3=="profile") { next }
+	(ENVIRON["USE_PLAN_V2"]!="1" && $1=="base" && $2=="iface") { next }
 
 	{
 		base  = $1
 		iface = $2
 		key   = base SUBSEP iface
 
-		if (seen[key]++) {
-			printf "wg-compile-keys: ERROR: duplicate base+iface %s %s\n", base, iface > "/dev/stderr"
-			exit 1
-		}
+		# In v2, multiple rows per base+iface are expected; only act once
+		if (seen[key]++) next
 
 		# Reuse existing key if present
 		if (key in priv) {
