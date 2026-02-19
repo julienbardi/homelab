@@ -8,7 +8,7 @@ source /volume1/homelab/homelab.env
 
 ROOT="$WG_ROOT"
 
-PLAN="$ROOT/compiled/plan.tsv"
+PLAN="$ROOT/compiled/plan.v2.tsv"
 ALLOC="$ROOT/compiled/alloc.csv"
 KEYS="$ROOT/compiled/keys.tsv"
 
@@ -19,11 +19,11 @@ SERVER_PUBDIR="$ROOT/compiled/server-pubkeys"
 say() { if [ "$VERBOSE" -ge 1 ]; then echo "$@"; fi; }
 die() { echo "wg-check: ERROR: $*" >&2; exit 1; }
 
-[ -f "$PLAN" ]  || die "missing plan.tsv"
+[ -f "$PLAN" ]  || die "missing plan.v2.tsv"
 [ -f "$ALLOC" ] || die "missing alloc.csv"
 [ -f "$KEYS" ] || die "missing keys.tsv"
 
-say "🔍 checking plan.tsv header"
+say "🔍 checking plan.v2.tsv header"
 
 awk -F'\t' '
 	/^#/ { next }
@@ -41,9 +41,9 @@ awk -F'\t' '
 			$9=="endpoint") exit 0
 		exit 1
 	}
-' "$PLAN" || die "plan.tsv header does not match strict TSV contract"
+' "$PLAN" || die "plan.v2.tsv header does not match strict TSV contract"
 
-say "🔍 checking plan.tsv ↔ alloc.csv consistency"
+say "🔍 checking plan.v2.tsv ↔ alloc.csv consistency"
 
 awk -F'\t' '
 	/^#/ { next }

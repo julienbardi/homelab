@@ -6,7 +6,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 WG_ROOT="${WG_ROOT:?WG_ROOT must be set}"
-PLAN="${PLAN:-$WG_ROOT/compiled/plan.tsv}"
+PLAN="${PLAN:-$WG_ROOT/compiled/plan.v2.tsv}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 printf '%-6s %-44s %-8s %-22s %-18s %-18s %-30s\n' \

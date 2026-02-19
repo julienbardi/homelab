@@ -11,7 +11,7 @@ source /usr/local/bin/common.sh
 WG_DIR="/etc/wireguard"
 PUBDIR="$WG_ROOT/compiled/server-pubkeys"
 
-PLAN="$WG_ROOT/compiled/plan.tsv"
+PLAN="$WG_ROOT/compiled/plan.v2.tsv"
 OUT_BASE="$WG_ROOT/out/server/base"
 
 INSTALL_IF_CHANGED="/usr/local/bin/install_if_changed.sh"

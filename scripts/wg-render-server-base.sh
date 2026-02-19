@@ -8,7 +8,7 @@ umask 077
 
 : "${WG_ROOT:?WG_ROOT not set}"
 
-PLAN="${WG_ROOT}/compiled/plan.tsv"
+PLAN="${WG_ROOT}/compiled/plan.v2.tsv"
 PUBDIR="${WG_ROOT}/compiled/server-pubkeys"
 OUTDIR="${WG_ROOT}/out/server/base"
 
@@ -29,7 +29,7 @@ echo "  📦 output: ${OUTDIR}"
 # Guards
 # ------------------------------------------------------------
 
-[ -f "${PLAN}" ]   || { echo "❌ missing plan.tsv"; exit 1; }
+[ -f "${PLAN}" ]   || { echo "❌ missing plan.v2.tsv"; exit 1; }
 [ -d "${PUBDIR}" ] || { echo "❌ missing server pubkey directory"; exit 1; }
 
 mkdir -p "${OUTDIR}"
