@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # scripts/wg-plan-read.sh
-# Canonical reader for compiled plan.v2.tsv
+# Canonical reader for compiled plan.tsv
 
 set -euo pipefail
 : "${WG_ROOT:?WG_ROOT not set}"
 
-PLAN="$WG_ROOT/compiled/plan.v2.tsv"
+PLAN="$WG_ROOT/compiled/plan.tsv"
 
 [ -f "$PLAN" ] || {
-	echo "wg-plan-read: ERROR: missing plan.v2.tsv" >&2
+	echo "wg-plan-read: ERROR: missing plan.tsv" >&2
 	exit 2
 }
 
@@ -43,6 +43,6 @@ awk -F'\t' '
 		print
 	}
 ' "$PLAN" || {
-	echo "wg-plan-read: ERROR: plan.v2.tsv header mismatch" >&2
+	echo "wg-plan-read: ERROR: plan.tsv header mismatch" >&2
 	exit 2
 }

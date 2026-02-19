@@ -12,7 +12,7 @@ WG_DIR="/etc/wireguard"
 
 WG_BIN="/usr/bin/wg"
 
-PLAN="$ROOT/compiled/plan.v2.tsv"
+PLAN="$ROOT/compiled/plan.tsv"
 
 SERVER_KEYS_DIR="$ROOT/server-keys"
 
@@ -34,7 +34,7 @@ fi
 need "$PLAN"
 need "$SERVER_KEYS_DIR"
 
-# plan.v2.tsv is strict TSV emitted by wg-compile.sh.
+# plan.tsv is strict TSV emitted by wg-compile.sh.
 # Validate the first non-comment, non-empty line is the expected header.
 awk -F'\t' '
 	/^#/ { next }
@@ -55,7 +55,7 @@ awk -F'\t' '
 			$12=="server_routes") exit 0
 		exit 1
 	}
-' "$PLAN" || die "plan.v2.tsv: unexpected header (not strict TSV contract)"
+' "$PLAN" || die "plan.tsv: unexpected header (not strict TSV contract)"
 
 mapfile -t ACTIVE_IFACES < <(
 	awk -F'\t' '
@@ -67,7 +67,7 @@ mapfile -t ACTIVE_IFACES < <(
 )
 
 
-[ "${#ACTIVE_IFACES[@]}" -gt 0 ] || die "no interfaces found in plan.v2.tsv"
+[ "${#ACTIVE_IFACES[@]}" -gt 0 ] || die "no interfaces found in plan.tsv"
 
 umask 077
 
