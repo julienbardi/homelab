@@ -7,7 +7,12 @@ source /volume1/homelab/homelab.env
 : "${WG_ROOT:?WG_ROOT not set}"
 
 PLAN_V2="${WG_ROOT}/compiled/plan.v2.tsv"
-export USE_PLAN_V2="${USE_PLAN_V2:-1}"
+export USE_PLAN_V2=1
+
+[ -f "$PLAN_V2" ] || {
+	echo "FATAL: plan.v2.tsv is required and missing" >&2
+	exit 1
+}
 
 if [ "$USE_PLAN_V2" -eq 1 ]; then
 	PLAN="$PLAN_V2"
