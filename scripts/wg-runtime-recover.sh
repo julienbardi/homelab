@@ -19,7 +19,7 @@ source /volume1/homelab/homelab.env
 
 WG_ROOT="${WG_ROOT:-}"
 WG_DIR="${WG_DIR:-/etc/wireguard}"
-PLAN_REL="compiled/plan.tsv"
+PLAN_REL="compiled/plan.v2.tsv"
 PLAN="${PLAN:-${WG_ROOT:+$WG_ROOT/}$PLAN_REL}"
 
 WG_QUICK="$(command -v wg-quick || true)"
@@ -59,7 +59,7 @@ while [ $# -gt 0 ]; do
 Usage: sudo WG_ROOT=... $0 [--ifaces wg0,wg1] [--tries N] [--no-down] [--dry-run]
 
 Defaults:
-  --ifaces: derived from intent plan.tsv
+  --ifaces: derived from intent plan.v2.tsv
   --tries:  2
 EOF
 	  exit 0
@@ -74,7 +74,7 @@ need_cmd wg
 need_cmd ip
 
 if [ -z "$WG_ROOT" ]; then
-  die "WG_ROOT must be set (used to locate compiled/plan.tsv)"
+  die "WG_ROOT must be set (used to locate compiled/plan.v2.tsv)"
 fi
 [ -f "$PLAN" ] || die "missing plan file: $PLAN"
 
