@@ -27,7 +27,7 @@ set -euo pipefail
 # Compiled outputs (atomic):
 #   $WG_ROOT/compiled/clients.lock.csv
 #   $WG_ROOT/compiled/alloc.csv	(base,slot)
-#   $WG_ROOT/compiled/plan.v2.tsv	(AUTHORITATIVE for deploy; derived from clients.csv + alloc.csv)
+#   $WG_ROOT/compiled/plan.tsv	(AUTHORITATIVE for deploy; derived from clients.csv + alloc.csv)
 #
 # Notes:
 # - Deterministic allocator with collision resolution.
@@ -58,7 +58,7 @@ IN_CSV="$IN_DIR/clients.csv"
 OUT_DIR="$ROOT/compiled"
 ALLOC="$OUT_DIR/alloc.csv"
 LOCK="$OUT_DIR/clients.lock.csv"
-PLAN_V2="$OUT_DIR/plan.v2.tsv"
+PLAN="$OUT_DIR/plan.tsv"
 
 ENDPOINT_HOST_BASE="vpn.bardi.ch"
 ENDPOINT_PORT_BASE="51420"
@@ -246,9 +246,9 @@ done
 awk -F',' 'NR>1{printf "%s\t%s\n",$1,$2}' "$ALLOC_MERGED" >"$STAGE/alloc.tsv"
 
 # --------------------------------------------------------------------
-# Emit plan.v2.tsv (authoritative)
+# Emit plan.tsv (authoritative)
 
-PLAN_V2_TMP="$STAGE/plan.v2.tsv"
+PLAN_TMP="$STAGE/plan.tsv"
 {
 	printf "# GENERATED FILE — DO NOT EDIT\n"
 	printf "node\tiface\tprofile\ttunnel_mode\tlan_access\tegress_v4\tegress_v6\tclient_addr_v4\tclient_addr_v6\tclient_allowed_ips_v4\tclient_allowed_ips_v6\tserver_allowed_ips_v4\tserver_allowed_ips_v6\tdns\n"
@@ -307,9 +307,9 @@ EOF
 			"$server_allowed_v4" "$server_allowed_v6" \
 			"$dns"
 	done <"$NORM"
-} >"$PLAN_V2_TMP"
+} >"$PLAN_TMP"
 
-if grep -qE '(^|[[:space:]])2a01:' "$PLAN_V2_TMP"; then
+if grep -qE '(^|[[:space:]])2a01:' "$PLAN_TMP"; then
 	die "refusing to write plan: delegated/global IPv6 detected (2a01:...)"
 fi
 
@@ -318,7 +318,7 @@ fi
 	exit 1
 }
 
-install -m 0644 -o root -g root "$PLAN_V2_TMP" "$PLAN_V2"
+install -m 0644 -o root -g root "$PLAN_TMP" "$PLAN"
 
 install -m 0644 -o root -g root "$LOCK_TMP" "$LOCK"
 install -m 0600 -o root -g root "$ALLOC_MERGED" "$ALLOC"
