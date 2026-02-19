@@ -349,7 +349,7 @@ PLAN_V2_TMP="$STAGE/plan.v2.tsv"
 	printf "# GENERATED FILE — DO NOT EDIT\n"
 	printf "node\tiface\tprofile\ttunnel_mode\tlan_access\tegress_v4\tegress_v6\tclient_addr_v4\tclient_addr_v6\tclient_allowed_ips_v4\tclient_allowed_ips_v6\tserver_allowed_ips_v4\tserver_allowed_ips_v6\tdns\n"
 
-	while IFS="$(printf '\t')" read -r user machine iface profile base; do
+	while IFS="$(printf '\t')" read -r _ _ iface profile base; do
 		ifnum="${iface#wg}"
 		if [ "$ifnum" -lt 1 ] || [ "$ifnum" -gt 15 ]; then
 			die "invalid iface wg${ifnum} — only wg1..wg15 are allowed"
