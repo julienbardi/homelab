@@ -402,8 +402,8 @@ There are:
 Invalid combinations are excluded ONLY by hard constraints.
 
 All valid combinations MUST be representable explicitly in the
-authoritative compiled dump (plan.v2.tsv).
-plan.v2.tsv is the sole source of truth for intent resolution.
+authoritative compiled dump (plan.tsv).
+plan.tsv is the sole source of truth for intent resolution.
 
 -------------------------------------------------------------------------------
 CONTRACT: Compiled dumps
@@ -411,12 +411,11 @@ CONTRACT: Compiled dumps
 
 The following files are materialized database snapshots:
 
-  - plan.v2.tsv   (authoritative intent representation)
+  - plan.tsv   (authoritative intent representation)
   - alloc.tsv
   - keys.tsv
 
-The legacy file plan.tsv is no longer emitted and MUST NOT exist in
-any compiled or runtime location.
+The legacy file plan.v1.tsv is no longer emitted and MUST NOT exist
 
 Properties:
   - Deterministic
@@ -524,7 +523,7 @@ Profile or OS changes MUST NOT affect key identity.
 CONTRACT: Renderers
 -------------------------------------------------------------------------------
 
-Renderers are dumb consumers of the authoritative compiled plan (plan.v2.tsv).
+Renderers are dumb consumers of the authoritative compiled plan (plan.tsv).
 
 Renderers MUST perform:
   - no address math
@@ -815,7 +814,7 @@ All compiled dumps MUST be emitted into a canonical, inspectable location.
 
 Rules:
 
-  - plan.v2.tsv, alloc.tsv, and keys.tsv MUST be written to the same directory
+  - plan.tsv, alloc.tsv, and keys.tsv MUST be written to the same directory
     as the compiler scripts.
   - Dump locations MUST NOT depend on invocation context.
   - Dump emission MUST be atomic and overwrite previous dumps.
