@@ -415,8 +415,8 @@ The following files are materialized database snapshots:
   - alloc.tsv
   - keys.tsv
 
-The file plan.tsv is a legacy compatibility artifact and MUST NOT be
-consumed by renderers, key generators, or runtime components.
+The legacy file plan.tsv is no longer emitted and MUST NOT exist in
+any compiled or runtime location.
 
 Properties:
   - Deterministic
@@ -815,7 +815,7 @@ All compiled dumps MUST be emitted into a canonical, inspectable location.
 
 Rules:
 
-  - plan.tsv, alloc.tsv, and keys.tsv MUST be written to the same directory
+  - plan.v2.tsv, alloc.tsv, and keys.tsv MUST be written to the same directory
     as the compiler scripts.
   - Dump locations MUST NOT depend on invocation context.
   - Dump emission MUST be atomic and overwrite previous dumps.
