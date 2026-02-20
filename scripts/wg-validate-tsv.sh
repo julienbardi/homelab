@@ -44,19 +44,19 @@ check_file "$INPUT/wg-clients.tsv"
 
 # ---- headers ----
 check_header "$INPUT/users.tsv" \
-	"user_id	display_name	email	enabled"
+	"user_id\tdisplay_name\temail\tenabled"
 
 check_header "$INPUT/hosts.tsv" \
-	"host_id	hostname	mgmt_host	mgmt_port	mgmt_user	locality	enabled"
+	"host_id\thostname\tmgmt_host\tmgmt_port\tmgmt_user\tlocality\tenabled"
 
 check_header "$INPUT/wg-interfaces.tsv" \
-	"iface	host_id	listen_port	mtu	address_v4	address_v6	enabled"
+	"iface\thost_id\tlisten_port\tmtu\taddress_v4\taddress_v6\tenabled"
 
 check_header "$INPUT/wg-profiles.tsv" \
-	"profile	lan_access	internet_v4	internet_v6	dns_mode	description	enabled"
+	"profile\tlan_access\tinternet_v4\tinternet_v6\tdns_mode\tdescription\tenabled"
 
 check_header "$INPUT/wg-clients.tsv" \
-	"client_id	user_id	iface	profile	base	os	enabled"
+	"client_id\tuser_id\tiface\tprofile\tbase\tos\tenabled"
 
 # ---- uniqueness ----
 check_unique_col "$INPUT/users.tsv" 1
