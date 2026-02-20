@@ -651,6 +651,44 @@ Any violation MUST abort compilation loudly.
 
 
 -------------------------------------------------------------------------------
+CONTRACT: TSV schema literals in code
+-------------------------------------------------------------------------------
+
+TSV schemas referenced in source code MUST be represented using explicit
+escape sequences.
+
+Rules:
+
+  - Source code MUST NOT contain literal ASCII TAB characters (0x09)
+    when expressing TSV headers, schemas, or field lists.
+  - All TSV schema literals in code MUST use the '\t' escape sequence
+    to represent field delimiters.
+  - Literal TAB characters are permitted ONLY in runtime data files
+    (e.g. *.tsv dumps), not in source code.
+  - Implementations MUST compare normalized header strings against
+    escaped schema literals, not raw tab characters.
+
+Examples:
+
+  Correct:
+    "user_id\tdisplay_name\temail\tenabled"
+
+  Forbidden:
+    "user_id    display_name    email   enabled"
+
+Rationale:
+
+  - Literal tabs are invisible, editor-dependent, and prone to silent corruption.
+  - Escaped delimiters make schemas explicit, reviewable, and copy-safe.
+  - Prevents false negatives caused by editor, formatter, or transport behavior.
+  - Preserves strict TSV semantics without weakening validation.
+
+Any source file containing a literal TAB character in a TSV schema
+representation is a contract violation.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Deterministic ordering
 -------------------------------------------------------------------------------
 
