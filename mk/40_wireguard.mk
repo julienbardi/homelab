@@ -271,3 +271,7 @@ wg-remove-client: wg-install-scripts ensure-run-as-root
 	@echo "🗑️  Removing WireGuard client: base=$(base) iface=$(iface)"
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) $(INSTALL_PATH)/wg-remove-client.sh "$(base)" "$(iface)"
 	@echo "➡️  Now run: make wg"
+
+.PHONY: wg-validate-input
+wg-validate-input:
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) scripts/wg-validate-tsv.sh
