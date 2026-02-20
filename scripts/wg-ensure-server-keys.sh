@@ -30,16 +30,24 @@ mkdir -p "$OUT_BASE"
 chmod 700 "$OUT_BASE" 2>/dev/null || true
 
 ifaces="$(
-	awk '
-		/^#/ { next }
-		/^[[:space:]]*$/ { next }
-		$1=="base" && $2=="iface" && $3=="slot" &&
-		$4=="dns" && $5=="client_addr4" && $6=="client_addr6" &&
-		$7=="AllowedIPs_client" && $8=="AllowedIPs_server" &&
-		$9=="endpoint" { next }
-		{ print $2 }
-	' "$PLAN" | sort -u
+		awk '
+				/^#/ { next }
+				/^[[:space:]]*$/ { next }
+
+				# New plan.tsv header (current schema)
+				$1=="node" && $2=="iface" { next }
+				$2=="iface" { next }
+
+				# Old legacy header (keep for backward compatibility)
+				$1=="base" && $2=="iface" && $3=="slot" &&
+				$4=="dns" && $5=="client_addr4" && $6=="client_addr6" &&
+				$7=="AllowedIPs_client" && $8=="AllowedIPs_server" &&
+				$9=="endpoint" { next }
+
+				{ print $2 }
+		' "$PLAN" | sort -u
 )"
+
 
 [ -n "$ifaces" ] || {
 	echo "wg-ensure-server-keys: ERROR: no ifaces found in $PLAN" >&2

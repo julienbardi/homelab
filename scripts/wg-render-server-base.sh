@@ -102,10 +102,18 @@ EOF
 	fi
 	rm -f "$tmp"
 done < <(
-	awk -F'\t' '
-		/^#/ { next }
-		/^[[:space:]]*$/ { next }
-		$1=="base" && $2=="iface" { next }
-		{ print $2 }
-	' "${PLAN}" | sort -u
+		awk -F'\t' '
+				/^#/ { next }
+				/^[[:space:]]*$/ { next }
+
+				# New plan.tsv header (current schema)
+				$1=="node" && $2=="iface" { next }
+				$2=="iface" { next }
+
+				# Old legacy header
+				$1=="base" && $2=="iface" { next }
+
+				{ print $2 }
+		' "${PLAN}" | sort -u
 )
+
