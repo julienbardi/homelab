@@ -62,7 +62,7 @@ wg-intent:
 		printf "%-14s %-6s %-7s %-18s %s\n", $$1, $$2, $$3, $$5, $$9 \
 	}'
 
-wg-clients: wg-apply
+wg-clients: wg-compile
 	@echo "📋 WireGuard client summary (make wg-clients)"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '\
 		{ \
