@@ -537,6 +537,51 @@ Rationale:
   - Forces completeness at design time, not after breakage.
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+CONTRACT: Compile-time intent dimensions
+-------------------------------------------------------------------------------
+
+Certain intent dimensions are resolved fully during compilation and do not
+remain authoritative post-compile.
+
+Rules:
+
+  - The following intent dimensions are compile-time only:
+      - profile
+      - lan_access
+      - internet_v4
+      - internet_v6
+      - user_id
+
+  - Compile-time intent dimensions MUST NOT appear as fields in authoritative
+    compiled dumps (e.g. plan.tsv).
+
+  - The effects of compile-time intent dimensions MUST be fully materialized
+    into authoritative compiled facts prior to dump emission.
+
+  - No renderer, checker, or deployment script may rely on the presence,
+    absence, or value of any compile-time intent dimension.
+
+  - Any runtime behavior attributable to a compile-time intent dimension
+    MUST be derivable solely from authoritative compiled facts.
+
+Clarifications:
+
+  - Compile-time intent dimensions may influence compilation logic but
+    MUST NOT survive as labels, flags, or policy indicators post-compile.
+
+  - Retaining compile-time intent dimensions in authoritative dumps is
+    forbidden, as it introduces redundant authority and enables implicit
+    inference.
+
+Rationale:
+
+  - Preserves single-source authority in compiled dumps.
+  - Prevents policy labels from leaking into runtime artifacts.
+  - Ensures renderers remain dumb consumers of fully resolved intent.
+  - Eliminates ambiguity between intent labels and realized behavior.
+-------------------------------------------------------------------------------
+
 
 -------------------------------------------------------------------------------
 CONTRACT: Intent inventory
