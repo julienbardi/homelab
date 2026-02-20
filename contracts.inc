@@ -58,6 +58,9 @@ Rules:
     in favor of the contract.
   - Repository owner authority is enforced via repository access controls
     (e.g. protected branches, required approvals), not by commit authorship alone.
+  - Deferring or omitting a repository-owner-mandated intent dimension
+    constitutes a contract violation, regardless of implementation convenience.
+
 
 Governance:
 
@@ -224,6 +227,21 @@ Formatting is normative:
   - Visual structure is part of the contract
   - Inconsistent formatting is a contract violation
   - Cosmetic drift is forbidden
+  - Line breaks inside paragraphs are semantic and intentional;
+    automatic reflow or rewrapping is forbidden.
+  - Whitespace and indentation inside lists are semantic and MUST be preserved.
+  - Non-printable or zero-width characters are forbidden
+    outside of explicitly documented encoding requirements.
+
+Language and spelling:
+
+  - The authoritative language of this document is English.
+  - US English spelling conventions are normative.
+  - Normative keywords (MUST, MUST NOT, MAY, FORBIDDEN) are interpreted
+    according to their plain English meaning.
+  - Spelling or grammatical errors that materially alter meaning
+    constitute a contract violation.
+
 
 Any change that introduces a new separator style,
 alters block layout, or violates ordering rules
@@ -435,6 +453,181 @@ When WG_DUMP is unset or 0, dumps MUST NOT be written.
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Interfaces
+-------------------------------------------------------------------------------
+
+The 'iface' field uniquely identifies the WireGuard server endpoint.
+
+Additional server realization parameters (e.g. host location, MTU,
+listen port) MUST be represented explicitly as first-class intent
+dimensions in authoritative compiled dumps.
+
+The 'iface' field remains the stable identity key for server endpoints.
+
+Examples:
+  - wg1..wg15  → NAS-hosted WireGuard servers
+  - wgs        → Router-hosted WireGuard server
+
+All server identity is keyed by 'iface'.
+
+Server realization (keys, firewall rules, routing, deployment)
+MUST be derived from authoritative compiled intent associated
+with that iface, not from implicit conventions or naming.
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Schema authority & consumer closure
+-------------------------------------------------------------------------------
+
+Authoritative compiled dumps define the system schema.
+
+Rules:
+
+  - Any change to the schema of an authoritative dump (e.g. plan.tsv)
+    MUST be accompanied by full consumer closure in the same change-set.
+  - Consumer closure means:
+      - All renderers, checkers, and deployment scripts that read the dump
+        are updated to the new schema.
+      - All legacy schema assumptions are removed or explicitly version-gated.
+  - Partial schema migrations are forbidden.
+  - A schema change is invalid if any consumer still relies on the previous
+    schema, even if runtime behavior appears correct.
+
+Enforcement:
+
+  - Every authoritative dump MUST declare a schema identifier and version
+    in a header comment.
+  - All consumers MUST validate the expected schema identifier and version
+    before processing.
+  - Any mismatch MUST abort execution immediately.
+
+Rationale:
+
+  - Prevents silent schema drift.
+  - Forces architectural changes to be completed end-to-end.
+  - Makes incomplete migrations mechanically impossible.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Intent dimension completeness
+-------------------------------------------------------------------------------
+
+All first-class intent dimensions MUST be represented explicitly
+in authoritative compiled dumps.
+
+Rules:
+
+  - If a dimension affects realization (rendering, deployment, or behavior),
+    it MUST appear as an explicit field in the authoritative dump.
+  - Deferring representation of a required intent dimension is forbidden.
+  - "We will add this later" is invalid unless the dimension is explicitly
+    declared non-authoritative and non-impacting by contract amendment.
+
+Examples of first-class dimensions include (non-exhaustive):
+  - client operating system
+  - server host location
+  - MTU
+  - routing domain
+
+Rationale:
+
+  - Prevents hidden or implicit intent.
+  - Ensures renderers remain dumb consumers.
+  - Forces completeness at design time, not after breakage.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Intent inventory
+-------------------------------------------------------------------------------
+
+The system MUST maintain an explicit inventory of intent dimensions.
+
+Rules:
+
+  - All first-class intent dimensions MUST be listed explicitly
+    in a dedicated, versioned section of the contract or a referenced
+    intent inventory document.
+  - Adding a new intent dimension requires:
+      - updating the inventory
+      - updating authoritative dumps
+      - updating all consumers
+    in the same change-set.
+
+  - An intent dimension not listed in the inventory MUST NOT be used
+    by any implementation.
+
+Rationale:
+
+  - Makes intent scope explicit and reviewable.
+  - Prevents late discovery of missing dimensions.
+  - Forces architectural thinking before coding.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Design completeness gate
+-------------------------------------------------------------------------------
+
+Implementation MUST NOT proceed until the intent model is complete.
+
+Rules:
+
+  - All first-class intent dimensions MUST be:
+      - identified
+      - named
+      - placed in authoritative compiled dumps
+      - and validated
+    before any renderer or deployment logic is written or modified.
+
+  - Introducing or modifying implementation code while the intent model
+    is incomplete is forbidden.
+
+  - "Temporary" or "placeholder" implementations are forbidden
+    for unresolved intent dimensions.
+
+Enforcement:
+
+  - A design is considered incomplete if any required intent dimension
+    is known but not yet represented in authoritative dumps.
+  - Any attempt to render, deploy, or apply with an incomplete intent
+    model MUST abort execution.
+
+Rationale:
+
+  - Prevents implementation from driving architecture.
+  - Forces intent modeling to finish before code exists.
+  - Eliminates drift caused by incremental guessing.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Broken model freeze
+-------------------------------------------------------------------------------
+
+If the intent model is known to be incomplete or inconsistent,
+no further implementation work is permitted.
+
+Rules:
+
+  - While the intent model is incomplete, the only permitted changes are:
+      - contract amendments
+      - intent model completion
+      - validation logic
+
+  - Adding or modifying renderers, deployment logic, or orchestration
+    while the model is incomplete is forbidden.
+
+Rationale:
+
+  - Prevents compounding errors.
+  - Forces resolution at the correct layer.
+  - Makes architectural failure a hard stop, not a detour.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: TSV encoding
 -------------------------------------------------------------------------------
 
@@ -489,22 +682,6 @@ Realization happens at render time.
 
 
 -------------------------------------------------------------------------------
-CONTRACT: Interfaces
--------------------------------------------------------------------------------
-
-The 'iface' field uniquely identifies the WireGuard server endpoint.
-
-There is NO additional server dimension.
-
-Examples:
-  - wg1..wg15  → NAS-hosted WireGuard servers
-  - wgs        → Router-hosted WireGuard server
-
-All server identity, keys, firewall rules, routing, and deployment
-are derived exclusively from 'iface'.
-
-
--------------------------------------------------------------------------------
 CONTRACT: Key lifecycle
 -------------------------------------------------------------------------------
 
@@ -531,6 +708,19 @@ Renderers MUST perform:
   - no intent resolution
 
 All intent MUST be resolved at compile time.
+
+Additional rules:
+  - Renderers MUST NOT assume default values for missing intent.
+  - Renderers MUST NOT derive intent from naming conventions,
+    numeric suffixes, or historical behavior.
+  - If required intent is missing from the compiled dump,
+    rendering MUST fail loudly.
+  - Renderers MUST NOT tolerate unused or ignored fields
+    in authoritative dumps.
+
+Rationale:
+  - Prevents reintroduction of implicit behavior.
+  - Ensures all intent is resolved at compile time.
 
 
 -------------------------------------------------------------------------------
@@ -1050,6 +1240,30 @@ Rationale:
 
   - Prevents accidental expansion of the trust and routing domain
   - Makes host authority explicit and reviewable
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Broken model freeze
+-------------------------------------------------------------------------------
+
+If the intent model is known to be incomplete or inconsistent,
+no further implementation work is permitted.
+
+Rules:
+
+  - The only allowed changes while the model is broken are:
+      - contract amendments
+      - intent model completion
+      - validation logic
+
+  - Adding features, refactoring, or deployment logic
+    while the model is broken is forbidden.
+
+Rationale:
+
+  - Prevents compounding errors.
+  - Forces resolution at the correct layer.
 -------------------------------------------------------------------------------
 
 
