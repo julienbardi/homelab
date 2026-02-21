@@ -44,6 +44,8 @@ source /volume1/homelab/homelab.env
 : "${WG_ROOT:?WG_ROOT not set}"
 die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "must run as root"
+# Compile-phase authority: enables key generation in child processes.
+export WG_PHASE=compile
 
 # WireGuard profile bitmask model (wg1..wg15)
 BIT_LAN=0

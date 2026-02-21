@@ -2,6 +2,12 @@
 # wg-compile-keys.sh — idempotent client key compiler
 set -eu
 
+: "${WG_PHASE:?wg-compile-keys: WG_PHASE not set}"
+[ "$WG_PHASE" = "compile" ] || {
+	echo "wg-compile-keys: ERROR: key generation only allowed during compile phase" >&2
+	exit 1
+}
+
 # shellcheck disable=SC1091
 source /volume1/homelab/homelab.env
 : "${WG_ROOT:?WG_ROOT not set}"
@@ -83,24 +89,9 @@ awk -F'\t' '
 			next
 		}
 
-		# Generate new key for new client
-		cmd = "wg genkey"
-		if ((cmd | getline new_priv) <= 0) {
-			print "wg-compile-keys: ERROR: wg genkey failed" > "/dev/stderr"
-			exit 1
-		}
-		close(cmd)
-		sub(/\r?\n$/, "", new_priv)
-
-		cmd = "echo \"" new_priv "\" | wg pubkey"
-		if ((cmd | getline new_pub) <= 0) {
-			print "wg-compile-keys: ERROR: wg pubkey failed" > "/dev/stderr"
-			exit 1
-		}
-		close(cmd)
-		sub(/\r?\n$/, "", new_pub)
-
-		print base, iface, new_pub, new_priv
+		# Missing key is a hard error
+		print "wg-compile-keys: ERROR: missing key for " base " " iface > "/dev/stderr"
+		exit 1
 	}
 ' "$EXISTING_KEYS" "$PLAN" >>"$tmp"
 
