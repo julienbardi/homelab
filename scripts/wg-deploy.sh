@@ -34,38 +34,9 @@ fi
 need "$PLAN"
 need "$SERVER_KEYS_DIR"
 
-# plan.tsv is strict TSV emitted by wg-compile.sh.
-# Validate the first non-comment, non-empty line is the expected header.
-awk -F'\t' '
-	/^#/ { next }
-	/^[[:space:]]*$/ { next }
-	!seen {
-		seen=1
-		if ($1=="base" &&
-			$2=="iface" &&
-			$3=="slot" &&
-			$4=="dns" &&
-			$5=="client_addr4" &&
-			$6=="client_addr6" &&
-			$7=="AllowedIPs_client" &&
-			$8=="AllowedIPs_server" &&
-			$9=="endpoint" &&
-			$10=="server_addr4" &&
-			$11=="server_addr6" &&
-			$12=="server_routes") exit 0
-		exit 1
-	}
-' "$PLAN" || die "plan.tsv: unexpected header (not strict TSV contract)"
-
 mapfile -t ACTIVE_IFACES < <(
-	awk -F'\t' '
-		/^#/ { next }
-		/^[[:space:]]*$/ { next }
-		$1=="base" && $2=="iface" { next }
-		{ if ($2 != "") print $2 }
-	' "$PLAN" | sort -u
+	wg-plan-read.sh | awk -F'\t' '{ if ($2 != "") print $2 }' | sort -u
 )
-
 
 [ "${#ACTIVE_IFACES[@]}" -gt 0 ] || die "no interfaces found in plan.tsv"
 
