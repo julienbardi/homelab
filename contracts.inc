@@ -13,6 +13,54 @@ these contracts.
 
 
 -------------------------------------------------------------------------------
+Contract index (non-normative)
+-------------------------------------------------------------------------------
+
+Governance & authority:
+  - Contract authority & precedence
+  - No unverified assertions about repository state
+  - Agent behavior & contract amendment boundaries
+  - Authority & decision ownership
+  - Repository authority & source of truth
+  - Delegated authority
+  - Temporary incapacity
+  - Authority succession
+
+Document law & scope:
+  - Scope & applicability
+  - Document structure & formatting
+
+Enforcement & evolution:
+  - Contract enforcement & failure semantics
+  - Enforcement coverage declaration
+  - Change control & evolution
+  - Contract supersession & lifecycle
+  - Versioning & release semantics
+
+Runtime & execution environment:
+  - Runtime tool availability
+  - Control-plane language boundaries
+  - Canonical storage & disaster recovery
+
+Intent model & compilation:
+  - Enumeration model
+  - Compiled dumps
+  - Interfaces
+  - Schema authority & consumer closure
+  - Intent dimension completeness
+  - Compile-time intent dimensions
+  - Intent inventory
+  - Design completeness gate
+  - Broken model freeze
+
+Data encoding & determinism:
+  - TSV encoding
+  - TSV schema literals in code
+  - Deterministic ordering
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Contract authority & precedence
 -------------------------------------------------------------------------------
 
