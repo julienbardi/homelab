@@ -29,6 +29,7 @@ Governance & authority:
 Document law & scope:
   - Scope & applicability
   - Document structure & formatting
+  - Contract index completeness
 
 Enforcement & evolution:
   - Contract enforcement & failure semantics
@@ -49,6 +50,7 @@ Intent model & compilation:
   - Interfaces
   - Schema authority & consumer closure
   - Intent dimension completeness
+  - Compiler purity & environment independence
   - Compile-time intent dimensions
   - Intent inventory
   - Design completeness gate
@@ -384,6 +386,29 @@ Language and spelling:
 Any change that introduces a new separator style,
 alters block layout, or violates ordering rules
 renders the document invalid.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Contract index completeness
+-------------------------------------------------------------------------------
+
+The contract index is normative.
+
+Rules:
+
+  - Every CONTRACT block name MUST appear exactly once in the contract index.
+  - Any change that adds, removes, or renames a CONTRACT block
+    MUST update the contract index in the same change-set.
+  - Missing, duplicated, or stale index entries constitute a contract violation.
+
+Enforcement status:
+  enforceable but not yet enforced
+
+Rationale:
+
+  - Prevents silent drift between declared law and navigable law.
+  - Makes review mechanically checkable and operator-auditable.
 -------------------------------------------------------------------------------
 
 
@@ -842,6 +867,44 @@ Rationale:
   - Ensures renderers remain dumb consumers.
   - Forces completeness at design time, not after breakage.
 -------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Compiler purity & environment independence
+-------------------------------------------------------------------------------
+
+wg-compile is a pure intent compiler.
+
+Rules:
+
+  - wg-compile MUST NOT depend on runtime environment variables
+    (e.g. ROLE, HOST, NODE, MACHINE) to select, filter, or suppress intent.
+
+  - All intent selection, ownership, or deployment scoping
+    MUST occur strictly outside the compiler phase.
+
+  - wg-compile MUST materialize the full authoritative intent space
+    defined by input files, without conditional omission.
+
+  - Absence of a runtime variable MUST NOT alter:
+      - schema shape
+      - row cardinality
+      - column presence
+      - intent completeness
+
+  - Any compiler behavior that varies based on environment state
+    constitutes a contract violation.
+
+Enforcement status:
+  enforceable but not yet enforced
+
+Rationale:
+
+  - Prevents environment-driven intent suppression.
+  - Preserves compiler determinism and auditability.
+  - Ensures compiled dumps remain complete and authoritative.
+-------------------------------------------------------------------------------
+
 
 -------------------------------------------------------------------------------
 CONTRACT: Compile-time intent dimensions
