@@ -52,8 +52,8 @@ define log
 	echo "$1" >&2; command -v logger >/dev/null 2>&1 && logger -t homelab-make "$1"
 endef
 
-$(INSTALL_PATH)/install_if_changed.sh: $(MAKEFILE_DIR)scripts/install_if_changed.sh
-	@install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $< $@
+$(INSTALL_PATH)/install_if_changed.sh: ensure-run-as-root $(MAKEFILE_DIR)scripts/install_if_changed.sh
+	@$(run_as_root) install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $< $@
 
 # install_script(src, name), exit code 0 (unchanged) and $(INSTALL_IF_CHANGED_EXIT_CHANGED) (updated) are success
 define install_script
