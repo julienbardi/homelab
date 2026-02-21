@@ -387,6 +387,41 @@ Rationale:
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Enforcement coverage declaration
+-------------------------------------------------------------------------------
+
+All contracts MUST declare their enforcement status.
+
+Rules:
+
+  - Every CONTRACT block MUST be classified as one of:
+      - enforced
+      - enforceable but not yet enforced
+
+  - The enforcement status MUST be declared explicitly within the contract
+    body using a dedicated section labeled:
+        Enforcement status:
+
+  - A contract declared as enforced MUST have at least one corresponding
+    script, Make target, or validation mechanism that checks it.
+
+  - A contract declared as enforceable but not yet enforced MUST:
+      - be mechanically checkable in principle
+      - NOT be treated as optional or advisory
+      - be enforced before any release that claims full compliance
+
+  - Absence of an enforcement status declaration
+    constitutes a contract violation.
+
+Rationale:
+
+  - Makes enforcement gaps explicit and reviewable.
+  - Prevents silent assumptions about coverage.
+  - Preserves contract authority even before full automation exists.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Change control & evolution
 -------------------------------------------------------------------------------
 
