@@ -6,6 +6,16 @@ routing, and service orchestration across the environment.
 
 Issues are triaged by severity and worked one at a time.
 
+## Governance model
+
+This repository is governed by an explicit, contract‑driven architecture.
+
+All architectural intent, invariants, and enforcement rules are defined in
+`contracts.inc`, which is treated as documentation‑as‑law.
+
+No implementation, automation, or review decision may override or reinterpret
+the contracts without an explicit contract amendment.
+
 ### First steps
 
 If you are trying to understand the current state of the system or follow
