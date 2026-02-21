@@ -61,6 +61,40 @@ Rationale:
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Agent behavior & contract amendment boundaries
+-------------------------------------------------------------------------------
+
+Agents are advisory only.
+
+Rules:
+
+  - Agents MAY:
+      - quote existing contract text verbatim
+      - explain contract meaning
+      - propose implementation changes that comply with current contracts
+
+  - Agents MUST NOT:
+      - propose amendments to this contract document
+      - propose new CONTRACT blocks
+      - propose edits to existing CONTRACT blocks
+      - propose reformatting, reflow, or restructuring of contract text
+    unless explicitly instructed by the repository owner to do so.
+
+  - If an agent is not explicitly authorized to propose a contract change,
+    the agent MUST treat the current contract text as immutable.
+
+  - Any agent suggestion that violates document structure & formatting
+    is invalid by definition and MUST be rejected.
+
+Rationale:
+
+  - Prevents accidental authority drift via "helpful" contract edits.
+  - Forces explicit owner intent before any contract evolution.
+  - Preserves documentation-as-law discipline under agent interaction.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Authority & decision ownership
 -------------------------------------------------------------------------------
 
@@ -376,6 +410,62 @@ Review semantics:
   - Code that requires weakening a contract is invalid by definition
 
 Unjustified contract drift is a contract violation.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Versioning & release semantics
+-------------------------------------------------------------------------------
+
+The control plane follows semantic versioning.
+
+Rules:
+
+  - All releases MUST be identified by a version of the form:
+        MAJOR.MINOR.PATCH
+
+  - While MAJOR is 0:
+      - The system is considered pre-stable.
+      - No backward compatibility guarantees are implied.
+      - MINOR increments indicate intentional changes to contracts,
+        schemas, or observable behavior.
+      - PATCH increments indicate fixes or corrections that preserve
+        all existing contracts and schemas.
+
+  - A version tag MUST only be created when the system is in a known-good,
+    converged state that satisfies all current contracts.
+
+  - A release is considered eligible for tagging only if:
+      - all contract enforcement checks pass
+      - all validation and preflight checks pass
+      - no known contract violations are deferred or ignored
+      - the intent model is complete
+      - the system converges without error
+
+  - Version tags MUST NOT be created for:
+      - experiments
+      - partial implementations
+      - known-incomplete intent models
+      - states that violate or bypass any contract
+
+  - A change that requires weakening or amending a contract
+    MUST increment MINOR at minimum.
+
+  - PATCH increments MUST NOT introduce new intent dimensions,
+    schema changes, or contract amendments.
+
+Governance:
+
+  - Versioning semantics are defined exclusively by this contract.
+  - Historical tags that predate this contract are non-authoritative
+    and do not define versioning rules.
+  - Future tags MUST comply with this contract.
+
+Rationale:
+
+  - Makes release intent explicit and reviewable.
+  - Prevents version inflation and meaningless tags.
+  - Aligns version numbers with architectural and contract evolution.
 -------------------------------------------------------------------------------
 
 
