@@ -8,22 +8,28 @@ WG_INPUT := $(WG_ROOT)/input
 WG_CSV   := $(WG_INPUT)/clients.csv
 
 WG_SCRIPTS_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../scripts)
+INSTALL_IF_CHANGED := $(WG_SCRIPTS_ROOT)/install_if_changed.sh
 
-WG_COMPILE_SCRIPT            := $(WG_SCRIPTS_ROOT)/wg-compile.sh
-WG_KEYS_SCRIPT               := $(WG_SCRIPTS_ROOT)/wg-compile-keys.sh
-WG_SERVER_KEYS_SCRIPT        := $(WG_SCRIPTS_ROOT)/wg-ensure-server-keys.sh
-WG_RENDER_SCRIPT             := $(WG_SCRIPTS_ROOT)/wg-compile-clients.sh
-WG_RENDER_MISSING_SCRIPT     := $(WG_SCRIPTS_ROOT)/wg-render-missing-clients.sh
-WG_EXPORT_SCRIPT             := $(WG_SCRIPTS_ROOT)/wg-client-export.sh
-WG_DEPLOY_SCRIPT             := $(WG_SCRIPTS_ROOT)/wg-deploy.sh
-WG_CHECK_SCRIPT              := $(WG_SCRIPTS_ROOT)/wg-check.sh
-WG_SERVER_BASE_RENDER_SCRIPT := $(WG_SCRIPTS_ROOT)/wg-render-server-base.sh
-WG_RENDER_CHECK_SCRIPT       := $(WG_SCRIPTS_ROOT)/wg-check-render.sh
+WG_COMPILE_SCRIPT                 := $(WG_SCRIPTS_ROOT)/wg-compile.sh
+WG_KEYS_SCRIPT                    := $(WG_SCRIPTS_ROOT)/wg-compile-keys.sh
+WG_SERVER_KEYS_SCRIPT             := $(WG_SCRIPTS_ROOT)/wg-ensure-server-keys.sh
+WG_RENDER_SCRIPT                  := $(WG_SCRIPTS_ROOT)/wg-compile-clients.sh
+WG_RENDER_MISSING_SCRIPT          := $(WG_SCRIPTS_ROOT)/wg-render-missing-clients.sh
+WG_EXPORT_SCRIPT                  := $(WG_SCRIPTS_ROOT)/wg-client-export.sh
+WG_DEPLOY_SCRIPT                  := $(WG_SCRIPTS_ROOT)/wg-deploy.sh
+WG_CHECK_SCRIPT                   := $(WG_SCRIPTS_ROOT)/wg-check.sh
+WG_SERVER_BASE_RENDER_SCRIPT      := $(WG_SCRIPTS_ROOT)/wg-render-server-base.sh
+WG_RENDER_CHECK_SCRIPT            := $(WG_SCRIPTS_ROOT)/wg-check-render.sh
 WG_RECORD_COMPROMISED_KEYS_SCRIPT := $(WG_SCRIPTS_ROOT)/wg-record-compromised-keys.sh
-WG_REMOVE_CLIENT             := $(WG_SCRIPTS_ROOT)/wg-remove-client.sh
-WG_ROTATE_CLIENT             := $(WG_SCRIPTS_ROOT)/wg-rotate-client.sh
+WG_REMOVE_CLIENT                  := $(WG_SCRIPTS_ROOT)/wg-remove-client.sh
+WG_ROTATE_CLIENT                  := $(WG_SCRIPTS_ROOT)/wg-rotate-client.sh
+WG_PLAN_READ_SCRIPT               := $(WG_SCRIPTS_ROOT)/wg-plan-read.sh
 
-$(foreach s, \
+# ---------------------------------------------------------------------------
+# WireGuard scripts that must be installed into $(INSTALL_PATH)
+# ---------------------------------------------------------------------------
+
+WG_INSTALL_SOURCES := \
 	$(WG_COMPILE_SCRIPT) \
 	$(WG_KEYS_SCRIPT) \
 	$(WG_SERVER_KEYS_SCRIPT) \
@@ -37,7 +43,61 @@ $(foreach s, \
 	$(WG_RECORD_COMPROMISED_KEYS_SCRIPT) \
 	$(WG_REMOVE_CLIENT) \
 	$(WG_ROTATE_CLIENT) \
-	, $(if $(shell test -x $(s) && echo ok),,$(error Script not executable: $(s))))
+	$(WG_PLAN_READ_SCRIPT)
+
+# ---------------------------------------------------------------------------
+# Install edges (repo → $(INSTALL_PATH))
+# ---------------------------------------------------------------------------
+
+$(INSTALL_PATH)/wg-compile.sh: $(WG_COMPILE_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-compile-keys.sh: $(WG_KEYS_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-ensure-server-keys.sh: $(WG_SERVER_KEYS_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-compile-clients.sh: $(WG_RENDER_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-render-missing-clients.sh: $(WG_RENDER_MISSING_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-client-export.sh: $(WG_EXPORT_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-deploy.sh: $(WG_DEPLOY_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-check.sh: $(WG_CHECK_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-render-server-base.sh: $(WG_SERVER_BASE_RENDER_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-check-render.sh: $(WG_RENDER_CHECK_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-record-compromised-keys.sh: $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-remove-client.sh: $(WG_REMOVE_CLIENT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-rotate-client.sh: $(WG_ROTATE_CLIENT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+$(INSTALL_PATH)/wg-plan-read.sh: $(WG_PLAN_READ_SCRIPT)
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+
+
+# ---------------------------------------------------------------------------
+# Install contract enforcement (fail fast if repo scripts are not executable)
+# ---------------------------------------------------------------------------
+$(foreach s, $(WG_INSTALL_SOURCES), \
+	$(if $(shell test -x $(s) && echo ok),, \
+		$(error Script not executable: $(s))))
 
 # No need to export WG_ROOT here
 # It is already exported globally by mk/00_constants.mk
@@ -65,7 +125,21 @@ $(foreach s, \
 	wg-rotate-client \
 	wg-remove-client
 
-wg-install-scripts: ensure-run-as-root wg-contract-check
+wg-install-scripts: ensure-run-as-root \
+	$(INSTALL_PATH)/wg-compile.sh \
+	$(INSTALL_PATH)/wg-compile-keys.sh \
+	$(INSTALL_PATH)/wg-ensure-server-keys.sh \
+	$(INSTALL_PATH)/wg-compile-clients.sh \
+	$(INSTALL_PATH)/wg-render-missing-clients.sh \
+	$(INSTALL_PATH)/wg-client-export.sh \
+	$(INSTALL_PATH)/wg-deploy.sh \
+	$(INSTALL_PATH)/wg-check.sh \
+	$(INSTALL_PATH)/wg-render-server-base.sh \
+	$(INSTALL_PATH)/wg-check-render.sh \
+	$(INSTALL_PATH)/wg-record-compromised-keys.sh \
+	$(INSTALL_PATH)/wg-remove-client.sh \
+	$(INSTALL_PATH)/wg-rotate-client.sh \
+	$(INSTALL_PATH)/wg-plan-read.sh
 	@true
 
 wg-clean-out: ensure-run-as-root 
@@ -120,19 +194,17 @@ wg-deployed: wg-install-scripts ensure-run-as-root net-tunnel-preflight firewall
 wg-apply-verified: wg-apply wg-verify-no-key-reuse wg-verify-no-legacy-keys
 
 wg-apply: wg-install-scripts wg-deployed
-	@$(run_as_root) $(WG_EXPORT_SCRIPT)
+	@$(run_as_root) env \
+		PLAN="$(WG_ROOT)/compiled/plan.tsv" \
+		PLAN_READER="$(INSTALL_PATH)/wg-plan-read.sh" \
+		$(WG_EXPORT_SCRIPT)
 
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔁 Reconciling WireGuard kernel state"; fi
 
 	@$(run_as_root) bash -euo pipefail -c '\
 		: "$${WG_ROOT:?WG_ROOT not set}"; \
 		PLAN="$$WG_ROOT/compiled/plan.tsv"; \
-		PLAN_IFACES="$$(awk -F "\t" '\'' \
-			/^#/ { next } \
-			/^[[:space:]]*$$/ { next } \
-			$$1=="base" && $$2=="iface" { next } \
-			{ print $$2 } \
-		'\'' "$$PLAN" | sort -u)"; \
+		PLAN_IFACES="$$( $(INSTALL_PATH)/wg-plan-read.sh "$$PLAN" | awk -F "\t" '\''{ print $$2 }'\'' | sort -u )"; \
 	\
 		for iface in $$(wg show interfaces 2>/dev/null || true); do \
 			case "$$iface" in wg[0-9]|wg1[0-5]) ;; *) continue ;; esac; \
@@ -198,7 +270,7 @@ wg-apply: wg-install-scripts wg-deployed
 # Consistency / sanity checks
 # ------------------------------------------------------------
 wg-check: wg-install-scripts ensure-run-as-root
-	@$(run_as_root) $(WG_CHECK_SCRIPT)
+	@$(run_as_root) $(WG_CHECK_SCRIPT) $(WG_ROOT)/compiled/plan.tsv
 
 wg-rebuild-clean: wg-install-scripts ensure-run-as-root 
 	@echo "🔥 FULL WireGuard rebuild (keys + config)"
@@ -225,7 +297,7 @@ wg-rebuild-all: \
 wg-check-render: wg-install-scripts wg-render-missing
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"
 
-wg: \
+wg: wg-install-scripts \
 	wg-ensure-server-keys \
 	wg-render-missing \
 	wg-apply-verified \
@@ -286,25 +358,11 @@ wg-remove-client: wg-install-scripts ensure-run-as-root
 wg-validate-input:
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) scripts/wg-validate-tsv.sh
 
-wg-compile-intent: wg-contract-check
-
 .PHONY: wg-contract-check
 wg-contract-check:
 	@echo "🔍 Checking WireGuard build contract"
-	@test -x "$(WG_COMPILE_SCRIPT)" || { echo "❌ WG_COMPILE_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_KEYS_SCRIPT)" || { echo "❌ WG_KEYS_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_SERVER_KEYS_SCRIPT)" || { echo "❌ WG_SERVER_KEYS_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_RENDER_SCRIPT)" || { echo "❌ WG_RENDER_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_RENDER_MISSING_SCRIPT)" || { echo "❌ WG_RENDER_MISSING_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_EXPORT_SCRIPT)" || { echo "❌ WG_EXPORT_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_DEPLOY_SCRIPT)" || { echo "❌ WG_DEPLOY_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_CHECK_SCRIPT)" || { echo "❌ WG_CHECK_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_SERVER_BASE_RENDER_SCRIPT)" || { echo "❌ WG_SERVER_BASE_RENDER_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_RENDER_CHECK_SCRIPT)" || { echo "❌ WG_RENDER_CHECK_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_RECORD_COMPROMISED_KEYS_SCRIPT)" || { echo "❌ WG_RECORD_COMPROMISED_KEYS_SCRIPT not executable"; exit 1; }
-	@test -x "$(WG_REMOVE_CLIENT)" || { echo "❌ WG_REMOVE_CLIENT not executable"; exit 1; }
-	@test -x "$(WG_ROTATE_CLIENT)" || { echo "❌ WG_ROTATE_CLIENT not executable"; exit 1; }
-	@grep -R "$(INSTALL_PATH)" -n mk && { echo "❌ INSTALL_PATH usage detected in mk/"; exit 1; } || true
+	@$(foreach s,$(WG_INSTALL_SOURCES), \
+		test -x "$(s)" || { echo "❌ Script not executable: $(s)"; exit 1; } ;)
 	@echo "✅ WireGuard build contract holds"
 
 wg: wg-contract-check
