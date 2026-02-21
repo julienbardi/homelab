@@ -35,7 +35,7 @@ need "$PLAN"
 need "$SERVER_KEYS_DIR"
 
 mapfile -t ACTIVE_IFACES < <(
-	wg-plan-read.sh | awk -F'\t' '{ if ($2 != "") print $2 }' | sort -u
+    /usr/local/bin/wg-plan-read.sh "$PLAN" | awk -F'\t' '{ if ($2 != "") print $2 }' | sort -u
 )
 
 [ "${#ACTIVE_IFACES[@]}" -gt 0 ] || die "no interfaces found in plan.tsv"

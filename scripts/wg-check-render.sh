@@ -14,13 +14,13 @@ die() { echo "wg-check-render: ERROR: $*" >&2; exit 1; }
 [ -d "$PEERS_DIR" ] || die "missing $PEERS_DIR"
 
 ifaces="$(
-	awk '
+	awk -F'\t' '
 		/^#/ { next }
 		/^[[:space:]]*$/ { next }
-		$1=="base" && $2=="iface" && $3=="slot" &&
-		$4=="dns" && $5=="client_addr4" && $6=="client_addr6" &&
-		$7=="AllowedIPs_client" && $8=="AllowedIPs_server" &&
-		$9=="endpoint" { next }
+
+		# Skip plan.tsv v2.1 header
+		$1=="node" && $2=="iface" { next }
+
 		{ print $2 }
 	' "$PLAN" | sort -u
 )"

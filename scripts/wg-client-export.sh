@@ -18,8 +18,8 @@ need() { [ -e "$1" ] || die "missing required path: $1"; }
 #   MUST be removed.
 
 : "${WG_ROOT:?WG_ROOT not set}"
-
-PLAN_READER="$(dirname "$0")/wg-plan-read.sh"
+: "${PLAN:?wg-client-export: PLAN not set}"
+: "${PLAN_READER:?wg-client-export: PLAN_READER not set}"
 
 WG_PUBDIR="$WG_ROOT/compiled/server-pubkeys"
 KEYS_TSV="$WG_ROOT/compiled/keys.tsv"
@@ -131,7 +131,7 @@ do
 	chmod 600 "$tmp"
 	mv -f "$tmp" "$out"
 	changed=1
-done < <("$PLAN_READER")
+done < <("$PLAN_READER" "$PLAN")
 
 # --------------------------------------------------------------------
 # Atomically replace export tree

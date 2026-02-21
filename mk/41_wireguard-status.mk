@@ -22,9 +22,18 @@ SERVER_PUBDIR := $(WG_ROOT)/compiled/server-pubkeys
 CLIENT_KEYDIR := $(WG_ROOT)/compiled/client-keys
 EXPORT_DIR    := $(WG_ROOT)/export/clients
 
-WG_PLAN_IFACES   := $(INSTALL_PATH)/wg-plan-ifaces.sh
-WG_RUNTIME       := $(INSTALL_PATH)/wg-runtime.sh
-WG_PLAN_READ     := $(INSTALL_PATH)/wg-plan-read.sh
+WG_STATUS_SCRIPTS_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../scripts)
+
+WG_PLAN_IFACES   := $(WG_STATUS_SCRIPTS_ROOT)/wg-plan-ifaces.sh
+WG_RUNTIME       := $(WG_STATUS_SCRIPTS_ROOT)/wg-runtime.sh
+WG_PLAN_READ     := $(WG_STATUS_SCRIPTS_ROOT)/wg-plan-read.sh
+
+$(foreach s, \
+	$(WG_PLAN_IFACES) \
+	$(WG_RUNTIME) \
+	$(WG_PLAN_READ) \
+	, $(if $(shell test -x $(s) && echo ok),,$(error Script not executable: $(s))))
+
 
 .PHONY: \
 	wg-clients \
@@ -92,7 +101,7 @@ wg-show-client-key: wg-show-client-key-validate ensure-run-as-root
 # Compiled artifacts view
 # ------------------------------------------------------------
 
-wg-compiled: $(WG_PLAN_IFACES) $(WG_PLAN_READ)
+wg-compiled: wg-compile
 	@echo "Compiled artifacts:"
 	@echo "  plan:        $(PLAN)"
 	@echo "  server pubs: $(SERVER_PUBDIR)"
@@ -140,12 +149,12 @@ wg-deployed-view: ensure-run-as-root
 # Runtime view
 # ------------------------------------------------------------
 
-wg-runtime: ensure-run-as-root $(WG_RUNTIME)
+wg-runtime: ensure-run-as-root
 	@echo
 	@echo "📋 WireGuard peer state (make wg-runtime)"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" "$(WG_RUNTIME)"
 
-wg-status: ensure-run-as-root $(WG_PLAN_IFACES)
+wg-status: ensure-run-as-root
 	@echo
 	@echo "📋 WireGuard runtime interface status (make wg-status)"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS"

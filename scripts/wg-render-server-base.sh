@@ -34,29 +34,35 @@ echo "  📦 output: ${OUTDIR}"
 
 mkdir -p "${OUTDIR}"
 
+# ------------------------------------------------------------
+# Extract server_addr4 / server_addr6 for each iface
+# ------------------------------------------------------------
+
 while read -r iface; do
 	conf="${OUTDIR}/${iface}.conf"
 	pub="${PUBDIR}/${iface}.pub"
 
 	[ -f "${pub}" ] || { echo "❌ missing ${pub}"; exit 1; }
 
+	# Extract server_addr4 + server_addr6 from plan.tsv
 	read -r server_addr4 server_addr6 < <(
 		awk -F'\t' -v i="${iface}" '
 			/^#/ || /^[[:space:]]*$/ { next }
 
-			# Header row
-			$1=="base" && $2=="iface" {
+			# Header row (v2 schema)
+			$1=="node" && $2=="iface" {
 				for (n=1; n<=NF; n++) {
 					if ($n=="server_addr4") c4=n
 					if ($n=="server_addr6") c6=n
 				}
 				if (!c4 || !c6) {
-					print "" > "/dev/stderr"
+					print "wg-render-server-base: missing server_addr4/server_addr6 in header" > "/dev/stderr"
 					exit 11
 				}
 				next
 			}
 
+			# Data row
 			$2==i { print $(c4), $(c6); exit 0 }
 		' "${PLAN}"
 	)
@@ -76,6 +82,7 @@ while read -r iface; do
 		echo "wg-render-server-base: ERROR: invalid iface '${iface}'" >&2
 		exit 1
 	fi
+
 	# ListenPort convention: 51420 + iface index (wgN)
 	listen_port=$((51420 + ${iface#wg}))
 
@@ -101,19 +108,18 @@ EOF
 		exit "$rc"
 	fi
 	rm -f "$tmp"
+
 done < <(
-		awk -F'\t' '
-				/^#/ { next }
-				/^[[:space:]]*$/ { next }
+	awk -F'\t' '
+		/^#/ { next }
+		/^[[:space:]]*$/ { next }
 
-				# New plan.tsv header (current schema)
-				$1=="node" && $2=="iface" { next }
-				$2=="iface" { next }
+		# Skip header (v2)
+		$1=="node" && $2=="iface" { next }
 
-				# Old legacy header
-				$1=="base" && $2=="iface" { next }
+		# Skip legacy header
+		$1=="base" && $2=="iface" { next }
 
-				{ print $2 }
-		' "${PLAN}" | sort -u
+		{ print $2 }
+	' "${PLAN}" | sort -u
 )
-
