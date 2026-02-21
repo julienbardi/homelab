@@ -36,27 +36,27 @@ Rationale:
 
 
 -------------------------------------------------------------------------------
-CONTRACT: Change instruction explicitness
+CONTRACT: No unverified assertions about repository state
 -------------------------------------------------------------------------------
 
-All change instructions MUST be explicit and location-bound.
+Agents MUST NOT make claims about repository contents, references, or wiring
+without explicit verification against the repository state.
 
 Rules:
 
-  - Any instruction to modify the system MUST specify:
-      - the exact file to be changed
-      - the precise insertion, removal, or replacement location
-      - the old content (if applicable)
-      - the new content
-  - Vague, behavioral, or interpretive change requests are forbidden.
-  - Agents MUST NOT infer intent, location, or scope of a change.
-  - Failure to specify file and location constitutes an invalid instruction.
+  - Any claim that a file is unused, unreferenced, non-canonical, or safe to
+    delete MUST be supported by explicit evidence from the repository
+    (e.g. grep results, Makefile references, script references).
+  - If verification has not been performed, the agent MUST state that it has
+    not been verified and MUST request the minimal evidence needed.
+  - Recommendations that depend on repository structure MUST be treated as
+    invalid unless grounded in verified repository facts.
 
 Rationale:
 
-  - Prevents accidental or interpretive modification.
-  - Makes all changes reviewable and explainable.
-  - Eliminates reliance on agent memory or behavioral correction.
+  - Prevents authority drift via confident but unverified assertions.
+  - Forces mechanical grounding before architectural recommendations.
+  - Eliminates “trust me” behavior in contract-governed systems.
 -------------------------------------------------------------------------------
 
 
