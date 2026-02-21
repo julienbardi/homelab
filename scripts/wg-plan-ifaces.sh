@@ -11,6 +11,16 @@ PLAN_READER="$(dirname "$0")/wg-plan-read.sh"
 	exit 2
 }
 
-"$PLAN_READER" | awk -F'\t' '
-	$2 != "" { print $2 }
-' | sort -u
+PLAN="${1:-${WG_ROOT:-}/compiled/plan.tsv}"
+
+[ -n "$PLAN" ] || {
+	echo "wg-plan-ifaces: ERROR: missing PLAN argument and WG_ROOT not set" >&2
+	exit 2
+}
+
+[ -f "$PLAN" ] || {
+	echo "wg-plan-ifaces: ERROR: missing plan.tsv: $PLAN" >&2
+	exit 2
+}
+
+"$PLAN_READER" "$PLAN" | awk -F'\t' '$2 != "" { print $2 }' | sort -u
