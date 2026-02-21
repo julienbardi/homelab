@@ -26,8 +26,8 @@ set -euo pipefail
 #
 # Compiled outputs (atomic):
 #   $WG_ROOT/compiled/clients.lock.csv
-#   $WG_ROOT/compiled/alloc.csv	(base,slot)
-#   $WG_ROOT/compiled/plan.tsv	(AUTHORITATIVE for deploy; derived from clients.csv + alloc.csv)
+#   $WG_ROOT/compiled/alloc.csv (base,slot)
+#   $WG_ROOT/compiled/plan.tsv  (AUTHORITATIVE for deploy; derived from clients.csv + alloc.csv)
 #
 # Notes:
 # - Deterministic allocator with collision resolution.
@@ -105,6 +105,7 @@ client_addr6_for_ifnum_ab() {
 	# fd89:7a3b:42c0:<ifnum>::A:B/128
 	printf "%s:%s::%s:%s/128\n" "$WG_ULA_PREFIX" "$ifnum" "$A" "$B"
 }
+
 # profile is the authoritative intent model; iface numbers are no longer semantic.
 profile_intent() {
 	# profile format:
@@ -233,7 +234,8 @@ ALLOC_MERGED="$STAGE/alloc.merged.csv"
 	awk -F',' 'NR>1{print}' "$ALLOC"
 } >"$ALLOC_MERGED"
 
-awk -F'\t' '{print $4}' "$NORM" | sort -u | while read -r base; do
+# FIX: base is column 5 in NORM (user, machine, iface, profile, base)
+awk -F'\t' '{print $5}' "$NORM" | sort -u | while read -r base; do
 	if ! awk -F',' -v b="$base" 'NR>1 && $1==b{found=1} END{exit(found?0:1)}' "$ALLOC_MERGED"; then
 		slot="$(slot_from_base "$base")"
 		while awk -F',' -v s="$slot" 'NR>1 && $2==s{found=1} END{exit(found?0:1)}' "$ALLOC_MERGED"; do
@@ -250,15 +252,18 @@ awk -F',' 'NR>1{printf "%s\t%s\n",$1,$2}' "$ALLOC_MERGED" >"$STAGE/alloc.tsv"
 
 PLAN_TMP="$STAGE/plan.tsv"
 {
-    printf "# plan.tsv schema: v2\n"
+	printf "# plan.tsv schema: v2.1\n"
 	printf "# GENERATED FILE — DO NOT EDIT\n"
-	printf "node\tiface\tprofile\ttunnel_mode\tlan_access\tegress_v4\tegress_v6\tclient_addr_v4\tclient_addr_v6\tclient_allowed_ips_v4\tclient_allowed_ips_v6\tserver_allowed_ips_v4\tserver_allowed_ips_v6\tdns\n"
+	printf "node\tiface\tprofile\ttunnel_mode\tlan_access\tegress_v4\tegress_v6\tclient_addr_v4\tclient_addr_v6\tclient_allowed_ips_v4\tclient_allowed_ips_v6\tserver_addr4\tserver_addr6\tserver_allowed_ips_v4\tserver_allowed_ips_v6\tdns\tendpoint\n"
 
 	while IFS="$(printf '\t')" read -r _ _ iface profile base; do
 		ifnum="${iface#wg}"
 		if [ "$ifnum" -lt 1 ] || [ "$ifnum" -gt 15 ]; then
 			die "invalid iface wg${ifnum} — only wg1..wg15 are allowed"
 		fi
+
+		server_addr4="$(server_addr4_for_ifnum "$ifnum")"
+		server_addr6="$(server_addr6_for_ifnum "$ifnum")"
 
 		slot="$(awk -F'\t' -v b="$base" '$1==b{print $2}' "$STAGE/alloc.tsv")"
 		[ -n "$slot" ] || die "no slot allocated for base '$base'"
@@ -300,13 +305,17 @@ EOF
 		# DNS: per interface (NAS‑specific)
 		dns="10.89.12.4,${WG_ULA_NAS}"
 
-		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+		# Endpoint: deterministic per iface (hostname + port base)
+		endpoint="${ENDPOINT_HOST_BASE}:$((ENDPOINT_PORT_BASE + ifnum))"
+
+		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
 			"$base" "$iface" "$profile" \
 			"$tunnel_mode" "$lan_access" "$egress_v4" "$egress_v6" \
 			"$client_addr4" "$client_addr6" \
 			"$client_allowed_v4" "$client_allowed_v6" \
+			"$server_addr4" "$server_addr6" \
 			"$server_allowed_v4" "$server_allowed_v6" \
-			"$dns"
+			"$dns" "$endpoint"
 	done <"$NORM"
 } >"$PLAN_TMP"
 
@@ -320,6 +329,5 @@ fi
 }
 
 install -m 0644 -o root -g root "$PLAN_TMP" "$PLAN"
-
 install -m 0644 -o root -g root "$LOCK_TMP" "$LOCK"
 install -m 0600 -o root -g root "$ALLOC_MERGED" "$ALLOC"

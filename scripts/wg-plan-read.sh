@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/wg-plan-read.sh
-# Canonical reader for compiled plan.tsv (schema v2)
+# Canonical reader for compiled plan.tsv (schema v2.1)
 
 set -euo pipefail
 
@@ -21,7 +21,7 @@ awk -F'\t' '
 	/^[[:space:]]*$/ { next }
 
 	/^#/ {
-		if ($0 == "# plan.tsv schema: v2") {
+		if ($0 == "# plan.tsv schema: v2.1") {
 			schema_ok = 1
 		}
 		next
@@ -38,15 +38,16 @@ awk -F'\t' '
 			$5!="lan_access" || $6!="egress_v4" || $7!="egress_v6" || \
 			$8!="client_addr_v4" || $9!="client_addr_v6" || \
 			$10!="client_allowed_ips_v4" || $11!="client_allowed_ips_v6" || \
-			$12!="server_allowed_ips_v4" || $13!="server_allowed_ips_v6" || \
-			$14!="dns" || NF!=14) {
+			$12!="server_addr4" || $13!="server_addr6" || \
+			$14!="server_allowed_ips_v4" || $15!="server_allowed_ips_v6" || \
+			$16!="dns" || $17!="endpoint" || NF!=17) {
 			exit 11
 		}
 		next
 	}
 
 	{
-		if (NF != 14) {
+		if (NF != 17) {
 			exit 12
 		}
 		print
@@ -56,10 +57,9 @@ rc=$?
 
 case "$rc" in
 	0) exit 0 ;;
-	10) echo "wg-plan-read: ERROR: missing schema marker (# plan.tsv schema: v2)" >&2 ;;
+	10) echo "wg-plan-read: ERROR: missing schema marker (# plan.tsv schema: v2.1)" >&2 ;;
 	11) echo "wg-plan-read: ERROR: header mismatch" >&2 ;;
-	12) echo "wg-plan-read: ERROR: data row field count != 14" >&2 ;;
+	12) echo "wg-plan-read: ERROR: data row field count != 17" >&2 ;;
 	*)  echo "wg-plan-read: ERROR: awk failed (rc=$rc)" >&2 ;;
 esac
 exit 2
-
