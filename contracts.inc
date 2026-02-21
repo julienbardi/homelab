@@ -36,6 +36,31 @@ Rationale:
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Change instruction explicitness
+-------------------------------------------------------------------------------
+
+All change instructions MUST be explicit and location-bound.
+
+Rules:
+
+  - Any instruction to modify the system MUST specify:
+      - the exact file to be changed
+      - the precise insertion, removal, or replacement location
+      - the old content (if applicable)
+      - the new content
+  - Vague, behavioral, or interpretive change requests are forbidden.
+  - Agents MUST NOT infer intent, location, or scope of a change.
+  - Failure to specify file and location constitutes an invalid instruction.
+
+Rationale:
+
+  - Prevents accidental or interpretive modification.
+  - Makes all changes reviewable and explainable.
+  - Eliminates reliance on agent memory or behavioral correction.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Authority & decision ownership
 -------------------------------------------------------------------------------
 
@@ -73,6 +98,36 @@ Rationale:
   - Prevents authority drift over time.
   - Ensures all evolution is intentional, reviewable, and auditable.
   - Makes ownership explicit rather than implicit.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Repository authority & source of truth
+-------------------------------------------------------------------------------
+
+The GitHub repository at:
+
+    https://github.com/julienbardi/homelab
+
+is the authoritative source of truth for this system.
+
+Rules:
+
+  - All architectural intent, contracts, and authoritative artifacts
+    MUST be derived from the GitHub repository.
+  - NAS working copies, local clones, mirrors, and execution environments
+    are subordinate and MUST NOT be treated as authoritative.
+  - Any history rewrite, authority change, or mirroring policy change
+    requires an explicit amendment to this contract and a committed change
+    to the authoritative repository.
+  - Implicit authority, convenience-based decisions, or agent interpretation
+    of authority are forbidden.
+
+Rationale:
+
+  - Prevents authority drift.
+  - Makes source-of-truth explicit and auditable.
+  - Eliminates reliance on memory, habit, or tooling defaults.
 -------------------------------------------------------------------------------
 
 
