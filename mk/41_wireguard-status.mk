@@ -24,6 +24,7 @@ EXPORT_DIR    := $(WG_ROOT)/export/clients
 
 WG_PLAN_IFACES   := $(INSTALL_PATH)/wg-plan-ifaces.sh
 WG_RUNTIME       := $(INSTALL_PATH)/wg-runtime.sh
+WG_PLAN_READ     := $(INSTALL_PATH)/wg-plan-read.sh
 
 .PHONY: \
 	wg-clients \
@@ -91,7 +92,7 @@ wg-show-client-key: wg-show-client-key-validate ensure-run-as-root
 # Compiled artifacts view
 # ------------------------------------------------------------
 
-wg-compiled: $(WG_PLAN_IFACES)
+wg-compiled: $(WG_PLAN_IFACES) $(WG_PLAN_READ)
 	@echo "Compiled artifacts:"
 	@echo "  plan:        $(PLAN)"
 	@echo "  server pubs: $(SERVER_PUBDIR)"
