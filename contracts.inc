@@ -449,6 +449,45 @@ Unjustified contract drift is a contract violation.
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Contract supersession & lifecycle
+-------------------------------------------------------------------------------
+
+Contracts are permanent records of architectural intent.
+
+Rules:
+
+  - A contract MUST NOT be removed from this document.
+
+  - A contract MAY be superseded only by:
+      - an explicit replacement contract
+      - committed in the same change-set
+
+  - A superseded contract MUST:
+      - remain present in this document
+      - be clearly marked as superseded
+      - reference the replacing contract by name
+
+  - Supersession MUST NOT weaken invariants unless explicitly justified
+    under the change control & evolution contract.
+
+  - Multiple active contracts governing the same concern
+    without explicit supersession is forbidden.
+
+Governance:
+
+  - Supersession is an intentional architectural act.
+  - Historical contracts remain authoritative for past states.
+  - Only the repository owner may declare a contract superseded.
+
+Rationale:
+
+  - Preserves architectural history without ambiguity.
+  - Prevents silent rule replacement.
+  - Enables evolution without erasing intent.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Versioning & release semantics
 -------------------------------------------------------------------------------
 
