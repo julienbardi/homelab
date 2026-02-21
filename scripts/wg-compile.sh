@@ -250,6 +250,7 @@ awk -F',' 'NR>1{printf "%s\t%s\n",$1,$2}' "$ALLOC_MERGED" >"$STAGE/alloc.tsv"
 
 PLAN_TMP="$STAGE/plan.tsv"
 {
+    printf "# plan.tsv schema: v2\n"
 	printf "# GENERATED FILE — DO NOT EDIT\n"
 	printf "node\tiface\tprofile\ttunnel_mode\tlan_access\tegress_v4\tegress_v6\tclient_addr_v4\tclient_addr_v6\tclient_allowed_ips_v4\tclient_allowed_ips_v6\tserver_allowed_ips_v4\tserver_allowed_ips_v6\tdns\n"
 
