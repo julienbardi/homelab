@@ -36,6 +36,7 @@ Enforcement & evolution:
   - Change control & evolution
   - Contract supersession & lifecycle
   - Versioning & release semantics
+  - Contract violation handling & review blocking
 
 Runtime & execution environment:
   - Runtime tool availability
@@ -431,6 +432,44 @@ Rationale:
 
   - Contracts govern architecture, not just syntax.
   - Code that works by ignoring contract intent is invalid by definition.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Contract violation handling & review blocking
+-------------------------------------------------------------------------------
+
+Contract violations are absolute.
+
+Rules:
+
+  - Any known contract violation MUST block review, approval, and merge.
+
+  - Severity, scope, intent, or perceived impact
+    MUST NOT be used to justify proceeding.
+
+  - A violation is considered known if:
+      - it is detected by automated checks
+      - it is identified during review
+      - it is acknowledged by any participant
+
+  - Deferring a known violation without an explicit contract amendment
+    constitutes a contract violation itself.
+
+  - Review approval in the presence of a known violation
+    is invalid by definition.
+
+Governance:
+
+  - Contract compliance is binary.
+  - There is no concept of "acceptable risk" at the contract layer.
+  - Only an explicit contract amendment may legitimize a violation.
+
+Rationale:
+
+  - Prevents human override of architectural law.
+  - Eliminates informal exception paths.
+  - Preserves contract authority under time pressure.
 -------------------------------------------------------------------------------
 
 
