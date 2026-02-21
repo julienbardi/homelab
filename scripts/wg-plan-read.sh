@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/wg-plan-read.sh
-# Canonical reader for compiled plan.tsv
+# Canonical reader for compiled plan.tsv (schema v2)
 
 set -euo pipefail
 : "${WG_ROOT:?WG_ROOT not set}"
@@ -8,41 +8,65 @@ set -euo pipefail
 PLAN="$WG_ROOT/compiled/plan.tsv"
 
 [ -f "$PLAN" ] || {
-	echo "wg-plan-read: ERROR: missing plan.tsv" >&2
-	exit 2
+    echo "wg-plan-read: ERROR: missing plan.tsv" >&2
+    exit 2
 }
 
 awk -F'\t' '
-	BEGIN {
-		OFS="\t"
-	}
+    BEGIN {
+        OFS = "\t"
+        header_seen = 0
+    }
 
-	/^#/ || /^[[:space:]]*$/ { next }
+    # Skip blank lines
+    /^[[:space:]]*$/ { next }
 
-	!seen {
-		seen=1
-		if ($1!="base" ||
-			$2!="iface" ||
-			$3!="slot" ||
-			$4!="dns" ||
-			$5!="client_addr4" ||
-			$6!="client_addr6" ||
-			$7!="AllowedIPs_client" ||
-			$8!="AllowedIPs_server" ||
-			$9!="endpoint" ||
-			$10!="server_addr4" ||
-			$11!="server_addr6" ||
-			$12!="server_routes") {
-			exit 1
-		}
-		next
-	}
+    # Schema marker (must appear before header)
+    /^#/ {
+        if ($0 == "# plan.tsv schema: v2") {
+            schema_ok = 1
+        }
+        next
+    }
 
-	{
-		if (NF != 12) { exit 1 }
-		print
-	}
+    # Header (first non-comment, non-blank line)
+    !header_seen {
+        header_seen = 1
+
+        if (!schema_ok) {
+            exit 10
+        }
+
+        if (
+            $1  != "node" ||
+            $2  != "iface" ||
+            $3  != "profile" ||
+            $4  != "tunnel_mode" ||
+            $5  != "lan_access" ||
+            $6  != "egress_v4" ||
+            $7  != "egress_v6" ||
+            $8  != "client_addr_v4" ||
+            $9  != "client_addr_v6" ||
+            $10 != "client_allowed_ips_v4" ||
+            $11 != "client_allowed_ips_v6" ||
+            $12 != "server_allowed_ips_v4" ||
+            $13 != "server_allowed_ips_v6" ||
+            $14 != "dns" ||
+            NF  != 14
+        ) {
+            exit 11
+        }
+        next
+    }
+
+    # Data rows
+    {
+        if (NF != 14) {
+            exit 12
+        }
+        print
+    }
 ' "$PLAN" || {
-	echo "wg-plan-read: ERROR: plan.tsv header mismatch" >&2
-	exit 2
+    echo "wg-plan-read: ERROR: plan.tsv schema v2 violation" >&2
+    exit 2
 }
