@@ -23,7 +23,8 @@ INSTALL_SBIN_PATH := /usr/local/sbin
 STAMP_DIR := /var/lib/homelab
 
 # Host responsibility (router | service | client)
-ROLE := service
+ROLE ?= service
+$(if $(filter $(ROLE),router service client),,$(error Invalid ROLE=$(ROLE)))
 
 APT_CNAME_EXPECTED := bardi.ch
 
