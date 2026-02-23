@@ -32,3 +32,15 @@ reference only and is not part of the active control plane.
 
 If something is unclear, unexpected, or worth investigating, open an issue to
 make it explicit.
+
+## Editor Contract
+
+This repository uses tab‑significant Makefiles and shell scripts.
+VS Code settings in `.vscode/settings.json` enforce:
+
+- literal tabs (no spaces)
+- tabSize = 4
+- no auto‑indent detection
+- Makefile‑safe whitespace rules
+
+These settings are part of the contract and must remain committed.
