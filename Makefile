@@ -7,4 +7,3 @@
 MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
 
 include $(MAKEFILE_DIR)mk/graph.mk
-include $(MAKEFILE_DIR)mk/help.mk
