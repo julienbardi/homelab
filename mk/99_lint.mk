@@ -140,9 +140,11 @@ lint-shellcheck-strict:
 # Spell checks: codespell (permissive) and aspell (permissive)
 lint-spell:
 	@echo "[lint] Running codespell and aspell (permissive)..."
+	@echo "[lint] NOTE: checkmake warnings are advisory only"
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
-	  $(CODESPELL) --skip="archive/*,*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" $(MAKEFILE_DIR) || true; \
+	  $(CODESPELL) --skip="archive/*,*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" \
+	    $(SH_FILES) $(MAKEFILE_DIR) || true; \
 	else \
 	  echo "[lint] codespell not installed; skipping codespell"; \
 	fi
@@ -179,15 +181,22 @@ lint-spell-strict:
 # Lint Makefiles and mk/*.mk using checkmake when available (permissive)
 lint-makefile:
 	@echo "[lint] Linting Makefiles and mk/*.mk (permissive)..."
+	@echo "[lint] NOTE: checkmake warnings are advisory only"
 	@if command -v $(CHECKMAKE) >/dev/null 2>&1; then \
 	  for mf in $(MAKEFILE_DIR)Makefile $(MK_FILES); do \
 		[ -f "$$mf" ] || continue; \
 		echo "[checkmake] $$mf"; \
-		$(CHECKMAKE) "$$mf" || true; \
+		$(CHECKMAKE) "$$mf" 2>&1 \
+		  | grep -v '^[[:space:]]*minphony' \
+		  | grep -v '^[[:space:]]*"all"' \
+		  | grep -v '^[[:space:]]*"clean"' \
+		  | grep -v '^[[:space:]]*"test"' \
+		  || true; \
 	  done; \
 	else \
-	  echo "[lint] checkmake not installed; run 'make deps' to install it; skipping Makefile lint"; \
+	  echo "[lint] checkmake not installed; skipping Makefile lint"; \
 	fi
+
 
 # Lint Makefiles strict: fail on checkmake errors
 lint-makefile-strict:
