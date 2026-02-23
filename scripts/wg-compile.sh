@@ -22,7 +22,8 @@ set -euo pipefail
 # Delegated/global IPv6 prefixes (e.g. 2a01:...) must never appear in compiled outputs.
 #
 # Authoritative input:
-#   $WG_ROOT/input/clients.csv   (user,machine,iface)
+#   $WG_ROOT/input/clients.csv        (user,machine,iface,profile)
+#   $WG_ROOT/input/wg-interfaces.tsv  (iface,host_id,listen_port,mtu,address_v4,address_v6,enabled)
 #
 # Compiled outputs (atomic):
 #   $WG_ROOT/compiled/clients.lock.csv
@@ -34,20 +35,14 @@ set -euo pipefail
 # - alloc.csv is authoritative and never rewritten silently.
 # - Fails loudly on any contract violation.
 
-# Bootstrap contract:
-# - homelab.env is the single absolute anchor
-# - All other paths must be derived from variables defined there
-
 # shellcheck disable=SC1091
 source /volume1/homelab/homelab.env
 : "${HOMELAB_DIR:?HOMELAB_DIR not set}"
 : "${WG_ROOT:?WG_ROOT not set}"
 die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "must run as root"
-# Compile-phase authority: enables key generation in child processes.
 export WG_PHASE=compile
 
-# WireGuard profile bitmask model (wg1..wg15)
 BIT_LAN=0
 BIT_V4=1
 BIT_V6=2
@@ -56,6 +51,8 @@ BIT_FULL=3
 ROOT="$WG_ROOT"
 IN_DIR="$ROOT/input"
 IN_CSV="$IN_DIR/clients.csv"
+IN_IFACES="$IN_DIR/wg-interfaces.tsv"
+[ -f "$IN_IFACES" ] || die "❌ missing interfaces TSV: $IN_IFACES"
 
 OUT_DIR="$ROOT/compiled"
 ALLOC="$OUT_DIR/alloc.csv"
@@ -63,39 +60,32 @@ LOCK="$OUT_DIR/clients.lock.csv"
 PLAN="$OUT_DIR/plan.tsv"
 
 ENDPOINT_HOST_BASE="vpn.bardi.ch"
-ENDPOINT_PORT_BASE="51420"
 
-# Endpoint must remain a hostname (dynamic WAN IP); clients will resolve it.
-# Note: if you ever hit a “FULL tunnel can’t resolve endpoint” bootstrap issue on a
-# specific client platform, solve it explicitly there (not by freezing a dynamic IP).
-
-# IPv6 (ULA-only) — authoritative constants
-WG_ULA_PREFIX="fd89:7a3b:42c0"     # /48, written as 3 hextets
+WG_ULA_PREFIX="fd89:7a3b:42c0"
 WG_ULA_LAN_CIDR="fd89:7a3b:42c0::/64"
 WG_ULA_NAS="fd89:7a3b:42c0::4"
 WG_ULA_WG_PREFIXLEN="64"
 
 STAGE="$OUT_DIR/.staging.$$"
 umask 077
+mkdir -p "$STAGE"
 
 wg_ifnum_sanity() {
 	n="$1"
 	if [ "$n" -lt 1 ] || [ "$n" -gt 15 ]; then
-		die "invalid ifnum '$n' for wg subnet"
+		die "invalid ifnum '$n' for wg subnet (allowed: 1..15)"
 	fi
 }
 
 wg_ula_subnet6_for_ifnum() {
 	ifnum="$1"
 	wg_ifnum_sanity "$ifnum"
-	# fd89:7a3b:42c0:<ifnum>::/64
 	printf "%s:%s::/%s\n" "$WG_ULA_PREFIX" "$ifnum" "$WG_ULA_WG_PREFIXLEN"
 }
 
 server_addr6_for_ifnum() {
 	ifnum="$1"
 	wg_ifnum_sanity "$ifnum"
-	# fd89:7a3b:42c0:<ifnum>::1/64
 	printf "%s:%s::1/%s\n" "$WG_ULA_PREFIX" "$ifnum" "$WG_ULA_WG_PREFIXLEN"
 }
 
@@ -104,34 +94,20 @@ client_addr6_for_ifnum_ab() {
 	A="$2"
 	B="$3"
 	wg_ifnum_sanity "$ifnum"
-	# fd89:7a3b:42c0:<ifnum>::A:B/128
 	printf "%s:%s::%s:%s/128\n" "$WG_ULA_PREFIX" "$ifnum" "$A" "$B"
 }
 
-# profile is the authoritative intent model; iface numbers are no longer semantic.
 profile_intent() {
-	# profile format:
-	# tunnel_<split|full>_lan_<0|1>_v4_<0|1>_v6_<0|1>
-
 	local profile="$1"
-
-	# Defensive defaults (required under set -u)
 	TUNNEL_FULL=0
 	ALLOW_LAN=0
 	ALLOW_V4=0
 	ALLOW_V6=0
 
 	case "$profile" in
-		tunnel_full_*)
-			TUNNEL_FULL=1
-			;;
-		tunnel_split_*)
-			TUNNEL_FULL=0
-			;;
-		*)
-			echo "ERROR: invalid tunnel mode in profile: $profile" >&2
-			return 1
-			;;
+		tunnel_full_*)  TUNNEL_FULL=1 ;;
+		tunnel_split_*) TUNNEL_FULL=0 ;;
+		*) echo "ERROR: invalid tunnel mode in profile: $profile" >&2; return 1 ;;
 	esac
 
 	case "$profile" in
@@ -157,14 +133,9 @@ profile_intent() {
 	printf "%s %s %s %s\n" "$tunnel_mode" "$ALLOW_LAN" "$ALLOW_V4" "$ALLOW_V6"
 }
 
-# --------------------------------------------------------------------
-# Deterministic allocator helpers
+SLOT_SPACE=$((253 * 253))
 
-SLOT_SPACE=$((253 * 253))   # 64009
-
-hex8_from_sha256() {
-	printf "%s" "$1" | sha256sum | awk '{print substr($1,1,8)}'
-}
+hex8_from_sha256() { printf "%s" "$1" | sha256sum | awk '{print substr($1,1,8)}'; }
 
 slot_from_base() {
 	h="$(hex8_from_sha256 "$1")"
@@ -177,17 +148,57 @@ ab_from_slot() {
 	if [ "$s" -lt 0 ] || [ "$s" -ge "$SLOT_SPACE" ]; then
 		die "invalid slot '$s'"
 	fi
-	A=$(( (s / 253) + 1 ))   # 1..253
-	B=$(( (s % 253) + 2 ))   # 2..254
+	A=$(( (s / 253) + 1 ))
+	B=$(( (s % 253) + 2 ))
 	printf "%s %s\n" "$A" "$B"
 }
 
 server_addr4_for_ifnum() { printf "10.%s.0.1/16\n" "$1"; }
 
-# --------------------------------------------------------------------
-
 mkdir -p "$IN_DIR" "$OUT_DIR"
 [ -f "$IN_CSV" ] || die "missing input CSV: $IN_CSV"
+[ -f "$IN_IFACES" ] || die "missing interfaces TSV: $IN_IFACES"
+
+# --------------------------------------------------------------------
+# Interface ownership (AUTHORITATIVE)
+#
+# wg-interfaces.tsv schema:
+#   iface   host_id listen_port mtu address_v4 address_v6 enabled
+#
+# Contract:
+#   - Only interfaces with enabled == 1 are legal here
+#   - host_id is authoritative and must be preserved as host_kind
+#   - listen_port is sourced exclusively from this file
+#   - iface ownership is INPUT INTENT, not inferred
+#
+IFACE_MAP="$STAGE/ifaces.map.tsv"
+
+hdr="$(head -n 1 "$IN_IFACES" || true)"
+[ "$hdr" = $'iface\thost_id\tlisten_port\tmtu\taddress_v4\taddress_v6\tenabled' ] \
+	|| die "❌ wg-interfaces.tsv schema mismatch"
+
+awk -F'\t' '
+	BEGIN { OFS="\t" }
+	NR==1 { next }
+	/^[[:space:]]*#/ { next }
+	NF < 7 { next }
+	{
+		iface=$1
+		host_id=$2
+		port=$3
+		enabled=$7
+
+		if (enabled != "1") next
+		if (port !~ /^[0-9]+$/) {
+			printf("❌ invalid listen_port for %s: %s\n", iface, port) > "/dev/stderr"
+			exit 2
+		}
+
+		print iface, host_id, port
+	}
+' "$IN_IFACES" >"$IFACE_MAP"
+
+[ -s "$IFACE_MAP" ] || die "❌ no enabled interfaces in wg-interfaces.tsv"
 
 # Ensure allocator exists and schema is correct
 if [ ! -f "$ALLOC" ]; then
@@ -197,9 +208,6 @@ else
 	hdr="$(head -n 1 "$ALLOC")"
 	[ "$hdr" = "base,slot" ] || die "alloc.csv uses legacy schema '$hdr' — migrate manually"
 fi
-
-mkdir -p "$STAGE"
-trap 'rm -rf "$STAGE"' EXIT INT HUP TERM
 
 # --------------------------------------------------------------------
 # Normalize input
@@ -236,7 +244,6 @@ ALLOC_MERGED="$STAGE/alloc.merged.csv"
 	awk -F',' 'NR>1{print}' "$ALLOC"
 } >"$ALLOC_MERGED"
 
-# FIX: base is column 5 in NORM (user, machine, iface, profile, base)
 awk -F'\t' '{print $5}' "$NORM" | sort -u | while read -r base; do
 	if ! awk -F',' -v b="$base" 'NR>1 && $1==b{found=1} END{exit(found?0:1)}' "$ALLOC_MERGED"; then
 		slot="$(slot_from_base "$base")"
@@ -254,15 +261,25 @@ awk -F',' 'NR>1{printf "%s\t%s\n",$1,$2}' "$ALLOC_MERGED" >"$STAGE/alloc.tsv"
 
 PLAN_TMP="$STAGE/plan.tsv"
 {
-	printf "# plan.tsv schema: v2.1\n"
+	printf "# plan.tsv schema: v2.3\n"
 	printf "# GENERATED FILE — DO NOT EDIT\n"
-	printf "node\tiface\tprofile\ttunnel_mode\tlan_access\tegress_v4\tegress_v6\tclient_addr_v4\tclient_addr_v6\tclient_allowed_ips_v4\tclient_allowed_ips_v6\tserver_addr4\tserver_addr6\tserver_allowed_ips_v4\tserver_allowed_ips_v6\tdns\tendpoint\n"
+	printf "node\tiface\tprofile\ttunnel_mode\tlan_access\tegress_v4\tegress_v6\tclient_addr_v4\tclient_addr_v6\tclient_allowed_ips_v4\tclient_allowed_ips_v6\tserver_addr4\tserver_addr6\tserver_allowed_ips_v4\tserver_allowed_ips_v6\tdns\tendpoint\tlisten_port\thost_kind\n"
 
 	while IFS="$(printf '\t')" read -r _ _ iface profile base; do
+
+		# Lookup host_kind + listen_port from authoritative iface map
+		read -r host_kind listen_port <<EOF
+$(awk -F'\t' -v i="$iface" '$1==i{print $2, $3}' "$IFACE_MAP")
+EOF
+		[ -n "$listen_port" ] || die "❌ iface '$iface' missing or disabled in wg-interfaces.tsv"
+
+		# Enforce LOCKED naming/addressing contract
+		case "$iface" in
+			wg[1-9]|wg1[0-5]) : ;;
+			*) die "❌ invalid iface '$iface' — only wg1..wg15 allowed" ;;
+		esac
 		ifnum="${iface#wg}"
-		if [ "$ifnum" -lt 1 ] || [ "$ifnum" -gt 15 ]; then
-			die "invalid iface wg${ifnum} — only wg1..wg15 are allowed"
-		fi
+		wg_ifnum_sanity "$ifnum"
 
 		server_addr4="$(server_addr4_for_ifnum "$ifnum")"
 		server_addr6="$(server_addr6_for_ifnum "$ifnum")"
@@ -279,14 +296,12 @@ EOF
 		client_addr4="10.${ifnum}.${A}.${B}/32"
 		client_addr6="$(client_addr6_for_ifnum_ab "$ifnum" "$A" "$B")"
 
-		# resolve intent from profile (explicit)
 		set -- $(profile_intent "$profile")
 		tunnel_mode="$1"
 		lan_access="$2"
 		egress_v4="$3"
 		egress_v6="$4"
 
-		# client AllowedIPs (explicit)
 		client_allowed_v4="10.${ifnum}.0.0/16"
 		client_allowed_v6="$(wg_ula_subnet6_for_ifnum "$ifnum")"
 
@@ -300,24 +315,22 @@ EOF
 			[ "$egress_v6" -eq 1 ] && client_allowed_v6="${client_allowed_v6},::/1,8000::/1"
 		}
 
-		# server AllowedIPs: strictly client tunnel IPs only
 		server_allowed_v4="$client_addr4"
 		server_allowed_v6="$client_addr6"
 
-		# DNS: per interface (NAS‑specific)
 		dns="10.89.12.4,${WG_ULA_NAS}"
 
-		# Endpoint: deterministic per iface (hostname + port base)
-		endpoint="${ENDPOINT_HOST_BASE}:$((ENDPOINT_PORT_BASE + ifnum))"
+		endpoint="${ENDPOINT_HOST_BASE}:${listen_port}"
 
-		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+		printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
 			"$base" "$iface" "$profile" \
 			"$tunnel_mode" "$lan_access" "$egress_v4" "$egress_v6" \
 			"$client_addr4" "$client_addr6" \
 			"$client_allowed_v4" "$client_allowed_v6" \
 			"$server_addr4" "$server_addr6" \
 			"$server_allowed_v4" "$server_allowed_v6" \
-			"$dns" "$endpoint"
+			"$dns" "$endpoint" "$listen_port" "$host_kind"
+
 	done <"$NORM"
 } >"$PLAN_TMP"
 
