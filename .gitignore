@@ -61,7 +61,6 @@ $RECYCLE.BIN/
 # === IDE / Editor artifacts ===
 # Ignore project settings from common IDEs
 # Source: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
-.vscode/
 .idea/
 *.iml
 
@@ -185,3 +184,22 @@ pip-wheel-metadata/
 *.pyd
 .venv/
 venv/
+
+# Secrets (never committed)
+ddns/.ddns_confidential
+caddy/env
+
+# WireGuard private keys and runtime files
+wireguard/*.key
+wireguard/*.runtime
+
+# Caddy ACME storage
+caddy/data/
+
+# Generated WireGuard control-plane dumps
+plan.tsv
+alloc.tsv
+keys.tsv
+
+# Local tooling
+.tools/
