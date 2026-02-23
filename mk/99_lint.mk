@@ -76,7 +76,7 @@ lint-semantic-strict:
 lint: lint-all
 
 # Fast lint: shell syntax + shellcheck + checkmake (permissive)
-lint-fast: lint-scripts lint-makefile
+lint-fast: lint-gitignore lint-scripts lint-makefile
 
 # Full lint: fast + spell checks + headscale config test (permissive)
 lint-all: lint-fast lint-spell lint-headscale
@@ -220,4 +220,3 @@ lint-headscale-strict:
 	else \
 	  $(run_as_root) headscale configtest --config /etc/headscale/config.yaml || { echo "[lint-ci] Headscale config invalid"; exit 1; }; \
 	fi
-
