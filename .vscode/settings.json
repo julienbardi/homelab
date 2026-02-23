@@ -1,0 +1,77 @@
+{
+    // Enforce literal tabs everywhere in this repo
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4,
+    "editor.detectIndentation": false,
+
+    // Makefile safety: VS Code must NOT auto-convert tabs
+    "[makefile]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4,
+        "editor.detectIndentation": false
+    },
+
+    // Apply same rules to mk/*.mk include files
+    "[make]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4,
+        "editor.detectIndentation": false
+    },
+
+    // Shell scripts must also use literal tabs (for Makefile recipes)
+    "[shellscript]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4,
+        "editor.detectIndentation": false
+    },
+
+    // Highlight accidental leading spaces (helps catch Makefile errors)
+    "editor.renderWhitespace": "boundary",
+
+    // Trim trailing whitespace everywhere except Makefiles
+    "files.trimTrailingWhitespace": true,
+
+    // Ensure mk/*.mk files are recognized as Makefiles
+    "files.associations": {
+        "*.mk": "makefile"
+    }
+}
+{
+    // Enforce literal tabs everywhere in this repo
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4,
+    "editor.detectIndentation": false,
+
+    // Makefile safety: VS Code must NOT auto-convert tabs
+    "[makefile]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4,
+        "editor.detectIndentation": false
+    },
+
+    // Apply same rules to mk/*.mk include files
+    "[make]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4,
+        "editor.detectIndentation": false
+    },
+
+    // Shell scripts must also use literal tabs (for Makefile recipes)
+    "[shellscript]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4,
+        "editor.detectIndentation": false
+    },
+
+    // Highlight accidental leading spaces (helps catch Makefile errors)
+    "editor.renderWhitespace": "boundary",
+
+    // Trim trailing whitespace everywhere except Makefiles
+    "files.trimTrailingWhitespace": true,
+
+    // Ensure mk/*.mk files are recognized as Makefiles
+    "files.associations": {
+        "*.mk": "makefile"
+    }
+}
+
