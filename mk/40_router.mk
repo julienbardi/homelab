@@ -33,7 +33,7 @@ git-clean:
 # --------------------------------------------------------------------
 
 router-sync-scripts: $(ROUTER_SYNC_SCRIPT) router-ssh-ready git-clean
-	@$(ROUTER_SYNC_SCRIPT)
+	@HOMELAB_DIR=$(MAKEFILE_DIR) $(ROUTER_SYNC_SCRIPT)
 
 install-router-ca: ensure-run-as-root
 	@$(run_as_root) install -o root -g root -m 0755 \
