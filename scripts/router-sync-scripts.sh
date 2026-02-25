@@ -13,7 +13,7 @@ ROUTER_HOST="${ROUTER_HOST:-julie@10.89.12.1}"
 ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
 ROUTER_USER="${ROUTER_USER:-julie}"
 ROUTER_SCRIPTS="${ROUTER_SCRIPTS:-/jffs/scripts}"
-HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
+: "${HOMELAB_DIR:?HOMELAB_DIR must be set by Make}"
 
 # NOTE: repo_root is identity, not transport — do not parameterize
 repo_root="$HOMELAB_DIR/10.89.12.1/jffs/scripts"
