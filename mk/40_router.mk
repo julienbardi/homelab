@@ -13,12 +13,13 @@
 
 # Installed execution surface (authoritative)
 ROUTER_SYNC_SCRIPT := $(INSTALL_PATH)/router-sync-scripts.sh
-
+ROUTER_INSTALL_CA_SCRIPT := $(INSTALL_PATH)/router-install-ca.sh
 # --------------------------------------------------------------------
 # Preconditions
 # --------------------------------------------------------------------
 
 .PHONY: router-ssh-ready git-clean router-sync-scripts
+.PHONY: install-router-ca router-publish-ca
 
 # Explicit SSH reachability check (no mutation)
 router-ssh-ready:
@@ -33,3 +34,11 @@ git-clean:
 
 router-sync-scripts: $(ROUTER_SYNC_SCRIPT) router-ssh-ready git-clean
 	@$(ROUTER_SYNC_SCRIPT)
+
+install-router-ca: ensure-run-as-root
+	@$(run_as_root) install -o root -g root -m 0755 \
+		$(MAKEFILE_DIR)scripts/router-install-ca.sh \
+		$(ROUTER_INSTALL_CA_SCRIPT)
+
+router-publish-ca: router-sync-scripts install-router-ca
+	@$(run_as_root) $(ROUTER_INSTALL_CA_SCRIPT)
