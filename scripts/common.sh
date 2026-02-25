@@ -78,12 +78,21 @@ changed() {
 }
 
 # Atomic install: copy src to dest with owner+mode
+# atomic_install SRC DEST OWNER:GROUP MODE [HOST] [PORT]
+# HOST defaults to localhost
+# PORT defaults to 22
+# NOTE:
+# atomic_install compares file content only.
+# If content is unchanged, owner/group/mode are NOT re-applied.
+# This applies to both local and remote installs.
+# install_if_changed.sh enforces full metadata equality.
 atomic_install() {
 	local src="$1"
 	local dest="$2"
 	local owner_group="$3"
 	local mode="$4"
 	local host="${5:-localhost}"   # optional fifth argument
+	local port="${6:-22}"
 
 	# Always compute local source hash for audit (for syslog)
 	local src_hash
@@ -122,16 +131,18 @@ atomic_install() {
 	# ------------------------------------------------------------
 	# Remote case — unchanged (still needs remote sudo)
 	# ------------------------------------------------------------
-	if ! ssh "$host" test -f "$dest" || ! ssh "$host" cmp -s "$dest" < "$src"; then
+	if ! ssh -p "$port" "$host" test -f "$dest" ||
+	   ! ssh -p "$port" "$host" cmp -s "$dest" < "$src"; then
+
 		log "Atomic install: ${src} → ${host}:${dest} (changed)"
 		logger -t "${SCRIPT_NAME:-${0##*/}}" \
 			"$(date '+%Y-%m-%d %H:%M:%S') DETAILS: remote src=${src}, dest=${dest}, src_hash=${src_hash}"
 
-		scp "$src" "$host:$dest"
+		scp -P "$port" "$src" "$host:$dest"
 		# shellcheck disable=SC2029
-		ssh "$host" sudo chown "${owner_group%%:*}:${owner_group##*:}" "$dest"
+		ssh -p "$port" "$host" sudo chown "${owner_group%%:*}:${owner_group##*:}" "$dest"
 		# shellcheck disable=SC2029
-		ssh "$host" sudo chmod "$mode" "$dest"
+		ssh -p "$port" "$host" sudo chmod "$mode" "$dest"
 
 		echo "changed"
 	else

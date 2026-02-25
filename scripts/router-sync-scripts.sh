@@ -18,6 +18,11 @@ HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
 # NOTE: repo_root is identity, not transport — do not parameterize
 repo_root="$HOMELAB_DIR/10.89.12.1/jffs/scripts"
 
+# Mark invocation as originating from the sole authorized router orchestrator.
+# Mutation scripts MUST refuse to run unless this variable is set,
+# ensuring router state changes can only be triggered via router-sync-scripts.sh.
+export CALLED_BY_ROUTER_SYNC_SCRIPTS=1
+
 [ -d "$repo_root" ] || {
 	echo "❌ Repo-managed scripts directory missing: $repo_root" >&2
 	exit 1
