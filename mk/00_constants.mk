@@ -2,11 +2,11 @@
 # Canonical Make constants (build-time)
 
 # Router connection (single source of truth for deployment)
-ROUTER_HOST      ?= julie@10.89.12.1
-ROUTER_USER      := $(word 1,$(subst @, ,$(ROUTER_HOST)))
-ROUTER_ADDR      := $(word 2,$(subst @, ,$(ROUTER_HOST)))
-ROUTER_SSH_PORT  ?= 2222
-ROUTER_SCRIPTS   ?= /jffs/scripts
+ROUTER_ADDR     ?= 10.89.12.1
+ROUTER_USER     ?= $(shell id -un)
+ROUTER_HOST     ?= $(ROUTER_USER)@$(ROUTER_ADDR)
+ROUTER_SSH_PORT ?= 2222
+ROUTER_SCRIPTS  ?= /jffs/scripts
 
 # ---------------------------------------------------------------------------
 # Network identities (do not alias; roles are distinct by contract)
