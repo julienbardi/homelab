@@ -87,7 +87,7 @@ fi
 rm -f "$diff_log"
 
 log "🔐 Ensuring router trusts homelab CA"
-ROUTER_SSH_PORT="$ROUTER_SSH_PORT" run_as_root /usr/local/bin/router-install-ca.sh
+ROUTER_SSH_PORT="$ROUTER_SSH_PORT" /usr/local/bin/run-as-root.sh /usr/local/bin/router-install-ca.sh
 
 if [ "$diff_found" -eq 0 ]; then
 	echo "✅ No differences detected. Nothing to deploy."
