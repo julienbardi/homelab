@@ -18,6 +18,7 @@
 # ------------------------------------------------------------
 .PHONY: prereqs-network prereqs-network-verify \
 	prereqs-docs-verify \
+	prereqs-root-ssh-key \
 	prereqs fix-tailscale-repo \
 	rust-system
 
@@ -51,6 +52,37 @@ prereqs-network: ensure-run-as-root prereqs-network-verify
 prereqs-docs-verify:
 	@command -v glow >/dev/null || \
 		echo "ℹ️  glow not installed (Markdown help will be shown raw)"
+
+# ------------------------------------------------------------
+# Root SSH identity (required for non-interactive router access)
+# ------------------------------------------------------------
+prereqs-root-ssh-key: ensure-run-as-root
+	@key=/root/.ssh/id_ed25519; \
+	if [ -f $$key ]; then \
+		echo "ℹ️  Root SSH key already present"; \
+	else \
+		host=$$(hostname -s); \
+		comment="$$host-root-$$(date +%F)"; \
+		echo "➕ Generating root SSH key ($$comment)"; \
+		$(run_as_root) ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment"; \
+	fi
+
+# ------------------------------------------------------------
+# Operator SSH identity (human access; non-privileged)
+# ------------------------------------------------------------
+.PHONY: prereqs-operator-ssh-key
+prereqs-operator-ssh-key:
+	@key=$$HOME/.ssh/id_ed25519; \
+	if [ -f $$key ]; then \
+		echo "ℹ️  Operator SSH key already present"; \
+	else \
+		host=$$(hostname -s); \
+		user=$$(id -un); \
+		comment="$$host-operator-$$user-$$(date +%F)"; \
+		echo "➕ Generating operator SSH key ($$comment)"; \
+		mkdir -p "$$HOME/.ssh"; \
+		ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment"; \
+	fi
 
 prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 	@echo "[check] Verifying public DNS CNAME for apt.bardi.ch by asking a public DNS"
