@@ -20,9 +20,11 @@ ROUTER_INSTALL_CA_SCRIPT := $(INSTALL_PATH)/router-install-ca.sh
 
 .PHONY: router-ssh-ready git-clean router-sync-scripts
 .PHONY: install-router-ca router-publish-ca
+.PHONY: router-ssh-prereqs
+router-ssh-prereqs: prereqs-root-ssh-key prereqs-operator-ssh-key
 
 # Explicit SSH reachability check (no mutation)
-router-ssh-ready:
+router-ssh-ready: router-ssh-prereqs
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) true
 
 git-clean:
@@ -35,7 +37,7 @@ git-clean:
 router-sync-scripts: $(ROUTER_SYNC_SCRIPT) router-ssh-ready git-clean
 	@HOMELAB_DIR=$(MAKEFILE_DIR) $(ROUTER_SYNC_SCRIPT)
 
-install-router-ca: ensure-run-as-root
+install-router-ca: ensure-run-as-root router-ssh-prereqs
 	@$(run_as_root) install -o root -g root -m 0755 \
 		$(MAKEFILE_DIR)scripts/router-install-ca.sh \
 		$(ROUTER_INSTALL_CA_SCRIPT)
