@@ -143,4 +143,7 @@ done <"$repo_list"
 
 [ "$verify_failed" -eq 0 ] || exit 1
 
+log "🔐 Ensuring router trusts homelab CA"
+/usr/local/bin/router-install-ca.sh
+
 echo "✅ Router scripts synchronized successfully."
