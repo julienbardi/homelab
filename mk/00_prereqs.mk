@@ -90,7 +90,7 @@ prereqs-operator-ssh-key:
 # ------------------------------------------------------------
 .PHONY: prereqs-run-as-root
 prereqs-run-as-root:
-	@src="$(HOMELAB_DIR)/scripts/run-as-root"; \
+	@src="$(MAKEFILE_DIR)scripts/run-as-root.sh"; \
 	dst="/usr/local/bin/run-as-root.sh"; \
 	if [ -x "$$dst" ]; then \
 		echo "ℹ️  run-as-root wrapper already installed"; \
