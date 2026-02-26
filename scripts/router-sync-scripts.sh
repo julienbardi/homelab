@@ -83,6 +83,9 @@ if [ -s "$diff_log" ]; then
 fi
 rm -f "$diff_log"
 
+log "🔐 Ensuring router trusts homelab CA"
+/usr/local/bin/router-install-ca.sh
+
 if [ "$diff_found" -eq 0 ]; then
 	echo "✅ No differences detected. Nothing to deploy."
 	exit 0
@@ -142,8 +145,5 @@ while IFS= read -r repo_file; do
 done <"$repo_list"
 
 [ "$verify_failed" -eq 0 ] || exit 1
-
-log "🔐 Ensuring router trusts homelab CA"
-/usr/local/bin/router-install-ca.sh
 
 echo "✅ Router scripts synchronized successfully."
