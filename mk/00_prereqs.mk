@@ -58,14 +58,15 @@ prereqs-docs-verify:
 # ------------------------------------------------------------
 prereqs-root-ssh-key: ensure-run-as-root
 	@key=/root/.ssh/id_ed25519; \
-	if [ -f $$key ]; then \
+	if sudo test -f $$key; then \
 		echo "ℹ️  Root SSH key already present"; \
 	else \
 		host=$$(hostname -s); \
 		comment="$$host-root-$$(date +%F)"; \
 		echo "➕ Generating root SSH key ($$comment)"; \
-		$(run_as_root) ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment"; \
+		sudo ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment" </dev/null; \
 	fi
+
 
 # ------------------------------------------------------------
 # Operator SSH identity (human access; non-privileged)
