@@ -85,6 +85,21 @@ prereqs-operator-ssh-key:
 		ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment"; \
 	fi
 
+# ------------------------------------------------------------
+# run-as-root wrapper (system-wide helper)
+# ------------------------------------------------------------
+.PHONY: prereqs-run-as-root
+prereqs-run-as-root:
+	@src="$(HOMELAB_DIR)/scripts/run-as-root"; \
+	dst="/usr/local/bin/run-as-root.sh"; \
+	if [ -x "$$dst" ]; then \
+		echo "ℹ️  run-as-root wrapper already installed"; \
+	else \
+		echo "➕ Installing run-as-root wrapper"; \
+		sudo install -m 0755 "$$src" "$$dst"; \
+	fi
+
+
 prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 	@echo "[check] Verifying public DNS CNAME for apt.bardi.ch by asking a public DNS"
 	@cname=$$(dig +short @$(PUBLIC_DNS) apt.bardi.ch CNAME | sed 's/\.$$//'); \
