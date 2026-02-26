@@ -40,5 +40,5 @@ install-router-ca: ensure-run-as-root
 		$(MAKEFILE_DIR)scripts/router-install-ca.sh \
 		$(ROUTER_INSTALL_CA_SCRIPT)
 
-router-publish-ca: router-sync-scripts install-router-ca
-	@$(run_as_root) $(ROUTER_INSTALL_CA_SCRIPT)
+router-publish-ca: router-sync-scripts
+	@true
