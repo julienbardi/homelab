@@ -9,6 +9,9 @@
 # - Rollback is guaranteed via git commit before deployment.
 
 set -eu
+# shellcheck disable=SC1091
+source /usr/local/bin/common.sh
+
 ROUTER_HOST="${ROUTER_HOST:-julie@10.89.12.1}"
 ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
 ROUTER_USER="${ROUTER_USER:-julie}"
