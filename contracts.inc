@@ -44,6 +44,7 @@ Runtime & execution environment:
   - Control-plane language boundaries
   - Canonical storage & disaster recovery
   - Makefile recipe invariants
+  - Control-plane reasoning authority
 
 Intent model & compilation:
   - Enumeration model
@@ -339,6 +340,33 @@ Generalization:
 
 Any interpretation that extends a contract beyond its declared scope
 is a contract violation.
+
+Definition: Semantic reasoning
+
+Semantic reasoning refers to logic that derives intent-level meaning,
+policy decisions, classifications, aggregations, or conclusions
+from structured or unstructured data.
+
+Examples include (non-exhaustive):
+  - grouping or counting entities to infer state
+  - deriving sets, inventories, or deltas
+  - interpreting configuration intent
+  - deciding compliance or violation
+
+Mechanical parsing, formatting, filtering, or transport of data
+without interpretation does NOT constitute semantic reasoning.
+
+Definition: Side-effect free (control-plane)
+
+A side-effect free control-plane tool MUST NOT:
+  - modify repository state
+  - modify system state
+  - modify router state
+  - perform network operations unless explicitly declared
+  - write persistent files except explicitly declared outputs
+
+Reading files, reading environment variables, and emitting output
+to stdout or stderr are permitted.
 -------------------------------------------------------------------------------
 
 
@@ -738,6 +766,9 @@ The entire system MUST be reconstructible from NAS backups alone.
 
 WSL is a control-plane execution environment, NOT a source of truth.
 
+Control-plane tooling (e.g. compilers, linters, renderers) MUST reside in the
+authoritative repository and MUST NOT be treated as runtime artifacts.
+
 
 -------------------------------------------------------------------------------
 CONTRACT: Makefile recipe invariants
@@ -767,6 +798,7 @@ Rules:
   - Recipes MUST fail loudly on syntax errors; silent failure is forbidden.
   - Recipe behavior MUST be deterministic and side-effect free unless the
     recipe’s purpose is explicitly to perform side effects (e.g. installation).
+  - Heredocs (<<) are forbidden in Makefile recipes.
 
 Portability:
 
@@ -790,6 +822,78 @@ Rationale:
 Enforcement status:
   enforceable but not yet enforced
 
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Control-plane reasoning authority
+-------------------------------------------------------------------------------
+
+Python is the preferred / canonical reasoning engine for intent-level semantics,
+while allowing shell text processing for mechanical tasks.
+
+Rules:
+
+  - This contract refines the Control-plane language boundaries contract
+    by defining semantic authority, not runtime availability.
+
+  - Python MAY be used for control-plane reasoning tasks, including:
+      - analysis of shell scripts and repository artifacts
+      - validation of contract compliance
+      - aggregation, classification, and rendering of derived information
+      - planning or simulation of execution without performing side effects
+
+  - No router-resident shell script MAY implement intent-level semantic
+    aggregation or classification; such reasoning MUST be performed by
+    control-plane Python tooling.
+  - Semantic reasoning” means deriving intent-level conclusions
+    (grouping, counting, set construction, policy decisions), not
+    mechanical parsing or formatting.
+
+  - Python MUST NOT:
+      - perform system mutations
+      - execute router-affecting side effects
+      - replace shell scripts as the execution authority
+      - be required at router runtime
+
+  - Shell scripts are the sole execution authority and MUST:
+      - perform all system mutations
+      - define all side effects explicitly
+      - remain POSIX-compatible and BusyBox-compliant
+      - be executable independently of Python availability
+
+  - Control-plane Python tooling MUST NOT:
+      - modify repository state
+      - modify system state
+      - perform network operations during checks
+      - write to persistent storage outside explicitly declared outputs
+
+Separation of concerns:
+
+  - Python reasons about shell workflows.
+  - Shell workflows act on the system.
+  - Any tool that performs both reasoning and execution
+    within the same invocation constitutes a contract violation.
+    Invocation means a single process entrypoint (one script/program execution),
+    not a multi-target Make session.
+
+Execution model:
+
+Control-plane Python tooling:
+  - is executed directly from the repository
+  - is NOT installed onto runtime systems
+  - is invoked explicitly via Make targets or documented entry points
+  - MUST NOT be invoked by router-resident scripts
+
+Enforcement status:
+  enforceable but not yet enforced
+
+Rationale:
+
+  - Preserves a strict control-plane / data-plane separation.
+  - Prevents execution authority drift into higher-level tooling.
+  - Enables rich introspection and validation without weakening runtime guarantees.
+  - Allows incremental evolution of reasoning tools without destabilizing execution.
 -------------------------------------------------------------------------------
 
 
@@ -1785,7 +1889,7 @@ This contract defines the canonical icon set for all operator‑visible output p
 
 Scope:
 
-  - Applies to all scripts under scripts/, all Makefile targets under mk/, all router‑deployed scripts, and all operator‑facing output (stdout and stderr).
+  - Applies to all scripts under scripts/, all Makefile targets under mk/, all router-deployed scripts, and all operator-facing output (stdout and stderr).
   - Does NOT apply to documentation, markdown files, or comments.
 
 Invariants:
@@ -1810,7 +1914,7 @@ Canonical icon set:
     INFO_ICON = "ℹ️"
 
   Unchanged:
-    UNCHANGED_ICON = INFO_ICON
+    UNCHANGED_ICON = "◽"
 
 Rules:
 
