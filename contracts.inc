@@ -43,6 +43,7 @@ Runtime & execution environment:
   - Runtime tool availability
   - Control-plane language boundaries
   - Canonical storage & disaster recovery
+  - Makefile recipe invariants
 
 Intent model & compilation:
   - Enumeration model
@@ -736,6 +737,60 @@ Runtime devices (router, clients) are disposable.
 The entire system MUST be reconstructible from NAS backups alone.
 
 WSL is a control-plane execution environment, NOT a source of truth.
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Makefile recipe invariants
+-------------------------------------------------------------------------------
+
+Makefile recipes are executable logic and MUST follow strict structural and
+syntactic rules to ensure deterministic behavior across all supported
+environments, including BusyBox ash on the router and GNU make on development
+systems.
+
+Rules:
+
+  - All recipe lines MUST begin with a tab character; space-indented recipes
+    are forbidden.
+  - Multi-line recipes MUST form a single shell block unless explicitly
+    separated by independent recipe lines.
+  - Every line in a multi-line shell block, except the final line, MUST end
+    with a backslash (‘\’) to ensure correct concatenation.
+  - Every opened shell construct (if, for, while, case) MUST be closed within
+    the same recipe block; cross-line or cross-recipe constructs are forbidden.
+  - Recipes MUST be syntactically valid under BusyBox sh; GNU-specific shell
+    extensions are forbidden.
+  - Recipes MUST NOT rely on implicit shell concatenation or environment-
+    dependent parsing behavior.
+  - Trailing whitespace after a backslash is forbidden.
+  - Recipes MUST NOT contain unreachable code or partial constructs.
+  - Recipes MUST fail loudly on syntax errors; silent failure is forbidden.
+  - Recipe behavior MUST be deterministic and side-effect free unless the
+    recipe’s purpose is explicitly to perform side effects (e.g. installation).
+
+Portability:
+
+  - All recipes MUST execute correctly under BusyBox sh.
+  - PATH-based resolution MUST NOT be relied upon unless explicitly declared.
+  - Shell features not guaranteed by POSIX or BusyBox sh are forbidden.
+
+Formatting:
+
+  - Tabs are semantically significant and MUST NOT be replaced with spaces.
+  - Line breaks inside recipes are intentional and MUST NOT be reflowed.
+  - Comments inside recipes MUST NOT break shell block structure.
+
+Rationale:
+
+  - Ensures deterministic execution across heterogeneous environments.
+  - Prevents syntactic drift and fragile multi-line constructs.
+  - Eliminates portability failures between development and router runtimes.
+  - Preserves Makefile readability and auditability under contract governance.
+
+Enforcement status:
+  enforceable but not yet enforced
+
+-------------------------------------------------------------------------------
 
 
 -------------------------------------------------------------------------------
