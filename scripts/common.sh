@@ -10,6 +10,15 @@ set -euo pipefail
 [[ -n "${_HOMELAB_COMMON_SH_LOADED:-}" ]] && return
 readonly _HOMELAB_COMMON_SH_LOADED=1
 
+# ------------------------------------------------------------
+# Output icon grammar (operator-facing only)
+# ------------------------------------------------------------
+readonly ICON_SUCCESS="✅"
+readonly ICON_FAILURE="❌"
+readonly ICON_WARNING="⚠️"
+readonly ICON_INFO="ℹ️"
+readonly ICON_UNCHANGED="◽"
+
 SCRIPT_NAME="$(basename "$0" .sh)"
 
 export INSTALL_IF_CHANGED_EXIT_CHANGED=3
@@ -79,80 +88,59 @@ changed() {
 
 # Atomic install: copy src to dest with owner+mode
 # atomic_install SRC DEST OWNER:GROUP MODE [HOST] [PORT]
-# HOST defaults to localhost
-# PORT defaults to 22
-# NOTE:
-# atomic_install compares file content only.
-# If content is unchanged, owner/group/mode are NOT re-applied.
-# This applies to both local and remote installs.
-# install_if_changed.sh enforces full metadata equality.
+# Implementation: Local uses 'install', remote uses 'scp' + 'sudo install'.
 atomic_install() {
-	local src="$1"
-	local dest="$2"
-	local owner_group="$3"
-	local mode="$4"
-	local host="${5:-localhost}"   # optional fifth argument
-	local port="${6:-22}"
+	local src="$1" dest="$2" owner_group="$3" mode="$4"
+	local host="${5:-localhost}" port="${6:-22}"
 
-	# Always compute local source hash for audit (for syslog)
+	local user="${owner_group%%:*}"
+	local group="${owner_group##*:}"
 	local src_hash
 	src_hash=$(sha256sum "$src" | awk '{print $1}')
 
 	# ------------------------------------------------------------
-	# Localhost case — simplified, clean, fast
+	# Localhost Case
 	# ------------------------------------------------------------
 	if [[ "$host" == "localhost" ]]; then
-		# Compare files; cmp -s returns 0 if identical
-		if ! cmp -s "$src" "$dest" 2>/dev/null; then
-			# Short on-screen log
-			log "Atomic install: ${src} → ${dest} (changed)"
-
-			# Full detail only in syslog
-			logger -t "${SCRIPT_NAME:-${0##*/}}" \
-				"$(date '+%Y-%m-%d %H:%M:%S') DETAILS: src=${src}, dest=${dest}, src_hash=${src_hash}"
-
-			# Install with owner/mode
-			install -o "${owner_group%%:*}" -g "${owner_group##*:}" -m "${mode}" "$src" "$dest"
-
-			echo "changed"
-		else
-			# Short on-screen log
-			log "Atomic install: ${src} → ${dest} (unchanged)"
-
-			# Full detail only in syslog
-			logger -t "${SCRIPT_NAME:-${0##*/}}" \
-				"$(date '+%Y-%m-%d %H:%M:%S') DETAILS: unchanged src=${src}, dest=${dest}, hash=${src_hash}"
-
+		if cmp -s "$src" "$dest" 2>/dev/null; then
+			log "$ICON_UNCHANGED $dest (unchanged)"
+			logger -t "${SCRIPT_NAME}" "DETAILS: unchanged dest=${dest}, hash=${src_hash}"
 			echo "unchanged"
+			return 0
 		fi
+
+		log "$ICON_SUCCESS $dest (updated)"
+		logger -t "${SCRIPT_NAME}" "DETAILS: src=${src}, dest=${dest}, hash=${src_hash}"
+		sudo install -o "$user" -g "$group" -m "$mode" "$src" "$dest"
+		echo "changed"
 		return 0
 	fi
 
 	# ------------------------------------------------------------
-	# Remote case — unchanged (still needs remote sudo)
+	# Remote Case (Single SSH check + Single SSH atomic install)
 	# ------------------------------------------------------------
-	if ! ssh -p "$port" "$host" test -f "$dest" ||
-	   ! ssh -p "$port" "$host" cmp -s "$dest" < "$src"; then
-
-		log "Atomic install: ${src} → ${host}:${dest} (changed)"
-		logger -t "${SCRIPT_NAME:-${0##*/}}" \
-			"$(date '+%Y-%m-%d %H:%M:%S') DETAILS: remote src=${src}, dest=${dest}, src_hash=${src_hash}"
-
-		scp -P "$port" "$src" "$host:$dest"
-		# shellcheck disable=SC2029
-		ssh -p "$port" "$host" sudo chown "${owner_group%%:*}:${owner_group##*:}" "$dest"
-		# shellcheck disable=SC2029
-		ssh -p "$port" "$host" sudo chmod "$mode" "$dest"
-
-		echo "changed"
-	else
-		log "Atomic install: ${src} → ${host}:${dest} (unchanged)"
-		logger -t "${SCRIPT_NAME:-${0##*/}}" \
-			"$(date '+%Y-%m-%d %H:%M:%S') DETAILS: remote unchanged src=${src}, dest=${dest}, hash=${src_hash}"
-
+	# Check if remote file matches local source
+	if ssh -p "$port" "$host" "[[ -f \"$dest\" ]] && cmp -s \"$dest\"" < "$src" 2>/dev/null; then
+		log "$ICON_UNCHANGED $host:$dest (unchanged)"
+		logger -t "${SCRIPT_NAME}" "DETAILS: remote unchanged dest=${dest}, hash=${src_hash}"
 		echo "unchanged"
+		return 0
 	fi
 
+	# Update required
+	local remote_tmp="/tmp/atomic.$(basename "$src").$RANDOM"
+
+	log "$ICON_SUCCESS $host:$dest (updating)"
+	logger -t "${SCRIPT_NAME}" "DETAILS: remote src=${src}, dest=${dest}, hash=${src_hash}"
+
+	# 1. Transfer to temporary location
+	scp -P "$port" -q "$src" "$host:$remote_tmp"
+
+	# 2. Atomic install + Cleanup in one SSH call
+	# This ensures ownership and permissions are set before the file is visible at $dest
+	ssh -p "$port" "$host" "sudo install -o $user -g $group -m $mode $remote_tmp $dest && rm -f $remote_tmp"
+
+	echo "changed"
 	return 0
 }
 

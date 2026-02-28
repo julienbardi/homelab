@@ -8,17 +8,24 @@
 #   DNS_WARM_PROFILE=full   (explicitly enable large lists)
 
 set -euo pipefail
+source "/home/julie/src/homelab/scripts/common.sh"
 IFS=$'\n\t'
 
 DOMAINS_FILE="/etc/dns-warm/domains.txt"
-DOMAIN_CACHE_TTL=$((0 * 60 * 60)) # seconds
+DOMAIN_CACHE_TTL="${DNS_WARM_CACHE_TTL:-3600}"
+TRANCO_LIMIT="${DNS_WARM_TRANCO_LIMIT:-10000}"
 
-# Use short for the core curated HOT list below or full
+CURATED_FILE="/etc/dns-warm/curated.txt"
+
+# Profile controls inclusion of large external lists
 PROFILE="${DNS_WARM_PROFILE:-full}"
 
-log() {
-	printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
+[ "$(id -u)" -eq 0 ] || {
+	log "$ICON_FAILURE must be run as root"
+	exit 1
 }
+
+[ "$DOMAIN_CACHE_TTL" -eq 0 ] && log "Cache disabled (TTL=0)"
 
 install -d "$(dirname "$DOMAINS_FILE")"
 
@@ -28,48 +35,25 @@ if [ -s "$DOMAINS_FILE" ]; then
 	mtime=$(stat -c %Y "$DOMAINS_FILE")
 	age=$((now - mtime))
 	if [ "$age" -lt "$DOMAIN_CACHE_TTL" ]; then
-		log "Using cached domain list (age: $((age / 3600))h, profile=$PROFILE)"
+		log "Using cached domain list (age: $((age))s, profile=$PROFILE)"
 		exit 0
 	fi
 fi
 
 log "Refreshing domain list (profile=$PROFILE)"
 
+# Initialize variables to ensure trap safety
 tmp_all="$(mktemp)"
+tmp_final="$(mktemp)"
+trap 'rm -f "$tmp_all" "$tmp_final" "${tmp_switch:-}" "${tmp_tranco:-}"' EXIT
 
-# ------------------------------------------------------------
-# Core curated list (always included)
-# ------------------------------------------------------------
-cat <<'HOT' > "$tmp_all"
-srf.ch
-20min.ch
-blick.ch
-galaxus.ch
-ricardo.ch
-admin.ch
-bardi.ch
-google.ch
-google.com
-jam9.synology.me
-sbb.ch
-migros.ch
-tagesanzeiger.ch
-watson.ch
-digitec.ch
-portal.switch.ch
-post.ch
-rts.ch
-tranco-list.eu
-youtube.com
-amazon.de
-netflix.com
-github.com
-linkedin.com
-spotify.com
-ubs.com
-wikipedia.org
-workspace-zur3.ra.ubs.com
-HOT
+if [ ! -f "$CURATED_FILE" ]; then
+	log "Creating empty curated list at $CURATED_FILE"
+	install -m 0644 /dev/null "$CURATED_FILE"
+fi
+
+
+cat "$CURATED_FILE" > "$tmp_all"
 
 # ------------------------------------------------------------
 # Optional large lists (explicit opt-in only)
@@ -83,20 +67,31 @@ if [ "$PROFILE" = "full" ]; then
 	SWITCH_CSV_URL="https://portal.switch.ch/open-data/top1000/latest.csv"
 	TRANCO_URL="https://tranco-list.eu/download/8LPKV/1000000"
 
-	curl -fsSL "$SWITCH_CSV_URL" \
-		| awk -F, 'NR>1 && $1 {print $1}' >> "$tmp_switch"
-
-	curl -fsSL "$TRANCO_URL" \
-	| awk -F, 'NR > 1 && NF >= 2 {
-		sub(/\r$/, "", $2);
-		print $2;
-		if (++n >= 5000) exit
-	}' >> "$tmp_tranco" || {
+	if curl -fsSL "$SWITCH_CSV_URL" \
+		| awk -F, 'NR>1 && $1 {print $1}' >> "$tmp_switch"; then
+		:
+	else
 		rc=$?
-		[ "$rc" -eq 23 ] || exit "$rc"
-	}
+		log "$ICON_FAILURE SWITCH domain list unavailable (curl rc=$rc)"
+		exit 1
+	fi
 
-
+	if curl -fsSL "$TRANCO_URL" 2>/dev/null \
+		| awk -F, -v limit="$TRANCO_LIMIT" 'NR > 1 && NF >= 2 {
+			sub(/\r$/, "", $2);
+			print $2;
+			if (++n >= limit) exit
+		}' >> "$tmp_tranco"; then
+		:
+	else
+		rc=$?
+		if [ "$rc" -eq 23 ]; then
+			log "$ICON_WARNING Tranco download truncated (curl rc=23)"
+		else
+			log "$ICON_FAILURE Tranco list unavailable (curl rc=$rc)"
+			exit 1
+		fi
+	fi
 
 	cat "$tmp_switch" "$tmp_tranco" >> "$tmp_all"
 
@@ -106,12 +101,16 @@ fi
 # ------------------------------------------------------------
 # Normalize, deduplicate, validate
 # ------------------------------------------------------------
-awk '!seen[$0]++' "$tmp_all" \
-	| grep -E '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' \
-	| sort \
-	> "$DOMAINS_FILE"
+grep -E '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' "$tmp_all" | sort -u > "$tmp_final"
 
-chmod 0644 "$DOMAINS_FILE"
-rm -f "$tmp_all"
+# Atomic and idempotent installation using common.sh helper
+# atomic_install <src> <dest> <owner:group> <mode>
+result=$(atomic_install "$tmp_final" "$DOMAINS_FILE" "root:root" "0644")
 
-log "Domain list updated: $(wc -l < "$DOMAINS_FILE") entries"
+rm -f "$tmp_all" "$tmp_final"
+
+if [[ "$result" == "changed" ]]; then
+	log "$ICON_SUCCESS Domain list updated: $(wc -l < "$DOMAINS_FILE") entries"
+else
+	log "$ICON_UNCHANGED Domain list unchanged: $(wc -l < "$DOMAINS_FILE") entries"
+fi

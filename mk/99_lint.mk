@@ -76,13 +76,15 @@ lint-semantic-strict:
 lint: lint-all
 
 # Fast lint: shell syntax + shellcheck + checkmake (permissive)
-lint-fast: lint-gitignore lint-scripts lint-makefile
+lint-fast: lint-gitignore lint-scripts lint-makefile \
+	check-control-plane-reasoning
 
 # Full lint: fast + spell checks + headscale config test (permissive)
 lint-all: lint-fast lint-spell lint-headscale
 
 # Strict CI lint: fail on any issue (ShellCheck warnings, checkmake errors, codespell, aspell)
-lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale-strict lint-semantic-strict
+lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale-strict lint-semantic-strict \
+	check-control-plane-reasoning
 	@echo "[lint-ci] All checks passed (strict mode)."
 
 # Run shell syntax check and ShellCheck across all tracked .sh files (permissive)
@@ -144,7 +146,7 @@ lint-spell:
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
 	  $(CODESPELL) --skip="archive/*,*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" \
-	    $(SH_FILES) $(MAKEFILE_DIR) || true; \
+		$(SH_FILES) $(MAKEFILE_DIR) || true; \
 	else \
 	  echo "[lint] codespell not installed; skipping codespell"; \
 	fi
@@ -229,3 +231,21 @@ lint-headscale-strict:
 	else \
 	  $(run_as_root) headscale configtest --config /etc/headscale/config.yaml || { echo "[lint-ci] Headscale config invalid"; exit 1; }; \
 	fi
+
+.PHONY: check-control-plane-reasoning
+check-control-plane-reasoning:
+	@echo "[lint] Checking for forbidden intent-level semantic reasoning in router shell scripts..."
+	@set -eu; \
+	if rg -n --hidden --no-ignore-vcs \
+		-e '\|\s*uniq\s+-[cd]' \
+		-e 'sort\s*\|\s*uniq' \
+		-e 'awk.*(count|seen|found|dup|duplicate)' \
+		-e 'awk.*exit\(' \
+		scripts/; then \
+		echo "[lint] ERROR: intent-level semantic reasoning detected in router shell scripts"; \
+		exit 1; \
+	else \
+		echo "[lint] OK: no forbidden semantic reasoning detected"; \
+	fi
+
+
