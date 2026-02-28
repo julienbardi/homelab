@@ -167,7 +167,7 @@ $(INSTALL_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh ensure-run-as-root | $(INSTALL
 	$(call install_script,$<,$(notdir $<))
 
 $(INSTALL_SBIN_PATH)/run-as-root.sh: $(MAKEFILE_DIR)scripts/run-as-root.sh
-	@install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $< $@
+	@$(run_as_root) install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $< $@
 
 $(INSTALL_SBIN_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh ensure-run-as-root | $(INSTALL_PATH)/install_if_changed.sh
 	@$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh --quiet \

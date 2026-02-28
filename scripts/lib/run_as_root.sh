@@ -14,9 +14,7 @@
 #
 # Examples:
 #   run_as_root systemctl restart unbound
-#   run_as_root --preserve env | grep PATH
-
-set -euo pipefail
+#   run_as_root --preserve printenv PATH
 
 run_as_root() {
 	local preserve=false
@@ -35,14 +33,10 @@ run_as_root() {
 
 	# If already root, run directly
 	if [ "$(id -u)" -eq 0 ]; then
-		if $preserve; then
-			env -i "$@"
-		else
-			"$@"
-		fi
+		"$@"
 	else
 		# Use sudo
-		if $preserve; then
+		if [[ "$preserve" == true ]]; then
 			sudo -E -- "$@"
 		else
 			sudo -- "$@"
@@ -52,5 +46,6 @@ run_as_root() {
 
 # Only run when executed directly, not when sourced
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	set -euo pipefail
 	run_as_root "$@"
 fi
