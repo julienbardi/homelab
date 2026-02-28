@@ -18,6 +18,6 @@ else
 
   echo "[certs] generating CA public cert $CA_PUB"
   openssl req -x509 -new -key "$CA_KEY" -days 3650 -sha256 \
-	-subj "/CN=homelab-bardi-CA/O=bardi.ch/OU=homelab" -out "$CA_PUB"
+    -subj "/CN=homelab-bardi-CA/O=bardi.ch/OU=homelab" -out "$CA_PUB"
   chmod 0644 "$CA_PUB"
 fi

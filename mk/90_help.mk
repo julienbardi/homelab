@@ -4,9 +4,9 @@ DOCS_DIR := $(DOCS_DIR)
 .PHONY: help
 help:
 	@test -r $(DOCS_DIR)/help.md || { \
-		echo "❌ Help is not installed at $(DOCS_DIR)/help.md"; \
-		echo "👉 Run: make install-docs"; \
-		exit 1; \
+	    echo "❌ Help is not installed at $(DOCS_DIR)/help.md"; \
+	    echo "👉 Run: make install-docs"; \
+	    exit 1; \
 	}
 	@command -v glow >/dev/null && glow $(DOCS_DIR)/help.md || cat $(DOCS_DIR)/help.md
 

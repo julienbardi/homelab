@@ -5,7 +5,7 @@ umask 077
 OUT="${1:?snapshot dir required}"
 [ -d "$OUT" ] || mkdir -p "$OUT"
 
-# WireGuard runtime (canonical, order‑independent)
+# WireGuard runtime (canonical, order-independent)
 wg show all dump | sort >"$OUT/wg.dump"
 
 # IP addresses (canonical)

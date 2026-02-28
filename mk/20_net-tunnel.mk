@@ -21,8 +21,8 @@ endif
 
 net-tunnel-preflight: ensure-run-as-root net-tunnel-routing
 	@NETDEV="$$(ip -o route get 8.8.8.8 | awk '{print $$5}')" && \
-		$(run_as_root) ethtool -k "$$NETDEV" | grep -q 'rx-udp-gro-forwarding: on' || \
-		$(run_as_root) ethtool -K "$$NETDEV" rx-udp-gro-forwarding on rx-gro-list off
+	    $(run_as_root) ethtool -k "$$NETDEV" | grep -q 'rx-udp-gro-forwarding: on' || \
+	    $(run_as_root) ethtool -K "$$NETDEV" rx-udp-gro-forwarding on rx-gro-list off
 	$(eval NET_TUNNEL_PREFLIGHT_DONE := yes)
 
 # Router-terminated WireGuard return path

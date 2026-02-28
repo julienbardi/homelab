@@ -21,38 +21,38 @@ dns-preflight: \
 
 assert-tailnet:
 	@tailscale status >/dev/null 2>&1 || \
-		( echo "❌ Tailnet not connected — run: make tailnet"; exit 1 )
+	    ( echo "❌ Tailnet not connected — run: make tailnet"; exit 1 )
 
 check-public-dns:
 	@echo "🔍 Verifying public CNAMEs resolving to canonical names"
 	@test -f $(CADDY_INTERNAL_HOSTS_SRC) || \
-		( echo "❌ Missing $(CADDY_INTERNAL_HOSTS_SRC)"; exit 1 )
+	    ( echo "❌ Missing $(CADDY_INTERNAL_HOSTS_SRC)"; exit 1 )
 	@hosts=$$(sed '/^\s*#/d;/^\s*$$/d' $(CADDY_INTERNAL_HOSTS_SRC)); \
 	for host in $$hosts; do \
-		count=$$(dig @1.1.1.1 $$host CNAME +short | sed '/^$$/d' | wc -l); \
-		if [ "$$count" -ne 1 ]; then \
-			echo "❌ $$host must resolve to exactly one CNAME record"; \
-			echo "👉 Define public DNS CNAME in Infomaniak"; \
-			exit 1; \
-		fi; \
+	    count=$$(dig @1.1.1.1 $$host CNAME +short | sed '/^$$/d' | wc -l); \
+	    if [ "$$count" -ne 1 ]; then \
+	        echo "❌ $$host must resolve to exactly one CNAME record"; \
+	        echo "👉 Define public DNS CNAME in Infomaniak"; \
+	        exit 1; \
+	    fi; \
 	done
 	@echo "✅ All public DNS CNAMEs defined"
 
 check-caddy-internal-hosts:
 	@echo "🔍 Verifying Caddy internal hosts"
 	@test -n "$(CADDY_INTERNAL_HOSTS_FILE)" || \
-		( echo "❌ CADDY_INTERNAL_HOSTS_FILE is not defined"; exit 1 )
+	    ( echo "❌ CADDY_INTERNAL_HOSTS_FILE is not defined"; exit 1 )
 	@test -f $(CADDY_INTERNAL_HOSTS_FILE) || \
-		( echo "❌ Missing $(CADDY_INTERNAL_HOSTS_FILE)"; exit 1 )
+	    ( echo "❌ Missing $(CADDY_INTERNAL_HOSTS_FILE)"; exit 1 )
 	@test -f $(CADDY_INTERNAL_HOSTS_SRC) || \
-		( echo "❌ Missing $(CADDY_INTERNAL_HOSTS_SRC)"; exit 1 )
+	    ( echo "❌ Missing $(CADDY_INTERNAL_HOSTS_SRC)"; exit 1 )
 	@hosts=$$(sed '/^\s*#/d;/^\s*$$/d' $(CADDY_INTERNAL_HOSTS_SRC)); \
 	for host in $$hosts; do \
-		if ! grep -qx "$$host" $(CADDY_INTERNAL_HOSTS_FILE); then \
-			echo "❌ $$host is internal but not restricted in Caddy"; \
-			echo "👉 Add it to config/caddy/internal-hosts.txt"; \
-			exit 1; \
-		fi; \
+	    if ! grep -qx "$$host" $(CADDY_INTERNAL_HOSTS_FILE); then \
+	        echo "❌ $$host is internal but not restricted in Caddy"; \
+	        echo "👉 Add it to config/caddy/internal-hosts.txt"; \
+	        exit 1; \
+	    fi; \
 	done
 	@echo "✅ All internal hosts are explicitly restricted in Caddy"
 
@@ -60,11 +60,11 @@ check-caddy-internal-hosts:
 
 assert-unbound-running:
 	@systemctl is-active --quiet unbound || \
-		( echo "❌ Unbound is not running"; exit 1 )
+	    ( echo "❌ Unbound is not running"; exit 1 )
 
 assert-dnsmasq-running:
 	@systemctl is-active --quiet dnsmasq || \
-		( echo "❌ dnsmasq is not running"; exit 1 )
+	    ( echo "❌ dnsmasq is not running"; exit 1 )
 
 .PHONY: dns-postflight check-unbound-internal-resolution
 
@@ -79,19 +79,19 @@ dns-postflight: \
 check-unbound-internal-resolution:
 	@echo "🧪 Verifying Unbound resolves internal hosts to private IPs"
 	@command -v dig >/dev/null || \
-		( echo "❌ dig not available"; exit 1 )
+	    ( echo "❌ dig not available"; exit 1 )
 	@test -f $(CADDY_INTERNAL_HOSTS_SRC) || \
-		( echo "❌ Missing $(CADDY_INTERNAL_HOSTS_SRC)"; exit 1 )
+	    ( echo "❌ Missing $(CADDY_INTERNAL_HOSTS_SRC)"; exit 1 )
 	@hosts=$$(sed '/^\s*#/d;/^\s*$$/d' $(CADDY_INTERNAL_HOSTS_SRC)); \
 	for host in $$hosts; do \
-		ip=$$(dig @127.0.0.1 $$host A +short +time=3 +tries=1 | sed '/^$$/d'); \
-		if [ -z "$$ip" ]; then \
-			echo "❌ $$host did not resolve via Unbound within 3s"; \
-			exit 1; \
-		fi; \
-		if ! echo "$$ip" | grep -Eq '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)'; then \
-			echo "❌ $$host resolved to non-private IP via Unbound: $$ip"; \
-			exit 1; \
-		fi; \
+	    ip=$$(dig @127.0.0.1 $$host A +short +time=3 +tries=1 | sed '/^$$/d'); \
+	    if [ -z "$$ip" ]; then \
+	        echo "❌ $$host did not resolve via Unbound within 3s"; \
+	        exit 1; \
+	    fi; \
+	    if ! echo "$$ip" | grep -Eq '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)'; then \
+	        echo "❌ $$host resolved to non-private IP via Unbound: $$ip"; \
+	        exit 1; \
+	    fi; \
 	done
 	@echo "✅ All internal hosts resolve to private IPs via Unbound"

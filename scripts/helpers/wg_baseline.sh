@@ -24,8 +24,8 @@ QR_DIR="${WG_DIR}/qr"
 LOGFILE="/var/log/wg_baseline.log"
 
 log() {
-	echo "$(date '+%Y-%m-%d %H:%M:%S') [wg_baseline] $*" | tee -a "${LOGFILE}"
-	logger -t wg_baseline "$*"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [wg_baseline] $*" | tee -a "${LOGFILE}"
+    logger -t wg_baseline "$*"
 }
 
 # --- Generate server keys ---
@@ -35,15 +35,15 @@ umask 077
 
 # Generate keys if missing; do not fail the whole script if keygen fails (log instead)
 if [ ! -f "${WG_DIR}/server_private.key" ] || [ ! -f "${WG_DIR}/server_public.key" ]; then
-	if ! wg genkey | tee "${WG_DIR}/server_private.key" | wg pubkey > "${WG_DIR}/server_public.key"; then
-		log "ERROR: Failed to generate server keys"
-	else
-		chmod 600 "${WG_DIR}/server_private.key" "${WG_DIR}/server_public.key" || true
-		log "Server keys generated and permissions set"
-	fi
+    if ! wg genkey | tee "${WG_DIR}/server_private.key" | wg pubkey > "${WG_DIR}/server_public.key"; then
+        log "ERROR: Failed to generate server keys"
+    else
+        chmod 600 "${WG_DIR}/server_private.key" "${WG_DIR}/server_public.key" || true
+        log "Server keys generated and permissions set"
+    fi
 else
-	log "Server keys already exist, skipping generation"
-	chmod 600 "${WG_DIR}/server_private.key" "${WG_DIR}/server_public.key" || true
+    log "Server keys already exist, skipping generation"
+    chmod 600 "${WG_DIR}/server_private.key" "${WG_DIR}/server_public.key" || true
 fi
 
 SERVER_PRIV=$(cat "${WG_DIR}/server_private.key")
@@ -64,14 +64,14 @@ chmod 600 "${WG_DIR}/${WG_IF}.conf" || true
 # --- Create client template ---
 CLIENT_NAME="${1:-}"
 if [ -z "${CLIENT_NAME}" ]; then
-	log "WARN: No client name provided, skipping client config"
+    log "WARN: No client name provided, skipping client config"
 else
-	log "Generating client config for ${CLIENT_NAME}..."
-	CLIENT_PRIV=$(wg genkey)
-	#CLIENT_PUB=$(echo "${CLIENT_PRIV}" | wg pubkey)
+    log "Generating client config for ${CLIENT_NAME}..."
+    CLIENT_PRIV=$(wg genkey)
+    #CLIENT_PUB=$(echo "${CLIENT_PRIV}" | wg pubkey)
 
-	# Write base client config (omit AllowedIPs here; append conditionally)
-	cat > "${WG_DIR}/${CLIENT_NAME}.conf" <<EOF
+    # Write base client config (omit AllowedIPs here; append conditionally)
+    cat > "${WG_DIR}/${CLIENT_NAME}.conf" <<EOF
 [Interface]
 PrivateKey = ${CLIENT_PRIV}
 Address = 10.4.0.2/32
@@ -83,28 +83,28 @@ Endpoint = ${SERVER_IP}:${PORT}
 PersistentKeepalive = 25
 EOF
 
-	# Only append AllowedIPs if VPN_SUBNET is set and non-empty
-	if [ -n "${VPN_SUBNET:-}" ]; then
-		printf "AllowedIPs = %s\n" "${VPN_SUBNET}" >> "${WG_DIR}/${CLIENT_NAME}.conf"
-	fi
+    # Only append AllowedIPs if VPN_SUBNET is set and non-empty
+    if [ -n "${VPN_SUBNET:-}" ]; then
+        printf "AllowedIPs = %s\n" "${VPN_SUBNET}" >> "${WG_DIR}/${CLIENT_NAME}.conf"
+    fi
 
-	# Secure the client config
-	chmod 600 "${WG_DIR}/${CLIENT_NAME}.conf" || true
+    # Secure the client config
+    chmod 600 "${WG_DIR}/${CLIENT_NAME}.conf" || true
 
-	# --- Generate QR code ---
-	mkdir -p "${QR_DIR}"
-	if command -v qrencode >/dev/null 2>&1; then
-		log "Generating QR code for ${CLIENT_NAME}..."
-		if ! qrencode -t ANSIUTF8 < "${WG_DIR}/${CLIENT_NAME}.conf" > "${QR_DIR}/${CLIENT_NAME}.qr"; then
-			log "ERROR: Failed to generate QR code for ${CLIENT_NAME}"
-		else
-			chmod 600 "${QR_DIR}/${CLIENT_NAME}.qr" || true
-		fi
-	else
-		log "WARN: qrencode not installed, skipping QR code generation"
-	fi
+    # --- Generate QR code ---
+    mkdir -p "${QR_DIR}"
+    if command -v qrencode >/dev/null 2>&1; then
+        log "Generating QR code for ${CLIENT_NAME}..."
+        if ! qrencode -t ANSIUTF8 < "${WG_DIR}/${CLIENT_NAME}.conf" > "${QR_DIR}/${CLIENT_NAME}.qr"; then
+            log "ERROR: Failed to generate QR code for ${CLIENT_NAME}"
+        else
+            chmod 600 "${QR_DIR}/${CLIENT_NAME}.qr" || true
+        fi
+    else
+        log "WARN: qrencode not installed, skipping QR code generation"
+    fi
 
-	log "Client config written → ${WG_DIR}/${CLIENT_NAME}.conf"
+    log "Client config written -> ${WG_DIR}/${CLIENT_NAME}.conf"
 fi
 
 log "WireGuard baseline setup complete."

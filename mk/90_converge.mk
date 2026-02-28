@@ -7,10 +7,10 @@
 # - Intended for steady-state convergence, not first-time setup
 
 .NOTPARALLEL: dns enable-unbound deploy-unbound-config deploy-unbound-local-internal \
-			  deploy-unbound-service deploy-unbound-control-config \
-			  dns-runtime \
-			  runtime-snapshot-before runtime-snapshot-after runtime-diff \
-			  wg-converge-runtime
+	          deploy-unbound-service deploy-unbound-control-config \
+	          dns-runtime \
+	          runtime-snapshot-before runtime-snapshot-after runtime-diff \
+	          wg-converge-runtime
 
 .PHONY: \
 	converge-network converge-audit \
@@ -35,14 +35,14 @@ RUNTIME_DIFF_FILE   := /tmp/homelab-net.diff
 # ------------------------------------------------------------
 
 converge-network: check-forwarding \
-				  install-homelab-sysctl \
-				  nft-verify \
-				  dns \
-				  wg-stack
+	              install-homelab-sysctl \
+	              nft-verify \
+	              dns \
+	              wg-stack
 	@echo "✅ Network convergence complete"
 
 converge-audit:
-	@echo "🔍 Convergence plan (dry‑run)"
+	@echo "🔍 Convergence plan (dry-run)"
 	@echo "   (audit disabled: sub-make is forbidden)"
 	@echo "   Use: make -n converge-network | sed -n '1,200p'"
 
@@ -56,8 +56,8 @@ wg-converge-server: wg-deployed
 
 wg-converge-clients: regen-clients $(WG_CLIENTS_DRIFT)
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) $(WG_CLIENTS_DRIFT) && \
-		echo "♻️  Client configs already converged" || \
-		echo "🔧 Client configs regenerated"
+	    echo "♻️  Client configs already converged" || \
+	    echo "🔧 Client configs regenerated"
 
 # wg-converge-runtime:
 # - Detects live kernel drift
@@ -95,14 +95,14 @@ runtime-diff:
 	@diff -u "$(RUNTIME_SNAP_BEFORE)/route.v6" "$(RUNTIME_SNAP_AFTER)/route.v6" >/dev/null || echo "ROUTE6_CHANGED=1" >>"$(RUNTIME_DIFF_FILE)"
 
 	@if [ -f "$(RUNTIME_DIFF_FILE)" ]; then \
-		echo "⚠️  Runtime network state requires reconciliation"; \
-		sed 's/^/   - /' "$(RUNTIME_DIFF_FILE)"; \
-		if [ "$(FORCE)" != "1" ]; then \
-			echo ""; \
-			echo "👉 Re-run with:"; \
-			echo "   sudo FORCE=1 make all"; \
-			exit 1; \
-		fi; \
+	    echo "� ️  Runtime network state requires reconciliation"; \
+	    sed 's/^/   - /' "$(RUNTIME_DIFF_FILE)"; \
+	    if [ "$(FORCE)" != "1" ]; then \
+	        echo ""; \
+	        echo "👉 Re-run with:"; \
+	        echo "   sudo FORCE=1 make all"; \
+	        exit 1; \
+	    fi; \
 	fi
 	@echo "♻️  Runtime network state already converged"
 
@@ -117,9 +117,9 @@ wg-clients-diff:
 # ------------------------------------------------------------
 check-forwarding:
 	@$(run_as_root) sysctl -n net.ipv4.ip_forward | grep -q '^1$$' || \
-		{ echo "❌ IPv4 forwarding disabled"; exit 1; }
+	    { echo "❌ IPv4 forwarding disabled"; exit 1; }
 	@$(run_as_root) sysctl -n net.ipv6.conf.all.forwarding | grep -q '^1$$' || \
-		{ echo "❌ IPv6 forwarding disabled"; exit 1; }
+	    { echo "❌ IPv6 forwarding disabled"; exit 1; }
 	@echo "♻️ Kernel forwarding already enabled"
 
 network-status:
@@ -141,32 +141,32 @@ nft-verify: check-forwarding
 	@echo "🔍 Verifying nftables applied state"
 
 	@if [ ! -f "$(HOMELAB_NFT_RULESET)" ]; then \
-		echo "❌ nftables ruleset not present on disk"; \
-		echo "   converge-network only verifies firewall state"; \
-		echo "   firewall has never been applied on this host"; \
-		echo ""; \
-		echo "👉 First-time setup required:"; \
-		echo "   sudo make nft-apply && sudo make nft-confirm"; \
-		exit 1; \
+	    echo "❌ nftables ruleset not present on disk"; \
+	    echo "   converge-network only verifies firewall state"; \
+	    echo "   firewall has never been applied on this host"; \
+	    echo ""; \
+	    echo "👉 First-time setup required:"; \
+	    echo "   sudo make nft-apply && sudo make nft-confirm"; \
+	    exit 1; \
 	fi
 	@if [ ! -f "$(HOMELAB_NFT_HASH_FILE)" ]; then \
-		echo "❌ No recorded applied hash found: $(HOMELAB_NFT_HASH_FILE)"; \
-		echo "👉 Firewall was never applied intentionally"; \
-		echo "👉 Run: make nft-apply && make nft-confirm"; \
-		exit 1; \
+	    echo "❌ No recorded applied hash found: $(HOMELAB_NFT_HASH_FILE)"; \
+	    echo "👉 Firewall was never applied intentionally"; \
+	    echo "👉 Run: make nft-apply && make nft-confirm"; \
+	    exit 1; \
 	fi
 	@if [ ! -s "$(HOMELAB_NFT_HASH_FILE)" ]; then \
-		echo "❌ Recorded nftables hash is empty"; \
-		echo "👉 Run: make nft-apply && make nft-confirm"; \
-		exit 1; \
+	    echo "❌ Recorded nftables hash is empty"; \
+	    echo "👉 Run: make nft-apply && make nft-confirm"; \
+	    exit 1; \
 	fi
 	@current=$$($(run_as_root) sha256sum "$(HOMELAB_NFT_RULESET)" | awk '{print $$1}'); \
 	recorded=$$($(run_as_root) cat "$(HOMELAB_NFT_HASH_FILE)"); \
 	if [ "$$current" != "$$recorded" ]; then \
-		echo "❌ nftables drift detected (homelab.nft changed since last apply)"; \
-		echo "   Recorded: $$recorded"; \
-		echo "   Current:  $$current"; \
-		echo "👉 Review and run: make nft-apply && make nft-confirm"; \
-		exit 1; \
+	    echo "❌ nftables drift detected (homelab.nft changed since last apply)"; \
+	    echo "   Recorded: $$recorded"; \
+	    echo "   Current:  $$current"; \
+	    echo "👉 Review and run: make nft-apply && make nft-confirm"; \
+	    exit 1; \
 	fi
 	@echo "♻️  nftables ruleset matches recorded applied state"

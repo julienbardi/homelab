@@ -13,8 +13,8 @@ set -eu
 source /usr/local/bin/common.sh
 
 [ "${CALLED_BY_ROUTER_SYNC_SCRIPTS:-}" = "1" ] || {
-	echo "❌ router-install-ca.sh must be executed via router-sync-scripts.sh"
-	exit 1
+    echo "❌ router-install-ca.sh must be executed via router-sync-scripts.sh"
+    exit 1
 }
 
 CA_SRC="/var/lib/ssl/canonical/ca.cer"
@@ -31,11 +31,11 @@ log "🔐 Publishing homelab CA to router"
 require_file "$CA_SRC"
 
 atomic_install \
-	"$CA_SRC" \
-	"$CA_DST" \
-	"root:root" \
-	"0644" \
-	"$ROUTER_HOST" \
-	"$ROUTER_SSH_PORT"
+    "$CA_SRC" \
+    "$CA_DST" \
+    "root:root" \
+    "0644" \
+    "$ROUTER_HOST" \
+    "$ROUTER_SSH_PORT"
 
 echo "✅ CA installed on router"
