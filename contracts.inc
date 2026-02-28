@@ -534,34 +534,37 @@ Rationale:
 CONTRACT: Enforcement coverage declaration
 -------------------------------------------------------------------------------
 
-All contracts MUST declare their enforcement status.
+All contracts MUST have a known enforcement status.
 
 Rules:
 
-  - Every CONTRACT block MUST be classified as one of:
+  - Every CONTRACT block is classified as one of:
       - enforced
       - enforceable but not yet enforced
 
-  - The enforcement status MUST be declared explicitly within the contract
-    body using a dedicated section labeled:
-        Enforcement status:
+  - The global default status for all contracts is:
+        enforceable but not yet enforced
+
+  - A contract MAY omit the explicit status declaration if it matches the
+    global default.
+
+  - A contract MUST declare its status explicitly using a dedicated section
+    labeled "Enforcement status:" if its status differs from the global
+    default (e.g., if it is 'enforced').
 
   - A contract declared as enforced MUST have at least one corresponding
     script, Make target, or validation mechanism that checks it.
 
-  - A contract declared as enforceable but not yet enforced MUST:
+  - A contract declared or defaulted as enforceable but not yet enforced MUST:
       - be mechanically checkable in principle
       - NOT be treated as optional or advisory
       - be enforced before any release that claims full compliance
 
-  - Absence of an enforcement status declaration
-    constitutes a contract violation.
-
 Rationale:
 
-  - Makes enforcement gaps explicit and reviewable.
-  - Prevents silent assumptions about coverage.
-  - Preserves contract authority even before full automation exists.
+  - Reduces document verbosity by assuming the "not yet enforced" baseline.
+  - Highlights contracts that have achieved full mechanical enforcement.
+  - Preserves contract authority without requiring repetitive metadata.
 -------------------------------------------------------------------------------
 
 
