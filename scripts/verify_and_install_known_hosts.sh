@@ -19,10 +19,10 @@ set -euo pipefail
 DRY_RUN=0
 while [ $# -gt 0 ]; do
   case "$1" in
-	--dry-run) DRY_RUN=1; shift ;;
-	--) shift; break ;;
-	-*) echo "Unknown option: $1" >&2; exit 2 ;;
-	*) break ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --) shift; break ;;
+    -*) echo "Unknown option: $1" >&2; exit 2 ;;
+    *) break ;;
   esac
 done
 
@@ -87,9 +87,9 @@ trap cleanup EXIT INT TERM
 if command -v flock >/dev/null 2>&1; then
   exec 9>"$LOCKFILE"
   if ! flock -n 9 2>/dev/null; then
-	echo "Another verify_known_hosts run is active; exiting." >&2
-	logger -t verify_known_hosts "Another run active; exiting"
-	exit 1
+    echo "Another verify_known_hosts run is active; exiting." >&2
+    logger -t verify_known_hosts "Another run active; exiting"
+    exit 1
   fi
 else
   logger -t verify_known_hosts "flock not available; proceeding without exclusive lock"
@@ -104,9 +104,9 @@ fi
 # If we will update root, require non-interactive sudo (unless dry-run)
 if command -v sudo >/dev/null 2>&1 && [ "$DRY_RUN" -eq 0 ]; then
   if ! sudo -n true 2>/dev/null; then
-	echo "Error: non-interactive sudo required to update /root/.ssh/known_hosts but sudo -n failed. Aborting." >&2
-	logger -t verify_known_hosts "non-interactive sudo required but sudo -n failed"
-	exit 3
+    echo "Error: non-interactive sudo required to update /root/.ssh/known_hosts but sudo -n failed. Aborting." >&2
+    logger -t verify_known_hosts "non-interactive sudo required but sudo -n failed"
+    exit 3
   fi
 fi
 
@@ -122,10 +122,10 @@ fi
 canonicalize_file() {
   local infile="$1" outfile="$2"
   awk '{
-	gsub(/\r$/,"");
-	sub(/^[ \t]+/,"");
-	sub(/[ \t]+$/,"");
-	if (length($0)>0) print $0
+    gsub(/\r$/,"");
+    sub(/^[ \t]+/,"");
+    sub(/[ \t]+$/,"");
+    if (length($0)>0) print $0
   }' "$infile" | sort -u > "$outfile"
   chmod 600 "$outfile" || true
 }
@@ -134,28 +134,28 @@ canonicalize_file() {
 safe_append() {
   local line="$1" target="$2"
   if [ "$DRY_RUN" -eq 1 ]; then
-	printf "DRY-RUN: would append to %s: %s\n" "$target" "$line"
+    printf "DRY-RUN: would append to %s: %s\n" "$target" "$line"
   else
-	printf "%s\n" "$line" >> "$target"
-	chmod 600 "$target"
+    printf "%s\n" "$line" >> "$target"
+    chmod 600 "$target"
   fi
 }
 
 normalize_host_token() {
   local host="$1" port="$2"
   if [ -n "$port" ] && [ "$port" != "22" ]; then
-	printf "[%s]:%s" "$host" "$port"
+    printf "[%s]:%s" "$host" "$port"
   else
-	printf "%s" "$host"
+    printf "%s" "$host"
   fi
 }
 
 fetch_raw_keys() {
   local host="$1" port="$2"
   if [ -n "$port" ] && [ "$port" != "22" ]; then
-	ssh-keyscan -p "$port" -T "$HOSTSCAN_TIMEOUT" "$host" 2>/dev/null || true
+    ssh-keyscan -p "$port" -T "$HOSTSCAN_TIMEOUT" "$host" 2>/dev/null || true
   else
-	ssh-keyscan -T "$HOSTSCAN_TIMEOUT" "$host" 2>/dev/null || true
+    ssh-keyscan -T "$HOSTSCAN_TIMEOUT" "$host" 2>/dev/null || true
   fi
 }
 
@@ -165,10 +165,10 @@ keyblob_exists_for_token_in_file() {
   local blob="$1" hosttok="$2" file="$3"
   [ -f "$file" ] || return 1
   awk -v h="$hosttok" -v b="$blob" 'BEGIN{FS=" "}{
-	n = split($1, a, ",");
-	for(i=1;i<=n;i++){
-	  if(a[i]==h && index($0,b)) { exit 0 }
-	}
+    n = split($1, a, ",");
+    for(i=1;i<=n;i++){
+      if(a[i]==h && index($0,b)) { exit 0 }
+    }
   }
   END { exit 1 }' "$file" 2>/dev/null
 }
@@ -180,12 +180,12 @@ remove_hosttok_from_temp() {
   local tmpf2
   tmpf2="$(mktemp "${tmpfile}.tmp.XXXXXX")"
   awk -v h="$hosttok" 'BEGIN{FS=" "}{
-	n = split($1, a, ",");
-	keep = 1;
-	for(i=1;i<=n;i++){
-	  if(a[i]==h){ keep=0; break }
-	}
-	if(keep) print $0
+    n = split($1, a, ",");
+    keep = 1;
+    for(i=1;i<=n;i++){
+      if(a[i]==h){ keep=0; break }
+    }
+    if(keep) print $0
   }' "$tmpfile" > "$tmpf2"
   mv -f "$tmpf2" "$tmpfile"
 }
@@ -197,7 +197,7 @@ print_keylines_for_host() {
   echo
   echo "🔐 Keys for ${host_display}:"
   for l in "${lines[@]}"; do
-	echo "  $l"
+    echo "  $l"
   done
   echo
 }
@@ -217,13 +217,13 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   [ -z "$port" ] && port="22"
 
   if [ -n "$alias_name" ] && [ "$alias_name" != "-" ]; then
-	display_name="$alias_name"
+    display_name="$alias_name"
   elif [ -n "$public_name" ] && [ "$public_name" != "-" ]; then
-	display_name="$public_name"
+    display_name="$public_name"
   elif [ -n "$internal_ip" ] && [ "$internal_ip" != "-" ]; then
-	display_name="$internal_ip"
+    display_name="$internal_ip"
   else
-	display_name="<no-name>"
+    display_name="<no-name>"
   fi
 
   echo
@@ -239,10 +239,10 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   declare -A seen=()
   uniq_tokens=()
   for t in "${tokens[@]}"; do
-	if [ -z "${seen[$t]:-}" ]; then
-	  uniq_tokens+=("$t")
-	  seen[$t]=1
-	fi
+    if [ -z "${seen[$t]:-}" ]; then
+      uniq_tokens+=("$t")
+      seen[$t]=1
+    fi
   done
 
   # Reset per-host state
@@ -252,116 +252,116 @@ while IFS= read -r raw || [ -n "$raw" ]; do
 
   # Scan tokens for this host only
   for token in "${uniq_tokens[@]}"; do
-	echo
-	echo "⤴ Scanning $token:$port ..."
-	raw_keys="$(fetch_raw_keys "$token" "$port")"
-	if [ -z "$raw_keys" ]; then
-	  echo "⚠️  Could not fetch keys for $token:$port"
-	  logger -t verify_known_hosts "Could not fetch keys for $token:$port"
-	  continue
-	fi
+    echo
+    echo "⤴ Scanning $token:$port ..."
+    raw_keys="$(fetch_raw_keys "$token" "$port")"
+    if [ -z "$raw_keys" ]; then
+      echo "� ️  Could not fetch keys for $token:$port"
+      logger -t verify_known_hosts "Could not fetch keys for $token:$port"
+      continue
+    fi
 
-	# show fingerprints (best-effort)
-	printf "%s\n" "$raw_keys" | ssh-keygen -lf - 2>/dev/null || true
+    # show fingerprints (best-effort)
+    printf "%s\n" "$raw_keys" | ssh-keygen -lf - 2>/dev/null || true
 
-	hosttok_norm="$(normalize_host_token "$token" "$port")"
-	TOKEN_FPS["$hosttok_norm"]="$(printf "%s\n" "$raw_keys" | ssh-keygen -lf - 2>/dev/null || true)"
+    hosttok_norm="$(normalize_host_token "$token" "$port")"
+    TOKEN_FPS["$hosttok_norm"]="$(printf "%s\n" "$raw_keys" | ssh-keygen -lf - 2>/dev/null || true)"
 
-	while IFS= read -r kline; do
-	  [ -z "$kline" ] && continue
-	  case "$kline" in \#*) continue ;; esac
-	  normalized="$(printf "%s\n" "$kline" | sed -E "s/^[^ ]+/${hosttok_norm}/")"
-	  ALL_KEYLINES+=("$normalized")
-	  keyblob="$(printf "%s\n" "$kline" | awk '{print $3}')"
-	  if [ -n "$keyblob" ]; then
-		prev="${TOKEN_KEYBLOBS[$hosttok_norm]:-}"
-		if [ -z "$prev" ]; then
-		  TOKEN_KEYBLOBS[$hosttok_norm]="$keyblob"
-		else
-		  TOKEN_KEYBLOBS[$hosttok_norm]="$prev $keyblob"
-		fi
-	  fi
-	done <<< "$raw_keys"
+    while IFS= read -r kline; do
+      [ -z "$kline" ] && continue
+      case "$kline" in \#*) continue ;; esac
+      normalized="$(printf "%s\n" "$kline" | sed -E "s/^[^ ]+/${hosttok_norm}/")"
+      ALL_KEYLINES+=("$normalized")
+      keyblob="$(printf "%s\n" "$kline" | awk '{print $3}')"
+      if [ -n "$keyblob" ]; then
+        prev="${TOKEN_KEYBLOBS[$hosttok_norm]:-}"
+        if [ -z "$prev" ]; then
+          TOKEN_KEYBLOBS[$hosttok_norm]="$keyblob"
+        else
+          TOKEN_KEYBLOBS[$hosttok_norm]="$prev $keyblob"
+        fi
+      fi
+    done <<< "$raw_keys"
   done
 
   if [ "${#ALL_KEYLINES[@]}" -eq 0 ]; then
-	echo "⚠️  No keys collected, skipping."
-	overall_fail=1
-	logger -t verify_known_hosts "No keys collected for ${display_name}; skipping"
-	continue
+    echo "� ️  No keys collected, skipping."
+    overall_fail=1
+    logger -t verify_known_hosts "No keys collected for ${display_name}; skipping"
+    continue
   fi
 
   # Determine whether keys are already present for each token (token-specific)
   all_present=true
   declare -A MISSING_KEYLINES_BY_TOKEN=()
   for hosttok in "${!TOKEN_KEYBLOBS[@]}"; do
-	missing_blobs=()
-	for blob in ${TOKEN_KEYBLOBS[$hosttok]}; do
-	  if keyblob_exists_for_token_in_file "$blob" "$hosttok" "$KNOWN_HOSTS" || keyblob_exists_for_token_in_file "$blob" "$hosttok" "/root/.ssh/known_hosts"; then
-		:
-	  else
-		missing_blobs+=("$blob")
-	  fi
-	done
-	if [ "${#missing_blobs[@]}" -ne 0 ]; then
-	  all_present=false
-	  for kline in "${ALL_KEYLINES[@]}"; do
-		blob="$(printf "%s\n" "$kline" | awk '{print $3}')"
-		if [ -n "$blob" ]; then
-		  for mb in "${missing_blobs[@]}"; do
-			if [ "$blob" = "$mb" ] && printf "%s\n" "$kline" | grep -q "^${hosttok} "; then
-			  MISSING_KEYLINES_BY_TOKEN["$hosttok"]+="$kline"$'\n'
-			fi
-		  done
-		fi
-	  done
-	fi
+    missing_blobs=()
+    for blob in ${TOKEN_KEYBLOBS[$hosttok]}; do
+      if keyblob_exists_for_token_in_file "$blob" "$hosttok" "$KNOWN_HOSTS" || keyblob_exists_for_token_in_file "$blob" "$hosttok" "/root/.ssh/known_hosts"; then
+        :
+      else
+        missing_blobs+=("$blob")
+      fi
+    done
+    if [ "${#missing_blobs[@]}" -ne 0 ]; then
+      all_present=false
+      for kline in "${ALL_KEYLINES[@]}"; do
+        blob="$(printf "%s\n" "$kline" | awk '{print $3}')"
+        if [ -n "$blob" ]; then
+          for mb in "${missing_blobs[@]}"; do
+            if [ "$blob" = "$mb" ] && printf "%s\n" "$kline" | grep -q "^${hosttok} "; then
+              MISSING_KEYLINES_BY_TOKEN["$hosttok"]+="$kline"$'\n'
+            fi
+          done
+        fi
+      done
+    fi
   done
 
   if [ "$all_present" = true ]; then
-	echo "✅ All keys present for ${display_name}"
-	continue
+    echo "✅ All keys present for ${display_name}"
+    continue
   fi
 
   # Build unique missing keylines list (for display / root append)
   MISSING_KEYLINES=()
   declare -A _seen_k=()
   for hosttok in "${!MISSING_KEYLINES_BY_TOKEN[@]}"; do
-	while IFS= read -r ml || [ -n "$ml" ]; do
-	  [ -z "$ml" ] && continue
-	  if [ -z "${_seen_k[$ml]:-}" ]; then
-		MISSING_KEYLINES+=("$ml")
-		_seen_k[$ml]=1
-	  fi
-	done <<< "${MISSING_KEYLINES_BY_TOKEN[$hosttok]}"
+    while IFS= read -r ml || [ -n "$ml" ]; do
+      [ -z "$ml" ] && continue
+      if [ -z "${_seen_k[$ml]:-}" ]; then
+        MISSING_KEYLINES+=("$ml")
+        _seen_k[$ml]=1
+      fi
+    done <<< "${MISSING_KEYLINES_BY_TOKEN[$hosttok]}"
   done
 
   # Prefer ed25519 first in missing list and in all lines
   if [ "${#MISSING_KEYLINES[@]}" -gt 0 ]; then
-	ed_first=(); others=()
-	for ml in "${MISSING_KEYLINES[@]}"; do
-	  if printf "%s\n" "$ml" | grep -q "ssh-ed25519"; then ed_first+=("$ml"); else others+=("$ml"); fi
-	done
-	MISSING_KEYLINES=("${ed_first[@]}" "${others[@]}")
+    ed_first=(); others=()
+    for ml in "${MISSING_KEYLINES[@]}"; do
+      if printf "%s\n" "$ml" | grep -q "ssh-ed25519"; then ed_first+=("$ml"); else others+=("$ml"); fi
+    done
+    MISSING_KEYLINES=("${ed_first[@]}" "${others[@]}")
   fi
   if [ "${#ALL_KEYLINES[@]}" -gt 0 ]; then
-	ed_first_all=(); others_all=()
-	for ml in "${ALL_KEYLINES[@]}"; do
-	  if printf "%s\n" "$ml" | grep -q "ssh-ed25519"; then ed_first_all+=("$ml"); else others_all+=("$ml"); fi
-	done
-	ALL_KEYLINES=("${ed_first_all[@]}" "${others_all[@]}")
+    ed_first_all=(); others_all=()
+    for ml in "${ALL_KEYLINES[@]}"; do
+      if printf "%s\n" "$ml" | grep -q "ssh-ed25519"; then ed_first_all+=("$ml"); else others_all+=("$ml"); fi
+    done
+    ALL_KEYLINES=("${ed_first_all[@]}" "${others_all[@]}")
   fi
 
   echo
   echo "🔁 Replacing entries for ${display_name} (atomic)"
 
   if [ "$DRY_RUN" -eq 1 ]; then
-	echo "DRY-RUN: would remove existing entries for host tokens: $(printf '%s ' "${!TOKEN_FPS[@]}")"
-	echo "DRY-RUN: would append scanned keys for ${display_name}"
-	[ "${#MISSING_KEYLINES[@]}" -gt 0 ] && print_keylines_for_host "$display_name (would add)" "${MISSING_KEYLINES[@]}"
-	logger -t verify_known_hosts "DRY-RUN replace for ${display_name}"
-	CHANGED_SUMMARY+=("${display_name}:would-change")
-	continue
+    echo "DRY-RUN: would remove existing entries for host tokens: $(printf '%s ' "${!TOKEN_FPS[@]}")"
+    echo "DRY-RUN: would append scanned keys for ${display_name}"
+    [ "${#MISSING_KEYLINES[@]}" -gt 0 ] && print_keylines_for_host "$display_name (would add)" "${MISSING_KEYLINES[@]}"
+    logger -t verify_known_hosts "DRY-RUN replace for ${display_name}"
+    CHANGED_SUMMARY+=("${display_name}:would-change")
+    continue
   fi
 
   # Build candidate user known_hosts: remove only tokens for this host, then append this host's scanned keys
@@ -369,10 +369,10 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   cp -p "$KNOWN_HOSTS" "$tmp_known"
   chmod 600 "$tmp_known"
   for hosttok in "${!TOKEN_FPS[@]}"; do
-	remove_hosttok_from_temp "$hosttok" "$tmp_known"
+    remove_hosttok_from_temp "$hosttok" "$tmp_known"
   done
   for k in "${ALL_KEYLINES[@]}"; do
-	printf "%s\n" "$k" >> "$tmp_known"
+    printf "%s\n" "$k" >> "$tmp_known"
   done
   chmod 600 "$tmp_known"
 
@@ -383,84 +383,84 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   canonicalize_file "$KNOWN_HOSTS" "$known_canon"
 
   if cmp -s "$known_canon" "$tmp_known_canon"; then
-	echo "ℹ️  No changes required for $KNOWN_HOSTS"
-	logger -t verify_known_hosts "No changes required for $KNOWN_HOSTS (skipping replace for ${display_name})"
-	rm -f "$tmp_known" "$tmp_known_canon" "$known_canon"
-	tmp_known=""; tmp_known_canon=""
+    echo "ℹ️  No changes required for $KNOWN_HOSTS"
+    logger -t verify_known_hosts "No changes required for $KNOWN_HOSTS (skipping replace for ${display_name})"
+    rm -f "$tmp_known" "$tmp_known_canon" "$known_canon"
+    tmp_known=""; tmp_known_canon=""
   else
-	# Before overwriting, create a backup of the existing known_hosts (only when we will change it)
-	bak="$(mktemp "${HOME}/.ssh/known_hosts.bak.XXXXXX")"
-	cp -p "$KNOWN_HOSTS" "$bak"
-	chmod 600 "$bak"
-	mv -f "$bak" "${HOME}/.ssh/known_hosts.bak.$BACKUP_SUFFIX"
-	logger -t verify_known_hosts "Backup created: ${HOME}/.ssh/known_hosts.bak.$BACKUP_SUFFIX"
-	# rotate backups: keep last 5
-	( cd "$HOME/.ssh" && \
-		find . -maxdepth 1 -type f -name 'known_hosts.bak.*' -printf '%T@ %p\n' 2>/dev/null \
-		| sort -nr \
-		| awk 'NR>5 { sub(/^[^ ]+ /, ""); print }' \
-		| xargs -r --no-run-if-empty rm -- ) || true
+    # Before overwriting, create a backup of the existing known_hosts (only when we will change it)
+    bak="$(mktemp "${HOME}/.ssh/known_hosts.bak.XXXXXX")"
+    cp -p "$KNOWN_HOSTS" "$bak"
+    chmod 600 "$bak"
+    mv -f "$bak" "${HOME}/.ssh/known_hosts.bak.$BACKUP_SUFFIX"
+    logger -t verify_known_hosts "Backup created: ${HOME}/.ssh/known_hosts.bak.$BACKUP_SUFFIX"
+    # rotate backups: keep last 5
+    ( cd "$HOME/.ssh" && \
+        find . -maxdepth 1 -type f -name 'known_hosts.bak.*' -printf '%T@ %p\n' 2>/dev/null \
+        | sort -nr \
+        | awk 'NR>5 { sub(/^[^ ]+ /, ""); print }' \
+        | xargs -r --no-run-if-empty rm -- ) || true
 
-	# Determine which keylines are new for user file
-	new_user_keylines=()
-	for k in "${ALL_KEYLINES[@]}"; do
-	  blob="$(printf "%s\n" "$k" | awk '{print $3}')"
-	  if ! grep -Fq "$blob" "$known_canon" 2>/dev/null; then
-		new_user_keylines+=("$k")
-	  fi
-	done
+    # Determine which keylines are new for user file
+    new_user_keylines=()
+    for k in "${ALL_KEYLINES[@]}"; do
+      blob="$(printf "%s\n" "$k" | awk '{print $3}')"
+      if ! grep -Fq "$blob" "$known_canon" 2>/dev/null; then
+        new_user_keylines+=("$k")
+      fi
+    done
 
-	mv -f "$tmp_known" "$KNOWN_HOSTS"
-	rm -f "$tmp_known_canon" "$known_canon"
-	tmp_known=""; tmp_known_canon=""
-	echo "✅ Replaced entries in $KNOWN_HOSTS for tokens: $(printf '%s ' "${!TOKEN_FPS[@]}")"
-	logger -t verify_known_hosts "Replaced entries in $KNOWN_HOSTS for ${display_name}"
+    mv -f "$tmp_known" "$KNOWN_HOSTS"
+    rm -f "$tmp_known_canon" "$known_canon"
+    tmp_known=""; tmp_known_canon=""
+    echo "✅ Replaced entries in $KNOWN_HOSTS for tokens: $(printf '%s ' "${!TOKEN_FPS[@]}")"
+    logger -t verify_known_hosts "Replaced entries in $KNOWN_HOSTS for ${display_name}"
 
-	if [ "${#new_user_keylines[@]}" -gt 0 ]; then
-	  print_keylines_for_host "$display_name (new user keys)" "${new_user_keylines[@]}"
-	else
-	  print_keylines_for_host "$display_name (scanned keys)" "${ALL_KEYLINES[@]}"
-	fi
+    if [ "${#new_user_keylines[@]}" -gt 0 ]; then
+      print_keylines_for_host "$display_name (new user keys)" "${new_user_keylines[@]}"
+    else
+      print_keylines_for_host "$display_name (scanned keys)" "${ALL_KEYLINES[@]}"
+    fi
 
-	CHANGED_SUMMARY+=("${display_name}:user")
+    CHANGED_SUMMARY+=("${display_name}:user")
   fi
 
   # Root update: perform entire root-side work inside a single sudo shell block.
   if command -v sudo >/dev/null 2>&1; then
-	if [ "$DRY_RUN" -eq 1 ]; then
-	  echo "DRY-RUN: would update /root/.ssh/known_hosts (requires sudo)"
-	  [ "${#MISSING_KEYLINES[@]}" -gt 0 ] && print_keylines_for_host "$display_name (would add to root)" "${MISSING_KEYLINES[@]}"
-	else
-	  sudo mkdir -p /root/.ssh
-	  sudo touch /root/.ssh/known_hosts
-	  sudo chmod 600 /root/.ssh/known_hosts
+    if [ "$DRY_RUN" -eq 1 ]; then
+      echo "DRY-RUN: would update /root/.ssh/known_hosts (requires sudo)"
+      [ "${#MISSING_KEYLINES[@]}" -gt 0 ] && print_keylines_for_host "$display_name (would add to root)" "${MISSING_KEYLINES[@]}"
+    else
+      sudo mkdir -p /root/.ssh
+      sudo touch /root/.ssh/known_hosts
+      sudo chmod 600 /root/.ssh/known_hosts
 
-	  # Write ALL_KEYLINES to a user-owned temp file so we can hand it to the root block.
-	  user_all_tmp="$(mktemp "${HOME}/known_hosts.all.XXXXXX")"
-	  for k in "${ALL_KEYLINES[@]}"; do
-		printf "%s\n" "$k" >> "$user_all_tmp"
-	  done
-	  chmod 600 "$user_all_tmp"
+      # Write ALL_KEYLINES to a user-owned temp file so we can hand it to the root block.
+      user_all_tmp="$(mktemp "${HOME}/known_hosts.all.XXXXXX")"
+      for k in "${ALL_KEYLINES[@]}"; do
+        printf "%s\n" "$k" >> "$user_all_tmp"
+      done
+      chmod 600 "$user_all_tmp"
 
-	  # Build an array of host tokens to pass as args to the sudo block
-	  tokens_args=()
-	  for t in "${!TOKEN_FPS[@]}"; do
-		tokens_args+=("$t")
-	  done
+      # Build an array of host tokens to pass as args to the sudo block
+      tokens_args=()
+      for t in "${!TOKEN_FPS[@]}"; do
+        tokens_args+=("$t")
+      done
 
-	  # Create a user-owned canonical of current root known_hosts for later comparison
-	  tmp_local_root_copy="$(mktemp "${HOME}/known_hosts.root.copy.XXXXXX")"
-	  sudo cat /root/.ssh/known_hosts | tee "$tmp_local_root_copy" >/dev/null
-	  chmod 600 "$tmp_local_root_copy"
-	  tmp_local_root_canon="$(mktemp "${HOME}/known_hosts.root.canon.cur.XXXXXX")"
-	  canonicalize_file "$tmp_local_root_copy" "$tmp_local_root_canon"
+      # Create a user-owned canonical of current root known_hosts for later comparison
+      tmp_local_root_copy="$(mktemp "${HOME}/known_hosts.root.copy.XXXXXX")"
+      sudo cat /root/.ssh/known_hosts | tee "$tmp_local_root_copy" >/dev/null
+      chmod 600 "$tmp_local_root_copy"
+      tmp_local_root_canon="$(mktemp "${HOME}/known_hosts.root.canon.cur.XXXXXX")"
+      canonicalize_file "$tmp_local_root_copy" "$tmp_local_root_canon"
 
-	  # Run a single sudo shell that:
-	  #  - creates a root-owned tmp copy of /root/.ssh/known_hosts
-	  #  - removes only the tokens passed as args
-	  #  - appends the scanned keys from the user-owned temp file (read inside root)
-	  #  - moves the tmp into place
-	  sudo sh -s "$user_all_tmp" "${tokens_args[@]}" <<'ROOTSCRIPT'
+      # Run a single sudo shell that:
+      #  - creates a root-owned tmp copy of /root/.ssh/known_hosts
+      #  - removes only the tokens passed as args
+      #  - appends the scanned keys from the user-owned temp file (read inside root)
+      #  - moves the tmp into place
+      sudo sh -s "$user_all_tmp" "${tokens_args[@]}" <<'ROOTSCRIPT'
 set -euo pipefail
 user_all_tmp="$1"
 shift
@@ -473,10 +473,10 @@ chmod 600 "$tmp_root"
 for hosttok in "${tokens[@]}"; do
   tmp2="$(mktemp -p /tmp known_hosts.root.tmp2.XXXXXX)"
   awk -v h="$hosttok" 'BEGIN{FS=" "}{
-	n = split($1, a, ",");
-	keep = 1;
-	for(i=1;i<=n;i++){ if(a[i]==h){ keep=0; break } }
-	if(keep) print $0
+    n = split($1, a, ",");
+    keep = 1;
+    for(i=1;i<=n;i++){ if(a[i]==h){ keep=0; break } }
+    if(keep) print $0
   }' "$tmp_root" > "$tmp2"
   mv -f "$tmp2" "$tmp_root"
   chmod 600 "$tmp_root"
@@ -491,65 +491,65 @@ mv -f "$tmp_root" /root/.ssh/known_hosts
 chmod 600 /root/.ssh/known_hosts
 ROOTSCRIPT
 
-	  # Remove the user-owned temp now that root has consumed it
-	  rm -f "$user_all_tmp"
-	  user_all_tmp=""
+      # Remove the user-owned temp now that root has consumed it
+      rm -f "$user_all_tmp"
+      user_all_tmp=""
 
-	  # Create a user-owned copy of the newly-installed root known_hosts for canonical comparison
-	  tmp_local_root_copy_new="$(mktemp "${HOME}/known_hosts.root.copy.new.XXXXXX")"
-	  sudo cat /root/.ssh/known_hosts | tee "$tmp_local_root_copy_new" >/dev/null
-	  chmod 600 "$tmp_local_root_copy_new"
-	  tmp_local_root_canon_new="$(mktemp "${HOME}/known_hosts.root.canon.new.XXXXXX")"
-	  canonicalize_file "$tmp_local_root_copy_new" "$tmp_local_root_canon_new"
+      # Create a user-owned copy of the newly-installed root known_hosts for canonical comparison
+      tmp_local_root_copy_new="$(mktemp "${HOME}/known_hosts.root.copy.new.XXXXXX")"
+      sudo cat /root/.ssh/known_hosts | tee "$tmp_local_root_copy_new" >/dev/null
+      chmod 600 "$tmp_local_root_copy_new"
+      tmp_local_root_canon_new="$(mktemp "${HOME}/known_hosts.root.canon.new.XXXXXX")"
+      canonicalize_file "$tmp_local_root_copy_new" "$tmp_local_root_canon_new"
 
-	  # Compare previous canonical (tmp_local_root_canon) with the new canonical
-	  if ! cmp -s "$tmp_local_root_canon" "$tmp_local_root_canon_new"; then
-		# Determine new root keylines by comparing blobs against previous canonical
-		new_root_keylines=()
-		for k in "${ALL_KEYLINES[@]}"; do
-		  blob="$(printf "%s\n" "$k" | awk '{print $3}')"
-		  if ! grep -Fq "$blob" "$tmp_local_root_canon" 2>/dev/null; then
-			new_root_keylines+=("$k")
-		  fi
-		done
+      # Compare previous canonical (tmp_local_root_canon) with the new canonical
+      if ! cmp -s "$tmp_local_root_canon" "$tmp_local_root_canon_new"; then
+        # Determine new root keylines by comparing blobs against previous canonical
+        new_root_keylines=()
+        for k in "${ALL_KEYLINES[@]}"; do
+          blob="$(printf "%s\n" "$k" | awk '{print $3}')"
+          if ! grep -Fq "$blob" "$tmp_local_root_canon" 2>/dev/null; then
+            new_root_keylines+=("$k")
+          fi
+        done
 
-		echo "✅ Replaced entries in /root/.ssh/known_hosts for tokens: $(printf '%s ' "${!TOKEN_FPS[@]}")"
-		logger -t verify_known_hosts "Replaced entries in /root/.ssh/known_hosts for ${display_name}"
+        echo "✅ Replaced entries in /root/.ssh/known_hosts for tokens: $(printf '%s ' "${!TOKEN_FPS[@]}")"
+        logger -t verify_known_hosts "Replaced entries in /root/.ssh/known_hosts for ${display_name}"
 
-		if [ "${#new_root_keylines[@]}" -gt 0 ]; then
-		  print_keylines_for_host "$display_name (new root keys)" "${new_root_keylines[@]}"
-		else
-		  print_keylines_for_host "$display_name (scanned keys for root)" "${ALL_KEYLINES[@]}"
-		fi
+        if [ "${#new_root_keylines[@]}" -gt 0 ]; then
+          print_keylines_for_host "$display_name (new root keys)" "${new_root_keylines[@]}"
+        else
+          print_keylines_for_host "$display_name (scanned keys for root)" "${ALL_KEYLINES[@]}"
+        fi
 
-		# Only now update the summary
-		found_index=-1
-		for i in "${!CHANGED_SUMMARY[@]}"; do
-		  if printf "%s\n" "${CHANGED_SUMMARY[$i]}" | grep -q "^${display_name}:"; then
-			found_index="$i"
-			break
-		  fi
-		done
-		if [ "$found_index" -ge 0 ]; then
-		  if ! printf "%s\n" "${CHANGED_SUMMARY[$found_index]}" | grep -q "root"; then
-			# shellcheck disable=SC2004
-			CHANGED_SUMMARY[$found_index]="${CHANGED_SUMMARY[$found_index]},root"
-		  fi
-		else
-		  CHANGED_SUMMARY+=("${display_name}:root")
-		fi
-	  else
-		echo "ℹ️  Installed root file but canonical content unchanged for ${display_name}"
-		logger -t verify_known_hosts "Installed root file but canonical content unchanged for ${display_name}"
-	  fi
+        # Only now update the summary
+        found_index=-1
+        for i in "${!CHANGED_SUMMARY[@]}"; do
+          if printf "%s\n" "${CHANGED_SUMMARY[$i]}" | grep -q "^${display_name}:"; then
+            found_index="$i"
+            break
+          fi
+        done
+        if [ "$found_index" -ge 0 ]; then
+          if ! printf "%s\n" "${CHANGED_SUMMARY[$found_index]}" | grep -q "root"; then
+            # shellcheck disable=SC2004
+            CHANGED_SUMMARY[$found_index]="${CHANGED_SUMMARY[$found_index]},root"
+          fi
+        else
+          CHANGED_SUMMARY+=("${display_name}:root")
+        fi
+      else
+        echo "ℹ️  Installed root file but canonical content unchanged for ${display_name}"
+        logger -t verify_known_hosts "Installed root file but canonical content unchanged for ${display_name}"
+      fi
 
-	  # cleanup temporary canonical copies
-	  rm -f "$tmp_local_root_copy" "$tmp_local_root_canon" "$tmp_local_root_copy_new" "$tmp_local_root_canon_new" 2>/dev/null || true
-	  tmp_root=""; tmp_root_canon=""; tmp_local_root_copy=""
-	fi
+      # cleanup temporary canonical copies
+      rm -f "$tmp_local_root_copy" "$tmp_local_root_canon" "$tmp_local_root_copy_new" "$tmp_local_root_canon_new" 2>/dev/null || true
+      tmp_root=""; tmp_root_canon=""; tmp_local_root_copy=""
+    fi
   else
-	echo "⚠️  sudo not available; skipped root update"
-	logger -t verify_known_hosts "sudo not available; skipped root update for ${display_name}"
+    echo "� ️  sudo not available; skipped root update"
+    logger -t verify_known_hosts "sudo not available; skipped root update for ${display_name}"
   fi
 
 done < "$HOSTS_FILE"
@@ -562,7 +562,7 @@ if [ "${#CHANGED_SUMMARY[@]}" -eq 0 ]; then
 else
   echo "🔔 Changes detected for the following hosts:"
   for entry in "${CHANGED_SUMMARY[@]}"; do
-	echo "  - $entry"
+    echo "  - $entry"
   done
   logger -t verify_known_hosts "Changes detected: ${CHANGED_SUMMARY[*]}"
 fi

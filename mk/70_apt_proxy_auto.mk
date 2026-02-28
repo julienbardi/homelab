@@ -26,15 +26,15 @@ PassThroughPattern: .*\n\
 apt-cacher-ng-enable-https:
 	@echo "🔐 Ensuring apt-cacher-ng allows HTTPS CONNECT"
 	@test -f /etc/apt-cacher-ng/acng.conf || { \
-		echo "❌ /etc/apt-cacher-ng/acng.conf not found"; \
-		exit 1; \
+	    echo "❌ /etc/apt-cacher-ng/acng.conf not found"; \
+	    exit 1; \
 	}
 	@if grep -Fq '# == inserted by 70_apt_proxy_auto.mk' /etc/apt-cacher-ng/acng.conf; then \
-		echo "ℹ️  HTTPS passthrough section already present"; \
+	    echo "ℹ️  HTTPS passthrough section already present"; \
 	else \
-		echo "🔧 Inserting HTTPS passthrough section"; \
-		printf "\n$(APT_CACHER_NG_HTTPS_BLOCK)" | \
-			$(run_as_root) tee -a /etc/apt-cacher-ng/acng.conf >/dev/null; \
+	    echo "🔧 Inserting HTTPS passthrough section"; \
+	    printf "\n$(APT_CACHER_NG_HTTPS_BLOCK)" | \
+	        $(run_as_root) tee -a /etc/apt-cacher-ng/acng.conf >/dev/null; \
 	fi
 	@$(run_as_root) systemctl restart apt-cacher-ng
 	@echo "✅ apt-cacher-ng HTTPS passthrough ready"
@@ -42,11 +42,11 @@ apt-cacher-ng-enable-https:
 apt-proxy-auto-install:
 	@echo "📦 Installing apt-proxy-auto"
 	@$(run_as_root) install -m 0644 -o root -g root \
-		$(APT_PROXY_AUTO_SERVICE_SRC) \
-		$(APT_PROXY_AUTO_SERVICE_DST)
+	    $(APT_PROXY_AUTO_SERVICE_SRC) \
+	    $(APT_PROXY_AUTO_SERVICE_DST)
 	@$(run_as_root) install -m 0644 -o root -g root \
-		$(APT_PROXY_AUTO_TIMER_SRC) \
-		$(APT_PROXY_AUTO_TIMER_DST)
+	    $(APT_PROXY_AUTO_TIMER_SRC) \
+	    $(APT_PROXY_AUTO_TIMER_DST)
 	@$(run_as_root) systemctl daemon-reload
 	@echo "✅ apt-proxy-auto installed"
 
@@ -54,9 +54,9 @@ apt-proxy-auto-enable: apt-cacher-ng-enable-https $(APT_PROXY_AUTO) apt-proxy-au
 	@echo "⏱️  Enabling apt-proxy-auto timer"
 	@$(run_as_root) systemctl enable --now apt-proxy-auto.timer
 	@$(run_as_root) systemctl is-enabled --quiet apt-proxy-auto.timer || \
-		( echo "❌ apt-proxy-auto.timer not enabled"; exit 1 )
+	    ( echo "❌ apt-proxy-auto.timer not enabled"; exit 1 )
 	@$(run_as_root) systemctl is-active --quiet apt-proxy-auto.timer || \
-		( echo "❌ apt-proxy-auto.timer not active"; exit 1 )
+	    ( echo "❌ apt-proxy-auto.timer not active"; exit 1 )
 	@echo "▶️  Running apt-proxy-auto once (immediate sync)"
 	@$(run_as_root) $(APT_PROXY_AUTO)
 	@echo "✅ apt-proxy-auto enabled"
@@ -70,6 +70,6 @@ apt-proxy-auto-disable:
 apt-proxy-auto-status:
 	@echo "🔎 apt-proxy-auto status"
 	@$(run_as_root) systemctl is-active --quiet apt-proxy-auto.timer || \
-		( echo "❌ apt-proxy-auto.timer not active"; exit 1 )
+	    ( echo "❌ apt-proxy-auto.timer not active"; exit 1 )
 	@echo "📄 Current APT proxy config (/etc/apt/apt.conf.d/01proxy):"
-	@$(run_as_root) sh -c 'test -f /etc/apt/apt.conf.d/01proxy && cat /etc/apt/apt.conf.d/01proxy || echo "(absent → direct mirrors)"'
+	@$(run_as_root) sh -c 'test -f /etc/apt/apt.conf.d/01proxy && cat /etc/apt/apt.conf.d/01proxy || echo "(absent -> direct mirrors)"'

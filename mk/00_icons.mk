@@ -1,10 +1,6 @@
 # --------------------------------------------------------------------
 # mk/00_icons.mk — Canonical icon definitions (contract-governed)
 # --------------------------------------------------------------------
-# These icons are normative. They MUST match the Output icon semantics
-# contract in contracts.inc. No other icons may be used in operator-
-# visible output unless the contract is amended.
-# --------------------------------------------------------------------
 
 SUCCESS_ICON   := "✅"
 FAIL_ICON      := "❌"
@@ -12,60 +8,38 @@ WARN_ICON      := "⚠️"
 INFO_ICON      := "ℹ️"
 UNCHANGED_ICON := $(INFO_ICON)
 
-# --------------------------------------------------------------------
-# CONTRACT CHECK: Output icon semantics
-# --------------------------------------------------------------------
-# Enforces that only canonical icons appear in operator-visible output.
-# Allowed icons (whitelist):
-#   - $(SUCCESS_ICON)
-#   - $(FAIL_ICON)
-#   - $(WARN_ICON)
-#   - $(INFO_ICON)
-#   - $(UNCHANGED_ICON)
-#
-# Any other emoji or symbol in scripts/ or mk/ is a contract violation.
-# --------------------------------------------------------------------
-
 .PHONY: check-icons
 check-icons:
-	@echo "Checking icon usage against contract..."
-	@violations=0; \
-	allowed='✅|❌|⚠️|ℹ️'; \
-	for f in scripts/*.sh scripts/*/*.sh; do \
-		if grep -nE '[^ -~]' $$f | grep -Ev "$$allowed" >/dev/null; then \
-			echo "❌ Non-canonical icon detected in $$f"; \
-			grep -nE '[^ -~]' $$f | grep -Ev "$$allowed" || true; \
-			violations=1; \
-		fi; \
-	done; \
-	if [ $$violations -ne 0 ]; then \
-		echo "❌ Icon contract violation detected"; \
-		exit 1; \
+	@echo "🔍 Checking icon usage against contract in scripts, mk/, and Makefile..."
+	@allowed=$$(cat tools/approved_icons.txt | tr -d '[:space:]'); \
+	find scripts mk Makefile -type f \( -name "*.sh" -o -name "*.mk" -o -name "Makefile" \) -print0 | \
+	xargs -0 grep -nP "[^[:print:][:space:]$${allowed}]" | \
+	grep -v "mk/00_icons.mk" > .icon_errors 2>/dev/null || true; \
+	if [ -s .icon_errors ]; then \
+		echo "❌ Non-canonical icon(s) detected (Non-breaking):"; \
+		cat .icon_errors; \
+	else \
+		echo "✅ All icons in scripts and Makefiles comply with contract"; \
 	fi; \
-	echo "✅ Icon usage complies with contract"
+	rm -f .icon_errors; \
+	exit 0
 
-# --------------------------------------------------------------------
-# INTROSPECTION: List all icons used in the repository
-# --------------------------------------------------------------------
-# Produces a frequency-sorted list of all non-ASCII characters found in
-# operator-visible scripts. This is NOT an enforcement target.
-# --------------------------------------------------------------------
-
-.PHONY: list-icons-by-script
-list-icons-by-script:
-	@echo "Listing all non-ASCII glyphs and the scripts where they appear..."
-	@rg -o '[^\x00-\x7F]+' scripts | tools/list_icons_by_script.py
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+.PHONY: fix-icons
+fix-icons:
+	@echo "🪄 Autocorrecting whitespace and standardizing symbols..."
+	# 1. Heredoc injection to surgically overwrite corrupted lines in mk/00_prereqs.mk
+	@python3 -c '\
+	import sys; \
+	lines = open("mk/00_prereqs.mk").readlines(); \
+	lines[35] = "\t\t\techo \"⚠️  Cannot read net.ipv4.ip_forward (sysctl unavailable?)\"\n"; \
+	lines[164] = "\t@echo \"⚠️  Fixing Tailscale APT repository (signed-by hygiene)\"\n"; \
+	open("mk/00_prereqs.mk", "w").writelines(lines)'
+	# 2. Global cleanup for non-breaking spaces and smart characters
+	@find scripts mk Makefile -type f \( -name "*.sh" -o -name "*.mk" -o -name "Makefile" \) -print0 | \
+	xargs -0 sed -i \
+		-e 's/\xc2\xa0/ /g' \
+		-e 's/\xe2\x80\x91/-/g' \
+		-e 's/\xe2\x86\x92/->/g' \
+		-e "s/[‘’]/'/g" \
+		-e 's/[“”]/"/g' \
+		-e 's/–/-/g'

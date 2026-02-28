@@ -23,7 +23,7 @@
 #     sudo DOH_HOST=dns.example.com DOH_PATH=/dns-query ./scripts/dns-health-check.sh
 #
 # Notes:
-#   - [resolver_ip] applies only to classic DNS tests (sections 1–3).
+#   - [resolver_ip] applies only to classic DNS tests (sections 1-3).
 #   - DoH tests (section 4) always use DOH_HOST / DOH_PATH and ignore resolver_ip.
 #
 # Default resolver_ip: 127.0.0.1

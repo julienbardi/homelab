@@ -26,9 +26,9 @@ INSTALL_IF_CHANGED="${SCRIPT_DIR}/install_if_changed.sh"
 [ -x "$INSTALL_IF_CHANGED" ] || die "install_if_changed.sh not found or not executable"
 
 if [ "$DRY_RUN" != "1" ]; then
-	LOCKFILE="/run/wg-apply.lock"
-	exec {LOCKFD}>"$LOCKFILE" || die "cannot create lock file $LOCKFILE (must run as root)"
-	flock -n "$LOCKFD" || die "another wg-apply is already running"
+    LOCKFILE="/run/wg-apply.lock"
+    exec {LOCKFD}>"$LOCKFILE" || die "cannot create lock file $LOCKFILE (must run as root)"
+    flock -n "$LOCKFD" || die "another wg-apply is already running"
 fi
 
 need "$PLAN"
@@ -55,55 +55,55 @@ mkdir "$NEW"
 swapped=0
 
 cleanup() {
-	# If we swapped /etc/wireguard and then failed, restore the old directory.
-	if [ "$swapped" = "1" ] && [ -d "$OLD" ]; then
-		rm -rf "$WG_DIR" 2>/dev/null || true
-		mv "$OLD" "$WG_DIR" 2>/dev/null || true
-	fi
-	# If NEW still exists (failure before swap), remove it.
-	rm -rf "$NEW" 2>/dev/null || true
+    # If we swapped /etc/wireguard and then failed, restore the old directory.
+    if [ "$swapped" = "1" ] && [ -d "$OLD" ]; then
+        rm -rf "$WG_DIR" 2>/dev/null || true
+        mv "$OLD" "$WG_DIR" 2>/dev/null || true
+    fi
+    # If NEW still exists (failure before swap), remove it.
+    rm -rf "$NEW" 2>/dev/null || true
 
-	[ -n "${META_TMP:-}" ] && rm -f "$META_TMP" 2>/dev/null || true
+    [ -n "${META_TMP:-}" ] && rm -f "$META_TMP" 2>/dev/null || true
 }
 trap cleanup EXIT
 
 for dev in "${ACTIVE_IFACES[@]}"; do
-	case "$dev" in
-		wg[0-9]|wg1[0-5]) ;;
-		*) die "invalid iface '$dev'" ;;
-	esac
+    case "$dev" in
+        wg[0-9]|wg1[0-5]) ;;
+        *) die "invalid iface '$dev'" ;;
+    esac
 
-	key_src="$SERVER_KEYS_DIR/$dev.key"
-	pub_src="$SERVER_KEYS_DIR/$dev.pub"
-	need "$key_src"
-	need "$pub_src"
+    key_src="$SERVER_KEYS_DIR/$dev.key"
+    pub_src="$SERVER_KEYS_DIR/$dev.pub"
+    need "$key_src"
+    need "$pub_src"
 
-	install -m 644 "$pub_src" "$NEW/$dev.pub"
+    install -m 644 "$pub_src" "$NEW/$dev.pub"
 
-	priv="$(tr -d '\r\n' <"$key_src")"
+    priv="$(tr -d '\r\n' <"$key_src")"
 
-	base_conf="$ROOT/out/server/base/$dev.conf"
-	need "$base_conf"
+    base_conf="$ROOT/out/server/base/$dev.conf"
+    need "$base_conf"
 
-	# Sanity-check the private key material (fails loud if corrupted)
-	printf '%s' "$priv" | "$WG_BIN" pubkey >/dev/null 2>&1 || die "invalid private key in $key_src"
+    # Sanity-check the private key material (fails loud if corrupted)
+    printf '%s' "$priv" | "$WG_BIN" pubkey >/dev/null 2>&1 || die "invalid private key in $key_src"
 
-	# Replace placeholder without delimiter/escape issues
-	awk -v priv="$priv" '
-		{ gsub(/__REPLACED_AT_DEPLOY__/, priv); print }
-	' "$base_conf" >"$NEW/$dev.conf"
+    # Replace placeholder without delimiter/escape issues
+    awk -v priv="$priv" '
+        { gsub(/__REPLACED_AT_DEPLOY__/, priv); print }
+    ' "$base_conf" >"$NEW/$dev.conf"
 
-	chmod 600 "$NEW/$dev.conf"
+    chmod 600 "$NEW/$dev.conf"
 
-	# Append rendered peer stanzas (already validated/compiled upstream)
-	peer_dir="$ROOT/out/server/peers/$dev"
-	[ -d "$peer_dir" ] || die "missing rendered peer dir: $peer_dir"
+    # Append rendered peer stanzas (already validated/compiled upstream)
+    peer_dir="$ROOT/out/server/peers/$dev"
+    [ -d "$peer_dir" ] || die "missing rendered peer dir: $peer_dir"
 
-	find "$peer_dir" -maxdepth 1 -type f -name '*.conf' -print -quit | grep -q . || die "no rendered peers found in $peer_dir"
+    find "$peer_dir" -maxdepth 1 -type f -name '*.conf' -print -quit | grep -q . || die "no rendered peers found in $peer_dir"
 
-	while IFS= read -r peer; do
-		cat "$peer" >>"$NEW/$dev.conf"
-	done < <(find "$peer_dir" -maxdepth 1 -type f -name '*.conf' -print | sort)
+    while IFS= read -r peer; do
+        cat "$peer" >>"$NEW/$dev.conf"
+    done < <(find "$peer_dir" -maxdepth 1 -type f -name '*.conf' -print | sort)
 
 done
 
@@ -115,49 +115,49 @@ KEEP="$NEW/last-known-good.list"
 : >"$KEEP"
 
 for dev in "${ACTIVE_IFACES[@]}"; do
-	echo "$dev.conf" >>"$KEEP"
-	echo "$dev.pub"  >>"$KEEP"
+    echo "$dev.conf" >>"$KEEP"
+    echo "$dev.pub"  >>"$KEEP"
 done
 
 if [ "$DRY_RUN" = "1" ] && [ ! -d "$WG_DIR" ]; then
-	echo "🧪 DRY-RUN: /etc/wireguard does not exist yet; showing proposed tree only"
-	find "$NEW" -maxdepth 2 -type f | sort
-	exit 0
+    echo "🧪 DRY-RUN: /etc/wireguard does not exist yet; showing proposed tree only"
+    find "$NEW" -maxdepth 2 -type f | sort
+    exit 0
 fi
 
 if [ "$DRY_RUN" = "1" ]; then
-	echo "🧪 DRY-RUN mode enabled — no changes will be applied"
+    echo "🧪 DRY-RUN mode enabled — no changes will be applied"
 fi
 
 if [ "$DRY_RUN" != "1" ]; then
-	echo "🚀 deploying WireGuard configs atomically"
+    echo "🚀 deploying WireGuard configs atomically"
 else
-	echo "🧪 DRY-RUN: build + diff only"
+    echo "🧪 DRY-RUN: build + diff only"
 fi
 
 if [ "$DRY_RUN" != "1" ]; then
-	if [ -d "$WG_DIR" ]; then
-		mv "$WG_DIR" "$OLD"
-	else
-		mkdir -p "$BASE"
-		mkdir "$OLD"
-	fi
+    if [ -d "$WG_DIR" ]; then
+        mv "$WG_DIR" "$OLD"
+    else
+        mkdir -p "$BASE"
+        mkdir "$OLD"
+    fi
 
-	mv "$NEW" "$WG_DIR"
-	swapped=1
-	echo "✅ deployed WireGuard config files (kernel apply handled by wg-apply)"
+    mv "$NEW" "$WG_DIR"
+    swapped=1
+    echo "✅ deployed WireGuard config files (kernel apply handled by wg-apply)"
 else
-	echo "🧪 DRY-RUN: skipping /etc/wireguard swap"
+    echo "🧪 DRY-RUN: skipping /etc/wireguard swap"
 fi
 
 if [ "$DRY_RUN" = "1" ] && [ -d "$WG_DIR" ]; then
-	echo "🧪 DRY-RUN: diff vs existing /etc/wireguard"
-	diff -ruN "$WG_DIR" "$NEW" || true
+    echo "🧪 DRY-RUN: diff vs existing /etc/wireguard"
+    diff -ruN "$WG_DIR" "$NEW" || true
 fi
 
 if [ "$DRY_RUN" = "1" ]; then
-	# We intentionally do not touch /etc/wireguard at all in dry-run.
-	exit 0
+    # We intentionally do not touch /etc/wireguard at all in dry-run.
+    exit 0
 fi
 
 KEEP="$WG_DIR/last-known-good.list"
@@ -167,11 +167,11 @@ KEEP="$WG_DIR/last-known-good.list"
 # - never create /etc/wireguard/.legacy
 # - never keep standalone private key files under /etc/wireguard
 for f in "$OLD"/*; do
-	[ -f "$f" ] || continue
-	b="$(basename "$f")"
-	if ! grep -qx "$b" "$KEEP"; then
-		rm -f -- "$f"
-	fi
+    [ -f "$f" ] || continue
+    b="$(basename "$f")"
+    if ! grep -qx "$b" "$KEEP"; then
+        rm -f -- "$f"
+    fi
 done
 
 rm -rf -- "$OLD" || true
@@ -181,15 +181,15 @@ META="$WG_DIR/.deploy-meta"
 
 META_TMP="$(mktemp)"
 {
-	echo "timestamp: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-	echo "host: $(hostname -f 2>/dev/null || hostname)"
-	if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-		echo "git_commit: $(git -C "$ROOT" rev-parse --short HEAD)"
-	fi
-	echo "interfaces:"
-	for dev in "${ACTIVE_IFACES[@]}"; do
-		echo "  - $dev"
-	done
+    echo "timestamp: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+    echo "host: $(hostname -f 2>/dev/null || hostname)"
+    if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "git_commit: $(git -C "$ROOT" rev-parse --short HEAD)"
+    fi
+    echo "interfaces:"
+    for dev in "${ACTIVE_IFACES[@]}"; do
+        echo "  - $dev"
+    done
 } >"$META_TMP"
 
 # Metadata updates are not failures
@@ -197,9 +197,9 @@ META_TMP="$(mktemp)"
 
 # Hard policy guard: forbid legacy artifacts
 if [ -d "$WG_DIR/.legacy" ]; then
-	die "policy violation: $WG_DIR/.legacy exists (forbidden)"
+    die "policy violation: $WG_DIR/.legacy exists (forbidden)"
 fi
 
 if find "$WG_DIR" -maxdepth 1 -type f -name '*.key' -print -quit | grep -q .; then
-	die "policy violation: standalone *.key exists under $WG_DIR (forbidden)"
+    die "policy violation: standalone *.key exists under $WG_DIR (forbidden)"
 fi

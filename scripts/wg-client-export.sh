@@ -48,89 +48,89 @@ changed=0
 # Render client configs from canonical plan reader
 # --------------------------------------------------------------------
 while IFS=$'\t' read -r \
-	base iface slot dns \
-	client_addr4 client_addr6 \
-	allowed_client allowed_server \
-	endpoint \
-	server_addr4 server_addr6 server_routes
+    base iface slot dns \
+    client_addr4 client_addr6 \
+    allowed_client allowed_server \
+    endpoint \
+    server_addr4 server_addr6 server_routes
 do
-	[ -n "$base" ]  || die "missing base"
-	[ -n "$iface" ] || die "missing iface for base=$base"
-	[ -n "$client_addr4" ] || die "missing client_addr4 for $base $iface"
-	[ -n "$allowed_client" ] || die "missing AllowedIPs_client for $base $iface"
+    [ -n "$base" ]  || die "missing base"
+    [ -n "$iface" ] || die "missing iface for base=$base"
+    [ -n "$client_addr4" ] || die "missing client_addr4 for $base $iface"
+    [ -n "$allowed_client" ] || die "missing AllowedIPs_client for $base $iface"
 
-	srv_pub="$WG_PUBDIR/$iface.pub"
-	need "$srv_pub"
+    srv_pub="$WG_PUBDIR/$iface.pub"
+    need "$srv_pub"
 
-	server_public="$(tr -d '\r\n' <"$srv_pub")"
+    server_public="$(tr -d '\r\n' <"$srv_pub")"
 
-	client_private="$(
-		awk -F'\t' \
-			-v base="$base" \
-			-v iface="$iface" \
-			'$1==base && $2==iface {print $3}' \
-			"$KEYS_TSV"
-	)"
+    client_private="$(
+        awk -F'\t' \
+            -v base="$base" \
+            -v iface="$iface" \
+            '$1==base && $2==iface {print $3}' \
+            "$KEYS_TSV"
+    )"
 
-	[ -n "$client_private" ] || \
-		die "missing client private key for $base $iface in keys.tsv"
+    [ -n "$client_private" ] || \
+        die "missing client private key for $base $iface in keys.tsv"
 
-	out_dir="$OUT_STAGE/$base"
-	mkdir -p "$out_dir"
-	out="$out_dir/$iface.conf"
+    out_dir="$OUT_STAGE/$base"
+    mkdir -p "$out_dir"
+    out="$out_dir/$iface.conf"
 
-	tmp="$(mktemp "${out}.XXXXXX")"
+    tmp="$(mktemp "${out}.XXXXXX")"
 
-	{
-		echo "# ------------------------------------------------------------------"
-		echo "# 🔐 WireGuard client: ${base} / ${iface}"
-		echo "#"
-		echo "# Show this config:"
-		echo "#   make wg-show BASE=${base} IFACE=${iface}"
-		echo "#"
-		echo "# Show QR code:"
-		echo "#   make wg-qr   BASE=${base} IFACE=${iface}"
-		echo "# Routing note:"
-		echo "#   - Windows: keep 'Table = off' (prevents LAN route precedence)"
-		echo "#   - Linux: keep it if explicit routing is enabled"
-		echo "#   - Android/iOS: remove it (ignored / unsupported)"
-		echo "# ------------------------------------------------------------------"
-		if [ "$VERBOSE" -ge 2 ]; then
-			echo "#"
-			echo "# Plan metadata (documentary only):"
-			echo "#   slot           = $slot"
-			echo "#   allowed_server = $allowed_server"
-			echo "#   server_addr4   = $server_addr4"
-			echo "#   server_addr6   = $server_addr6"
-			echo "#   server_routes  = $server_routes"
-			echo "#   endpoint       = ${WG_ENDPOINT:-$endpoint}"
-			echo "#   dns            = ${WG_DNS:-$dns}"
-			echo "#   mtu            = ${WG_MTU:-1420} (effective)"
-			echo "#   keepalive      = $WG_PERSISTENT_KEEPALIVE"
-			echo "#   generated_at   = $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-			echo
-		fi
-		echo "[Interface]"
-		echo "PrivateKey = $client_private"
-		addr_line=""
-		[ -n "$client_addr4" ] && addr_line="$client_addr4"
-		[ -n "$client_addr6" ] && addr_line="${addr_line:+$addr_line, }$client_addr6"
-		[ -n "$addr_line" ] && echo "Address = $addr_line"
-		if [ -n "${WG_DNS:-$dns}" ]; then
-			echo "DNS = ${WG_DNS:-$dns}"
-		fi
-		echo "# Table = off   # Linux-only; uncomment for Windows / server-side routing"
-		echo
-		echo "[Peer]"
-		echo "PublicKey = $server_public"
-		echo "AllowedIPs = $allowed_client"
-		echo "Endpoint = ${WG_ENDPOINT:-$endpoint}"
-		echo "PersistentKeepalive = $WG_PERSISTENT_KEEPALIVE"
-	} >"$tmp"
+    {
+        echo "# ------------------------------------------------------------------"
+        echo "# 🔐 WireGuard client: ${base} / ${iface}"
+        echo "#"
+        echo "# Show this config:"
+        echo "#   make wg-show BASE=${base} IFACE=${iface}"
+        echo "#"
+        echo "# Show QR code:"
+        echo "#   make wg-qr   BASE=${base} IFACE=${iface}"
+        echo "# Routing note:"
+        echo "#   - Windows: keep 'Table = off' (prevents LAN route precedence)"
+        echo "#   - Linux: keep it if explicit routing is enabled"
+        echo "#   - Android/iOS: remove it (ignored / unsupported)"
+        echo "# ------------------------------------------------------------------"
+        if [ "$VERBOSE" -ge 2 ]; then
+            echo "#"
+            echo "# Plan metadata (documentary only):"
+            echo "#   slot           = $slot"
+            echo "#   allowed_server = $allowed_server"
+            echo "#   server_addr4   = $server_addr4"
+            echo "#   server_addr6   = $server_addr6"
+            echo "#   server_routes  = $server_routes"
+            echo "#   endpoint       = ${WG_ENDPOINT:-$endpoint}"
+            echo "#   dns            = ${WG_DNS:-$dns}"
+            echo "#   mtu            = ${WG_MTU:-1420} (effective)"
+            echo "#   keepalive      = $WG_PERSISTENT_KEEPALIVE"
+            echo "#   generated_at   = $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+        fi
+        echo "[Interface]"
+        echo "PrivateKey = $client_private"
+        addr_line=""
+        [ -n "$client_addr4" ] && addr_line="$client_addr4"
+        [ -n "$client_addr6" ] && addr_line="${addr_line:+$addr_line, }$client_addr6"
+        [ -n "$addr_line" ] && echo "Address = $addr_line"
+        if [ -n "${WG_DNS:-$dns}" ]; then
+            echo "DNS = ${WG_DNS:-$dns}"
+        fi
+        echo "# Table = off   # Linux-only; uncomment for Windows / server-side routing"
+        echo
+        echo "[Peer]"
+        echo "PublicKey = $server_public"
+        echo "AllowedIPs = $allowed_client"
+        echo "Endpoint = ${WG_ENDPOINT:-$endpoint}"
+        echo "PersistentKeepalive = $WG_PERSISTENT_KEEPALIVE"
+    } >"$tmp"
 
-	chmod 600 "$tmp"
-	mv -f "$tmp" "$out"
-	changed=1
+    chmod 600 "$tmp"
+    mv -f "$tmp" "$out"
+    changed=1
 done < <("$PLAN_READER" "$PLAN")
 
 # --------------------------------------------------------------------
@@ -138,11 +138,11 @@ done < <("$PLAN_READER" "$PLAN")
 # --------------------------------------------------------------------
 rm -rf "${OUT_ROOT}.prev"
 if [ -d "$OUT_ROOT" ]; then
-	mv -f "$OUT_ROOT" "${OUT_ROOT}.prev"
+    mv -f "$OUT_ROOT" "${OUT_ROOT}.prev"
 fi
 mv -f "$OUT_STAGE" "$OUT_ROOT"
 rm -rf "${OUT_ROOT}.prev"
 
 if [ "$changed" -eq 0 ]; then
-	echo "⚪ no client config changes"
+    echo "⚪ no client config changes"
 fi

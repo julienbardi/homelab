@@ -8,5 +8,5 @@ enable-dnsmasq: \
 	@echo "🔄 Restarting dnsmasq (Unbound backend verified)"
 	@$(run_as_root) systemctl restart dnsmasq
 	@$(run_as_root) systemctl is-active --quiet dnsmasq || \
-		( echo "❌ dnsmasq failed to start"; exit 1 )
+	    ( echo "❌ dnsmasq failed to start"; exit 1 )
 	@echo "✅ dnsmasq running with Unbound backend"

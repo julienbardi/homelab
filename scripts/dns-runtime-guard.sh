@@ -2,7 +2,7 @@
 # ============================================================
 # dns-runtime-guard.sh
 # ------------------------------------------------------------
-# Health‑check script: validate Unbound runtime health
+# Health-check script: validate Unbound runtime health
 # Host: 10.89.12.4 (NAS / VPN node)
 # Responsibilities:
 #   - Check Unbound service health
@@ -38,4 +38,4 @@ fi
 
 # --- Footer logging ---
 COMMIT_HASH=$(git -C "/home/julie/src/homelab" rev-parse --short HEAD 2>/dev/null || echo "unknown")
-log "DNS setup complete (dnsmasq → unbound @ 127.0.0.1:5335). Commit=${COMMIT_HASH}"
+log "DNS setup complete (dnsmasq -> unbound @ 127.0.0.1:5335). Commit=${COMMIT_HASH}"

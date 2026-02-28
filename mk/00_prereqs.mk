@@ -33,7 +33,7 @@ else
 endif
 ifeq ($(ROLE),router)
 	@sysctl net.ipv4.ip_forward >/dev/null || \
-		echo "⚠️  Cannot read net.ipv4.ip_forward (sysctl unavailable?)"
+		echo "❌  Cannot read net.ipv4.ip_forward (sysctl unavailable?)"
 endif
 
 # minimum required to route packets
@@ -105,8 +105,8 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 	@cname=$$(dig +short @$(PUBLIC_DNS) apt.bardi.ch CNAME | sed 's/\.$$//'); \
 	if [ "$$cname" != "$(APT_CNAME_EXPECTED)" ]; then \
 		echo "❌ ERROR: Public DNS misconfiguration detected"; \
-		echo "   Expected: apt.bardi.ch → CNAME $(APT_CNAME_EXPECTED)."; \
-		echo "   Found:    apt.bardi.ch → '$${cname:-<none>}'"; \
+		echo "   Expected: apt.bardi.ch -> CNAME $(APT_CNAME_EXPECTED)."; \
+		echo "   Found:    apt.bardi.ch -> '$${cname:-<none>}'"; \
 		echo ""; \
 		echo "👉 Fix this in Infomaniak DNS before continuing:"; \
 		echo "   apt 21600 IN CNAME $(APT_CNAME_EXPECTED)."; \
@@ -162,7 +162,7 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 	@echo "✅ Base prerequisites installed"
 
 fix-tailscale-repo: ensure-run-as-root
-	@echo "🛠️ Fixing Tailscale APT repository (signed-by hygiene)"
+	@echo "ℹ️ Fixing Tailscale APT repository (signed-by hygiene)"
 	@test -f $(TAILSCALE_REPO_FILE) || { \
 		echo "❌ $(TAILSCALE_REPO_FILE) not found"; \
 		exit 1; \
@@ -179,7 +179,7 @@ fix-tailscale-repo: ensure-run-as-root
 # ------------------------------------------------------------
 rust-system: ensure-run-as-root
 	@command -v cargo >/dev/null 2>&1 || { \
-		echo "→ Installing Rust system-wide"; \
+		echo "-> Installing Rust system-wide"; \
 		$(run_as_root) sh -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path'; \
 		$(run_as_root) ln -sf /root/.cargo/bin/cargo /usr/local/bin/cargo; \
 		$(run_as_root) ln -sf /root/.cargo/bin/rustc /usr/local/bin/rustc; \

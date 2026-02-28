@@ -189,7 +189,7 @@ table inet homelab_filter {
         iifname "wg14" oifname "eth0" ip saddr 10.14.0.0/16 ip daddr != 10.89.12.0/24 accept comment "sr:forward-wg14-inet-v4"
         iifname "wg15" oifname "eth0" ip saddr 10.15.0.0/16 ip daddr != 10.89.12.0/24 accept comment "sr:forward-wg15-inet-v4"
 
-        # Internet IPv6 bit (ifnum has bit2 set): Forwarding rule (ULA → Internet)
+        # Internet IPv6 bit (ifnum has bit2 set): Forwarding rule (ULA -> Internet)
         iifname "wg4"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:4::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg4-inet-ula-v6"
         iifname "wg5"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:5::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg5-inet-ula-v6"
         iifname "wg6"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:6::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg6-inet-ula-v6"
@@ -201,7 +201,7 @@ table inet homelab_filter {
 
         iifname "eth0" oifname "wg+" ip6 daddr fd89:7a3b:42c0::/48 ct state established,related counter accept comment "sr:forward-wg-inet-ula-v6-rev"
 
-        # IPv6 Internet return path for full‑tunnel profiles
+        # IPv6 Internet return path for full-tunnel profiles
         iifname "eth0" oifname "wg14" ip6 daddr fd89:7a3b:42c0:14::/64 ct state established,related accept comment "sr:forward-wg14-inet-v6-rev"
         iifname "eth0" oifname "wg15" ip6 daddr fd89:7a3b:42c0:15::/64 ct state established,related accept comment "sr:forward-wg15-inet-v6-rev"
 

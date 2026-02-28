@@ -21,11 +21,11 @@ HEADSCALE_USERS := \
 headscale-users:
 	@echo "[headscale] Ensuring users exist..."
 	@for user in $(HEADSCALE_USERS); do \
-		if ! $(run_as_root) "$(HS_BIN)" users list --output json \
-			| jq -r '.[].name' | grep -qx "$$user"; then \
-			echo "[headscale] Creating user $$user"; \
-			$(run_as_root) "$(HS_BIN)" users create "$$user"; \
-		else \
-			echo "[headscale] User $$user already exists"; \
-		fi; \
+	    if ! $(run_as_root) "$(HS_BIN)" users list --output json \
+	        | jq -r '.[].name' | grep -qx "$$user"; then \
+	        echo "[headscale] Creating user $$user"; \
+	        $(run_as_root) "$(HS_BIN)" users create "$$user"; \
+	    else \
+	        echo "[headscale] User $$user already exists"; \
+	    fi; \
 	done

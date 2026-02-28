@@ -14,37 +14,37 @@ die() { echo "wg-check-render: ERROR: $*" >&2; exit 1; }
 [ -d "$PEERS_DIR" ] || die "missing $PEERS_DIR"
 
 ifaces="$(
-	awk -F'\t' '
-		/^#/ { next }
-		/^[[:space:]]*$/ { next }
+    awk -F'\t' '
+        /^#/ { next }
+        /^[[:space:]]*$/ { next }
 
-		# Skip plan.tsv v2.1 header
-		$1=="node" && $2=="iface" { next }
+        # Skip plan.tsv v2.1 header
+        $1=="node" && $2=="iface" { next }
 
-		{ print $2 }
-	' "$PLAN" | sort -u
+        { print $2 }
+    ' "$PLAN" | sort -u
 )"
 
 [ -n "$ifaces" ] || die "no interfaces found in plan.tsv"
 
 for iface in $ifaces; do
-	base="$BASE_DIR/$iface.conf"
-	peers="$PEERS_DIR/$iface"
+    base="$BASE_DIR/$iface.conf"
+    peers="$PEERS_DIR/$iface"
 
-	[ -f "$base" ] || die "missing base config: $base"
-	[ -d "$peers" ] || die "missing peer dir: $peers"
+    [ -f "$base" ] || die "missing base config: $base"
+    [ -d "$peers" ] || die "missing peer dir: $peers"
 
-	# Base config must contain exactly one placeholder
-	count="$(grep -c '^PrivateKey = __REPLACED_AT_DEPLOY__$' "$base" || true)"
-	[ "$count" -eq 1 ] || die "$base must contain exactly one PrivateKey placeholder"
+    # Base config must contain exactly one placeholder
+    count="$(grep -c '^PrivateKey = __REPLACED_AT_DEPLOY__$' "$base" || true)"
+    [ "$count" -eq 1 ] || die "$base must contain exactly one PrivateKey placeholder"
 
-	# Base config must not contain peers
-	if grep -Fq '[Peer]' "$base"; then
-		die "$base must not contain [Peer] sections"
-	fi
+    # Base config must not contain peers
+    if grep -Fq '[Peer]' "$base"; then
+        die "$base must not contain [Peer] sections"
+    fi
 
-	# Must have at least one peer rendered
-	if ! find "$peers" -type f -name '*.conf' -print -quit | grep -q .; then
-		die "no peer configs found in $peers"
-	fi
+    # Must have at least one peer rendered
+    if ! find "$peers" -type f -name '*.conf' -print -quit | grep -q .; then
+        die "no peer configs found in $peers"
+    fi
 done

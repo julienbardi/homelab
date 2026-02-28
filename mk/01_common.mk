@@ -11,8 +11,8 @@
 # - Script filenames (including .sh) are preserved verbatim at install time.
 # - No extension stripping or renaming occurs.
 # - Example:
-#     scripts/foo.sh → $(INSTALL_PATH)/foo.sh
-#     scripts/bar.sh → $(INSTALL_SBIN_PATH)/bar.sh
+#     scripts/foo.sh -> $(INSTALL_PATH)/foo.sh
+#     scripts/bar.sh -> $(INSTALL_SBIN_PATH)/bar.sh
 
 INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
 
@@ -74,7 +74,7 @@ endef
 # - Stamp file is written as root so subsequent runs by non-root users still see it.
 # --------------------------------------------------------------------
 APT_UPDATE_STAMP ?= $(STAMP_DIR)/apt.update.stamp
-APT_UPDATE_MAX_AGE ?= 21600		# 6 hours in seconds
+APT_UPDATE_MAX_AGE ?= 21600        # 6 hours in seconds
 
 define apt_update_if_needed
 	$(run_as_root) mkdir -p --mode=0755 $(STAMP_DIR) >/dev/null 2>&1 || true; \
@@ -174,8 +174,8 @@ $(INSTALL_SBIN_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh ensure-run-as-root | $(IN
 		$< $@ $(OWNER) $(GROUP) $(MODE) || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # Script classification:
-# - BIN_SCRIPTS  → operator / user-facing tools
-# - SBIN_SCRIPTS → root-only system automation
+# - BIN_SCRIPTS  -> operator / user-facing tools
+# - SBIN_SCRIPTS -> root-only system automation
 SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh systemd-override-sync.sh
 ALL_SCRIPTS := $(notdir $(wildcard $(MAKEFILE_DIR)scripts/*.sh))
 BIN_SCRIPTS := $(filter-out $(SBIN_SCRIPTS),$(ALL_SCRIPTS))
@@ -210,4 +210,4 @@ $(HOMELAB_ENV_DST): ensure-run-as-root $(HOMELAB_ENV_SRC)
 	@$(run_as_root) install -d -o root -g root -m 0755 $(HOMELAB_ENV_DIR)
 	@$(run_as_root) install -o root -g root -m 0600 \
 		$(HOMELAB_ENV_SRC) $(HOMELAB_ENV_DST)
-	@echo "🔐 homelab.env installed → $(HOMELAB_ENV_DST)"
+	@echo "🔐 homelab.env installed -> $(HOMELAB_ENV_DST)"

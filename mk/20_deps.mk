@@ -34,9 +34,9 @@ tailscale-repo: ensure-run-as-root
 	@echo "📦 Adding Tailscale apt repository (Debian $(DEBIAN_CODENAME))"
 	@$(run_as_root) install -d -m 0755 /usr/share/keyrings
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg \
-		| $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_KEYRING)
+	    | $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_KEYRING)
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).list \
-		| $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
+	    | $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
 	@$(call apt_update_if_needed)
 	@echo "✅ Tailscale repository configured"
 
@@ -63,13 +63,13 @@ remove-pkg-tailscale: ensure-run-as-root
 verify-pkg-tailscale: ensure-run-as-root
 	@echo "🔎 Verifying Tailscale installation"
 	@bash -c 'set -e; \
-		CLI_VER=$$(tailscale version | head -n1); \
-		DS_VER=$$($(run_as_root) tailscaled --version | head -n1); \
-		echo "CLI: $$CLI_VER"; echo "DAEMON: $$DS_VER"; \
-		if [ "$${CLI_VER}" != "$${DS_VER}" ]; then \
-			echo "❌ Version mismatch"; exit 1; \
-		fi; \
-		echo "✔ Versions aligned" \
+	    CLI_VER=$$(tailscale version | head -n1); \
+	    DS_VER=$$($(run_as_root) tailscaled --version | head -n1); \
+	    echo "CLI: $$CLI_VER"; echo "DAEMON: $$DS_VER"; \
+	    if [ "$${CLI_VER}" != "$${DS_VER}" ]; then \
+	        echo "❌ Version mismatch"; exit 1; \
+	    fi; \
+	    echo "✔ Versions aligned" \
 	'
 
 # ------------------------------------------------------------
@@ -79,7 +79,7 @@ install-pkg-go: ensure-run-as-root
 	@echo "🐹 Installing Go toolchain"
 	$(call apt_install,go,golang-go)
 	@command -v go >/dev/null || { \
-		echo "❌ go missing after install"; exit 1; }
+	    echo "❌ go missing after install"; exit 1; }
 
 remove-pkg-go:
 	$(call apt_remove,golang-go)
@@ -92,7 +92,7 @@ install-pkg-vnstat: ensure-run-as-root
 	$(call apt_install,vnstat,vnstat)
 	@echo "Initializing vnstat database for tailscale0..."
 	@if ! $(run_as_root) vnstat --iflist | grep -q tailscale0; then \
-		$(run_as_root) vnstat --add -i tailscale0; \
+	    $(run_as_root) vnstat --add -i tailscale0; \
 	fi
 	@$(run_as_root) systemctl enable --now vnstat >/dev/null 2>&1 || true
 	@echo "✅ vnstat installed and initialized for tailscale0"
@@ -150,23 +150,23 @@ CHECKMAKE_BIN := /usr/local/bin/checkmake
 STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
 
 install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go
-	@echo "🛠️ Installing checkmake (v$(CHECKMAKE_VERSION))"
+	@echo "� ️ Installing checkmake (v$(CHECKMAKE_VERSION))"
 	@if [ -f "$(STAMP_CHECKMAKE)" ]; then \
-		INST_VER=$$(grep '^version=' "$(STAMP_CHECKMAKE)" | cut -d= -f2); \
-		if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
-			echo "checkmake $(CHECKMAKE_VERSION) already installed; skipping"; \
-			exit 0; \
-		fi; \
+	    INST_VER=$$(grep '^version=' "$(STAMP_CHECKMAKE)" | cut -d= -f2); \
+	    if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
+	        echo "checkmake $(CHECKMAKE_VERSION) already installed; skipping"; \
+	        exit 0; \
+	    fi; \
 	fi; \
 	mkdir -p $(HOME)/src; \
 	rm -rf $(HOME)/src/checkmake; \
 	git clone --quiet --depth 1 --branch v$(CHECKMAKE_VERSION) \
-		https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake >/dev/null 2>&1; \
+	    https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake >/dev/null 2>&1; \
 	cd $(HOME)/src/checkmake >/dev/null 2>&1 && \
 	go build -o checkmake cmd/checkmake/main.go >/dev/null 2>&1; \
 	$(run_as_root) install -m 0755 $(HOME)/src/checkmake/checkmake $(CHECKMAKE_BIN); \
 	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null
+	    | $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null
 	@echo "✅ Installed checkmake $(CHECKMAKE_VERSION)"
 
 remove-pkg-checkmake:
@@ -187,16 +187,16 @@ remove-pkg-strace:
 HEADSCALE_VERSION ?= v0.27.1
 
 headscale-build: install-pkg-go
-	@echo "🛠️ Building Headscale $(HEADSCALE_VERSION)..."
+	@echo "� ️ Building Headscale $(HEADSCALE_VERSION)..."
 	@if ! command -v headscale >/dev/null 2>&1; then \
-		GOBIN=$(INSTALL_PATH) go install github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION); \
+	    GOBIN=$(INSTALL_PATH) go install github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION); \
 	else \
-		CURRENT_VER=$$(headscale version | awk '{print $$3}'); \
-		if [ "$$CURRENT_VER" != "$(HEADSCALE_VERSION)" ]; then \
-			echo "⚠️  A new version has been detected: $$CURRENT_VER"; \
-			echo "👉 See https://github.com/juanfont/headscale/releases"; \
-		fi; \
-		command -v headscale >/dev/null 2>&1 && headscale version; \
+	    CURRENT_VER=$$(headscale version | awk '{print $$3}'); \
+	    if [ "$$CURRENT_VER" != "$(HEADSCALE_VERSION)" ]; then \
+	        echo "� ️  A new version has been detected: $$CURRENT_VER"; \
+	        echo "👉 See https://github.com/juanfont/headscale/releases"; \
+	    fi; \
+	    command -v headscale >/dev/null 2>&1 && headscale version; \
 	fi
 
 # ------------------------------------------------------------
@@ -222,8 +222,8 @@ install-pkg-pandoc: ensure-run-as-root fetch-pandoc
 	if [ -n "$$installed_bin" ] && [ -f "$(PANDOC_DEB)" ] && \
 	   [ "$$(sha256sum "$(PANDOC_DEB)" | cut -d' ' -f1)" = "$(PANDOC_SHA256)" ] && \
 	   [ "$$installed_version_base" = "$(PANDOC_VERSION)" ]; then \
-		echo "ℹ️ pandoc $(PANDOC_VERSION) already installed"; \
-		exit 0; \
+	    echo "ℹ️ pandoc $(PANDOC_VERSION) already installed"; \
+	    exit 0; \
 	fi; \
 	set -euo pipefail; \
 	trap 'rm -f "$(PANDOC_DEB)";' EXIT; \
@@ -237,7 +237,7 @@ install-pkg-pandoc: ensure-run-as-root fetch-pandoc
 	  echo "ERROR: pandoc wrong version (installed=$$installed_version)"; rm -f "$(PANDOC_DEB)"; trap - EXIT; exit 1; \
 	fi; \
 	echo "version=$$installed_version sha256=$(PANDOC_SHA256) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| $(run_as_root) tee "$(STAMP_PANDOC)" >/dev/null; \
+	    | $(run_as_root) tee "$(STAMP_PANDOC)" >/dev/null; \
 	trap - EXIT; \
 	echo "✅ pandoc $(PANDOC_VERSION) installed"
 
@@ -247,12 +247,12 @@ upgrade-pkg-pandoc: ensure-run-as-root $(STAMP_PANDOC)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
 	@tmp=$$(mktemp); dpkg-query -W -f='${Version}\n' pandoc > "$$tmp" 2>/dev/null || echo "unknown" > "$$tmp"; \
 	echo "version=$$(cat $$tmp) upgraded_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| $(run_as_root) tee $(STAMP_PANDOC) >/dev/null; \
+	    | $(run_as_root) tee $(STAMP_PANDOC) >/dev/null; \
 	rm -f "$$tmp"
 	@echo "✅ pandoc upgrade complete"
 
 remove-pkg-pandoc: ensure-run-as-root
 	@echo "🗑️ Removing pandoc..."
 	@if dpkg -s pandoc >/dev/null 2>&1; then \
-		$(run_as_root) apt-get remove -y pandoc; \
+	    $(run_as_root) apt-get remove -y pandoc; \
 	fi

@@ -27,13 +27,13 @@ repo_root="$HOMELAB_DIR/10.89.12.1/jffs/scripts"
 export CALLED_BY_ROUTER_SYNC_SCRIPTS=1
 
 [ -d "$repo_root" ] || {
-	echo "❌ Repo-managed scripts directory missing: $repo_root" >&2
-	exit 1
+    echo "❌ Repo-managed scripts directory missing: $repo_root" >&2
+    exit 1
 }
 
 # Escape a string for literal use in sed
 escape_sed_literal() {
-	printf '%s\n' "$1" | sed 's/[\/&]/\\&/g'
+    printf '%s\n' "$1" | sed 's/[\/&]/\\&/g'
 }
 
 escaped_repo_root="$(escape_sed_literal "$repo_root")"
@@ -43,7 +43,7 @@ tmp_router_verify="$(mktemp -d -t router-verify.XXXXXX)"
 repo_list="$(mktemp -t router-repolist.XXXXXX)"
 
 cleanup() {
-	rm -rf "$tmp_router_snapshot" "$tmp_router_verify" "$repo_list"
+    rm -rf "$tmp_router_snapshot" "$tmp_router_verify" "$repo_list"
 }
 
 trap 'cleanup' EXIT
@@ -59,8 +59,8 @@ find "$repo_root" -type f -print0 >"$repo_list"
 
 echo "📥 Snapshotting router state (read-only)…"
 scp -O -P "$ROUTER_SSH_PORT" -r \
-	"$ROUTER_HOST:$ROUTER_SCRIPTS" \
-	"$tmp_router_snapshot"
+    "$ROUTER_HOST:$ROUTER_SCRIPTS" \
+    "$tmp_router_snapshot"
 
 router_snapshot="$tmp_router_snapshot/scripts"
 
@@ -70,19 +70,19 @@ diff_log="$(mktemp -t router-diff.XXXXXX)"
 diff_found=0
 
 while IFS= read -r repo_file; do
-	rel=$(printf '%s\n' "$repo_file" | sed "s|^$escaped_repo_root/||")
-	router_file="$router_snapshot/$rel"
+    rel=$(printf '%s\n' "$repo_file" | sed "s|^$escaped_repo_root/||")
+    router_file="$router_snapshot/$rel"
 
-	if [ ! -f "$router_file" ]; then
-		echo "➕ $rel (missing on router)" >>"$diff_log"
-	else
-		diff -u "$router_file" "$repo_file" >>"$diff_log" || true
-	fi
+    if [ ! -f "$router_file" ]; then
+        echo "➕ $rel (missing on router)" >>"$diff_log"
+    else
+        diff -u "$router_file" "$repo_file" >>"$diff_log" || true
+    fi
 done <"$repo_list"
 
 if [ -s "$diff_log" ]; then
-	cat "$diff_log"
-	diff_found=1
+    cat "$diff_log"
+    diff_found=1
 fi
 rm -f "$diff_log"
 
@@ -90,8 +90,8 @@ log "🔐 Ensuring router trusts homelab CA"
 ROUTER_SSH_PORT="$ROUTER_SSH_PORT" /usr/local/bin/run-as-root.sh --preserve /usr/local/bin/router-install-ca.sh
 
 if [ "$diff_found" -eq 0 ]; then
-	echo "✅ No differences detected. Nothing to deploy."
-	exit 0
+    echo "✅ No differences detected. Nothing to deploy."
+    exit 0
 fi
 
 echo
@@ -102,8 +102,8 @@ printf "> "
 read -r confirm
 
 if [ "$confirm" != "YES" ]; then
-	echo "❌ Aborted."
-	exit 1
+    echo "❌ Aborted."
+    exit 1
 fi
 
 echo "🧾 Recording authoritative state in git…"
@@ -112,39 +112,39 @@ cd "$HOMELAB_DIR"
 git add "10.89.12.1/jffs/scripts"
 
 if ! git diff --cached --quiet; then
-	git commit -m "router 10.89.12.1: sync /jffs/scripts (authoritative)"
-	git push
-	git push github main
+    git commit -m "router 10.89.12.1: sync /jffs/scripts (authoritative)"
+    git push
+    git push github main
 fi
 
 echo "🚀 Deploying repo-managed files to router…"
 
 while IFS= read -r repo_file; do
-	rel=$(printf '%s\n' "$repo_file" | sed "s|^$escaped_repo_root/||")
-	remote_path="$ROUTER_SCRIPTS/$rel"
+    rel=$(printf '%s\n' "$repo_file" | sed "s|^$escaped_repo_root/||")
+    remote_path="$ROUTER_SCRIPTS/$rel"
 
-	ssh -n -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" \
-		"mkdir -p \"$(dirname "$remote_path")\""
+    ssh -n -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" \
+        "mkdir -p \"$(dirname "$remote_path")\""
 
-	scp -O -P "$ROUTER_SSH_PORT" \
-		"$repo_file" \
-		"$ROUTER_HOST:$remote_path"
+    scp -O -P "$ROUTER_SSH_PORT" \
+        "$repo_file" \
+        "$ROUTER_HOST:$remote_path"
 done <"$repo_list"
 
 echo "🔎 Verifying deployed state…"
 scp -O -P "$ROUTER_SSH_PORT" -r \
-	"$ROUTER_HOST:$ROUTER_SCRIPTS" \
-	"$tmp_router_verify"
+    "$ROUTER_HOST:$ROUTER_SCRIPTS" \
+    "$tmp_router_verify"
 
 verify_root="$tmp_router_verify/scripts"
 verify_failed=0
 
 while IFS= read -r repo_file; do
-	rel=$(printf '%s\n' "$repo_file" | sed "s|^$escaped_repo_root/||")
-	if ! cmp -s "$repo_file" "$verify_root/$rel"; then
-		echo "❌ Verification failed for $rel" >&2
-		verify_failed=1
-	fi
+    rel=$(printf '%s\n' "$repo_file" | sed "s|^$escaped_repo_root/||")
+    if ! cmp -s "$repo_file" "$verify_root/$rel"; then
+        echo "❌ Verification failed for $rel" >&2
+        verify_failed=1
+    fi
 done <"$repo_list"
 
 [ "$verify_failed" -eq 0 ] || exit 1

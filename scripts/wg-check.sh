@@ -33,8 +33,8 @@ PLAN_READ() { wg-plan-read.sh "$PLAN"; }
 say "🔍 checking plan.tsv ↔ alloc.csv consistency"
 
 PLAN_READ | awk -F'\t' '{ print $1 }' | sort -u | while read -r base; do
-	grep -q "^$(printf '%s' "$base" | sed 's/[.[\*^$]/\\&/g')," "$ALLOC" \
-		|| die "base '$base' missing from alloc.csv"
+    grep -q "^$(printf '%s' "$base" | sed 's/[.[\*^$]/\\&/g')," "$ALLOC" \
+        || die "base '$base' missing from alloc.csv"
 done
 
 # --------------------------------------------------------------------
@@ -44,7 +44,7 @@ done
 say "🔍 checking server public keys"
 
 PLAN_READ | awk -F'\t' '{ print $2 }' | sort -u | while read -r iface; do
-	[ -f "$SERVER_PUBDIR/$iface.pub" ] || die "missing server pubkey $iface.pub"
+    [ -f "$SERVER_PUBDIR/$iface.pub" ] || die "missing server pubkey $iface.pub"
 done
 
 # --------------------------------------------------------------------
@@ -54,13 +54,13 @@ done
 say "🔍 checking client keys (keys.tsv)"
 
 PLAN_READ | awk -F'\t' '{ print $1 "\t" $2 }' | while read -r base iface; do
-	awk -F'\t' -v b="$base" -v i="$iface" '
-		/^#/ { next }
-		/^[[:space:]]*$/ { next }
-		$1=="base" && $2=="iface" { next }
-		$1==b && $2==i { found=1 }
-		END { exit(found?0:1) }
-	' "$KEYS" || die "missing client key for $base $iface in keys.tsv"
+    awk -F'\t' -v b="$base" -v i="$iface" '
+        /^#/ { next }
+        /^[[:space:]]*$/ { next }
+        $1=="base" && $2=="iface" { next }
+        $1==b && $2==i { found=1 }
+        END { exit(found?0:1) }
+    ' "$KEYS" || die "missing client key for $base $iface in keys.tsv"
 done
 
 # --------------------------------------------------------------------
@@ -70,17 +70,17 @@ done
 say "🔍 checking for orphan client keys (keys.tsv)"
 
 awk -F'\t' '
-	/^#/ { next }
-	/^[[:space:]]*$/ { next }
-	$1=="base" && $2=="iface" { next }
-	{ print $1 "\t" $2 }
+    /^#/ { next }
+    /^[[:space:]]*$/ { next }
+    $1=="base" && $2=="iface" { next }
+    { print $1 "\t" $2 }
 ' "$KEYS" | while read -r base iface; do
-	if ! PLAN_READ | awk -F'\t' -v b="$base" -v i="$iface" '
-		$1==b && $2==i { found=1 }
-		END { exit(found?0:1) }
-	'; then
-		echo "⚠️  wg-check: orphan client key $base $iface"
-	fi
+    if ! PLAN_READ | awk -F'\t' -v b="$base" -v i="$iface" '
+        $1==b && $2==i { found=1 }
+        END { exit(found?0:1) }
+    '; then
+        echo "� ️  wg-check: orphan client key $base $iface"
+    fi
 done
 
 # --------------------------------------------------------------------
@@ -88,9 +88,9 @@ done
 # --------------------------------------------------------------------
 
 if ip route show | grep -Eq '10\.89\.12\.0/24.*wg' >/dev/null; then
-	echo "❌ wg-check: LAN IPv4 route leaked into WireGuard" >&2
-	ip route show | grep -E '10\.89\.12\.0/24.*wg' >&2
-	exit 1
+    echo "❌ wg-check: LAN IPv4 route leaked into WireGuard" >&2
+    ip route show | grep -E '10\.89\.12\.0/24.*wg' >&2
+    exit 1
 fi
 
 # --------------------------------------------------------------------
@@ -98,11 +98,11 @@ fi
 # --------------------------------------------------------------------
 
 if ip -6 route show \
-	| grep -E 'wg[0-9]+' \
-	| grep -Ev 'fd89:7a3b:42c0:' \
-	>/dev/null
+    | grep -E 'wg[0-9]+' \
+    | grep -Ev 'fd89:7a3b:42c0:' \
+    >/dev/null
 then
-	echo "❌ wg-check: global IPv6 route leaked into WireGuard" >&2
-	ip -6 route show | grep -E 'wg[0-9]+' | grep -Ev 'fd89:7a3b:42c0:' >&2
-	exit 1
+    echo "❌ wg-check: global IPv6 route leaked into WireGuard" >&2
+    ip -6 route show | grep -E 'wg[0-9]+' | grep -Ev 'fd89:7a3b:42c0:' >&2
+    exit 1
 fi

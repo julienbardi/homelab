@@ -19,7 +19,7 @@ set -euo pipefail
 # This list is policy: changes must be deliberate and reviewed.
 PRESERVE_ENV="DEBIAN_FRONTEND,SRC_ATTIC_CONFIG,SRC_ATTIC_SERVICE,ATTIC_REF,WG_ROOT,VERBOSE,HOMELAB_DIR"
 if [ "$(id -u)" -eq 0 ]; then
-	exec "$@"
+    exec "$@"
 else
-	exec sudo --preserve-env="$PRESERVE_ENV" -- "$@"
+    exec sudo --preserve-env="$PRESERVE_ENV" -- "$@"
 fi

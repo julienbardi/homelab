@@ -30,15 +30,15 @@ status=$(printf '%s\n' "$out" | tail -n1 | cut -d: -f2)
 out=$(printf '%s\n' "$out" | sed '$d')
 
 while IFS= read -r line; do
-	log "DETAILS: ${line}"
+    log "DETAILS: ${line}"
 done <<< "${out}"
 
 if [[ $status -ne 0 ]]; then
-	log "❌ caddy validate failed"
-	log "ACTION: Edit ${SRC_CADDYFILE} and execute again 'make caddy'"
-	exit 1
+    log "❌ caddy validate failed"
+    log "ACTION: Edit ${SRC_CADDYFILE} and execute again 'make caddy'"
+    exit 1
 else
-	log "✅ Caddyfile validated"
+    log "✅ Caddyfile validated"
 fi
 
 
@@ -47,23 +47,23 @@ fi
 
 log "🔄 Reloading Caddy service..."
 if run_as_root timeout 10 caddy reload --config "${CADDYFILE}" --force; then
-	log "✅ Caddy reloaded successfully via caddy reload"
+    log "✅ Caddy reloaded successfully via caddy reload"
 else
-	log "⚠️ caddy reload failed, trying systemctl reload..."
-	if run_as_root systemctl reload caddy; then
-		log "✅ Caddy reloaded via systemctl"
-	else
-		log "❌ Reload failed completely"
-		exit 1
-	fi
+    log "� ️ caddy reload failed, trying systemctl reload..."
+    if run_as_root systemctl reload caddy; then
+        log "✅ Caddy reloaded via systemctl"
+    else
+        log "❌ Reload failed completely"
+        exit 1
+    fi
 fi
 
 # --- QUIC/HTTP3 status ---
 log "Checking QUIC/HTTP/3 support..."
 if run_as_root caddy list-modules | grep -Eq "http3|http.handlers.http3"; then
-	log "ℹ️ QUIC/HTTP/3 module present"
+    log "ℹ️ QUIC/HTTP/3 module present"
 else
-	log "⚠️ QUIC/HTTP/3 module not present"
+    log "� ️ QUIC/HTTP/3 module not present"
 fi
 
 # --- Footer ---
