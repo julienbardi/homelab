@@ -44,33 +44,33 @@ endef
 lint-semantic:
 	@echo "[lint] Checking semantic invariants (permissive)..."
 	@bad=$$(grep -R "^[[:space:]]*install-pkg-" mk/*.mk \
-		| sed 's/:.*//' | sort -u \
-		| while read f; do \
-			grep -q "verify-pkg-" "$$f" || echo "$$f"; \
-		  done); \
+	    | sed 's/:.*//' | sort -u \
+	    | while read f; do \
+	        grep -q "verify-pkg-" "$$f" || echo "$$f"; \
+	      done); \
 	if [ -n "$$bad" ]; then \
-		echo "[lint] ⚠️ install targets without verify targets:"; \
-		echo "$$bad"; \
+	    echo "[lint] � ️ install targets without verify targets:"; \
+	    echo "$$bad"; \
 	fi
 
 lint-semantic-strict:
 	@echo "[lint-ci] Enforcing semantic invariants..."
 	@bad=$$(grep -R "^[[:space:]]*install-pkg-" mk/*.mk \
-		| sed 's/:.*//' | sort -u \
-		| while read f; do \
-			grep -q "verify-pkg-" "$$f" || echo "$$f"; \
-		  done); \
+	    | sed 's/:.*//' | sort -u \
+	    | while read f; do \
+	        grep -q "verify-pkg-" "$$f" || echo "$$f"; \
+	      done); \
 	if [ -n "$$bad" ]; then \
-		echo "[lint-ci] ERROR: install targets missing verification:"; \
-		echo "$$bad"; \
-		exit 1; \
+	    echo "[lint-ci] ERROR: install targets missing verification:"; \
+	    echo "$$bad"; \
+	    exit 1; \
 	fi
 
 
 .PHONY: lint lint-all lint-fast lint-ci lint-scripts-partial lint-scripts \
-		lint-shellcheck \
-		lint-shellcheck-strict \
-		lint-makefile lint-makefile-strict lint-headscale lint-spell lint-spell-strict
+	    lint-shellcheck \
+	    lint-shellcheck-strict \
+	    lint-makefile lint-makefile-strict lint-headscale lint-spell lint-spell-strict
 
 # Default lint target: permissive full suite
 lint: lint-all
@@ -91,17 +91,17 @@ lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-head
 lint-scripts-partial:
 	@echo "[lint] Checking shell syntax for tracked .sh files..."
 	@command -v bash >/dev/null 2>&1 || { \
-		echo "[lint] ERROR: bash not found (required for syntax check)"; exit 2; }
+	    echo "[lint] ERROR: bash not found (required for syntax check)"; exit 2; }
 	@if [ -z "$(SH_FILES)" ]; then \
-		echo "[lint] No shell files found to lint"; \
+	    echo "[lint] No shell files found to lint"; \
 	else \
-		rc=0; \
-		for f in $(SH_FILES); do \
-			[ -f "$$f" ] || { echo "[lint] Skipping missing file: $$f"; continue; }; \
-			echo "[lint] bash -n $$f"; \
-			bash -n "$$f" || { echo "[lint] Syntax error in $$f"; rc=1; }; \
-		done; \
-		exit $$rc; \
+	    rc=0; \
+	    for f in $(SH_FILES); do \
+	        [ -f "$$f" ] || { echo "[lint] Skipping missing file: $$f"; continue; }; \
+	        echo "[lint] bash -n $$f"; \
+	        bash -n "$$f" || { echo "[lint] Syntax error in $$f"; rc=1; }; \
+	    done; \
+	    exit $$rc; \
 	fi
 
 lint-scripts: lint-scripts-partial lint-shellcheck
@@ -113,13 +113,13 @@ lint-shellcheck:
 	  echo "[shellcheck] shellcheck not installed; install with 'make deps' or set SHELLCHECK=..."; \
 	else \
 	  if [ -z "$(SH_FILES)" ]; then \
-		echo "[shellcheck] No shell files to check"; \
+	    echo "[shellcheck] No shell files to check"; \
 	  else \
-		for f in $(SH_FILES); do \
-		  [ -f "$$f" ] || { echo "[shellcheck] Skipping missing file: $$f"; continue; }; \
-		  echo "[shellcheck] $$f"; \
-		  $(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || true; \
-		done; \
+	    for f in $(SH_FILES); do \
+	      [ -f "$$f" ] || { echo "[shellcheck] Skipping missing file: $$f"; continue; }; \
+	      echo "[shellcheck] $$f"; \
+	      $(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || true; \
+	    done; \
 	  fi; \
 	fi
 
@@ -128,15 +128,15 @@ lint-shellcheck-strict:
 	@echo "[shellcheck] Scanning tracked shell files (strict)"
 	$(call require_tool,$(SHELLCHECK))
 	@if [ -z "$(SH_FILES)" ]; then \
-		echo "[shellcheck] No shell files to check"; \
+	    echo "[shellcheck] No shell files to check"; \
 	else \
-		rc=0; \
-		for f in $(SH_FILES); do \
-			[ -f "$$f" ] || { echo "[shellcheck] Skipping missing file: $$f"; continue; }; \
-			echo "[shellcheck] $$f"; \
-			$(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || rc=$$?; \
-		done; \
-		if [ $$rc -ne 0 ]; then echo "[shellcheck] Errors/warnings detected"; exit $$rc; fi; \
+	    rc=0; \
+	    for f in $(SH_FILES); do \
+	        [ -f "$$f" ] || { echo "[shellcheck] Skipping missing file: $$f"; continue; }; \
+	        echo "[shellcheck] $$f"; \
+	        $(SHELLCHECK) $(SHELLCHECK_OPTS) "$$f" || rc=$$?; \
+	    done; \
+	    if [ $$rc -ne 0 ]; then echo "[shellcheck] Errors/warnings detected"; exit $$rc; fi; \
 	fi
 
 # Spell checks: codespell (permissive) and aspell (permissive)
@@ -146,15 +146,15 @@ lint-spell:
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
 	  $(CODESPELL) --skip="archive/*,*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" \
-		$(SH_FILES) $(MAKEFILE_DIR) || true; \
+	    $(SH_FILES) $(MAKEFILE_DIR) || true; \
 	else \
 	  echo "[lint] codespell not installed; skipping codespell"; \
 	fi
 	@if command -v $(ASPELL) >/dev/null 2>&1; then \
 	  echo "[aspell] scanning comments (lightweight pass)"; \
 	  (for f in $(SH_FILES) $(MAKEFILES); do \
-		 [ -f "$$f" ] || continue; \
-		 sed -n 's/^[[:space:]]*#//p' "$$f" | sed 's/[^[:alpha:][:space:]]/ /g'; \
+	     [ -f "$$f" ] || continue; \
+	     sed -n 's/^[[:space:]]*#//p' "$$f" | sed 's/[^[:alpha:][:space:]]/ /g'; \
 	   done) | tr '[:upper:]' '[:lower:]' | tr -s ' ' '\n' | sort -u | $(ASPELL) list | sort -u || true; \
 	else \
 	  echo "[lint] aspell not installed; skipping aspell"; \
@@ -171,13 +171,13 @@ lint-spell-strict:
 
 	@echo "[aspell] scanning comments (strict)"
 	@bad=$$( (for f in $(SH_FILES) $(MAKEFILES); do \
-		[ -f "$$f" ] || continue; \
-		sed -n 's/^[[:space:]]*#//p' "$$f" | sed 's/[^[:alpha:][:space:]]/ /g'; \
+	    [ -f "$$f" ] || continue; \
+	    sed -n 's/^[[:space:]]*#//p' "$$f" | sed 's/[^[:alpha:][:space:]]/ /g'; \
 	done) | tr '[:upper:]' '[:lower:]' | tr -s ' ' '\n' | sort -u | $(ASPELL) list | sort -u ); \
 	if [ -n "$$bad" ]; then \
-		echo "[aspell] Unknown words found:"; \
-		echo "$$bad"; \
-		exit 1; \
+	    echo "[aspell] Unknown words found:"; \
+	    echo "$$bad"; \
+	    exit 1; \
 	fi
 
 # Lint Makefiles and mk/*.mk using checkmake when available (permissive)
@@ -186,14 +186,14 @@ lint-makefile:
 	@echo "[lint] NOTE: checkmake warnings are advisory only"
 	@if command -v $(CHECKMAKE) >/dev/null 2>&1; then \
 	  for mf in $(MAKEFILE_DIR)Makefile $(MK_FILES); do \
-		[ -f "$$mf" ] || continue; \
-		echo "[checkmake] $$mf"; \
-		$(CHECKMAKE) "$$mf" 2>&1 \
-		  | grep -v '^[[:space:]]*minphony' \
-		  | grep -v '^[[:space:]]*"all"' \
-		  | grep -v '^[[:space:]]*"clean"' \
-		  | grep -v '^[[:space:]]*"test"' \
-		  || true; \
+	    [ -f "$$mf" ] || continue; \
+	    echo "[checkmake] $$mf"; \
+	    $(CHECKMAKE) "$$mf" 2>&1 \
+	      | grep -v '^[[:space:]]*minphony' \
+	      | grep -v '^[[:space:]]*"all"' \
+	      | grep -v '^[[:space:]]*"clean"' \
+	      | grep -v '^[[:space:]]*"test"' \
+	      || true; \
 	  done; \
 	else \
 	  echo "[lint] checkmake not installed; skipping Makefile lint"; \
@@ -205,9 +205,9 @@ lint-makefile-strict:
 	@echo "[lint-ci] Linting Makefiles and mk/*.mk (strict)..."
 	$(call require_tool,$(CHECKMAKE))
 	@for mf in $(MAKEFILE_DIR)Makefile $(MK_FILES); do \
-		[ -f "$$mf" ] || continue; \
-		echo "[checkmake] $$mf"; \
-		$(CHECKMAKE) "$$mf" || { echo "[checkmake] Issues in $$mf"; exit 1; }; \
+	    [ -f "$$mf" ] || continue; \
+	    echo "[checkmake] $$mf"; \
+	    $(CHECKMAKE) "$$mf" || { echo "[checkmake] Issues in $$mf"; exit 1; }; \
 	done
 
 # Headscale config test (use run_as_root helper)
@@ -237,15 +237,15 @@ check-control-plane-reasoning:
 	@echo "[lint] Checking for forbidden intent-level semantic reasoning in router shell scripts..."
 	@set -eu; \
 	if rg -n --hidden --no-ignore-vcs \
-		-e '\|\s*uniq\s+-[cd]' \
-		-e 'sort\s*\|\s*uniq' \
-		-e 'awk.*(count|seen|found|dup|duplicate)' \
-		-e 'awk.*exit\(' \
-		scripts/; then \
-		echo "[lint] ERROR: intent-level semantic reasoning detected in router shell scripts"; \
-		exit 1; \
+	    -e '\|\s*uniq\s+-[cd]' \
+	    -e 'sort\s*\|\s*uniq' \
+	    -e 'awk.*(count|seen|found|dup|duplicate)' \
+	    -e 'awk.*exit\(' \
+	    scripts/; then \
+	    echo "[lint] ERROR: intent-level semantic reasoning detected in router shell scripts"; \
+	    exit 1; \
 	else \
-		echo "[lint] OK: no forbidden semantic reasoning detected"; \
+	    echo "[lint] OK: no forbidden semantic reasoning detected"; \
 	fi
 
 

@@ -6,7 +6,7 @@
 # - Uses run_as_root inherited from mk/01_common.mk
 # - All recipes must call $(run_as_root) with argv tokens.
 # - All recipes are executed by /bin/sh
-# - Escape $ → $$ (Make expands $ first)
+# - Escape $ -> $$ (Make expands $ first)
 # - Do NOT escape shell operators: && || | > <
 # - Do not wrap entire commands in quotes
 # - Use line continuations (\) only for readability
@@ -76,7 +76,7 @@ certs-expiry:
 	fi
 
 # --------------------------------------------------------------------
-# ⚠️  DESTRUCTIVE OPERATION — CA ROTATION
+# � ️  DESTRUCTIVE OPERATION — CA ROTATION
 #
 # - Invalidates ALL existing client certificates
 # - Requires manual confirmation
@@ -90,7 +90,7 @@ certs-rotate-dangerous: certs-rotate
 certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	@echo "🔥 ROTATE CA - this will create a new CA and invalidate existing client certs"; \
 	read -p "Type YES to ROTATE THE CA: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1); \
-	@echo "⚠️  Proceeding with CA rotation — this cannot be undone"; \
+	@echo "� ️  Proceeding with CA rotation — this cannot be undone"; \
 	# exclusive lock to avoid concurrent runs
 	$(run_as_root) bash -c 'exec 9>/var/lock/certs-rotate.lock || exit 1; flock -n 9 || { echo "another certs-rotate is running"; exit 1; }; \
 	set -euo pipefail; \
@@ -123,16 +123,16 @@ certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	# offer automatic reissue if helper exists
 	if [ -n "$$clients" ]; then \
 	  if [ ! -x "$(GEN_CLIENT_CERT)" ]; then \
-		logger -t "$$TAG" -p user.err "generate-client-cert.sh not found or not executable; cannot reissue automatically"; \
-		echo "generate-client-cert.sh missing or not executable; reissue manually"; \
+	    logger -t "$$TAG" -p user.err "generate-client-cert.sh not found or not executable; cannot reissue automatically"; \
+	    echo "generate-client-cert.sh missing or not executable; reissue manually"; \
 	  else \
-		read -p "Reissue all listed clients now using new CA? Type YES to proceed: " r && [ "$$r" = "YES" ] || { logger -t "$$TAG" -p user.info "Skipping automatic reissue"; exit 0; }; \
-		logger -t "$$TAG" -p user.info "Reissuing clients"; \
-		for u in $$clients; do \
-		  logger -t "$$TAG" -p user.info "Reissuing $$u"; \
-		  $(run_as_root) $(GEN_CLIENT_CERT) "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; \
-		done; \
-		logger -t "$$TAG" -p user.info "Automatic reissue complete; admin must securely deliver new .p12 files to users"; \
+	    read -p "Reissue all listed clients now using new CA? Type YES to proceed: " r && [ "$$r" = "YES" ] || { logger -t "$$TAG" -p user.info "Skipping automatic reissue"; exit 0; }; \
+	    logger -t "$$TAG" -p user.info "Reissuing clients"; \
+	    for u in $$clients; do \
+	      logger -t "$$TAG" -p user.info "Reissuing $$u"; \
+	      $(run_as_root) $(GEN_CLIENT_CERT) "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; \
+	    done; \
+	    logger -t "$$TAG" -p user.info "Automatic reissue complete; admin must securely deliver new .p12 files to users"; \
 	  fi; \
 	fi; \
 	# install expiry monitor (journal) using secure temp files under /root
@@ -195,7 +195,7 @@ prepare: renew fix-acme-perms
 # Deploy targets
 define deploy_with_status
 	@$(run_as_root) $(CERTS_DEPLOY) deploy $(1) 2>/dev/null
-	@echo "🔄 Certificate deploy requested → $(1)"
+	@echo "🔄 Certificate deploy requested -> $(1)"
 endef
 
 deploy-caddy: prepare
@@ -238,17 +238,17 @@ all-qnap:        renew prepare deploy-qnap        validate-qnap
 # Cert watch setup targets
 setup-cert-watch-%:
 	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service \
-		/etc/systemd/system/cert-reload@.service && \
+	    /etc/systemd/system/cert-reload@.service && \
 	if [ "$*" = "dnsdist" ]; then \
-		$(run_as_root) install -d -m 0755 \
-			/etc/systemd/system/cert-reload@dnsdist.service.d && \
-		$(run_as_root) install -m 0644 \
-			scripts/systemd/cert-reload@dnsdist.service.d/override.conf \
-			/etc/systemd/system/cert-reload@dnsdist.service.d/override.conf ; \
+	    $(run_as_root) install -d -m 0755 \
+	        /etc/systemd/system/cert-reload@dnsdist.service.d && \
+	    $(run_as_root) install -m 0644 \
+	        scripts/systemd/cert-reload@dnsdist.service.d/override.conf \
+	        /etc/systemd/system/cert-reload@dnsdist.service.d/override.conf ; \
 	fi && \
 	$(run_as_root) install -m 0644 \
-		scripts/systemd/$*-cert.path \
-		/etc/systemd/system/$*-cert.path && \
+	    scripts/systemd/$*-cert.path \
+	    /etc/systemd/system/$*-cert.path && \
 	$(run_as_root) systemctl daemon-reload && \
 	$(run_as_root) systemctl enable $*-cert.path
 

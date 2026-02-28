@@ -16,26 +16,26 @@ ACL_DST ?= /etc/headscale/acl.json
 headscale-acls:
 	@echo "🛂 Installing headscale ACL policy..."
 	@if [ ! -f "$(ACL_SRC)" ]; then \
-		echo "❌ ACL source file not found: $(ACL_SRC)"; \
-		exit 1; \
+	    echo "❌ ACL source file not found: $(ACL_SRC)"; \
+	    exit 1; \
 	fi
 
 	@$(run_as_root) bash -eu -c '\
-		changed=0; \
-		if [ ! -f "$(ACL_DST)" ]; then \
-			install -o root -g headscale -m 0640 "$(ACL_SRC)" "$(ACL_DST)"; \
-			changed=1; \
-		else \
-			if ! cmp -s "$(ACL_SRC)" "$(ACL_DST)"; then \
-				install -o root -g headscale -m 0640 "$(ACL_SRC)" "$(ACL_DST)"; \
-				changed=1; \
-			fi; \
-		fi; \
-		if [ $$changed -eq 1 ]; then \
-			echo "🔄 Restarting headscale due to ACL update"; \
-			systemctl daemon-reload; \
-			systemctl restart headscale; \
-		fi \
+	    changed=0; \
+	    if [ ! -f "$(ACL_DST)" ]; then \
+	        install -o root -g headscale -m 0640 "$(ACL_SRC)" "$(ACL_DST)"; \
+	        changed=1; \
+	    else \
+	        if ! cmp -s "$(ACL_SRC)" "$(ACL_DST)"; then \
+	            install -o root -g headscale -m 0640 "$(ACL_SRC)" "$(ACL_DST)"; \
+	            changed=1; \
+	        fi; \
+	    fi; \
+	    if [ $$changed -eq 1 ]; then \
+	        echo "🔄 Restarting headscale due to ACL update"; \
+	        systemctl daemon-reload; \
+	        systemctl restart headscale; \
+	    fi \
 	'
 
 	@echo "✅ Headscale ACL policy processed"

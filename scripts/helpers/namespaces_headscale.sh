@@ -45,7 +45,7 @@ done
 # Detect and remove extra namespaces not in baseline
 extras=$(comm -23 <(existing_namespaces | sort) <(printf "%s\n" "${BASELINE_NAMESPACES[@]}" | sort))
 
-# each namespace is handled line‑by‑line, even if it contains spaces or odd characters.
+# each namespace is handled line-by-line, even if it contains spaces or odd characters.
 if [ -n "${extras}" ]; then
     echo "${extras}" | while read -r ns; do
         log "WARN: Extra namespace detected: \"${ns}\""

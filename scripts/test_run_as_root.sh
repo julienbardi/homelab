@@ -12,12 +12,12 @@ HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
 source "$HOMELAB_DIR/scripts/common.sh"
 
 fail() {
-	log "❌ Test failed: $1"
-	exit 1
+    log "❌ Test failed: $1"
+    exit 1
 }
 
 pass() {
-	log "✅ Test passed: $1"
+    log "✅ Test passed: $1"
 }
 
 log "=== Test 1: simple command ==="
@@ -84,11 +84,11 @@ if [ "$output" = "bar" ]; then
   pass "inherited env preserve"
 else
   # Diagnostic: show what sudo -E and the wrapper report (helpful for debugging)
-  log "⚠️  --preserve did not forward environment in this run (observed: '$output')"
+  log "� ️  --preserve did not forward environment in this run (observed: '$output')"
   log "Diagnostic: sudo -E env | grep FOO -> $(sudo -E env 2>/dev/null | grep -E '^FOO=' || echo '<none>')"
   # If run_as_root is available as a function in this shell, show its env too
   if command -v run_as_root >/dev/null 2>&1; then
-	log "Diagnostic: run_as_root --preserve env -> $(run_as_root --preserve env 2>/dev/null | grep -E '^FOO=' || echo '<none>')"
+    log "Diagnostic: run_as_root --preserve env -> $(run_as_root --preserve env 2>/dev/null | grep -E '^FOO=' || echo '<none>')"
   fi
   # Treat as skipped on platforms where env forwarding is restricted
   pass "inherited env preserve (skipped assertion; host does not forward env in this context)"

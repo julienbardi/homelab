@@ -22,17 +22,17 @@ firewall-nas: ensure-run-as-root
 	@echo "🔥 Allowing router-terminated WireGuard clients to access NAS"
 
 	@if ! $(run_as_root) $(IPTABLES) -C INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT 2>/dev/null; then \
-		  $(run_as_root) $(IPTABLES) -I INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT; \
+	      $(run_as_root) $(IPTABLES) -I INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT; \
 	fi
 
 	@if ! $(run_as_root) $(IPTABLES) -C INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p udp -j ACCEPT 2>/dev/null; then \
-		  $(run_as_root) $(IPTABLES) -I INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p udp -j ACCEPT; \
+	      $(run_as_root) $(IPTABLES) -I INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p udp -j ACCEPT; \
 	fi
 
 	@if ! $(run_as_root) $(IP6TABLES) -C INPUT -s $(ROUTER_WG_SUBNET6) -d $(NAS_LAN_IP6) -p tcp -j ACCEPT 2>/dev/null; then \
-		  $(run_as_root) $(IP6TABLES) -I INPUT -s $(ROUTER_WG_SUBNET6) -d $(NAS_LAN_IP6) -p tcp -j ACCEPT; \
+	      $(run_as_root) $(IP6TABLES) -I INPUT -s $(ROUTER_WG_SUBNET6) -d $(NAS_LAN_IP6) -p tcp -j ACCEPT; \
 	fi
 
 	@if ! $(run_as_root) $(IP6TABLES) -C INPUT -s $(ROUTER_WG_SUBNET6) -d $(NAS_LAN_IP6) -p udp -j ACCEPT 2>/dev/null; then \
-		  $(run_as_root) $(IP6TABLES) -I INPUT -s $(ROUTER_WG_SUBNET6) -d $(NAS_LAN_IP6) -p udp -j ACCEPT; \
+	      $(run_as_root) $(IP6TABLES) -I INPUT -s $(ROUTER_WG_SUBNET6) -d $(NAS_LAN_IP6) -p udp -j ACCEPT; \
 	fi

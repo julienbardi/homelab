@@ -65,35 +65,35 @@ endef
 wg-intent:
 	@echo "📋 WireGuard client addressing (make wg-intent)"
 	@printf "%-14s %-6s %-7s %-18s %s\n" \
-		"BASE" "IFACE" "HOSTID" "ADDRESS" "ENDPOINT"
+	    "BASE" "IFACE" "HOSTID" "ADDRESS" "ENDPOINT"
 	@printf "%-14s %-6s %-7s %-18s %s\n" \
-		"--------------" "------" "-------" "------------------" "------------------------------"
+	    "--------------" "------" "-------" "------------------" "------------------------------"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '{ \
-		printf "%-14s %-6s %-7s %-18s %s\n", $$1, $$2, $$3, $$5, $$9 \
+	    printf "%-14s %-6s %-7s %-18s %s\n", $$1, $$2, $$3, $$5, $$9 \
 	}'
 
 wg-clients: wg-compile
 	@echo "📋 WireGuard client summary (make wg-clients)"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '\
-		{ \
-			base=$$1; iface=$$2; \
-			n=split(base,a,"-"); user=a[1]; machine=(n>=2?a[2]:""); \
-			printf "%-8s %-12s %-6s make wg-show-client-key BASE=%s IFACE=%s\n", \
-				user, machine, iface, base, iface \
-		}'
+	    { \
+	        base=$$1; iface=$$2; \
+	        n=split(base,a,"-"); user=a[1]; machine=(n>=2?a[2]:""); \
+	        printf "%-8s %-12s %-6s make wg-show-client-key BASE=%s IFACE=%s\n", \
+	            user, machine, iface, base, iface \
+	    }'
 
 .PHONY: wg-show-client-key-validate
 wg-show-client-key-validate:
 	@if [ -z "$(BASE)" ] || [ -z "$(IFACE)" ]; then \
-		echo "Usage: make wg-show-client-key BASE=<base> IFACE=<iface>" >&2; \
-		exit 1; \
+	    echo "Usage: make wg-show-client-key BASE=<base> IFACE=<iface>" >&2; \
+	    exit 1; \
 	fi
 
 wg-show-client-key: wg-show-client-key-validate ensure-run-as-root
 	@conf="$(WG_ROOT)/export/clients/$(BASE)/$(IFACE).conf"; \
 	$(run_as_root) test -f "$$conf" || { \
-		echo "ERROR: missing $$conf — run 'make wg' first" >&2; \
-		exit 1; \
+	    echo "ERROR: missing $$conf — run 'make wg' first" >&2; \
+	    exit 1; \
 	}; \
 	$(run_as_root) cat "$$conf"
 
@@ -127,22 +127,22 @@ wg-compiled: wg-compile
 wg-deployed-view: ensure-run-as-root
 	@echo "Deployed /etc/wireguard view:"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
-		set -e; \
-		if [ ! -d "$(WG_DIR)" ]; then \
-			echo "missing $(WG_DIR)"; exit 1; \
-		fi; \
-		echo; \
-		echo "Configs:"; \
-		ls -1 "$(WG_DIR)"/*.conf 2>/dev/null || echo "  (none)"; \
-		echo; \
-		echo "Public keys:"; \
-		ls -1 "$(WG_DIR)"/*.pub 2>/dev/null || echo "  (none)"; \
-		echo; \
-		echo "Metadata:"; \
-		ls -1 "$(WG_DIR)"/.deploy-meta "$(WG_DIR)"/last-known-good.list 2>/dev/null || echo "  (none)"; \
-		echo; \
-		echo "Unexpected files:"; \
-		ls -1 "$(WG_DIR)" | grep -Ev "^(wg.*\\.(conf|pub)|\\.deploy-meta|last-known-good\\.list)$$" || echo "  (none)"; \
+	    set -e; \
+	    if [ ! -d "$(WG_DIR)" ]; then \
+	        echo "missing $(WG_DIR)"; exit 1; \
+	    fi; \
+	    echo; \
+	    echo "Configs:"; \
+	    ls -1 "$(WG_DIR)"/*.conf 2>/dev/null || echo "  (none)"; \
+	    echo; \
+	    echo "Public keys:"; \
+	    ls -1 "$(WG_DIR)"/*.pub 2>/dev/null || echo "  (none)"; \
+	    echo; \
+	    echo "Metadata:"; \
+	    ls -1 "$(WG_DIR)"/.deploy-meta "$(WG_DIR)"/last-known-good.list 2>/dev/null || echo "  (none)"; \
+	    echo; \
+	    echo "Unexpected files:"; \
+	    ls -1 "$(WG_DIR)" | grep -Ev "^(wg.*\\.(conf|pub)|\\.deploy-meta|last-known-good\\.list)$$" || echo "  (none)"; \
 	'
 
 # ------------------------------------------------------------
@@ -160,20 +160,20 @@ wg-status: ensure-run-as-root
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "------" "------------" "------------------" "--------"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
-		set -e; \
-		IFACES="$$( "$(WG_PLAN_IFACES)" "$(PLAN)" )"; \
-		for dev in $$IFACES; do \
-			link_line=$$(ip -brief link show "$$dev" 2>/dev/null || echo "not-present"); \
-			link_state=$$(printf "%s" "$$link_line" | awk '\''{print ($$2 ? $$2 : $$1)}'\''); \
-			wg_out=$$($(WG_BIN) show "$$dev" 2>/dev/null || true); \
-			if [ -n "$$wg_out" ]; then \
-				port=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*listening port:[[:space:]]*//p'\'' | head -n1); \
-				peer_count=$$(printf "%s" "$$wg_out" | grep -c "^peer:" || true); \
-			else \
-				port="-"; peer_count=0; \
-			fi; \
-			printf "%-6s %-12s %-18s %-8s\n" "$$dev" "$$link_state" "$$port" "$$peer_count"; \
-		done \
+	    set -e; \
+	    IFACES="$$( "$(WG_PLAN_IFACES)" "$(PLAN)" )"; \
+	    for dev in $$IFACES; do \
+	        link_line=$$(ip -brief link show "$$dev" 2>/dev/null || echo "not-present"); \
+	        link_state=$$(printf "%s" "$$link_line" | awk '\''{print ($$2 ? $$2 : $$1)}'\''); \
+	        wg_out=$$($(WG_BIN) show "$$dev" 2>/dev/null || true); \
+	        if [ -n "$$wg_out" ]; then \
+	            port=$$(printf "%s" "$$wg_out" | sed -n '\''s/^[[:space:]]*listening port:[[:space:]]*//p'\'' | head -n1); \
+	            peer_count=$$(printf "%s" "$$wg_out" | grep -c "^peer:" || true); \
+	        else \
+	            port="-"; peer_count=0; \
+	        fi; \
+	        printf "%-6s %-12s %-18s %-8s\n" "$$dev" "$$link_state" "$$port" "$$peer_count"; \
+	    done \
 	'
 
 # ------------------------------------------------------------
@@ -186,22 +186,22 @@ wg-dashboard:
 	@printf "%-24s %s\n" "BASE" "IFACES"
 	@printf "%-24s %s\n" "------------------------" "------------------------------"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '\
-		{ seen[$$1]=seen[$$1] " " $$2 } \
-		END { for (b in seen) printf "%-24s%s\n", b, seen[b] } \
+	    { seen[$$1]=seen[$$1] " " $$2 } \
+	    END { for (b in seen) printf "%-24s%s\n", b, seen[b] } \
 	' | sort
 
 wg-check-ports: $(WG_PLAN_IFACES)
 	@echo "Checking WireGuard UDP ports..."
 	@$(WG_PLAN_IFACES) "$(PLAN)" | sort -u | while read iface; do \
-		port="$$(sudo wg show $$iface listen-port 2>/dev/null || true)"; \
-		if [ -z "$$port" ]; then \
-			printf "⚠️ %-5s UDP (unknown) : INTERFACE NOT FOUND \n" "$$iface"; \
-		elif [ "$$port" = "0" ]; then \
-			printf "🔕 %-5s UDP 0         : NOT LISTENING (outbound-only)\n" "$$iface"; \
-		else \
-			printf "✅  %-5s UDP %-5s : LISTENING \n" "$$iface" "$$port"; \
-			if [ "$$port" -lt 51420 ] || [ "$$port" -gt 51451 ]; then \
-				printf "        ⚠️  Port %s is outside forwarded range (UDP 51420–51451)\n" "$$port"; \
-			fi; \
-		fi; \
+	    port="$$(sudo wg show $$iface listen-port 2>/dev/null || true)"; \
+	    if [ -z "$$port" ]; then \
+	        printf "� ️ %-5s UDP (unknown) : INTERFACE NOT FOUND \n" "$$iface"; \
+	    elif [ "$$port" = "0" ]; then \
+	        printf "🔕 %-5s UDP 0         : NOT LISTENING (outbound-only)\n" "$$iface"; \
+	    else \
+	        printf "✅  %-5s UDP %-5s : LISTENING \n" "$$iface" "$$port"; \
+	        if [ "$$port" -lt 51420 ] || [ "$$port" -gt 51451 ]; then \
+	            printf "        � ️  Port %s is outside forwarded range (UDP 51420-51451)\n" "$$port"; \
+	        fi; \
+	    fi; \
 	done

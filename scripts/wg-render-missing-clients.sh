@@ -40,185 +40,185 @@ chmod 700 "$OUT_CLIENT" "$OUT_SERVER" 2>/dev/null || true
 # Validate strict TSV header (plan.tsv v2 + endpoint)
 # --------------------------------------------------------------------
 awk -F'\t' '
-	/^#/ { next }
-	/^[[:space:]]*$/ { next }
-	!seen {
-		seen=1
-		if ($1=="node" &&
-			$2=="iface" &&
-			$3=="profile" &&
-			$4=="tunnel_mode" &&
-			$5=="lan_access" &&
-			$6=="egress_v4" &&
-			$7=="egress_v6" &&
-			$8=="client_addr_v4" &&
-			$9=="client_addr_v6" &&
-			$10=="client_allowed_ips_v4" &&
-			$11=="client_allowed_ips_v6" &&
-			$12=="server_addr4" &&
-			$13=="server_addr6" &&
-			$14=="server_allowed_ips_v4" &&
-			$15=="server_allowed_ips_v6" &&
-			$16=="dns" &&
-			$17=="endpoint") exit 0
-		exit 1
-	}
+    /^#/ { next }
+    /^[[:space:]]*$/ { next }
+    !seen {
+        seen=1
+        if ($1=="node" &&
+            $2=="iface" &&
+            $3=="profile" &&
+            $4=="tunnel_mode" &&
+            $5=="lan_access" &&
+            $6=="egress_v4" &&
+            $7=="egress_v6" &&
+            $8=="client_addr_v4" &&
+            $9=="client_addr_v6" &&
+            $10=="client_allowed_ips_v4" &&
+            $11=="client_allowed_ips_v6" &&
+            $12=="server_addr4" &&
+            $13=="server_addr6" &&
+            $14=="server_allowed_ips_v4" &&
+            $15=="server_allowed_ips_v6" &&
+            $16=="dns" &&
+            $17=="endpoint") exit 0
+        exit 1
+    }
 ' "$PLAN" || {
-	echo "ERROR: plan.tsv header does not match strict TSV contract" >&2
-	exit 1
+    echo "ERROR: plan.tsv header does not match strict TSV contract" >&2
+    exit 1
 }
 
 compile_iface() {
-	local iface="$1"
-	local ifnum="${iface#wg}"
+    local iface="$1"
+    local ifnum="${iface#wg}"
 
-	[[ "$ifnum" =~ ^[0-9]+$ ]] || {
-		echo "ERROR: invalid iface '$iface'" >&2
-		exit 1
-	}
+    [[ "$ifnum" =~ ^[0-9]+$ ]] || {
+        echo "ERROR: invalid iface '$iface'" >&2
+        exit 1
+    }
 
-	local server_pub="${WG_ROOT}/server-keys/${iface}.pub"
-	[ -f "$server_pub" ] || {
-		echo "ERROR: missing server public key $server_pub" >&2
-		exit 1
-	}
+    local server_pub="${WG_ROOT}/server-keys/${iface}.pub"
+    [ -f "$server_pub" ] || {
+        echo "ERROR: missing server public key $server_pub" >&2
+        exit 1
+    }
 
-	local server_pubkey
-	server_pubkey="$(tr -d '\r\n' <"$server_pub")"
-	[ -n "$server_pubkey" ] || {
-		echo "ERROR: empty server public key in $server_pub" >&2
-		exit 1
-	}
+    local server_pubkey
+    server_pubkey="$(tr -d '\r\n' <"$server_pub")"
+    [ -n "$server_pubkey" ] || {
+        echo "ERROR: empty server public key in $server_pub" >&2
+        exit 1
+    }
 
-	mkdir -p "$OUT_SERVER/$iface"
+    mkdir -p "$OUT_SERVER/$iface"
 
-	awk -F'\t' \
-		-v KEYS="$KEYS" \
-		-v IFACE="$iface" \
-		-v OUTC="$OUT_CLIENT" \
-		-v OUTS="$OUT_SERVER" \
-		-v SERVER_PUB="$server_pubkey" \
-		-v KEYW="$KEY_WIDTH" '
-		function kv(file, key, val) {
-			printf "%-*s = %s\n", KEYW, key, val >> file
-		}
+    awk -F'\t' \
+        -v KEYS="$KEYS" \
+        -v IFACE="$iface" \
+        -v OUTC="$OUT_CLIENT" \
+        -v OUTS="$OUT_SERVER" \
+        -v SERVER_PUB="$server_pubkey" \
+        -v KEYW="$KEY_WIDTH" '
+        function kv(file, key, val) {
+            printf "%-*s = %s\n", KEYW, key, val >> file
+        }
 
-		BEGIN {
-			while ((getline < KEYS) > 0) {
-				if ($0 ~ /^[[:space:]]*$/) continue
-				if ($1=="base" && $2=="iface") continue
+        BEGIN {
+            while ((getline < KEYS) > 0) {
+                if ($0 ~ /^[[:space:]]*$/) continue
+                if ($1=="base" && $2=="iface") continue
 
-				key = $1 SUBSEP $2
-				if (key in priv) {
-					printf "ERROR: duplicate key entry for base=%s iface=%s\n", $1, $2 > "/dev/stderr"
-					exit 1
-				}
+                key = $1 SUBSEP $2
+                if (key in priv) {
+                    printf "ERROR: duplicate key entry for base=%s iface=%s\n", $1, $2 > "/dev/stderr"
+                    exit 1
+                }
 
-				pub[key]  = $3
-				priv[key] = $4
-			}
-			close(KEYS)
-		}
+                pub[key]  = $3
+                priv[key] = $4
+            }
+            close(KEYS)
+        }
 
-		/^#/ { next }
-		/^[[:space:]]*$/ { next }
+        /^#/ { next }
+        /^[[:space:]]*$/ { next }
 
-		# Skip header row (v2 + endpoint)
-		$1=="node" && $2=="iface" { next }
+        # Skip header row (v2 + endpoint)
+        $1=="node" && $2=="iface" { next }
 
-		{
-			if ($2 != IFACE) next
+        {
+            if ($2 != IFACE) next
 
-			key = $1 SUBSEP $2
-			if (!(key in priv) || !(key in pub)) {
-				printf "ERROR: missing keys for base=%s iface=%s\n", $1, $2 > "/dev/stderr"
-				exit 2
-			}
+            key = $1 SUBSEP $2
+            if (!(key in priv) || !(key in pub)) {
+                printf "ERROR: missing keys for base=%s iface=%s\n", $1, $2 > "/dev/stderr"
+                exit 2
+            }
 
-			client_file = OUTC "/" $1 "-" $2 ".conf"
-			server_file = OUTS "/" $2 "/" $1 ".conf"
+            client_file = OUTC "/" $1 "-" $2 ".conf"
+            server_file = OUTS "/" $2 "/" $1 ".conf"
 
-			# Columns (v2 + endpoint):
-			# 1  node
-			# 2  iface
-			# 3  profile
-			# 4  tunnel_mode
-			# 5  lan_access
-			# 6  egress_v4
-			# 7  egress_v6
-			# 8  client_addr_v4
-			# 9  client_addr_v6
-			# 10 client_allowed_ips_v4
-			# 11 client_allowed_ips_v6
-			# 12 server_addr4
-			# 13 server_addr6
-			# 14 server_allowed_ips_v4
-			# 15 server_allowed_ips_v6
-			# 16 dns
-			# 17 endpoint
+            # Columns (v2 + endpoint):
+            # 1  node
+            # 2  iface
+            # 3  profile
+            # 4  tunnel_mode
+            # 5  lan_access
+            # 6  egress_v4
+            # 7  egress_v6
+            # 8  client_addr_v4
+            # 9  client_addr_v6
+            # 10 client_allowed_ips_v4
+            # 11 client_allowed_ips_v6
+            # 12 server_addr4
+            # 13 server_addr6
+            # 14 server_allowed_ips_v4
+            # 15 server_allowed_ips_v6
+            # 16 dns
+            # 17 endpoint
 
-			client_allowed = $10
-			if ($11 != "") client_allowed = client_allowed "," $11
+            client_allowed = $10
+            if ($11 != "") client_allowed = client_allowed "," $11
 
-			server_allowed = $14
-			if ($15 != "") server_allowed = server_allowed "," $15
+            server_allowed = $14
+            if ($15 != "") server_allowed = server_allowed "," $15
 
-			if (system("[ -e \"" client_file "\" ]") != 0) {
-				print "# " $1 "-" $2              >  client_file
-				print "# Interface: " $2          >> client_file
-				print "# Generated by wg-render-missing-clients.sh" >> client_file
-				print ""                          >> client_file
-				print "[Interface]"               >> client_file
-				kv(client_file, "PrivateKey", priv[key])
-				kv(client_file, "Address", $8 ", " $9)
-				if ($16 != "") kv(client_file, "DNS", $16)
-				print ""                          >> client_file
-				print "[Peer]"                    >> client_file
-				print "# Server: homelab-" $2     >> client_file
-				kv(client_file, "PublicKey", SERVER_PUB)
-				kv(client_file, "Endpoint", $17)
-				kv(client_file, "AllowedIPs", client_allowed)
-				kv(client_file, "PersistentKeepalive", "25")
-				close(client_file)
-			}
+            if (system("[ -e \"" client_file "\" ]") != 0) {
+                print "# " $1 "-" $2              >  client_file
+                print "# Interface: " $2          >> client_file
+                print "# Generated by wg-render-missing-clients.sh" >> client_file
+                print ""                          >> client_file
+                print "[Interface]"               >> client_file
+                kv(client_file, "PrivateKey", priv[key])
+                kv(client_file, "Address", $8 ", " $9)
+                if ($16 != "") kv(client_file, "DNS", $16)
+                print ""                          >> client_file
+                print "[Peer]"                    >> client_file
+                print "# Server: homelab-" $2     >> client_file
+                kv(client_file, "PublicKey", SERVER_PUB)
+                kv(client_file, "Endpoint", $17)
+                kv(client_file, "AllowedIPs", client_allowed)
+                kv(client_file, "PersistentKeepalive", "25")
+                close(client_file)
+            }
 
-			if (system("[ -e \"" server_file "\" ]") != 0) {
-				print "# " $1 "-" $2              >  server_file
-				print "# Interface: " $2          >> server_file
-				print "# Generated by wg-render-missing-clients.sh" >> server_file
-				print ""                          >> server_file
-				print "[Peer]"                    >> server_file
-				kv(server_file, "PublicKey", pub[key])
-				kv(server_file, "AllowedIPs", server_allowed)
-				close(server_file)
-			}
-		}
-	' "$PLAN"
+            if (system("[ -e \"" server_file "\" ]") != 0) {
+                print "# " $1 "-" $2              >  server_file
+                print "# Interface: " $2          >> server_file
+                print "# Generated by wg-render-missing-clients.sh" >> server_file
+                print ""                          >> server_file
+                print "[Peer]"                    >> server_file
+                kv(server_file, "PublicKey", pub[key])
+                kv(server_file, "AllowedIPs", server_allowed)
+                close(server_file)
+            }
+        }
+    ' "$PLAN"
 }
 
 mapfile -t IFACES < <(
-	awk -F'\t' '
-		/^#/ { next }
-		/^[[:space:]]*$/ { next }
+    awk -F'\t' '
+        /^#/ { next }
+        /^[[:space:]]*$/ { next }
 
-		# Skip header row (v2 + endpoint)
-		$1=="node" && $2=="iface" { next }
+        # Skip header row (v2 + endpoint)
+        $1=="node" && $2=="iface" { next }
 
-		{ print $2 }
-	' "$PLAN" | sort -u
+        { print $2 }
+    ' "$PLAN" | sort -u
 )
 
 [ "${#IFACES[@]}" -gt 0 ] || {
-	echo "ERROR: no interfaces found in plan.tsv" >&2
-	exit 1
+    echo "ERROR: no interfaces found in plan.tsv" >&2
+    exit 1
 }
 
 pids=()
 for iface in "${IFACES[@]}"; do
-	compile_iface "$iface" &
-	pids+=( "$!" )
+    compile_iface "$iface" &
+    pids+=( "$!" )
 done
 
 for pid in "${pids[@]}"; do
-	wait "$pid"
+    wait "$pid"
 done

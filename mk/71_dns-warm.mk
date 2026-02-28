@@ -31,7 +31,7 @@ DNS_WARM_POLICY_DST := $(INSTALL_PATH)/dns-warm-update-domains
 
 install-dns-warm-policy:
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-		$(DNS_WARM_POLICY_SRC_INST) $(DNS_WARM_POLICY_DST) root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+	    $(DNS_WARM_POLICY_SRC_INST) $(DNS_WARM_POLICY_DST) root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # Fix parallel ordering
 update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-warm-dirs
@@ -93,11 +93,11 @@ dns-warm-uninstall: dns-warm-disable
 dns-warm-create-user:
 	@echo "Ensuring system user/group '$(USER)' exists..."
 	@if ! getent group $(GROUP) >/dev/null 2>&1; then \
-		$(run_as_root) groupadd --system $(GROUP); \
+	    $(run_as_root) groupadd --system $(GROUP); \
 	fi
 	@if ! id -u $(USER) >/dev/null 2>&1; then \
-		$(run_as_root) useradd --system --no-create-home --shell /usr/sbin/nologin \
-			-g $(GROUP) --comment "DNS cache warmer" $(USER); \
+	    $(run_as_root) useradd --system --no-create-home --shell /usr/sbin/nologin \
+	        -g $(GROUP) --comment "DNS cache warmer" $(USER); \
 	fi
 
 dns-warm-dirs:
@@ -107,7 +107,7 @@ dns-warm-dirs:
 
 dns-warm-install-script: dns-warm-async-install
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-		$(ROTATE_SCRIPT_SRC_INST) $(ROTATE_SCRIPT_PATH) $(USER) $(GROUP) 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+	    $(ROTATE_SCRIPT_SRC_INST) $(ROTATE_SCRIPT_PATH) $(USER) $(GROUP) 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 	@$(run_as_root) bash -n $(ROTATE_SCRIPT_PATH)
 
 # Fix parallel ordering
@@ -162,4 +162,4 @@ dns-warm-async: $(DNS_WARM_ASYNC_SRC) prereqs
 .PHONY: dns-warm-async-install
 dns-warm-async-install: dns-warm-async
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-		dns-warm-async $(BIN_DIR)/dns-warm-async root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+	    dns-warm-async $(BIN_DIR)/dns-warm-async root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]

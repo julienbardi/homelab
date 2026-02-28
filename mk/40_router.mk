@@ -8,7 +8,7 @@
 # - Script installation is handled by the global install pattern
 # - Operator must be present (interactive gate)
 # - Executed by /bin/sh
-# - Escape $ → $$ (Make expands $ first)
+# - Escape $ -> $$ (Make expands $ first)
 # --------------------------------------------------------------------
 
 # Installed execution surface (authoritative)
@@ -39,8 +39,8 @@ router-sync-scripts: prereqs-run-as-root $(ROUTER_SYNC_SCRIPT) install-router-ca
 
 install-router-ca: ensure-run-as-root router-ssh-prereqs
 	@$(run_as_root) install -o root -g root -m 0755 \
-		$(MAKEFILE_DIR)scripts/router-install-ca.sh \
-		$(ROUTER_INSTALL_CA_SCRIPT)
+	    $(MAKEFILE_DIR)scripts/router-install-ca.sh \
+	    $(ROUTER_INSTALL_CA_SCRIPT)
 
 router-publish-ca: router-sync-scripts
 	@true

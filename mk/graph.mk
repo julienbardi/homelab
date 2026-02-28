@@ -90,21 +90,21 @@ SKIP_KNOWN_HOSTS ?= 0
 ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
 	@echo "🔐 Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE) (SKIP_KNOWN_HOSTS=$(SKIP_KNOWN_HOSTS))"
 	@if [ "$(SKIP_KNOWN_HOSTS)" = "1" ]; then \
-		echo "⏭️ Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
+	    echo "⏭️ Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
 	else \
-		# best-effort: interactive / non-fatal
-		$(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
+	    # best-effort: interactive / non-fatal
+	    $(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
 	fi
 
 .PHONY: gitcheck update
 gitcheck:
 	@if [ ! -d $(MAKEFILE_DIR)/.git ]; then \
-		echo "📦 Cloning homelab repo"; \
-		mkdir -p $(dir $(MAKEFILE_DIR)); \
-		git clone $(HOMELAB_REPO) $(MAKEFILE_DIR); \
+	    echo "📦 Cloning homelab repo"; \
+	    mkdir -p $(dir $(MAKEFILE_DIR)); \
+	    git clone $(HOMELAB_REPO) $(MAKEFILE_DIR); \
 	else \
-		echo "📍 homelab repo already present at $(MAKEFILE_DIR)"; \
-		git -C $(MAKEFILE_DIR) rev-parse --short HEAD; \
+	    echo "📍 homelab repo already present at $(MAKEFILE_DIR)"; \
+	    git -C $(MAKEFILE_DIR) rev-parse --short HEAD; \
 	fi
 
 update: gitcheck
@@ -155,7 +155,7 @@ headscale-stack: \
 	headscale \
 	headscale-users \
 	headscale-acls
-	@echo "🧠 Headscale control plane ready"
+	@echo "�  Headscale control plane ready"
 
 .PHONY: tailscaled
 
@@ -166,7 +166,7 @@ tailscaled: \
 	start-tailscaled \
 	tailscaled-status
 	@COMMIT_HASH=$$(git -C $(MAKEFILE_DIR) rev-parse --short HEAD); \
-		echo "🧬 Completed tailscaled orchestration at commit $$COMMIT_HASH"
+	    echo "🧬 Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
 SYSTEMD_DIR = /etc/systemd/system
 REPO_SYSTEMD = config/systemd
@@ -176,7 +176,7 @@ REPO_SYSTEMD = config/systemd
 install-systemd: ## Install systemd units and reload systemd (idempotent)
 	@echo "🧩 Installing systemd units"
 	@if [ ! -d "$(MAKEFILE_DIR)$(REPO_SYSTEMD)" ]; then \
-		echo "ERROR: $(MAKEFILE_DIR)$(REPO_SYSTEMD) not found"; exit 1; \
+	    echo "ERROR: $(MAKEFILE_DIR)$(REPO_SYSTEMD) not found"; exit 1; \
 	fi
 	# ensure target dirs
 	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
@@ -210,9 +210,9 @@ uninstall-systemd:
 	@$(run_as_root) systemctl stop --now unbound-ctl-fix.path unbound-ctl-fix.service || true
 	@$(run_as_root) systemctl disable unbound-ctl-fix.path || true
 	@$(run_as_root) rm -f $(SYSTEMD_DIR)/unbound-ctl-fix.path \
-			  $(SYSTEMD_DIR)/unbound-ctl-fix.service \
-			  $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf \
-			  $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf || true
+	          $(SYSTEMD_DIR)/unbound-ctl-fix.service \
+	          $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf \
+	          $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf || true
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound-ctl-fix.service.d || true
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound.service.d || true
 	@$(run_as_root) systemctl daemon-reload
@@ -250,9 +250,9 @@ nft-status:
 nft-install-rollback:
 	@echo "⏪ Installing homelab nft rollback units"
 	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.service \
-		/etc/systemd/system/homelab-nft-rollback.service
+	    /etc/systemd/system/homelab-nft-rollback.service
 	@$(run_as_root) install -o root -g root -m 0644 \
-		$(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
+	    $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft-rollback.timer
 

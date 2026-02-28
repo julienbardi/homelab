@@ -24,36 +24,36 @@ $(CODE_SERVER_CONFIG_DST): $(CODE_SERVER_CONFIG_SRC)
 $(CODE_SERVER_SYSTEMD_OVERRIDE): \
 	$(CODE_SERVER_CONFIG_DST) \
 	$(CODE_SERVER_HELPER_DST)
-	@echo "🛠️ Ensuring systemd override for code-server"
+	@echo "� ️ Ensuring systemd override for code-server"
 	@$(run_as_root) mkdir -p "$(CODE_SERVER_SYSTEMD_DIR)"
 	@printf '%s\n' \
-		'[Service]' \
-		'ExecStart=' \
-		'ExecStart=/usr/bin/code-server --config $(CODE_SERVER_CONFIG_DST)' | \
-		$(run_as_root) install -m 644 /dev/stdin "$(CODE_SERVER_SYSTEMD_OVERRIDE).new"
+	    '[Service]' \
+	    'ExecStart=' \
+	    'ExecStart=/usr/bin/code-server --config $(CODE_SERVER_CONFIG_DST)' | \
+	    $(run_as_root) install -m 644 /dev/stdin "$(CODE_SERVER_SYSTEMD_OVERRIDE).new"
 	@$(run_as_root) "$(CODE_SERVER_HELPER_DST)" \
-		"$(CODE_SERVER_SYSTEMD_OVERRIDE).new" \
-		"$(CODE_SERVER_SYSTEMD_OVERRIDE)"
+	    "$(CODE_SERVER_SYSTEMD_OVERRIDE).new" \
+	    "$(CODE_SERVER_SYSTEMD_OVERRIDE)"
 
 code-server-install:
 	@if command -v code-server >/dev/null 2>&1; then \
-		echo "🔧 code-server already installed"; \
+	    echo "🔧 code-server already installed"; \
 	else \
-		echo "🔧 Installing code-server"; \
-		curl -fsSL https://code-server.dev/install.sh | sh; \
+	    echo "🔧 Installing code-server"; \
+	    curl -fsSL https://code-server.dev/install.sh | sh; \
 	fi
 
 code-server-ensure-running: \
 	$(CODE_SERVER_CONFIG_DST) \
 	$(CODE_SERVER_SYSTEMD_OVERRIDE)
 	@$(run_as_root) sh -c '\
-		if systemctl is-active --quiet code-server@$(USER); then \
-			echo "🔁 Restarting code-server (config changed)"; \
-			systemctl restart code-server@$(USER); \
-		else \
-			echo "▶️ Starting code-server"; \
-			systemctl start code-server@$(USER); \
-		fi'
+	    if systemctl is-active --quiet code-server@$(USER); then \
+	        echo "🔁 Restarting code-server (config changed)"; \
+	        systemctl restart code-server@$(USER); \
+	    else \
+	        echo "▶️ Starting code-server"; \
+	        systemctl start code-server@$(USER); \
+	    fi'
 
 code-server-enable:
 	@echo "🔧 Enabling code-server for user $(USER)"
