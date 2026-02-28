@@ -60,6 +60,9 @@ Data encoding & determinism:
   - TSV encoding
   - TSV schema literals in code
   - Deterministic ordering
+
+Output & operator interface:
+  - Output icon semantics
 -------------------------------------------------------------------------------
 
 
@@ -1716,6 +1719,64 @@ Rationale:
 
   - Prevents compounding errors.
   - Forces resolution at the correct layer.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Output icon semantics
+-------------------------------------------------------------------------------
+
+This contract defines the canonical icon set for all operator‑visible output produced by Makefiles, shell scripts, and deployment tooling. Icons are part of the system’s observable behavior and MUST remain stable, intentional, and semantically consistent.
+
+Scope:
+
+  - Applies to all scripts under scripts/, all Makefile targets under mk/, all router‑deployed scripts, and all operator‑facing output (stdout and stderr).
+  - Does NOT apply to documentation, markdown files, or comments.
+
+Invariants:
+
+  - The icon set is normative.
+  - Each icon has a single, unambiguous meaning.
+  - Icons MUST NOT be repurposed across semantic categories.
+  - Icons MUST NOT be replaced, substituted, or visually drifted without an explicit contract amendment.
+
+Canonical icon set:
+
+  Success:
+    SUCCESS_ICON = "✅"
+
+  Failure:
+    FAIL_ICON = "❌"
+
+  Warning:
+    WARN_ICON = "⚠️"
+
+  Information:
+    INFO_ICON = "ℹ️"
+
+  Unchanged:
+    UNCHANGED_ICON = INFO_ICON
+
+Rules:
+
+  - Scripts MUST use only the icons defined in this contract.
+  - New icons MUST NOT be introduced without an explicit contract amendment.
+  - Icons MUST NOT be replaced with ASCII fallbacks except in environments that cannot render Unicode; such exceptions MUST be documented and justified.
+  - Icons MUST appear at the beginning of status lines unless a script’s formatting requires otherwise.
+  - Icons MUST NOT be used decoratively; every icon conveys semantic meaning.
+  - Output MUST remain stable across versions unless a contract amendment explicitly changes icon semantics.
+
+Rationale:
+
+  - Ensures consistent operator ergonomics across all scripts.
+  - Prevents semantic drift and accidental redefinition of output meaning.
+  - Makes logs, CI output, and router‑side execution predictable and greppable.
+  - Aligns unchanged state with existing informational semantics.
+  - Establishes a stable visual grammar for all future tooling.
+
+Enforcement status:
+  enforceable but not yet enforced
+
 -------------------------------------------------------------------------------
 
 
