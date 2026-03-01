@@ -131,12 +131,14 @@ network-status:
 		if $(run_as_root) nft list tables | grep -q 'inet homelab_filter'; then \
 			$(run_as_root) nft list table inet homelab_filter; \
 		else \
-			echo "⚠️ nftables table 'inet homelab_filter' does not exist"; \
+			echo "❌ nftables table 'inet homelab_filter' does not exist"; \
+			echo "👉 Run: sudo make nft-apply"; \
 		fi; \
 		if $(run_as_root) nft list tables | grep -q 'ip homelab_nat'; then \
 			$(run_as_root) nft list table ip homelab_nat; \
 		else \
-			echo "⚠️ nftables table 'ip homelab_nat' does not exist"; \
+			echo "❌ nftables table 'ip homelab_nat' does not exist"; \
+			echo "👉 Run: sudo make nft-apply"; \
 		fi; \
 	}
 
