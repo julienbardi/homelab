@@ -19,6 +19,7 @@
 .PHONY: prereqs-network prereqs-network-verify \
 	prereqs-docs-verify \
 	prereqs-root-ssh-key \
+	prereqs-operator-ssh-key \
 	prereqs fix-tailscale-repo \
 	rust-system
 
@@ -56,7 +57,7 @@ prereqs-docs-verify:
 # ------------------------------------------------------------
 # Root SSH identity (required for non-interactive router access)
 # ------------------------------------------------------------
-prereqs-root-ssh-key: ensure-run-as-root
+prereqs-root-ssh-key:
 	@key=/root/.ssh/id_ed25519; \
 	if sudo test -f $$key; then \
 		echo "ℹ️  Root SSH key already present"; \
@@ -64,14 +65,15 @@ prereqs-root-ssh-key: ensure-run-as-root
 		host=$$(hostname -s); \
 		comment="$$host-root-$$(date +%F)"; \
 		echo "➕ Generating root SSH key ($$comment)"; \
+		sudo mkdir -p -m 700 /root/.ssh; \
 		sudo ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment" </dev/null; \
+		sudo chmod 600 $$key; \
+		sudo chmod 644 $$key.pub; \
 	fi
-
 
 # ------------------------------------------------------------
 # Operator SSH identity (human access; non-privileged)
 # ------------------------------------------------------------
-.PHONY: prereqs-operator-ssh-key
 prereqs-operator-ssh-key:
 	@key=$$HOME/.ssh/id_ed25519; \
 	if [ -f $$key ]; then \
@@ -81,8 +83,10 @@ prereqs-operator-ssh-key:
 		user=$$(id -un); \
 		comment="$$host-operator-$$user-$$(date +%F)"; \
 		echo "➕ Generating operator SSH key ($$comment)"; \
-		mkdir -p "$$HOME/.ssh"; \
+		mkdir -p -m 700 $$HOME/.ssh; \
 		ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment"; \
+		chmod 600 $$key; \
+		chmod 644 $$key.pub; \
 	fi
 
 # ------------------------------------------------------------
@@ -91,7 +95,7 @@ prereqs-operator-ssh-key:
 .PHONY: prereqs-run-as-root
 prereqs-run-as-root:
 	@src="$(MAKEFILE_DIR)scripts/run-as-root.sh"; \
-	dst="/usr/local/bin/run-as-root.sh"; \
+	dst="$(INSTALL_PATH)/run-as-root.sh"; \
 	if [ -x "$$dst" ]; then \
 		echo "ℹ️  run-as-root wrapper already installed"; \
 	else \
@@ -183,8 +187,8 @@ rust-system: ensure-run-as-root
 	@command -v cargo >/dev/null 2>&1 || { \
 		echo "-> Installing Rust system-wide"; \
 		$(run_as_root) sh -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path'; \
-		$(run_as_root) ln -sf /root/.cargo/bin/cargo /usr/local/bin/cargo; \
-		$(run_as_root) ln -sf /root/.cargo/bin/rustc /usr/local/bin/rustc; \
+		$(run_as_root) ln -sf /root/.cargo/bin/cargo "$(INSTALL_PATH)/cargo"; \
+		$(run_as_root) ln -sf /root/.cargo/bin/rustc "$(INSTALL_PATH)/rustc"; \
 	}
 
 .PHONY: prereqs-python-venv-verify
@@ -204,8 +208,8 @@ prereqs-python-venv: ensure-run-as-root prereqs-python-venv-verify
 
 .PHONY: prereqs-dns-health-check-verify
 prereqs-dns-health-check-verify:
-	@dst="/usr/local/bin/dns-health-check.sh"; \
-	$(run_as_root) /usr/local/bin/install_if_changed.sh --dry-run \
+	@dst="$(INSTALL_PATH)/dns-health-check.sh"; \
+	$(run_as_root) "$(INSTALL_PATH)/install_if_changed.sh" --dry-run \
 		scripts/dns-health-check.sh "$$dst" $(OWNER) $(GROUP) $(MODE) >/dev/null 2>&1 || { \
 		echo "❌ DNS health check script is missing or out of date"; \
 		echo "➡️  State drift detected between repository and $$dst"; \
