@@ -39,8 +39,36 @@ router-sync-scripts: prereqs-run-as-root $(ROUTER_SYNC_SCRIPT) install-router-ca
 
 install-router-ca: ensure-run-as-root router-ssh-prereqs
 	@$(run_as_root) install -o root -g root -m 0755 \
-	    $(MAKEFILE_DIR)scripts/router-install-ca.sh \
-	    $(ROUTER_INSTALL_CA_SCRIPT)
+		$(MAKEFILE_DIR)scripts/router-install-ca.sh \
+		$(ROUTER_INSTALL_CA_SCRIPT)
 
 router-publish-ca: router-sync-scripts
 	@true
+
+REQUIRED_PKGS := coreutils-timeout openssh-client coreutils iperf3 htop
+
+.PHONY: install-router-tools
+install-router-tools: router-ssh-prereqs
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
+mkdir -p /jffs/sentinels && chmod 700 /jffs/sentinels; \
+SENTINEL="/jffs/sentinels/opkg_update"; \
+MAX_AGE=$$((24*3600)); \
+now=$$(date +%s); \
+last_update=0; \
+[ -f "$$SENTINEL" ] && last_update=$$(cat "$$SENTINEL" 2>/dev/null || echo 0); \
+age=$$(( now - last_update )); \
+if [ "$$age" -gt "$$MAX_AGE" ]; then \
+	opkg update && echo "$$now" > "$$SENTINEL" && chmod 600 "$$SENTINEL" || exit 2; \
+fi; \
+opkg install $(REQUIRED_PKGS) || exit 3; \
+'
+	@status=$$?; \
+	if [ $$status -eq 0 ]; then \
+		echo "✅ Required tools installed or already present on router $(ROUTER_HOST):$(ROUTER_SSH_PORT)"; \
+	elif [ $$status -eq 2 ]; then \
+		echo "❌ Failed to perform opkg update on router $(ROUTER_HOST):$(ROUTER_SSH_PORT)"; \
+	elif [ $$status -eq 3 ]; then \
+		echo "❌ Failed to install required packages on router $(ROUTER_HOST):$(ROUTER_SSH_PORT)"; \
+	else \
+		echo "❌ Unknown error (exit $$status) on router $(ROUTER_HOST):$(ROUTER_SSH_PORT)"; \
+	fi

@@ -155,7 +155,7 @@ headscale-stack: \
 	headscale \
 	headscale-users \
 	headscale-acls
-	@echo "�  Headscale control plane ready"
+	@echo "�  Headscale control plane ready"
 
 .PHONY: tailscaled
 
@@ -217,20 +217,22 @@ uninstall-systemd:
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound.service.d || true
 	@$(run_as_root) systemctl daemon-reload
 
-.PHONY: nft-apply nft-confirm nft-install nft-status nft-install nft-verify nft-install-rollback
+.PHONY: install-nft-apply nft-apply nft-confirm nft-install nft-status nft-install nft-verify nft-install-rollback
 .NOTPARALLEL: nft-confirm nft-apply
 
-nft-apply:
-	@$(run_as_root) $(INSTALL_PATH)/homelab-nft-apply.sh
+install-nft-apply:
+	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
+
+nft-apply: install-nft-apply
+	$(run_as_root) $(INSTALL_PATH)/homelab-nft-apply.sh
 	@echo "🧾 Recording applied nftables ruleset hash"
-	@$(run_as_root) sh -c 'sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"'
+	$(run_as_root) sh -c 'sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"'
 
 nft-confirm:
 	@$(run_as_root) $(INSTALL_PATH)/homelab-nft-confirm.sh
 
-nft-install:
+nft-install: install-nft-apply
 	@echo "🛡️ Installing homelab nftables firewall"
-	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
 	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh
 	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh
 	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service
@@ -249,10 +251,8 @@ nft-status:
 
 nft-install-rollback:
 	@echo "⏪ Installing homelab nft rollback units"
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.service \
-	    /etc/systemd/system/homelab-nft-rollback.service
-	@$(run_as_root) install -o root -g root -m 0644 \
-	    $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
+	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft-rollback.timer
 
