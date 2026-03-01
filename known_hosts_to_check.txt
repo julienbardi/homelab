@@ -4,6 +4,7 @@ router - 10.89.12.1 2222
 diskstation - 10.89.12.2 2222
 qnap - 10.89.12.3 2222
 nas - 10.89.12.4 2222
+localhost - 127.0.0.1 2222
 - vpn.bardi.ch - 2222
 - ssh.github.com - 443
 - github.com - 22
