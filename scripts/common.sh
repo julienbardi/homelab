@@ -13,10 +13,7 @@ readonly _HOMELAB_COMMON_SH_LOADED=1
 # ------------------------------------------------------------
 # Output icon grammar (operator-facing only)
 # ------------------------------------------------------------
-readonly ICON_SUCCESS="✅"
-readonly ICON_FAILURE="❌"
-readonly ICON_WARNING="� ️"
-readonly ICON_INFO="ℹ️"
+
 readonly ICON_UNCHANGED="◽"
 
 SCRIPT_NAME="$(basename "$0" .sh)"
@@ -103,13 +100,13 @@ atomic_install() {
     # ------------------------------------------------------------
     if [[ "$host" == "localhost" ]]; then
         if cmp -s "$src" "$dest" 2>/dev/null; then
-            log "$ICON_UNCHANGED $dest (unchanged)"
+            log "💎 $dest (unchanged)"
             logger -t "${SCRIPT_NAME}" "DETAILS: unchanged dest=${dest}, hash=${src_hash}"
             echo "unchanged"
             return 0
         fi
 
-        log "$ICON_SUCCESS $dest (updated)"
+        log "✅ $dest (updated)"
         logger -t "${SCRIPT_NAME}" "DETAILS: src=${src}, dest=${dest}, hash=${src_hash}"
         sudo install -o "$user" -g "$group" -m "$mode" "$src" "$dest"
         echo "changed"
@@ -121,7 +118,7 @@ atomic_install() {
     # ------------------------------------------------------------
     # Check if remote file matches local source
     if ssh -p "$port" "$host" "[[ -f \"$dest\" ]] && cmp -s \"$dest\"" < "$src" 2>/dev/null; then
-        log "$ICON_UNCHANGED $host:$dest (unchanged)"
+        log "💎 $host:$dest (unchanged)"
         logger -t "${SCRIPT_NAME}" "DETAILS: remote unchanged dest=${dest}, hash=${src_hash}"
         echo "unchanged"
         return 0
@@ -130,7 +127,7 @@ atomic_install() {
     # Update required
     local remote_tmp="/tmp/atomic.$(basename "$src").$RANDOM"
 
-    log "$ICON_SUCCESS $host:$dest (updating)"
+    log "✅ $host:$dest (updating)"
     logger -t "${SCRIPT_NAME}" "DETAILS: remote src=${src}, dest=${dest}, hash=${src_hash}"
 
     # 1. Transfer to temporary location
@@ -184,4 +181,16 @@ reload_service() {
 
     log "[svc] ERROR: $svc reload/restart failed completely"
     return 1
+}
+
+# Require a binary exists in PATH
+# Usage: require_bin funzip "Required for Tranco list extraction"
+require_bin() {
+    local bin="$1"
+    local reason="${2:-Required for operation}"
+    if ! command -v "$bin" >/dev/null 2>&1; then
+        log "❌ binary missing: $bin ($reason)"
+        log "ℹ️ 👉 Fix with: make prereqs"
+        exit 1
+    fi
 }

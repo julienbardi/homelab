@@ -13,7 +13,7 @@ check-icons:
 	@echo "🔍 Checking icon usage against contract in scripts, mk/, and Makefile..."
 	@allowed=$$(cat tools/approved_icons.txt | tr -d '[:space:]'); \
 	find scripts mk Makefile -type f \( -name "*.sh" -o -name "*.mk" -o -name "Makefile" \) -print0 | \
-	xargs -0 grep -nP "[^[:print:][:space:]$${allowed}]" | \
+	xargs -0 -P $(N_WORKERS) grep -nP "[^[:print:][:space:]$${allowed}]" | \
 	grep -v "mk/00_icons.mk" > .icon_errors 2>/dev/null || true; \
 	if [ -s .icon_errors ]; then \
 		echo "❌ Non-canonical icon(s) detected (Non-breaking):"; \
@@ -40,6 +40,6 @@ fix-icons:
 		-e 's/\xc2\xa0/ /g' \
 		-e 's/\xe2\x80\x91/-/g' \
 		-e 's/\xe2\x86\x92/->/g' \
-		-e "s/[‘’]/'/g" \
-		-e 's/[“”]/"/g' \
-		-e 's/–/-/g'
+		-e "s/['']/'/g" \
+		-e 's/[""]/"/g' \
+		-e 's/-/-/g'

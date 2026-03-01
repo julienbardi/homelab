@@ -38,6 +38,7 @@ Enforcement & evolution:
   - Contract supersession & lifecycle
   - Versioning & release semantics
   - Contract violation handling & review blocking
+  - Drift-Aware Verification
 
 Runtime & execution environment:
   - Runtime tool availability
@@ -527,6 +528,39 @@ Rationale:
   - Prevents human override of architectural law.
   - Eliminates informal exception paths.
   - Preserves contract authority under time pressure.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Drift-aware verification & remediation
+-------------------------------------------------------------------------------
+
+Verification targets MUST detect both absence and divergence of state.
+
+Rules:
+
+  - A verification target (e.g., prereqs-*-verify) MUST be side-effect free.
+  - It MUST check for the existence of the required artifact.
+  - It MUST check for content drift by comparing the installed artifact
+    against the repository source (e.g., using sha256sum or
+    install_if_changed.sh --dry-run).
+  - If the artifact is missing OR the content differs, the target MUST
+    fail loudly with a non-zero exit code.
+  - Every failure MUST provide an explicit, actionable remediation command
+    that allows the operator to converge the state (e.g., "Fix with:
+    sudo make <target>").
+  - Silent or automatic remediation during a verification phase is
+    FORBIDDEN.
+
+Rationale:
+
+  - Prevents "invisible" updates that could mask architectural changes.
+  - Ensures the operator is always aware of the delta between the
+    running system and the repository intent.
+  - Maintains the boundary between 'checking' and 'mutating'.
+
+Enforcement status:
+  enforced
 -------------------------------------------------------------------------------
 
 

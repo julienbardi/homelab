@@ -1,5 +1,5 @@
 # ============================================================
-# mk/groups.mk
+# mk/10_groups.mk
 # ------------------------------------------------------------
 # Hardened group membership enforcement
 #
@@ -24,11 +24,12 @@ ADMIN_GROUPS = \
 SERVICE_GROUPS = \
 	headscale \
 	_dnsdist \
-	ssl-cert
+	ssl-cert \
+	dnswarm
 
 # Service accounts to create (one per service group)
 # On Debian systems, ssl-cert is usually group-only, not a user.
-SERVICE_USERS = headscale _dnsdist
+SERVICE_USERS = headscale _dnsdist dnswarm
 
 CURRENT_USER := $(shell id -un)
 
@@ -38,24 +39,24 @@ CURRENT_USER := $(shell id -un)
 .PHONY: groups-compliant
 groups-compliant:
 	@for g in $(ADMIN_GROUPS); do \
-	    getent group $$g >/dev/null 2>&1 || { echo "❌ Missing admin group: $$g"; exit 1; }; \
-	    for u in $(AUTHORIZED_ADMINS); do \
-	        id -u $$u >/dev/null 2>&1 || continue; \
-	        id -nG $$u | grep -qw $$g || { echo "❌ $$u not in $$g"; exit 1; }; \
-	    done; \
-	    for u in $$(getent group $$g | awk -F: '{print $$4}' | tr ',' ' '); do \
-	        [ -z "$$u" ] && continue; \
-	        case " $(AUTHORIZED_ADMINS) " in \
-	            *" $$u "*) ;; \
-	            *) echo "❌ Unauthorized member $$u in $$g"; exit 1 ;; \
-	        esac; \
-	    done; \
+		getent group $$g >/dev/null 2>&1 || { echo "❌ Missing admin group: $$g. Run 'make enforce-groups' to fix."; exit 1; }; \
+		for u in $(AUTHORIZED_ADMINS); do \
+			id -u $$u >/dev/null 2>&1 || continue; \
+			id -nG $$u | grep -qw $$g || { echo "❌ $$u not in $$g. Run 'make enforce-groups' to fix."; exit 1; }; \
+		done; \
+		for u in $$(getent group $$g | awk -F: '{print $$4}' | tr ',' ' '); do \
+			[ -z "$$u" ] && continue; \
+			case " $(AUTHORIZED_ADMINS) " in \
+				*" $$u "*) ;; \
+				*) echo "❌ Unauthorized member $$u in $$g. Run 'make enforce-groups' to fix."; exit 1 ;; \
+			esac; \
+		done; \
 	done; \
 	for g in $(SERVICE_GROUPS); do \
-	    getent group $$g >/dev/null 2>&1 || { echo "❌ Missing service group: $$g"; exit 1; }; \
+		getent group $$g >/dev/null 2>&1 || { echo "❌ Missing service group: $$g. Run 'make enforce-groups' to fix."; exit 1; }; \
 	done; \
 	for u in $(SERVICE_USERS); do \
-	    id -u $$u >/dev/null 2>&1 || { echo "❌ Missing service user: $$u"; exit 1; }; \
+		id -u $$u >/dev/null 2>&1 || { echo "❌ Missing service user: $$u. Run 'make enforce-groups' to fix."; exit 1; }; \
 	done
 
 # ------------------------------------------------------------
@@ -90,7 +91,7 @@ _enforce-groups:
 	@missing=""; \
 	for u in $(AUTHORIZED_ADMINS); do \
 	    if ! id -u $$u >/dev/null 2>&1; then \
-	        $(call log,� ️ User $$u does not exist, skipping admin membership); \
+	        $(call log,⚠️ User $$u does not exist, skipping admin membership); \
 	        missing="$$missing $$u"; \
 	    fi; \
 	done; \
@@ -140,6 +141,6 @@ check-groups:
 	        echo "🔎 Members of $$g:"; \
 	        getent group $$g | awk -F: '{print $$4}' | tr ',' ' '; \
 	    else \
-	        $(call log,� ️ Group $$g does not exist); \
+	        $(call log,⚠️ Group $$g does not exist); \
 	    fi; \
 	done
