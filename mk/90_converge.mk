@@ -95,7 +95,7 @@ runtime-diff:
 	@diff -u "$(RUNTIME_SNAP_BEFORE)/route.v6" "$(RUNTIME_SNAP_AFTER)/route.v6" >/dev/null || echo "ROUTE6_CHANGED=1" >>"$(RUNTIME_DIFF_FILE)"
 
 	@if [ -f "$(RUNTIME_DIFF_FILE)" ]; then \
-	    echo "� ️  Runtime network state requires reconciliation"; \
+	    echo "� ️  Runtime network state requires reconciliation"; \
 	    sed 's/^/   - /' "$(RUNTIME_DIFF_FILE)"; \
 	    if [ "$(FORCE)" != "1" ]; then \
 	        echo ""; \
@@ -127,8 +127,18 @@ network-status:
 	@$(run_as_root) sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
 	@echo
 	@echo "🔎 nftables ruleset"
-	@$(run_as_root) nft list table inet homelab_filter
-	@$(run_as_root) nft list table ip homelab_nat
+	@{ \
+		if $(run_as_root) nft list tables | grep -q 'inet homelab_filter'; then \
+			$(run_as_root) nft list table inet homelab_filter; \
+		else \
+			echo "⚠️ nftables table 'inet homelab_filter' does not exist"; \
+		fi; \
+		if $(run_as_root) nft list tables | grep -q 'ip homelab_nat'; then \
+			$(run_as_root) nft list table ip homelab_nat; \
+		else \
+			echo "⚠️ nftables table 'ip homelab_nat' does not exist"; \
+		fi; \
+	}
 
 # ------------------------------------------------------------
 # nftables verification
