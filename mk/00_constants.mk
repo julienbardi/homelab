@@ -33,6 +33,9 @@ WG_ROOT := $(HOMELAB_ROOT)/wireguard
 DOCS_DIR := $(HOMELAB_ROOT)/docs
 SECURITY_DIR := $(HOMELAB_ROOT)/security
 
+# Define the worker pool: N-1 if N > 1, else 1 (leaves 1 core for the system/kernel)
+N_WORKERS := $(shell nproc | awk '{print ($$1 > 1 ? $$1 - 1 : 1)}')
+
 VERBOSE ?= 0
 
 # Export global paths for all scripts

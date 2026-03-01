@@ -9,9 +9,18 @@ set -euo pipefail
 # ----------------------------
 DOMAINS_FILE="/etc/dns-warm/domains.txt"
 STATE_FILE="/var/lib/dns-warm/state.csv"
-PER_RUN=10000
+
+# Legacy fallback: Use CPU-bound parallelism if dns-warm-async is missing
+# Using 2x (cores - 1) provides good concurrency for I/O bound 'dig' calls
+WORKERS=$(( 2 * ($(nproc) - 1) ))
+[ "$WORKERS" -lt 1 ] && WORKERS=1
+
 WORKERS=10      # legacy only
-RESOLVER="127.0.0.1"
+# Use arguments passed by Systemd/Makefile
+# Argument 1: Resolver IP
+# Argument 2: Domains per run, recommended: 2000 domains every 10s (12,000/min). Higher values caused SERVFAIL in benchmarks.
+RESOLVER="${1:-127.0.0.1}"
+PER_RUN="${2:-2000}"
 
 DNSMASQ_CONF_DIR="/usr/ugreen/etc/dnsmasq/dnsmasq.d"
 DNS_FORWARD_MAX=$(grep -Rhs '^dns-forward-max=' "$DNSMASQ_CONF_DIR" | tail -n1 | cut -d= -f2)

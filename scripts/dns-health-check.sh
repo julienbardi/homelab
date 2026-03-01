@@ -37,8 +37,16 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
 fi
 
 RESOLVER="${1:-127.0.0.1}"
-TIMEOUT_SECONDS=5
-MAX_RETRIES=3
+
+# Auto-append port if querying local Unbound
+if [[ "$RESOLVER" == "127.0.0.1" || "$RESOLVER" == "10.89.12.4" ]]; then
+    if [[ ! "$RESOLVER" =~ "-p" ]]; then
+        RESOLVER="$RESOLVER -p 5335"
+    fi
+fi
+
+TIMEOUT_SECONDS=2
+MAX_RETRIES=2
 
 # Optional DoH configuration
 DOH_HOST="${DOH_HOST:-}"
@@ -68,7 +76,8 @@ fi
 export LC_ALL=C LANG=C
 
 dig_q() {
-  dig @"$RESOLVER" "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>&1 || true
+  # shellcheck disable=SC2086
+  dig @${RESOLVER} "$@" +tries=1 +time="$TIMEOUT_SECONDS" 2>&1 || true
 }
 
 run_query() {
@@ -92,21 +101,19 @@ run_query() {
 }
 
 get_status() {
-  local raw header s
-  raw="${1:-$(cat)}"
-  [[ -z "${raw:-}" ]] && return 0
+  local raw="$1"
+  [[ -z "$raw" ]] && echo "EMPTY" && return
 
-  header="$(printf '%s' "$raw" | sed -n '/->>HEADER<<-/p' | head -n1 || true)"
-  if [[ -n "$header" ]]; then
-    s="$(printf '%s' "$header" | grep -oEi 'status:[[:space:]]*[A-Za-z]+' | head -n1 || true)"
-    if [[ -n "$s" ]]; then
-      printf '%s' "${s#*:}" | tr '[:lower:]' '[:upper:]' | sed 's/^ *//;s/ *$//'
-      return 0
-    fi
+  # Extract the status word by looking for the word immediately following 'status:'
+  local s
+  s=$(echo "$raw" | sed -n '/->>HEADER<<-/s/.*status: \([A-Z]*\).*/\1/p' | head -n1)
+
+  # If sed failed, fallback to awk for standard field extraction
+  if [[ -z "$s" ]]; then
+    s=$(echo "$raw" | awk -F'status: ' '/->>HEADER<<-/ {print $2}' | awk '{print $1}' | tr -d ',')
   fi
 
-  s="$(printf '%s' "$raw" | grep -oEi 'SERVFAIL|NOERROR|NXDOMAIN' | head -n1 || true)"
-  [[ -n "$s" ]] && printf '%s' "$s" | tr '[:lower:]' '[:upper:]'
+  echo "${s:-UNKNOWN}" | tr '[:lower:]' '[:upper:]'
 }
 
 get_flags() {
@@ -148,9 +155,10 @@ run_query_bg pos sigok.verteiltesysteme.net A +dnssec &
 run_query_bg neg sigfail.verteiltesysteme.net A +dnssec &
 wait
 
-rec_raw="$(cat "$tmpdir/rec.out")"
-pos_raw="$(cat "$tmpdir/pos.out")"
-neg_raw="$(cat "$tmpdir/neg.out")"
+# Use this more robust reading method
+rec_raw=$(cat "$tmpdir/rec.out" 2>/dev/null || true)
+pos_raw=$(cat "$tmpdir/pos.out" 2>/dev/null || true)
+neg_raw=$(cat "$tmpdir/neg.out" 2>/dev/null || true)
 
 # ------------------------------------------------------------
 # 1) Recursion
@@ -181,9 +189,8 @@ pos_ok=false
 neg_status="$(get_status "$neg_raw")"
 
 neg_ok=false
+# Only pass if the resolver explicitly refuses the invalid signature (SERVFAIL)
 if [[ "$neg_status" == "SERVFAIL" ]]; then
-  neg_ok=true
-elif grep -qEi 'no servers could be reached|timed out' <<<"$neg_raw"; then
   neg_ok=true
 fi
 
@@ -228,38 +235,34 @@ fi
 # ------------------------------------------------------------
 # Output
 # ------------------------------------------------------------
-log "🧪 DNS health check against resolver ${RESOLVER}"
-log "• Recursion: $([[ "$rec_ok" == true ]] && echo ✅ || echo ❌) (status=${rec_status}, flags=${rec_flags})"
-log "• DNSSEC positive (sigok): $([[ "$pos_ok" == true ]] && echo ✅ || echo ❌) (status=${pos_status}, AD=${pos_has_ad})"
-log "• DNSSEC negative (sigfail): $([[ "$neg_ok" == true ]] && echo ✅ || echo ❌) (status=${neg_status})"
+log "🩺 DNS health check against resolver ${RESOLVER}"
+log "$([[ "$rec_ok" == true ]] && echo ✅ || echo ❌) Recursion (status=${rec_status}, flags=${rec_flags})"
+log "$([[ "$pos_ok" == true ]] && echo ✅ || echo ❌) DNSSEC positive (sigok: status=${pos_status}, AD=${pos_has_ad})"
+log "$([[ "$neg_ok" == true ]] && echo ✅ || echo ❌) DNSSEC negative (sigfail: status=${neg_status})"
 
 if [[ -n "$DOH_HOST" && -n "$DOH_PATH" ]]; then
-  log "• DoH DNSSEC (${DOH_HOST}): $([[ "$doh_ok" == true ]] && echo ✅ || echo ❌) (${doh_note})"
+    log "$([[ "$doh_ok" == true ]] && echo ✅ || echo ❌) DoH DNSSEC (${DOH_HOST}): ${doh_note}"
+fi
+
+# Capture the query time from dig output
+query_time=$(grep "Query time:" <<<"$rec_raw" | awk '{print $4}' | head -n1)
+if [[ "$rec_ok" == true && -n "$query_time" && "$query_time" -gt 500 ]]; then
+    log "⚠️  Cache appears COLD (Latency: ${query_time}ms)"
 fi
 
 # ------------------------------------------------------------
 # Final verdict
 # ------------------------------------------------------------
 if [[ "$rec_ok" == true && "$pos_ok" == true && "$neg_ok" == true && ( -z "$DOH_HOST" || "$doh_ok" == true ) ]]; then
-  log "✅ DNS recursion and DNSSEC enforcement are working correctly."
-  log "ℹ️  Note: DNSSEC enforcement is verified by rejection of invalid signatures. The AD bit is not required to be present in responses from proxies or DoH frontends."
-  exit 0
+    log "✅ DNS recursion and DNSSEC enforcement are working correctly."
+    log "ℹ️  Note: DNSSEC enforcement verified by rejection of invalid signatures."
+    exit 0
 fi
 
-if [[ "$rec_ok" != true ]]; then
-  log "❌ Recursion failed — check resolver reachability and access-control."
-fi
-
-if [[ "$pos_ok" != true ]]; then
-  log "❌ DNSSEC positive test failed — sigok did not resolve."
-fi
-
-if [[ "$neg_ok" != true ]]; then
-  log "❌ DNSSEC negative test failed — invalid signatures were not rejected."
-fi
-
-if [[ -n "$DOH_HOST" && "$doh_ok" != true ]]; then
-  log "❌ DoH DNSSEC test failed — expected SERVFAIL or HTTP-level failure."
-fi
+# Error reporting
+[[ "$rec_ok" != true ]] && log "❌ Recursion failed — check reachability/ACL."
+[[ "$pos_ok" != true ]] && log "❌ DNSSEC positive test failed — sigok did not resolve."
+[[ "$neg_ok" != true ]] && log "❌ DNSSEC negative test failed — invalid signatures accepted."
+[[ -n "$DOH_HOST" && "$doh_ok" != true ]] && log "❌ DoH DNSSEC test failed — expected SERVFAIL/HTTP-5xx."
 
 exit 1

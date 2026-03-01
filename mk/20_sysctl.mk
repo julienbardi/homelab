@@ -19,6 +19,6 @@ install-homelab-sysctl:
 	    $(run_as_root) sysctl --system; \
 	    echo "🔄 Kernel forwarding applied (config changed)"; \
 	else \
-	    echo "⚪ Kernel forwarding unchanged (already converged)"; \
+	    echo "💎 Kernel forwarding unchanged (already converged)"; \
 	fi; \
 	$(run_as_root) rm -f "$$tmp"
