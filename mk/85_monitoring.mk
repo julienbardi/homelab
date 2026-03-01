@@ -59,7 +59,7 @@ prometheus-config: ensure-run-as-root $(PROMETHEUS_CONFIG_SRC)
 	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then changed=1; \
 	elif [ $$rc -ne 0 ]; then exit $$rc; fi; \
 	if [ $$changed -eq 1 ]; then \
-	    echo "-> Prometheus config updated"; \
+	    echo "🔄 Prometheus config updated"; \
 	    $(run_as_root) systemctl restart $(PROMETHEUS_SERVICE); \
 	fi
 
@@ -68,16 +68,16 @@ prometheus-config: ensure-run-as-root $(PROMETHEUS_CONFIG_SRC)
 # --------------------------------------------------------------------
 prometheus-enable: ensure-run-as-root
 	@if ! $(run_as_root) systemctl is-enabled --quiet $(PROMETHEUS_SERVICE); then \
-	    echo "-> Enabling Prometheus service"; \
+	    echo "⚙️ Enabling Prometheus service"; \
 	    $(run_as_root) systemctl enable $(PROMETHEUS_SERVICE); \
 	else \
-	    echo "⚪ Prometheus service already enabled"; \
+	    echo "💎 Prometheus service already enabled"; \
 	fi
 	@if ! $(run_as_root) systemctl is-active --quiet $(PROMETHEUS_SERVICE); then \
-	    echo "-> Starting Prometheus service"; \
+	    echo "▶️ Starting Prometheus service"; \
 	    $(run_as_root) systemctl start $(PROMETHEUS_SERVICE); \
 	else \
-	    echo "⚪ Prometheus service already running"; \
+	    echo "💎 Prometheus service already running"; \
 	fi
 
 prometheus-restart: ensure-run-as-root

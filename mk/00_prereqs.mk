@@ -33,7 +33,7 @@ else
 endif
 ifeq ($(ROLE),router)
 	@sysctl net.ipv4.ip_forward >/dev/null || \
-		echo "❌  Cannot read net.ipv4.ip_forward (sysctl unavailable?)"
+			echo "⚠️  Cannot read net.ipv4.ip_forward (sysctl unavailable?)"
 endif
 
 # minimum required to route packets
@@ -100,7 +100,7 @@ prereqs-run-as-root:
 	fi
 
 
-prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
+prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST) prereqs-dns-warm-verify
 	@echo "[check] Verifying public DNS CNAME for apt.bardi.ch by asking a public DNS"
 	@cname=$$(dig +short @$(PUBLIC_DNS) apt.bardi.ch CNAME | sed 's/\.$$//'); \
 	if [ "$$cname" != "$(APT_CNAME_EXPECTED)" ]; then \
@@ -151,9 +151,11 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 		iperf3 \
 		qrencode \
 		ripgrep \
+		htop \
 		libc-ares-dev \
-		apt-cacher-ng
-	@for bin in curl jq git iperf3 qrencode; do \
+		apt-cacher-ng \
+		unzip
+	@for bin in curl jq git iperf3 qrencode funzip; do \
 		command -v $$bin >/dev/null || { \
 			echo "❌ $$bin missing after install"; exit 1; }; \
 	done
@@ -162,7 +164,7 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST)
 	@echo "✅ Base prerequisites installed"
 
 fix-tailscale-repo: ensure-run-as-root
-	@echo "ℹ️ Fixing Tailscale APT repository (signed-by hygiene)"
+	@echo "⚠️  Fixing Tailscale APT repository (signed-by hygiene)"
 	@test -f $(TAILSCALE_REPO_FILE) || { \
 		echo "❌ $(TAILSCALE_REPO_FILE) not found"; \
 		exit 1; \
@@ -199,3 +201,13 @@ prereqs-python-venv: ensure-run-as-root prereqs-python-venv-verify
 	@echo "➕ Ensuring python3-venv is installed"
 	@$(call apt_update_if_needed)
 	@$(run_as_root) apt-get install -y --no-install-recommends python3-venv
+
+.PHONY: prereqs-dns-health-check-verify
+prereqs-dns-health-check-verify:
+	@dst="/usr/local/bin/dns-health-check.sh"; \
+	$(run_as_root) /usr/local/bin/install_if_changed.sh --dry-run \
+		scripts/dns-health-check.sh "$$dst" $(OWNER) $(GROUP) $(MODE) >/dev/null 2>&1 || { \
+		echo "❌ DNS health check script is missing or out of date"; \
+		echo "➡️  State drift detected between repository and $$dst"; \
+		echo "➡️  Remediate with: sudo make install-dns-health"; \
+		exit 1; }
