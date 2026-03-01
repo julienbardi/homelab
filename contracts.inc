@@ -25,6 +25,7 @@ Governance & authority:
   - Delegated authority
   - Temporary incapacity
   - Authority succession
+  - Mechanical grounding & hallucination prevention
 
 Document law & scope:
   - Scope & applicability
@@ -313,6 +314,36 @@ Rationale:
   - Preserves continuity without introducing ambiguity.
   - Prevents authority vacuum or contested control.
   - Keeps governance explicit, intentional, and auditable.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Mechanical grounding & hallucination prevention
+-------------------------------------------------------------------------------
+
+Agents MUST NOT rely on memory or "standard patterns" for file contents.
+
+Rules:
+
+  - Before describing the contents of any file (Makefile, script, or config),
+    the agent MUST verify the exact filename and content via the
+    file_content_fetcher or browsing tool.
+  - If a tool call fails or returns "not in search index," the agent MUST
+    explicitly state the failure and request the content from the operator
+    rather than inferring the content.
+  - When referencing included files (e.g., in a Makefile), the agent MUST
+    list only the exact strings found in the source code.
+  - Summaries or "hallucinations" of file lists based on typical project
+    structures are strictly forbidden.
+
+Rationale:
+
+  - AI agents are prone to "filling in the blanks" with generic knowledge.
+  - In a documentation-as-law system, a generic guess is a contract violation.
+  - Forces mechanical evidence over probabilistic inference.
+
+Enforcement status:
+  enforced (via prompt-injection of these rules into the agent context)
 -------------------------------------------------------------------------------
 
 
