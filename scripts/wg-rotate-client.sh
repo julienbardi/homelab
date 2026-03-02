@@ -13,7 +13,7 @@ source /volume1/homelab/homelab.env
 : "${SECURITY_DIR:?SECURITY_DIR not set}"
 
 [ "$(id -u)" -eq 0 ] || {
-    echo "wg-rotate-client: ERROR: must run as root" >&2
+    echo "❌ must run as root" >&2
     exit 1
 }
 
@@ -40,7 +40,7 @@ if ! awk -F'\t' -v b="$base" -v i="$iface" '
     $1==b && $2==i { found=1 }
     END { exit(found?0:1) }
 ' "$KEYS"; then
-    echo "wg-rotate-client: ERROR: no key entry for $base $iface in keys.tsv" >&2
+    echo "❌ no key entry for $base $iface in keys.tsv" >&2
     exit 1
 fi
 
@@ -52,7 +52,7 @@ pubkey="$(awk -F'\t' -v b="$base" -v i="$iface" '
 ' "$KEYS")"
 
 if [ -z "$pubkey" ]; then
-    echo "wg-rotate-client: ERROR: failed to extract public key for $base $iface" >&2
+    echo "❌ failed to extract public key for $base $iface" >&2
     exit 1
 fi
 

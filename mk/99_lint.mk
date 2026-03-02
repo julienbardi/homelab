@@ -49,7 +49,7 @@ lint-semantic:
 	        grep -q "verify-pkg-" "$$f" || echo "$$f"; \
 	      done); \
 	if [ -n "$$bad" ]; then \
-	    echo "[lint] � ️ install targets without verify targets:"; \
+	    echo "[lint] � ️ install targets without verify targets:"; \
 	    echo "$$bad"; \
 	fi
 
@@ -211,7 +211,7 @@ lint-makefile-strict:
 	done
 
 # Headscale config test (use run_as_root helper)
-lint-headscale:
+lint-headscale: ensure-run-as-root
 	@echo "[lint] Linting /etc/headscale/config.yaml (permissive)..."
 	@if [ -z "$(run_as_root)" ]; then \
 	  echo "[lint] run_as_root helper not defined; skipping headscale configtest"; \
@@ -222,7 +222,7 @@ lint-headscale:
 	fi
 
 # Headscale config test strict
-lint-headscale-strict:
+lint-headscale-strict: ensure-run-as-root
 	@echo "[lint-ci] Linting /etc/headscale/config.yaml (strict)..."
 	@if [ -z "$(run_as_root)" ]; then \
 	  echo "[lint-ci] ERROR: run_as_root helper not defined"; exit 2; \

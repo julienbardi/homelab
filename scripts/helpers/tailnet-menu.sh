@@ -6,8 +6,9 @@
 # ============================================================
 
 set -euo pipefail
-SCRIPT_NAME="tailnet-menu"
-source "/home/julie/src/homelab/scripts/common.sh"
+
+# shellcheck disable=SC1091
+source /usr/local/bin/common.sh
 
 HEADSCALE_BIN="/usr/local/bin/headscale"
 NAMESPACES=("bardi-family" "bardi-guest")
@@ -15,9 +16,9 @@ NAMESPACES=("bardi-family" "bardi-guest")
 # --- Ensure namespaces exist ---
 for ns in "${NAMESPACES[@]}"; do
     if ! ${HEADSCALE_BIN} namespaces list | grep -q "^${ns}\$"; then
-        log "Creating namespace ${ns}..."
+        log "🔁 Creating namespace ${ns}..."
         if ! ${HEADSCALE_BIN} namespaces create "${ns}"; then
-            log "ERROR: Failed to create namespace ${ns}"
+            log "❌ Failed to create namespace ${ns}"
         fi
     fi
 done
@@ -30,26 +31,26 @@ validate_ns() {
             return 0
         fi
     done
-    echo "Invalid namespace: $ns"
+    log "❌ Invalid namespace: $ns"
     return 1
 }
 
 # --- Menu loop ---
 while true; do
-    echo "============================================================"
-    echo " Headscale Tailnet Menu"
-    echo "============================================================"
+    log "ℹ️ ============================================================"
+    log "ℹ️  Headscale Tailnet Menu"
+    log "ℹ️ ============================================================"
     for ns in "${NAMESPACES[@]}"; do
-        echo "Namespace: ${ns}"
+        log "ℹ️ Namespace: ${ns}"
         ${HEADSCALE_BIN} nodes list --namespace "${ns}" 2>/dev/null | awk 'NR>1 {print "  - " $2}'
     done
-    echo "------------------------------------------------------------"
-    echo "(n) Register new client"
-    echo "(r) Revoke client"
-    echo "(d) Display client config"
-    echo "(c) Display QR code"
-    echo "(e) Exit"
-    echo "------------------------------------------------------------"
+    log "ℹ️ ------------------------------------------------------------"
+    log "ℹ️ (n) Register new client"
+    log "ℹ️ (r) Revoke client"
+    log "ℹ️ (d) Display client config"
+    log "ℹ️ (c) Display QR code"
+    log "ℹ️ (e) Exit"
+    log "ℹ️ ------------------------------------------------------------"
     read -rp "Select option: " choice
 
     case "$choice" in
@@ -57,27 +58,27 @@ while true; do
             read -rp "Enter namespace [bardi-family/bardi-guest]: " ns
             validate_ns "$ns" || continue
             read -rp "Enter new client name: " device
-            log "Registering ${device} in ${ns}..."
+            log "🔁 Registering ${device} in ${ns}..."
             if ! ${HEADSCALE_BIN} nodes register --namespace "${ns}" --name "${device}"; then
-                log "ERROR: Failed to register ${device}"
+                log "❌ Failed to register ${device}"
             fi
             ;;
         r|R)
             read -rp "Enter namespace [bardi-family/bardi-guest]: " ns
             validate_ns "$ns" || continue
             read -rp "Enter client name to revoke: " device
-            log "Revoking ${device} in ${ns}..."
+            log "🔁 Revoking ${device} in ${ns}..."
             if ! ${HEADSCALE_BIN} nodes delete --namespace "${ns}" --name "${device}"; then
-                log "ERROR: Failed to revoke ${device}"
+                log "❌ Failed to revoke ${device}"
             fi
             ;;
         d|D)
             read -rp "Enter namespace [bardi-family/bardi-guest]: " ns
             validate_ns "$ns" || continue
             read -rp "Enter client name to display config: " device
-            log "Displaying config for ${device}..."
+            log "🔁 Displaying config for ${device}..."
             if ! ${HEADSCALE_BIN} nodes generate --namespace "${ns}" --name "${device}" | tee "/etc/headscale/${device}.conf"; then
-                log "ERROR: Failed to generate config for ${device}"
+                log "❌ Failed to generate config for ${device}"
             fi
             ;;
         c|C)
@@ -86,18 +87,18 @@ while true; do
             read -rp "Enter client name to display QR: " device
             if command -v qrencode >/dev/null 2>&1; then
                 if ! ${HEADSCALE_BIN} nodes generate --namespace "${ns}" --name "${device}" | qrencode -t ANSIUTF8; then
-                    log "ERROR: Failed to generate QR for ${device}"
+                    log "❌ Failed to generate QR for ${device}"
                 fi
             else
-                log "WARN: qrencode not installed, cannot display QR"
+                log "⚠️ qrencode not installed, cannot display QR"
             fi
             ;;
         e|E)
-            echo "Exiting."
+            log "ℹ️ Exiting."
             exit 0
             ;;
         *)
-            echo "Invalid choice."
+            log "❌ Invalid choice."
             ;;
     esac
 done

@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck disable=SC1091
+source /volume1/homelab/homelab.env
+# shellcheck disable=SC1091
+source "/usr/local/bin/common.sh"
 
 : "${WG_ROOT:?WG_ROOT not set}"
 
 INPUT="$WG_ROOT/input"
 
 fail() {
-    echo "❌ wg-validate-tsv: ERROR: $*" >&2
+    log "❌ $*" >&2
     exit 1
 }
 
@@ -65,4 +69,4 @@ check_unique_col "$INPUT/wg-interfaces.tsv" 1
 check_unique_col "$INPUT/wg-profiles.tsv" 1
 check_unique_col "$INPUT/wg-clients.tsv" 1
 
-echo "✅ wg-validate-tsv: OK"
+log "✅ wg-validate-tsv: OK"

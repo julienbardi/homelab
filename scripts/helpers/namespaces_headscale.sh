@@ -4,52 +4,68 @@
 # ------------------------------------------------------------
 # Gen1 helper: ensure baseline namespaces exist
 # Idempotent: skips creation if namespace already exists
-# Cleans up extra namespaces automatically
+# Detects and reports extra namespaces
 # ============================================================
 
 set -euo pipefail
 
-log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [namespaces_headscale] $*" | tee -a /var/log/namespaces_headscale.log
-    logger -t namespaces_headscale "$*"
-}
+# shellcheck disable=SC1091
+source /usr/local/bin/common.sh
 
 # Baseline namespaces declared once
 BASELINE_NAMESPACES=("bardi-family" "bardi-guests")
 
-# Get existing namespaces as JSON array
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+
 existing_namespaces() {
     headscale namespaces list --output json | jq -r '.[].name'
 }
 
 ensure_namespace() {
     local ns="$1"
+
     if existing_namespaces | grep -qx "${ns}"; then
-        log "Namespace '${ns}' already present"
+        log "ℹ️ Namespace '${ns}' already present"
+        return 0
+    fi
+
+    log "🔁 Creating namespace '${ns}'"
+    if headscale namespaces create "${ns}"; then
+        log "ℹ️ Namespace '${ns}' created"
     else
-        log "Creating namespace '${ns}'"
-        if headscale namespaces create "${ns}"; then
-            log "Namespace '${ns}' created"
-        else
-            log "ERROR: Failed to create namespace '${ns}'"
-            exit 1
-        fi
+        log "❌ Failed to create namespace '${ns}'"
+        exit 1
     fi
 }
 
-log "Ensuring baseline namespaces exist..."
+# ------------------------------------------------------------
+# Ensure baseline namespaces exist
+# ------------------------------------------------------------
+log "ℹ️ Ensuring baseline namespaces exist"
+
 for ns in "${BASELINE_NAMESPACES[@]}"; do
     ensure_namespace "${ns}"
 done
 
-# Detect and remove extra namespaces not in baseline
-extras=$(comm -23 <(existing_namespaces | sort) <(printf "%s\n" "${BASELINE_NAMESPACES[@]}" | sort))
+# ------------------------------------------------------------
+# Detect extra namespaces
+# ------------------------------------------------------------
+extras=$(comm -23 \
+    <(existing_namespaces | sort) \
+    <(printf "%s\n" "${BASELINE_NAMESPACES[@]}" | sort))
 
-# each namespace is handled line-by-line, even if it contains spaces or odd characters.
-if [ -n "${extras}" ]; then
-    echo "${extras}" | while read -r ns; do
-        log "WARN: Extra namespace detected: \"${ns}\""
-    done
+if [[ -n "${extras}" ]]; then
+    while IFS= read -r ns; do
+        [[ -z "$ns" ]] && continue
+        log "⚠️ Extra namespace detected: '${ns}'"
+    done <<< "${extras}"
+else
+    log "ℹ️ No extra namespaces detected"
 fi
 
-log "Namespace setup complete."
+# ------------------------------------------------------------
+# Completion
+# ------------------------------------------------------------
+log "✅ Namespace setup complete"
