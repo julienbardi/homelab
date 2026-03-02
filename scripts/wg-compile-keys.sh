@@ -4,7 +4,7 @@ set -eu
 
 : "${WG_PHASE:?wg-compile-keys: WG_PHASE not set}"
 [ "$WG_PHASE" = "compile" ] || {
-    echo "wg-compile-keys: ERROR: key generation only allowed during compile phase" >&2
+    echo "❌ key generation only allowed during compile phase" >&2
     exit 1
 }
 
@@ -33,7 +33,7 @@ umask 077
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_IF_CHANGED="$SCRIPT_DIR/install_if_changed.sh"
 
-die() { echo "wg-compile-keys: ERROR: $*" >&2; exit 1; }
+die() { echo "❌ $*" >&2; exit 1; }
 
 [ -x "$INSTALL_IF_CHANGED" ] || die "install_if_changed.sh not found or not executable"
 [ -f "$PLAN" ] || die "missing plan.tsv at $PLAN"
@@ -90,7 +90,7 @@ awk -F'\t' '
         }
 
         # Missing key is a hard error
-        print "wg-compile-keys: ERROR: missing key for " base " " iface > "/dev/stderr"
+        print "❌ missing key for " base " " iface > "/dev/stderr"
         exit 1
     }
 ' "$EXISTING_KEYS" "$PLAN" >>"$tmp"

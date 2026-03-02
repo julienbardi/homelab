@@ -116,7 +116,7 @@ update: gitcheck
 .PHONY: test logs clean-soft
 
 .PHONY: clean
-clean:
+clean: ensure-run-as-root
 	@echo "Removing tailscaled role units"
 	@$(run_as_root) systemctl disable tailscaled-lan.service tailscaled || true
 	@$(run_as_root) rm -f /etc/systemd/system/tailscaled-lan.service || true
@@ -124,16 +124,16 @@ clean:
 	@echo "✅ Cleaned tailscaled units and disabled services"
 
 .PHONY: reload
-reload:
+reload: ensure-run-as-root
 	@$(run_as_root) systemctl daemon-reload
 	@echo "🔄 systemd reloaded"
 
 .PHONY: restart
-restart:
+restart: ensure-run-as-root
 	@$(run_as_root) systemctl restart tailscaled tailscaled-lan.service
 	@echo "🔁 Restarted tailscaled + family + guest services"
 
-test: logs
+test: logs ensure-run-as-root
 	@echo "🧪 Running run_as_root harness"
 	@$(run_as_root) bash $(INSTALL_PATH)/test_run_as_root.sh
 
@@ -173,7 +173,8 @@ REPO_SYSTEMD = config/systemd
 
 .PHONY: install-systemd enable-systemd uninstall-systemd verify-systemd
 
-install-systemd: ## Install systemd units and reload systemd (idempotent)
+# Install systemd units and reload systemd (idempotent)
+install-systemd: ensure-run-as-root
 	@echo "🧩 Installing systemd units"
 	@if [ ! -d "$(MAKEFILE_DIR)$(REPO_SYSTEMD)" ]; then \
 	    echo "ERROR: $(MAKEFILE_DIR)$(REPO_SYSTEMD) not found"; exit 1; \
@@ -189,7 +190,7 @@ install-systemd: ## Install systemd units and reload systemd (idempotent)
 	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf
 	@$(run_as_root) systemctl daemon-reload
 
-enable-systemd: install-systemd
+enable-systemd: install-systemd ensure-run-as-root
 	@echo "▶️ Enabling and starting path watcher and ensuring unbound drop-in is active"
 	@$(run_as_root) systemctl enable --now unbound-ctl-fix.path || true
 	@$(run_as_root) systemctl reset-failed unbound-ctl-fix.service unbound-ctl-fix.path || true
@@ -198,14 +199,14 @@ enable-systemd: install-systemd
 	@$(run_as_root) systemctl restart unbound || true
 	@$(run_as_root) systemctl status unbound --no-pager || true
 
-verify-systemd:
+verify-systemd: ensure-run-as-root
 	@echo "🔍 Status and socket ownership:"
 	@$(run_as_root) systemctl status unbound --no-pager || true
 	@$(run_as_root) systemctl status unbound-ctl-fix.path unbound-ctl-fix.service --no-pager || true
 	@$(run_as_root) ls -l /run/unbound.ctl /var/run/unbound.ctl || true
 	@$(run_as_root) -u unbound sh -c 'unbound-control status' || true
 
-uninstall-systemd:
+uninstall-systemd: ensure-run-as-root
 	@echo "🧹 Removing systemd units"
 	@$(run_as_root) systemctl stop --now unbound-ctl-fix.path unbound-ctl-fix.service || true
 	@$(run_as_root) systemctl disable unbound-ctl-fix.path || true
@@ -220,18 +221,18 @@ uninstall-systemd:
 .PHONY: install-nft-apply nft-apply nft-confirm nft-install nft-status nft-install nft-verify nft-install-rollback
 .NOTPARALLEL: nft-confirm nft-apply
 
-install-nft-apply:
+install-nft-apply: ensure-run-as-root
 	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
 
-nft-apply: install-nft-apply
+nft-apply: install-nft-apply ensure-run-as-root
 	$(run_as_root) $(INSTALL_PATH)/homelab-nft-apply.sh
 	@echo "🧾 Recording applied nftables ruleset hash"
 	$(run_as_root) sh -c 'sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"'
 
-nft-confirm:
+nft-confirm: ensure-run-as-root
 	@$(run_as_root) $(INSTALL_PATH)/homelab-nft-confirm.sh
 
-nft-install: install-nft-apply
+nft-install: install-nft-apply ensure-run-as-root
 	@echo "🛡️ Installing homelab nftables firewall"
 	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh
 	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh
@@ -246,22 +247,15 @@ nft-install: install-nft-apply
 	@echo " make nft-confirm  # Confirm rules (disarms rollback)"
 	@echo " (If not confirmed, rollback runs automatically)"
 
-nft-status:
+nft-status: ensure-run-as-root
 	@$(run_as_root) nft list table inet homelab_filter
 
-nft-install-rollback:
+nft-install-rollback: ensure-run-as-root
 	@echo "⏪ Installing homelab nft rollback units"
 	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
 	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft-rollback.timer
-
-#DEBUG
-print-debug:
-	@echo "CURDIR=$(CURDIR)"
-	@echo "MAKEFILE_LIST=$(MAKEFILE_LIST)"
-	@echo "MAKEFILE_DIR=$(MAKEFILE_DIR)"
-	@echo "INSTALL_PATH=$(INSTALL_PATH)"
 
 .PHONY: regen-clients
 regen-clients: ensure-run-as-root wg-apply

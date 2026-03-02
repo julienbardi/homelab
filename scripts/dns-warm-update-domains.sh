@@ -26,7 +26,7 @@ CURATED_FILE="/etc/dns-warm/curated.txt"
 PROFILE="${DNS_WARM_PROFILE:-full}"
 
 [ "$(id -u)" -eq 0 ] || {
-	log "$ICON_FAILURE must be run as root"
+	log "❌ must be run as root"
 	exit 1
 }
 
@@ -74,7 +74,7 @@ log "Including large external domain lists"
 
 	# 1. Fetch SWITCH list
 	if ! curl -fsSL "$SWITCH_CSV_URL" | awk -F, 'NR>1 && $1 {print $1}' >> "$tmp_switch"; then
-		log "$ICON_FAILURE SWITCH domain list unavailable"
+		log "❌ SWITCH domain list unavailable"
 		exit 1
 	fi
 
@@ -91,9 +91,9 @@ log "Including large external domain lists"
 
 	# rc 141 is SIGPIPE; it means we hit our limit and awk closed the pipe. This is a SUCCESS.
 	if [ "$rc" -eq 0 ] || [ "$rc" -eq 141 ]; then
-		log "$ICON_SUCCESS External lists fetched (limit: $TRANCO_LIMIT)"
+		log "✅ External lists fetched (limit: $TRANCO_LIMIT)"
 	else
-		log "$ICON_FAILURE Tranco download failed (rc=$rc)"
+		log "❌ Tranco download failed (rc=$rc)"
 		exit 1
 	fi
 
@@ -114,7 +114,7 @@ result=$(atomic_install "$tmp_final" "$DOMAINS_FILE" "root:root" "0644")
 rm -f "$tmp_all" "$tmp_final"
 
 if [[ "$result" == "changed" ]]; then
-	log "$ICON_SUCCESS Domain list updated: $(wc -l < "$DOMAINS_FILE") entries"
+	log "✅ Domain list updated: $(wc -l < "$DOMAINS_FILE") entries"
 else
-	log "$ICON_UNCHANGED Domain list unchanged: $(wc -l < "$DOMAINS_FILE") entries"
+	log "⚪ Domain list unchanged: $(wc -l < "$DOMAINS_FILE") entries"
 fi

@@ -30,9 +30,12 @@
 
 set -euo pipefail
 
+# shellcheck disable=SC1091
+source /usr/local/bin/common.sh
+
 # Must run as root for consistent environment and syslog
 if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-  echo "❌ Must be run with sudo (root) for reliable logging and consistent environment. Try: sudo $0"
+  log "❌ Must be run with sudo (root) for reliable logging and consistent environment. Try: sudo $0"
   exit 1
 fi
 
@@ -51,12 +54,6 @@ MAX_RETRIES=2
 # Optional DoH configuration
 DOH_HOST="${DOH_HOST:-}"
 DOH_PATH="${DOH_PATH:-}"
-
-log() {
-  local msg="$1"
-  echo "$msg"
-  logger -t dns-health-check.sh "$msg" || true
-}
 
 require_cmd() {
   local c

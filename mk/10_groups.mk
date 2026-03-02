@@ -87,7 +87,7 @@ enforce-groups: ensure-authorized-admin ensure-run-as-root _enforce-groups
 # Mutation logic (unchanged, authoritative)
 # ------------------------------------------------------------
 .PHONY: _enforce-groups
-_enforce-groups:
+_enforce-groups: ensure-run-as-root
 	@missing=""; \
 	for u in $(AUTHORIZED_ADMINS); do \
 		if ! id -u $$u >/dev/null 2>&1; then \
@@ -157,7 +157,7 @@ KNOWN_HOSTS_SCRIPT_MODE := 0755
 
 .PHONY: prereqs-enforce-known-hosts-script
 prereqs-enforce-known-hosts-script:
-	$(INSTALL_PATH)/atomic_install "$(KNOWN_HOSTS_SCRIPT_SRC)" "$(KNOWN_HOSTS_SCRIPT_DST)" "$(KNOWN_HOSTS_SCRIPT_OWNER):$(KNOWN_HOSTS_SCRIPT_GROUP)" "$(KNOWN_HOSTS_SCRIPT_MODE)"
+	@$(INSTALL_PATH)/atomic_install "$(KNOWN_HOSTS_SCRIPT_SRC)" "$(KNOWN_HOSTS_SCRIPT_DST)" "$(KNOWN_HOSTS_SCRIPT_OWNER):$(KNOWN_HOSTS_SCRIPT_GROUP)" "$(KNOWN_HOSTS_SCRIPT_MODE)"
 
 # ============================================================
 # SSH known_hosts enforcement

@@ -1,7 +1,7 @@
 # mk/20_sysctl.mk
 .PHONY: install-homelab-sysctl
 
-install-homelab-sysctl:
+install-homelab-sysctl: ensure-run-as-root
 	@echo "🧩 Installing homelab sysctl forwarding config"
 	@set -eu; \
 	src="config/sysctl.d/99-homelab-forwarding.conf"; \

@@ -40,8 +40,8 @@ days_left() {
 
 issue() {
     log "🔐 Issuing RSA and ECC certificates for $DOMAIN"
-    "$ACME" --server letsencrypt --issue -d "$DOMAIN" -d "*.$DOMAIN" --dns dns_infomaniak --keylength 4096 --force || log "� ️ RSA certificate issuance failed"
-    "$ACME" --server letsencrypt --issue -d "$DOMAIN" -d "*.$DOMAIN" --dns dns_infomaniak --keylength ec-256 --ecc --force || log "� ️ ECC certificate issuance failed"
+    "$ACME" --server letsencrypt --issue -d "$DOMAIN" -d "*.$DOMAIN" --dns dns_infomaniak --keylength 4096 --force || log "❌ RSA certificate issuance failed"
+    "$ACME" --server letsencrypt --issue -d "$DOMAIN" -d "*.$DOMAIN" --dns dns_infomaniak --keylength ec-256 --ecc --force || log "❌ ECC certificate issuance failed"
 }
 
 renew() {
@@ -52,7 +52,7 @@ renew() {
     local acme_force="${ACME_FORCE:-0}"
 
     if (( acme_force == 1 )); then
-        log "� ️ ACME_FORCE enabled — bypassing renewal thresholds"
+        log "ℹ️ ACME_FORCE enabled — bypassing renewal thresholds"
         "$ACME" --renew -d "$DOMAIN" --ecc --force && log "🔐 ECC certificate forcibly renewed"
         "$ACME" --renew -d "$DOMAIN" --force && log "🔐 RSA certificate forcibly renewed"
         return
@@ -210,7 +210,7 @@ deploy_dnsdist() {
     rc2="$?"
 
     if ! service_exists dnsdist; then
-        log "[deploy][dnsdist] skipped — service not installed"
+        log "ℹ️ [deploy][dnsdist] skipped — service not installed"
         return 0
     fi
 
@@ -253,42 +253,42 @@ deploy_router() {
 }
 
 deploy_diskstation() {
-    log "[deploy][diskstation] ECC cert to Synology DSM (default slot)"
+    log "ℹ️ [deploy][diskstation] ECC cert to Synology DSM (default slot)"
 
     # Ensure target directory exists (with timeout)
     if ! timeout 10 ssh julie@10.89.12.2 "sudo mkdir -p /usr/syno/etc/certificate/system/default"; then
-        log "[deploy][diskstation] ❌ Failed to create target directory (timeout or connection error)"
+        log "❌ [deploy][diskstation] Failed to create target directory (timeout or connection error)"
         return 1
     fi
 
     local res1 res2 res3 res4
     res1=$(timeout 10 atomic_install "$SSL_CANONICAL_DIR/bardi.ch.cer" \
                           "/usr/syno/etc/certificate/system/default/cert.pem" \
-                          "julie:root" 0644 10.89.12.2) || { log "[deploy][diskstation] ❌ cert.pem push failed"; return 1; }
+                          "julie:root" 0644 10.89.12.2) || { log "❌ [deploy][diskstation] cert.pem push failed"; return 1; }
 
     res2=$(timeout 10 atomic_install "$SSL_CANONICAL_DIR/fullchain.cer" \
                           "/usr/syno/etc/certificate/system/default/fullchain.pem" \
-                          "julie:root" 0644 10.89.12.2) || { log "[deploy][diskstation] ❌ fullchain.pem push failed"; return 1; }
+                          "julie:root" 0644 10.89.12.2) || { log "❌ [deploy][diskstation] fullchain.pem push failed"; return 1; }
 
     res3=$(timeout 10 atomic_install "$SSL_CANONICAL_DIR/ca.cer" \
                           "/usr/syno/etc/certificate/system/default/chain.pem" \
-                          "julie:root" 0644 10.89.12.2) || { log "[deploy][diskstation] ❌ chain.pem push failed"; return 1; }
+                          "julie:root" 0644 10.89.12.2) || { log "❌ [deploy][diskstation] chain.pem push failed"; return 1; }
 
     res4=$(timeout 10 atomic_install "$SSL_CANONICAL_DIR/bardi.ch.key" \
                           "/usr/syno/etc/certificate/system/default/privkey.pem" \
-                          "julie:root" 0600 10.89.12.2) || { log "[deploy][diskstation] ❌ privkey.pem push failed"; return 1; }
+                          "julie:root" 0600 10.89.12.2) || { log "❌ [deploy][diskstation] privkey.pem push failed"; return 1; }
 
     if [[ "$res1" == "changed" || "$res2" == "changed" || "$res3" == "changed" || "$res4" == "changed" ]]; then
-        log "[deploy][diskstation] ECC cert updated; restarting DSM web service"
+        log "🔁 [deploy][diskstation] ECC cert updated; restarting DSM web service"
         if ! timeout 10 ssh julie@10.89.12.2 'sudo synosystemctl restart nginx'; then
-            log "[deploy][diskstation] ❌ Failed to restart DSM web service"
+            log "❌ [deploy][diskstation] Failed to restart DSM web service"
             return 1
         fi
     else
-        log "🔁 diskstation ECC cert unchanged"
+        log "⚪ diskstation ECC cert unchanged"
     fi
 
-    log "[deploy][diskstation] complete"
+    log "✅ [deploy][diskstation] complete"
     # DSM regenerates root.pem and short-chain.pem automatically.
 }
 
@@ -301,20 +301,20 @@ deploy_qnap() {
     scp "$SSL_CANONICAL_DIR/fullchain_ecc.pem" admin@192.168.50.3:/etc/config/ssl/fullchain.pem
     scp "$SSL_CANONICAL_DIR/privkey_ecc.pem"   admin@192.168.50.3:/etc/config/ssl/privkey.pem
     fi
-    [[ "$ecc_changed" == "1" ]] && log "[qnap] cert updated; restart QTS web service"
+    [[ "$ecc_changed" == "1" ]] && log "🔁 [qnap] cert updated; restart QTS web service"
 }
 
 validate_caddy() {
     log "[validate][caddy] ECC handshake"
-    echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" -cipher ECDHE-ECDSA-AES128-GCM-SHA256 2>/dev/null | openssl x509 -noout -subject -dates || log "[warn] ECC handshake failed"
+    echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" -cipher ECDHE-ECDSA-AES128-GCM-SHA256 2>/dev/null | openssl x509 -noout -subject -dates || log "⚠️ ECC handshake failed"
     log "[validate][caddy] RSA handshake (fallback)"
-    echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" -cipher ECDHE-RSA-AES128-GCM-SHA256 2>/dev/null | openssl x509 -noout -subject -dates || log "[warn] RSA handshake failed"
+    echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" -cipher ECDHE-RSA-AES128-GCM-SHA256 2>/dev/null | openssl x509 -noout -subject -dates || log "⚠️ RSA handshake failed"
 }
 
 validate_headscale() { log "[validate][headscale] only if exposed on 443"; }
 validate_router() { log "[validate][router] remote validation requires hostnames/ports"; }
 validate_diskstation() {
-    log "[validate][diskstation] checking certificate served by DSM on 10.89.12.2:5001"
+    log "🔍 [validate][diskstation] checking certificate served by DSM on 10.89.12.2:5001"
 
     NAS_CERT="$HOME/.acme.sh/bardi.ch/bardi.ch.cer"
 
@@ -326,7 +326,7 @@ validate_diskstation() {
     # Run s_client with timeout (10s)
     remote_raw=$(timeout 10 openssl s_client -connect 10.89.12.2:5001 -servername bardi.ch </dev/null 2>/dev/null)
     if [[ $? -ne 0 || -z "$remote_raw" ]]; then
-        echo "[validate][diskstation] ❌ Failed to retrieve remote certificate (timeout or connection error)"
+        echo "❌ [validate][diskstation] Failed to retrieve remote certificate (timeout or connection error)"
         return 1
     fi
 
@@ -338,28 +338,28 @@ validate_diskstation() {
     remote_sans=$(echo "$remote_cert" | grep -A1 "Subject Alternative Name")
 
     # Log results
-    echo "[validate][diskstation] NAS expiry:     $nas_expiry ($nas_epoch)"
-    echo "[validate][diskstation] Remote expiry:  $remote_expiry ($remote_epoch)"
-    echo "[validate][diskstation] Remote SANs:    $remote_sans"
-    echo "[validate][diskstation] NAS fingerprint:     $nas_fp"
-    echo "[validate][diskstation] Remote fingerprint:  $remote_fp"
+    echo "ℹ️ [validate][diskstation] NAS expiry:     $nas_expiry ($nas_epoch)"
+    echo "ℹ️ [validate][diskstation] Remote expiry:  $remote_expiry ($remote_epoch)"
+    echo "ℹ️ [validate][diskstation] Remote SANs:    $remote_sans"
+    echo "ℹ️ [validate][diskstation] NAS fingerprint:     $nas_fp"
+    echo "ℹ️ [validate][diskstation] Remote fingerprint:  $remote_fp"
 
     # Compare fingerprints
     if [[ "$nas_fp" == "$remote_fp" ]]; then
-        echo "[validate][diskstation] ✅ Remote cert matches NAS cert"
+        echo "✅ [validate][diskstation] Remote cert matches NAS cert"
     else
-        echo "[validate][diskstation] ❌ Remote cert does not match NAS cert"
+        echo "❌ [validate][diskstation] Remote cert does not match NAS cert"
     fi
 
     # Compare expiry
     if (( nas_epoch > remote_epoch )); then
-        echo "[validate][diskstation] � ️ NAS cert is newer than remote"
+        echo "⚠️ [validate][diskstation] NAS cert is newer than remote"
     fi
 
-    log "[validate][diskstation] complete"
+    log "✅ [validate][diskstation] complete"
 }
 
-validate_qnap() { log "[validate][qnap] remote validation requires hostnames/ports"; }
+validate_qnap() { log "ℹ️ [validate][qnap] remote validation requires hostnames/ports"; }
 
 # ------------------------------------------------------------
 # Orchestration / Dispatch
@@ -396,7 +396,7 @@ case "${1:-}" in
     [[ $# -eq 2 ]] || usage
     case "$2" in
         caddy|headscale|dnsdist|router|diskstation|qnap) ;;
-        *) log "[deploy] ERROR: unsupported service '$2'"; exit 2 ;;
+        *) log "❌ unsupported service '$2'"; exit 2 ;;
     esac
     dispatch_deploy "$2"
     ;;
@@ -412,4 +412,4 @@ case "${1:-}" in
 esac
 
 # Footer marker for auditability
-log "[complete] deploy_certificates.sh finished"
+log "✅ deploy_certificates.sh finished"
