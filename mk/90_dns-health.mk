@@ -12,6 +12,6 @@ install-dns-health: $(DNS_CHECK)
 
 # Remove the dependency on install-all to prevent the restart loop
 .PHONY: check-dns
-check-dns: prereqs-dns-health-check-verify #| install-all
+check-dns: prereqs-dns-health-check-verify ensure-run-as-root #| install-all
 	@echo "🩺 Running DNS health check on $(RESOLVER_ADDR):$(RESOLVER_PORT)..."
 	@$(run_as_root) $(DNS_CHECK) "$(RESOLVER_ADDR) -p $(RESOLVER_PORT)" || echo "⚠️ DNS health check reported issues (likely cold cache)"

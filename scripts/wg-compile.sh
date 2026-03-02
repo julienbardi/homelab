@@ -39,7 +39,7 @@ set -euo pipefail
 source /volume1/homelab/homelab.env
 : "${HOMELAB_DIR:?HOMELAB_DIR not set}"
 : "${WG_ROOT:?WG_ROOT not set}"
-die() { echo "wg-compile: ERROR: $*" >&2; exit 1; }
+die() { echo "❌ $*" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "must run as root"
 export WG_PHASE=compile
 
@@ -107,25 +107,25 @@ profile_intent() {
     case "$profile" in
         tunnel_full_*)  TUNNEL_FULL=1 ;;
         tunnel_split_*) TUNNEL_FULL=0 ;;
-        *) echo "ERROR: invalid tunnel mode in profile: $profile" >&2; return 1 ;;
+        *) echo "❌ invalid tunnel mode in profile: $profile" >&2; return 1 ;;
     esac
 
     case "$profile" in
         *_lan_1_*) ALLOW_LAN=1 ;;
         *_lan_0_*) ALLOW_LAN=0 ;;
-        *) echo "ERROR: invalid LAN bit in profile: $profile" >&2; return 1 ;;
+        *) echo "❌ invalid LAN bit in profile: $profile" >&2; return 1 ;;
     esac
 
     case "$profile" in
         *_v4_1_*) ALLOW_V4=1 ;;
         *_v4_0_*) ALLOW_V4=0 ;;
-        *) echo "ERROR: invalid IPv4 bit in profile: $profile" >&2; return 1 ;;
+        *) echo "❌ invalid IPv4 bit in profile: $profile" >&2; return 1 ;;
     esac
 
     case "$profile" in
         *_v6_1) ALLOW_V6=1 ;;
         *_v6_0) ALLOW_V6=0 ;;
-        *) echo "ERROR: invalid IPv6 bit in profile: $profile" >&2; return 1 ;;
+        *) echo "❌ invalid IPv6 bit in profile: $profile" >&2; return 1 ;;
     esac
 
     tunnel_mode="split"
@@ -339,7 +339,7 @@ if grep -qE '(^|[[:space:]])2a01:' "$PLAN_TMP"; then
 fi
 
 [ ! -e "$ROOT/out/clients" ] || {
-    echo "wg-compile: ERROR: forbidden path exists: $ROOT/out/clients" >&2
+    echo "❌ forbidden path exists: $ROOT/out/clients" >&2
     exit 1
 }
 

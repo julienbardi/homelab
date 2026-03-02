@@ -28,13 +28,13 @@ DNS_WARM_POLICY_DST := $(INSTALL_PATH)/dns-warm-update-domains
 
 .PHONY: install-dns-warm-policy update-dns-warm-domains prereqs-dns-warm-verify
 
-install-dns-warm-policy:
+install-dns-warm-policy: ensure-run-as-root
 	@echo "📦 Deploying DNS warm policy script..."
 	@$(run_as_root) $(INSTALL_IF_CHANGED) $(DNS_WARM_POLICY_SRC) $(DNS_WARM_POLICY_DST) root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # Fix parallel ordering
-update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-warm-dirs prereqs-dns-warm-verify
-	@echo "🌐 [make] Updating dns-warm domain list"
+update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-warm-dirs prereqs-dns-warm-verify ensure-run-as-root
+	@echo "🌐 Updating dns-warm domain list"
 	@$(run_as_root) $(DNS_WARM_POLICY_DST)
 	@$(run_as_root) chown root:root $(DOMAINS_FILE)
 	@$(run_as_root) chmod 0644 $(DOMAINS_FILE)
@@ -66,30 +66,30 @@ dns-warm-install: \
 	dns-warm-install-systemd \
 	dns-warm-enable
 
-dns-warm-status:
+dns-warm-status: ensure-run-as-root
 	@$(run_as_root) systemctl status $(TIMER) --no-pager || true
 	@$(run_as_root) systemctl status $(SERVICE) --no-pager || true
 
 # Fix parallel ordering
-dns-warm-enable: dns-warm-install-systemd
+dns-warm-enable: dns-warm-install-systemd ensure-run-as-root
 	@echo "⚙️ Enabling and starting dns-warm timer..."
 	@$(run_as_root) systemctl unmask $(TIMER) > /dev/null 2>&1 || true
 	@$(run_as_root) systemctl enable $(TIMER)
 	@$(run_as_root) systemctl start $(TIMER)
 	@$(run_as_root) systemctl is-active --quiet $(TIMER) && echo "✅ $(TIMER) active"
 
-dns-warm-disable:
+dns-warm-disable: ensure-run-as-root
 	@echo "Disabling dns-warm timer..."
 	-@$(run_as_root) systemctl disable --now $(TIMER)
 	-@$(run_as_root) systemctl stop $(SERVICE)
 
-dns-warm-start:
+dns-warm-start: ensure-run-as-root
 	@$(run_as_root) systemctl start $(SERVICE)
 
-dns-warm-stop:
+dns-warm-stop: ensure-run-as-root
 	@$(run_as_root) systemctl stop $(SERVICE)
 
-dns-warm-uninstall: dns-warm-disable
+dns-warm-uninstall: dns-warm-disable ensure-run-as-root
 	@echo "Removing dns-warm components..."
 	@$(run_as_root) rm -f $(SERVICE_PATH) $(TIMER_PATH) $(ROTATE_SCRIPT_PATH) $(DNS_WARM_POLICY_DST)
 	@$(run_as_root) rm -f $(STATE_FILE) $(DOMAINS_FILE)
@@ -104,13 +104,13 @@ dns-warm-uninstall: dns-warm-disable
 dns-warm-create-user: enforce-groups
 	@id -u $(DNS_WARM_USER) >/dev/null 2>&1 || { echo "❌ User $(DNS_WARM_USER) creation failed in groups.mk"; exit 1; }
 
-dns-warm-dirs:
+dns-warm-dirs: ensure-run-as-root
 	@$(run_as_root) mkdir -p $(DOMAINS_DIR) $(DNS_WARM_STATE_DIR)
 	@$(run_as_root) chown -R $(DNS_WARM_USER):$(DNS_WARM_GROUP) $(DNS_WARM_STATE_DIR)
 	@$(run_as_root) chown -R root:root $(DOMAINS_DIR)
 	@$(run_as_root) chmod 750 $(DNS_WARM_STATE_DIR)
 
-dns-warm-install-script: dns-warm-async-install
+dns-warm-install-script: dns-warm-async-install ensure-run-as-root
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
 		$(ROTATE_SCRIPT_SRC_INST) $(ROTATE_SCRIPT_PATH) $(DNS_WARM_USER) $(DNS_WARM_GROUP) 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 	@$(run_as_root) bash -n $(ROTATE_SCRIPT_PATH)
@@ -164,6 +164,6 @@ dns-warm-async: $(DNS_WARM_ASYNC_SRC) prereqs
 	@$(CC) -O2 -Wall -Wextra -o $@ $< -lcares
 
 .PHONY: dns-warm-async-install
-dns-warm-async-install: dns-warm-async
+dns-warm-async-install: dns-warm-async ensure-run-as-root
 	@$(run_as_root) $(INSTALL_IF_CHANGED) \
 		dns-warm-async $(BIN_DIR)/dns-warm-async root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]

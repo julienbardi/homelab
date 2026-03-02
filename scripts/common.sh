@@ -10,12 +10,6 @@ set -euo pipefail
 [[ -n "${_HOMELAB_COMMON_SH_LOADED:-}" ]] && return
 readonly _HOMELAB_COMMON_SH_LOADED=1
 
-# ------------------------------------------------------------
-# Output icon grammar (operator-facing only)
-# ------------------------------------------------------------
-
-readonly ICON_UNCHANGED="◽"
-
 SCRIPT_NAME="$(basename "$0" .sh)"
 
 export INSTALL_IF_CHANGED_EXIT_CHANGED=3
@@ -67,7 +61,7 @@ ensure_rule() {
 
 # Require file exists and is non-empty
 require_file() {
-    [[ -s "$1" ]] || { log "[ERROR] missing file: $1"; exit 1; }
+    [[ -s "$1" ]] || { log "❌ missing file: $1"; exit 1; }
 }
 
 # Compare hash of source file against stored hash file

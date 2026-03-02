@@ -6,48 +6,81 @@
 # ============================================================
 
 set -euo pipefail
-SCRIPT_NAME="tailnet"
-source "/home/julie/src/homelab/scripts/common.sh"
+
+# shellcheck disable=SC1091
+source /usr/local/bin/common.sh
 
 HEADSCALE_BIN="/usr/local/bin/headscale"
 NAMESPACE="family"
 CONFIG_DIR="/etc/headscale"
 QR_DIR="${CONFIG_DIR}/qr"
 
-# --- Ensure namespace exists ---
-log "Ensuring namespace '${NAMESPACE}' exists..."
-if ! ${HEADSCALE_BIN} namespaces list | grep -q "${NAMESPACE}"; then
-    ${HEADSCALE_BIN} namespaces create ${NAMESPACE} || log "ERROR: Failed to create namespace ${NAMESPACE}, continuing degraded"
+# ------------------------------------------------------------
+# Ensure namespace exists
+# ------------------------------------------------------------
+log "ℹ️ Ensuring namespace '${NAMESPACE}' exists"
+
+if ! ${HEADSCALE_BIN} namespaces list | grep -q "^${NAMESPACE}$"; then
+    log "🔁 Creating namespace '${NAMESPACE}'"
+    if ! ${HEADSCALE_BIN} namespaces create "${NAMESPACE}"; then
+        log "❌ Failed to create namespace '${NAMESPACE}' — continuing degraded"
+    fi
 else
-    log "Namespace ${NAMESPACE} already exists"
+    log "ℹ️ Namespace '${NAMESPACE}' already exists"
 fi
 
-# --- Register device ---
+# ------------------------------------------------------------
+# Validate device name
+# ------------------------------------------------------------
 DEVICE_NAME="${1:-}"
+
 if [[ -z "${DEVICE_NAME}" ]]; then
-    log "ERROR: No device name provided"
+    log "❌ No device name provided"
     echo "Usage: $0 <device-name>" >&2
     exit 1
 fi
 
-log "Registering device '${DEVICE_NAME}' in namespace '${NAMESPACE}'..."
-if ! ${HEADSCALE_BIN} nodes register --user "${NAMESPACE}" --name "${DEVICE_NAME}"; then
-    log "ERROR: Failed to register device ${DEVICE_NAME}, continuing degraded"
+# ------------------------------------------------------------
+# Register device
+# ------------------------------------------------------------
+log "🔁 Registering device '${DEVICE_NAME}' in namespace '${NAMESPACE}'"
+
+if ! ${HEADSCALE_BIN} nodes register --namespace "${NAMESPACE}" --name "${DEVICE_NAME}"; then
+    log "❌ Failed to register device '${DEVICE_NAME}' — continuing degraded"
 else
-    log "Device ${DEVICE_NAME} registered successfully"
+    log "ℹ️ Device '${DEVICE_NAME}' registered"
 fi
 
-# --- Generate client config ---
-log "Generating client config for ${DEVICE_NAME}..."
-mkdir -p "${QR_DIR}"
-${HEADSCALE_BIN} nodes generate --namespace "${NAMESPACE}" --name "${DEVICE_NAME}" > "${CONFIG_DIR}/${DEVICE_NAME}.conf" || log "ERROR: Failed to generate config"
+# ------------------------------------------------------------
+# Generate client config
+# ------------------------------------------------------------
+log "🔁 Generating client config for '${DEVICE_NAME}'"
 
-# --- Generate QR code ---
+mkdir -p "${CONFIG_DIR}"
+if ! ${HEADSCALE_BIN} nodes generate --namespace "${NAMESPACE}" --name "${DEVICE_NAME}" \
+        > "${CONFIG_DIR}/${DEVICE_NAME}.conf"; then
+    log "❌ Failed to generate config for '${DEVICE_NAME}'"
+else
+    log "ℹ️ Config written to ${CONFIG_DIR}/${DEVICE_NAME}.conf"
+fi
+
+# ------------------------------------------------------------
+# Generate QR code
+# ------------------------------------------------------------
 if command -v qrencode >/dev/null 2>&1; then
-    log "Generating QR code for ${DEVICE_NAME}..."
-    qrencode -t ANSIUTF8 < "${CONFIG_DIR}/${DEVICE_NAME}.conf" > "${QR_DIR}/${DEVICE_NAME}.qr" || log "ERROR: Failed to generate QR code"
+    mkdir -p "${QR_DIR}"
+    log "🔁 Generating QR code for '${DEVICE_NAME}'"
+    if ! qrencode -t ANSIUTF8 < "${CONFIG_DIR}/${DEVICE_NAME}.conf" \
+            > "${QR_DIR}/${DEVICE_NAME}.qr"; then
+        log "❌ Failed to generate QR code for '${DEVICE_NAME}'"
+    else
+        log "ℹ️ QR code saved to ${QR_DIR}/${DEVICE_NAME}.qr"
+    fi
 else
-    log "WARN: qrencode not installed, skipping QR code generation"
+    log "⚠️ qrencode not installed — skipping QR generation"
 fi
 
-log "Tailnet setup complete for device ${DEVICE_NAME}."
+# ------------------------------------------------------------
+# Completion
+# ------------------------------------------------------------
+log "✅ Tailnet setup complete for device '${DEVICE_NAME}'"

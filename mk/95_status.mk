@@ -16,7 +16,7 @@
 	status-headscale \
 	status-monitoring
 
-status-kernel:
+status-kernel: ensure-run-as-root
 	@ipv4=$$($(run_as_root) /sbin/sysctl -n net.ipv4.ip_forward); \
 	ipv6=$$($(run_as_root) /sbin/sysctl -n net.ipv6.conf.all.forwarding); \
 	if [ "$$ipv4" = "1" ] && [ "$$ipv6" = "1" ]; then \
@@ -40,14 +40,14 @@ status-wireguard:
 	    echo "❌ No WireGuard interfaces active"; exit 1; \
 	fi
 
-status-headscale:
+status-headscale: ensure-run-as-root
 	@if $(run_as_root) systemctl is-active --quiet headscale; then \
 	    echo "✅ Headscale service active"; \
 	else \
 	    echo "❌ Headscale service inactive"; exit 1; \
 	fi
 
-status-monitoring:
+status-monitoring: ensure-run-as-root
 	@if $(run_as_root) systemctl is-active --quiet prometheus; then \
 	    echo "✅ Prometheus running"; \
 	else \
