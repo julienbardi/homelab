@@ -38,28 +38,27 @@ deploy-dnsmasq-config: install-pkg-dnsmasq apply-dnsmasq-udp-buffers
 	$(run_as_root) install -d -m 0755 $(DNSMASQ_CONF_DIR); \
 	changed=0; \
 	for f in $(DNSMASQ_CONF_FILES); do \
-	    echo "  -> $$(basename $$f)"; \
-	    rc=0; \
-	    $(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
-	        "$$f" "$(DNSMASQ_CONF_DIR)/$$(basename $$f)" root root 0644 || rc=$$?; \
-	    case "$$rc" in \
-	        0) ;; \
-	        3) changed=1 ;; \
-	        *) exit "$$rc" ;; \
-	    esac; \
+		echo "  -> $$(basename $$f)"; \
+		rc=0; \
+		$(call install_file,$$f,$(DNSMASQ_CONF_DIR)/$$(basename $$f),root,root,0644) || rc=$$?; \
+		case "$$rc" in \
+			0) ;; \
+			$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+			*) exit "$$rc" ;; \
+		esac; \
 	done; \
 	\
 	echo "🚀 Applying dnsmasq service"; \
 	if [ "$$changed" -eq 1 ]; then \
-	    $(run_as_root) systemctl restart dnsmasq && echo "✅ Restarted (config changed)"; \
+		$(run_as_root) systemctl restart dnsmasq && echo "✅ Restarted (config changed)"; \
 	else \
-	    echo "ℹ️ dnsmasq config unchanged — no restart needed"; \
+		echo "ℹ️ dnsmasq config unchanged — no restart needed"; \
 	fi; \
 	\
 	$(run_as_root) systemctl is-active --quiet dnsmasq || \
-	    ( echo "❌ dnsmasq failed to start"; \
-	      echo "ℹ️  Run: make dnsmasq-status"; \
-	      exit 1 ); \
+		( echo "❌ dnsmasq failed to start"; \
+		  echo "ℹ️  Run: make dnsmasq-status"; \
+		  exit 1 ); \
 	\
 	echo "✅ dnsmasq running"
 
@@ -69,14 +68,14 @@ dnsmasq-status:
 check-dnsmasq-udp-buffers:
 	@echo "🔍 Checking kernel UDP receive buffers for dnsmasq (UGOS defaults: net.core.rmem_max = 8388608, net.core.rmem_default = 212992)"
 	@$(run_as_root) sh -eu -c '\
-	    REQUIRED=8388608; \
-	    CUR_MAX=$$(sysctl -n net.core.rmem_max); \
-	    CUR_DEF=$$(sysctl -n net.core.rmem_default); \
-	    if [ $$CUR_MAX -lt $$REQUIRED ] || [ $$CUR_DEF -lt $$REQUIRED ]; then \
-	        echo "❌ UDP receive buffers too small"; \
-	        exit 1; \
-	    fi; \
-	    echo "✅ UDP receive buffers OK"'
+		REQUIRED=8388608; \
+		CUR_MAX=$$(sysctl -n net.core.rmem_max); \
+		CUR_DEF=$$(sysctl -n net.core.rmem_default); \
+		if [ $$CUR_MAX -lt $$REQUIRED ] || [ $$CUR_DEF -lt $$REQUIRED ]; then \
+			echo "❌ UDP receive buffers too small"; \
+			exit 1; \
+		fi; \
+		echo "✅ UDP receive buffers OK"'
 
 apply-dnsmasq-udp-buffers:
 	@echo "🔧 Applying UDP receive buffer tuning for dnsmasq"
@@ -86,6 +85,6 @@ apply-dnsmasq-udp-buffers:
 restore-dnsmasq-udp-buffers:
 	@echo "↩️  [make] Restoring UGOS UDP buffer defaults"
 	@$(run_as_root) sh -eu -c '\
-	    sysctl -w net.core.rmem_max=8388608 >/dev/null; \
-	    sysctl -w net.core.rmem_default=212992 >/dev/null; \
-	    echo "✅ [make] UGOS defaults restored"'
+		sysctl -w net.core.rmem_max=8388608 >/dev/null; \
+		sysctl -w net.core.rmem_default=212992 >/dev/null; \
+		echo "✅ [make] UGOS defaults restored"'
