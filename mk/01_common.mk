@@ -26,6 +26,7 @@ INSTALL_SBIN_PATH ?= /usr/local/sbin
 
 BOOTSTRAP_FILES := \
 	$(INSTALL_PATH)/install_if_changed.sh \
+	$(INSTALL_PATH)/install_file_if_changed.sh \
 	$(INSTALL_SBIN_PATH)/run-as-root.sh \
 	$(HOMELAB_ENV_DST)
 
@@ -54,6 +55,10 @@ endef
 
 $(INSTALL_PATH)/install_if_changed.sh: SRC := $(MAKEFILE_DIR)scripts/install_if_changed.sh
 $(INSTALL_PATH)/install_if_changed.sh: $(SRC) ensure-run-as-root
+	@$(run_as_root) install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $(SRC) $@
+
+$(INSTALL_PATH)/install_file_if_changed.sh: SRC := $(MAKEFILE_DIR)scripts/install_file_if_changed.sh
+$(INSTALL_PATH)/install_file_if_changed.sh: $(SRC) ensure-run-as-root
 	@$(run_as_root) install -C -o $(OWNER) -g $(GROUP) -m $(MODE) $(SRC) $@
 
 # install_script(src, name), exit code 0 (unchanged) and $(INSTALL_IF_CHANGED_EXIT_CHANGED) (updated) are success
