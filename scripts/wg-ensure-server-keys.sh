@@ -14,10 +14,10 @@ PUBDIR="$WG_ROOT/compiled/server-pubkeys"
 PLAN="$WG_ROOT/compiled/plan.tsv"
 OUT_BASE="$WG_ROOT/out/server/base"
 
-INSTALL_IF_CHANGED="/usr/local/bin/install_if_changed.sh"
+INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed.sh"
 
-[ -x "$INSTALL_IF_CHANGED" ] || {
-    echo "wg-ensure-server-keys: ERROR: install_if_changed.sh not found or not executable" >&2
+[ -x "$INSTALL_FILE_IF_CHANGED" ] || {
+    echo "wg-ensure-server-keys: ERROR: install_file_if_changed.sh not found or not executable" >&2
     exit 1
 }
 
@@ -79,12 +79,14 @@ for iface in $ifaces; do
     fi
 
     # Publish the server pubkey into the compiled artifact directory (renderer contract)
-    rc=0
-    "$INSTALL_IF_CHANGED" --quiet "$pub" "$PUBDIR/$iface.pub" root root 644 || rc=$?
-    if [ "$rc" -ne 0 ] && [ "$rc" -ne "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]; then
-        exit "$rc"
-    fi
-
+        rc=0
+        "$INSTALL_FILE_IF_CHANGED" --quiet \
+            "" "" "$pub" \
+            "" "" "$PUBDIR/$iface.pub" \
+            root root 644 || rc=$?
+        if [ "$rc" -ne 0 ] && [ "$rc" -ne "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]; then
+            exit "$rc"
+        fi
 
     i="${iface#wg}"
     out="$OUT_BASE/$iface.conf"
@@ -107,6 +109,7 @@ EOF
             wg4|wg7) echo "Table = off" >>"$tmp" ;;
         esac
 
-        "$INSTALL_IF_CHANGED" --quiet "$tmp" "$out" root root 600
+        "$INSTALL_FILE_IF_CHANGED" --quiet "" "" "$tmp" "" "" "$out" root root 600
+
     )
 done

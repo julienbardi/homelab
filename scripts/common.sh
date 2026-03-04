@@ -13,19 +13,14 @@ readonly _HOMELAB_COMMON_SH_LOADED=1
 SCRIPT_NAME="$(basename "$0" .sh)"
 
 export INSTALL_IF_CHANGED_EXIT_CHANGED=3
-# Run install_if_changed and treat "changed" as success.
+# Run install_file_if_changed and treat "changed" as success.
 # Propagates any other non-zero exit code.
-run_install_if_changed() {
-    local install_if_changed="$1"; shift
-    local rc=0
-
-    "$install_if_changed" "$@" || rc=$?
-
-    if [[ "$rc" -eq 0 || "$rc" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]]; then
-        return 0
-    fi
-
-    return "$rc"
+run_install_file_if_changed() {
+    /usr/local/bin/install_file_if_changed.sh --quiet \
+        "" "" "$1" \
+        "" "" "$2" \
+        "$3" "$4" "$5" || rc=$?
+    return "${rc:-0}"
 }
 
 # shellcheck disable=SC2317

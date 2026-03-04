@@ -13,10 +13,35 @@
 # - Example:
 #     scripts/foo.sh -> $(INSTALL_PATH)/foo.sh
 #     scripts/bar.sh -> $(INSTALL_SBIN_PATH)/bar.sh
+# --------------------------------------------------------------------
+# MACRO HYGIENE CONTRACT
+#
+# - The '@' prefix is Make syntax, not shell syntax.
+# - '@' suppresses command echoing ONLY when it appears at the start
+#   of a recipe line.
+#
+# - '@' MUST NEVER appear inside a 'define' macro.
+#   When a macro is expanded inside a recipe, any embedded '@'
+#   becomes a literal character and will be passed to the shell,
+#   causing invalid command paths such as '@/usr/local/sbin/run-as-root.sh'.
+#
+# - All macros MUST contain only valid shell syntax.
+# - Echo suppression ('@') is the responsibility of the call site,
+#   not the macro definition.
+#
+# CONSEQUENCES:
+# - Any macro containing '@' is considered invalid.
+# - All macros must be safe to expand inside compound recipes.
+# --------------------------------------------------------------------
 
 # Guard: install_if_changed.sh must never be executed again
 ifneq ($(filter install_if_changed.sh,$(MAKECMDGOALS)),)
 $(error ❌ install_if_changed.sh is deprecated and must not be used; use install_file_if_changed.sh)
+endif
+
+# Guard: forbid '@' inside macro bodies
+ifneq ($(filter @,$(value install_file) $(value uninstall_script)),)
+$(error ❌ '@' detected inside macro definition; '@' is forbidden in define blocks)
 endif
 
 INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
@@ -63,7 +88,7 @@ $(INSTALL_PATH)/install_file_if_changed.sh: $(SRC) ensure-run-as-root
 
 # Generic macro: $(call install_file,src,dst,owner,group,mode)
 define install_file
-	@$(run_as_root) $(INSTALL_PATH)/install_file_if_changed.sh --quiet \
+	$(run_as_root) $(INSTALL_PATH)/install_file_if_changed.sh --quiet \
 		"" "" $(1) \
 		"" "" $(2) \
 		$(3) $(4) $(5) || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
@@ -79,7 +104,7 @@ endef
 
 # uninstall_script(name)
 define uninstall_script
-	@$(run_as_root) rm -f $(INSTALL_PATH)/$(1)
+	$(run_as_root) rm -f $(INSTALL_PATH)/$(1)
 endef
 
 # --------------------------------------------------------------------
