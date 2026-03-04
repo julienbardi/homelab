@@ -31,11 +31,11 @@ OUT="$WG_ROOT/compiled/keys.tsv"
 umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-INSTALL_IF_CHANGED="$SCRIPT_DIR/install_if_changed.sh"
+INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed.sh"
 
 die() { echo "❌ $*" >&2; exit 1; }
 
-[ -x "$INSTALL_IF_CHANGED" ] || die "install_if_changed.sh not found or not executable"
+[ -x "$INSTALL_FILE_IF_CHANGED" ] || die "install_file_if_changed.sh not found or not executable"
 [ -f "$PLAN" ] || die "missing plan.tsv at $PLAN"
 command -v wg >/dev/null 2>&1 || die "wg not found in PATH"
 
@@ -101,7 +101,10 @@ if [ "$(wc -l <"$tmp")" -le 1 ]; then
 fi
 
 rc=0
-"$INSTALL_IF_CHANGED" --quiet "$tmp" "$OUT" root root 600 || rc=$?
+"$INSTALL_FILE_IF_CHANGED" --quiet \
+    "" "" "$tmp" \
+    "" "" "$OUT" \
+    root root 600 || rc=$?
 case "$rc" in
     0|3) exit 0 ;;
     *)   exit "$rc" ;;

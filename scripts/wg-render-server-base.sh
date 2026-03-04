@@ -13,10 +13,10 @@ PUBDIR="${WG_ROOT}/compiled/server-pubkeys"
 OUTDIR="${WG_ROOT}/out/server/base"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-INSTALL_IF_CHANGED="${SCRIPT_DIR}/install_if_changed.sh"
+INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed.sh"
 
-[ -x "${INSTALL_IF_CHANGED}" ] || {
-    echo "wg-render-server-base: ERROR: install_if_changed.sh not found or not executable" >&2
+[ -x "${INSTALL_FILE_IF_CHANGED}" ] || {
+    echo "wg-render-server-base: ERROR: install_file_if_changed.sh not found or not executable" >&2
     exit 1
 }
 
