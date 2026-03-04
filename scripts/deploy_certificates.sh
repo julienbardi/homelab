@@ -201,12 +201,16 @@ deploy_dnsdist() {
 
     local rc1 rc2
 
-    /usr/local/bin/install_if_changed.sh \
-        "$SRC_CHAIN" "$DNSDIST_CERT_DIR/fullchain.pem" root "$DNSDIST_GROUP" 0644
+    /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SRC_CHAIN" \
+            "" "" "$DNSDIST_CERT_DIR/fullchain.pem" \
+            root "$DNSDIST_GROUP" 0644
     rc1="$?"
 
-    /usr/local/bin/install_if_changed.sh \
-        "$SRC_KEY" "$DNSDIST_CERT_DIR/privkey.pem" root "$DNSDIST_GROUP" 0640
+    /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SRC_KEY" \
+            "" "" "$DNSDIST_CERT_DIR/privkey.pem" \
+            root "$DNSDIST_GROUP" 0640
     rc2="$?"
 
     if ! service_exists dnsdist; then
