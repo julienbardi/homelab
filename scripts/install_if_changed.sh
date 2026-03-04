@@ -1,28 +1,11 @@
 #!/bin/sh
-# install_if_changed.sh
-# install_if_changed.sh — idempotent, atomic file installer
+# install_if_changed.sh — DEPRECATED compatibility wrapper
 #
-# Usage:
-#   install_if_changed.sh [-q|--quiet] [-n|--dry-run] SRC DST OWNER GROUP MODE
+# This script is deprecated.
+# Use install_file_if_changed.sh instead.
 #
-# Guarantees:
-# - Installs SRC to DST only if content, owner, group, or mode differ
-# - Atomic replacement (no partial writes)
-# - Correct ownership and permissions
-# - Safe under concurrent runs
-# - Minimal I/O (byte-compare, early exit)
-# - Clear, honest operator output
-#
-# Exit codes:
-#   0  -> Success, destination already up-to-date (no change)
-#   3  -> Success, destination would be updated (dry-run) or was updated
-#        (override with CHANGED_EXIT_CODE environment variable)
-#   1  -> Failure (invalid arguments, missing source file, or other error)
-#
-# Options:
-#   -q, --quiet     suppress output
-#   -n, --dry-run   do not modify DST; only report whether a change would occur
-#
+# This wrapper exists only for backward compatibility and will be removed.
+
 set -eu
 
 quiet=0
@@ -63,45 +46,28 @@ owner="$3"
 group="$4"
 mode="$5"
 
-# Validate inputs early
-[ -f "$src" ] || {
-    echo "❌ source file not found: $src" >&2
-    exit 1
-}
-
-case "$mode" in
-    [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;;
-    *) echo "❌ invalid mode: $mode" >&2; exit 1 ;;
-esac
-
-# Create temp file in same filesystem as destination
-dst_dir="$(dirname "$dst")"
-tmp="$(mktemp "$dst_dir/.install_if_changed.XXXXXX")"
-
-trap 'rm -f "$tmp"' EXIT INT TERM
-
-# Stage file with correct metadata
-install -m "$mode" -o "$owner" -g "$group" "$src" "$tmp"
-
-# Fast path: destination exists and is fully identical (content + metadata)
-if [ -f "$dst" ] &&
-   cmp -s "$tmp" "$dst" &&
-   [ "$(stat -c '%a %u %g' "$tmp")" = "$(stat -c '%a %u %g' "$dst")" ]; then
-    if [ "$quiet" -eq 0 ]; then
-        echo "⚪ $dst unchanged"
-    fi
-    exit 0
+# Emit deprecation warning unless quiet
+if [ "$quiet" -eq 0 ] && [ -z "${INSTALL_IF_CHANGED_DEPRECATED_WARNED:-}" ]; then
+    echo "⚠️  install_if_changed.sh is deprecated." >&2
+    echo "⚠️  Use install_file_if_changed.sh instead." >&2
+    export INSTALL_IF_CHANGED_DEPRECATED_WARNED=1
 fi
 
+# Dry-run is no longer supported — fail loudly
 if [ "$dry_run" -eq 1 ]; then
-    if [ "$quiet" -eq 0 ]; then
-        echo "🔍 $dst would be updated (dry-run)"
-    fi
-else
-    # Replace destination atomically
-    install -m "$mode" -o "$owner" -g "$group" "$tmp" "$dst"
-    if [ "$quiet" -eq 0 ]; then
-        echo "🔄 $dst updated"
-    fi
+    echo "❌ --dry-run is no longer supported." >&2
+    echo "❌ Use install_file_if_changed.sh directly." >&2
+    exit 1
 fi
-exit "${CHANGED_EXIT_CODE:-3}"
+
+# Resolve the absolute path to the directory containing this script
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+# Delegate to the new implementation
+QUIET_ARG=
+[ "$quiet" -eq 1 ] && QUIET_ARG="-q"
+
+exec "$SCRIPT_DIR/install_file_if_changed.sh" $QUIET_ARG \
+    "" "" "$src" \
+    "" "" "$dst" \
+    "$owner" "$group" "$mode"
