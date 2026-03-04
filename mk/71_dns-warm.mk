@@ -1,8 +1,6 @@
 # mk/71_dns-warm.mk
 # DNS cache warming automation (dns-warm-rotate)
 
-INSTALL_IF_CHANGED      := $(INSTALL_PATH)/install_if_changed.sh
-
 ROTATE_SCRIPT_NAME      ?= dns-warm-rotate.sh
 ROTATE_SCRIPT_PATH      ?= $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
 ROTATE_SCRIPT_SRC_INST  := $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
@@ -30,7 +28,7 @@ DNS_WARM_POLICY_DST := $(INSTALL_PATH)/dns-warm-update-domains
 
 install-dns-warm-policy: ensure-run-as-root
 	@echo "📦 Deploying DNS warm policy script..."
-	@$(run_as_root) $(INSTALL_IF_CHANGED) $(DNS_WARM_POLICY_SRC) $(DNS_WARM_POLICY_DST) root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+	@$(run_as_root) $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$(DNS_WARM_POLICY_SRC)" "" "" "$(DNS_WARM_POLICY_DST)" root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # Fix parallel ordering
 update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-warm-dirs prereqs-dns-warm-verify ensure-run-as-root
@@ -111,8 +109,8 @@ dns-warm-dirs: ensure-run-as-root
 	@$(run_as_root) chmod 750 $(DNS_WARM_STATE_DIR)
 
 dns-warm-install-script: dns-warm-async-install ensure-run-as-root
-	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-		$(ROTATE_SCRIPT_SRC_INST) $(ROTATE_SCRIPT_PATH) $(DNS_WARM_USER) $(DNS_WARM_GROUP) 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+	@$(run_as_root) $(INSTALL_PATH)/install_file_if_changed.sh \
+		"" "" "$(ROTATE_SCRIPT_SRC_INST)" "" "" "$(ROTATE_SCRIPT_PATH)" $(DNS_WARM_USER) $(DNS_WARM_GROUP) 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 	@$(run_as_root) bash -n $(ROTATE_SCRIPT_PATH)
 
 # Fix parallel ordering
@@ -165,5 +163,4 @@ dns-warm-async: $(DNS_WARM_ASYNC_SRC) prereqs
 
 .PHONY: dns-warm-async-install
 dns-warm-async-install: dns-warm-async ensure-run-as-root
-	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-		dns-warm-async $(BIN_DIR)/dns-warm-async root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+	@$(run_as_root) $(INSTALL_PATH)/install_file_if_changed.sh "" "" dns-warm-async "" "" "$(BIN_DIR)/dns-warm-async" root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]

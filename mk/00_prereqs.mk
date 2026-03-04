@@ -208,10 +208,19 @@ prereqs-python-venv: ensure-run-as-root prereqs-python-venv-verify
 
 .PHONY: prereqs-dns-health-check-verify
 prereqs-dns-health-check-verify:
-	@dst="$(INSTALL_PATH)/dns-health-check.sh"; \
-	$(run_as_root) "$(INSTALL_PATH)/install_if_changed.sh" --dry-run \
-		scripts/dns-health-check.sh "$$dst" $(OWNER) $(GROUP) $(MODE) >/dev/null 2>&1 || { \
-		echo "❌ DNS health check script is missing or out of date"; \
+	@src="scripts/dns-health-check.sh"; \
+	dst="$(INSTALL_PATH)/dns-health-check.sh"; \
+	if ! $(run_as_root) test -f "$$dst"; then \
+		echo "❌ DNS health check script is missing at $$dst"; \
+		echo "➡️  Remediate with: sudo make install-dns-health"; \
+		exit 1; \
+	fi; \
+	src_hash=$$(sha256sum "$$src" | awk '{print $$1}'); \
+	dst_hash=$$($(run_as_root) sha256sum "$$dst" | awk '{print $$1}'); \
+	if [ "$$src_hash" != "$$dst_hash" ]; then \
+		echo "❌ DNS health check script is out of date"; \
 		echo "➡️  State drift detected between repository and $$dst"; \
 		echo "➡️  Remediate with: sudo make install-dns-health"; \
-		exit 1; }
+		exit 1; \
+	fi
+

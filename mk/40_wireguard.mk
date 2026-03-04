@@ -8,7 +8,6 @@ WG_INPUT := $(WG_ROOT)/input
 WG_CSV   := $(WG_INPUT)/clients.csv
 
 WG_SCRIPTS_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../scripts)
-INSTALL_IF_CHANGED := $(WG_SCRIPTS_ROOT)/install_if_changed.sh
 
 WG_COMPILE_SCRIPT                 := $(WG_SCRIPTS_ROOT)/wg-compile.sh
 WG_KEYS_SCRIPT                    := $(WG_SCRIPTS_ROOT)/wg-compile-keys.sh
@@ -50,47 +49,46 @@ WG_INSTALL_SOURCES := \
 # ---------------------------------------------------------------------------
 
 $(INSTALL_PATH)/wg-compile.sh: $(WG_COMPILE_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-compile-keys.sh: $(WG_KEYS_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-ensure-server-keys.sh: $(WG_SERVER_KEYS_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-compile-clients.sh: $(WG_RENDER_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-render-missing-clients.sh: $(WG_RENDER_MISSING_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-client-export.sh: $(WG_EXPORT_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-deploy.sh: $(WG_DEPLOY_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-check.sh: $(WG_CHECK_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-render-server-base.sh: $(WG_SERVER_BASE_RENDER_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-check-render.sh: $(WG_RENDER_CHECK_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-record-compromised-keys.sh: $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-remove-client.sh: $(WG_REMOVE_CLIENT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-rotate-client.sh: $(WG_ROTATE_CLIENT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 $(INSTALL_PATH)/wg-plan-read.sh: $(WG_PLAN_READ_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_IF_CHANGED) "$<" "$@" root root 0755
-
+	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
 
 # ---------------------------------------------------------------------------
 # Install contract enforcement (fail fast if repo scripts are not executable)
