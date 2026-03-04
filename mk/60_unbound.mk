@@ -112,14 +112,13 @@ ensure-root-key:
 deploy-unbound-config: update-root-hints ensure-root-key
 	@$(run_as_root) install -d -m 0755 /etc/unbound
 	@changed=0; \
-	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
-		$(UNBOUND_CONF_SRC) $(UNBOUND_CONF_DST) root root 0644; \
-	rc=$$?; \
-	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		changed=1; \
-	elif [ $$rc -ne 0 ]; then \
-		exit $$rc; \
-	fi; \
+	rc=0; \
+	$(call install_file,$(UNBOUND_CONF_SRC),$(UNBOUND_CONF_DST),root,root,0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
 	$(run_as_root) su -s /bin/sh unbound -c "cd /tmp && unbound-checkconf $(UNBOUND_CONF_DST)" || { echo "❌ invalid config"; exit 1; }; \
 	if [ $$changed -eq 1 ]; then \
 		echo "🔄 unbound.conf updated"; \
@@ -128,16 +127,13 @@ deploy-unbound-config: update-root-hints ensure-root-key
 
 deploy-unbound-control-config:
 	@changed=0; \
-	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
-		$(UNBOUND_CONTROL_CONF_SRC) \
-		$(UNBOUND_CONTROL_CONF_DST) \
-		root root 0644; \
-	rc=$$?; \
-	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		changed=1; \
-	elif [ $$rc -ne 0 ]; then \
-		exit $$rc; \
-	fi; \
+	rc=0; \
+	$(call install_file,$(UNBOUND_CONTROL_CONF_SRC),$(UNBOUND_CONTROL_CONF_DST),root,root,0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
 	if [ $$changed -eq 1 ]; then \
 		echo "🔄 unbound-control.conf updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
@@ -148,16 +144,13 @@ UNBOUND_SERVICE_DST := /etc/systemd/system/unbound.service
 
 deploy-unbound-service:
 	@changed=0; \
-	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
-		$(UNBOUND_SERVICE_SRC) \
-		$(UNBOUND_SERVICE_DST) \
-		root root 0644; \
-	rc=$$?; \
-	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		changed=1; \
-	elif [ $$rc -ne 0 ]; then \
-		exit $$rc; \
-	fi; \
+	rc=0; \
+	$(call install_file,$(UNBOUND_SERVICE_SRC),$(UNBOUND_SERVICE_DST),root,root,0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
 	if [ $$changed -eq 1 ]; then \
 		echo "🔄 unbound.service updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
@@ -169,16 +162,13 @@ UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
 
 deploy-unbound-local-internal:
 	@changed=0; \
-	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
-		$(UNBOUND_LOCAL_INTERNAL_SRC) \
-		$(UNBOUND_LOCAL_INTERNAL_DST) \
-		root root 0644; \
-	rc=$$?; \
-	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		changed=1; \
-	elif [ $$rc -ne 0 ]; then \
-		exit $$rc; \
-	fi; \
+	rc=0; \
+	$(call install_file,$(UNBOUND_LOCAL_INTERNAL_SRC),$(UNBOUND_LOCAL_INTERNAL_DST),root,root,0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
 	$(run_as_root) su -s /bin/sh unbound -c "cd /tmp && unbound-checkconf $(UNBOUND_CONF_DST)" || { echo "❌ invalid config"; exit 1; }; \
 	if [ $$changed -eq 1 ]; then \
 		echo "🔄 local-internal.conf updated"; \
@@ -192,16 +182,13 @@ UNBOUND_DROPIN_DST := /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.c
 install-unbound-systemd-dropin:
 	@$(run_as_root) install -d /etc/systemd/system/unbound.service.d
 	@changed=0; \
-	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
-		$(UNBOUND_DROPIN_SRC) \
-		$(UNBOUND_DROPIN_DST) \
-		root root 0644; \
-	rc=$$?; \
-	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		changed=1; \
-	elif [ $$rc -ne 0 ]; then \
-		exit $$rc; \
-	fi; \
+	rc=0; \
+	$(call install_file,$(UNBOUND_DROPIN_SRC),$(UNBOUND_DROPIN_DST),root,root,0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
 	if [ $$changed -eq 1 ]; then \
 		echo "🔄 unbound systemd drop-in updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \

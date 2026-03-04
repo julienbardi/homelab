@@ -3,7 +3,6 @@
 # ============================================================
 
 DEPLOY_CERTS := $(INSTALL_PATH)/deploy_certificates.sh
-INSTALL_IF_CHANGED := $(INSTALL_PATH)/install_if_changed.sh
 
 DNSDIST_BIN        := /usr/bin/dnsdist
 DNSDIST_UNIT       := dnsdist.service
@@ -88,7 +87,7 @@ deploy-dnsdist-certs: install-all $(HOMELAB_ENV_DST) $(DEPLOY_CERTS)
 # Configuration rendering (idempotent)
 # --------------------------------------------------------------------
 # --------------------------------------------------------------------
-# � ️  Destructive operations (operator-visible)
+# � ️  Destructive operations (operator-visible)
 # --------------------------------------------------------------------
 # NOTE:
 # - dnsdist restarts interrupt active DNS clients
@@ -98,14 +97,13 @@ dnsdist-config:
 	@set -eu; \
 	$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
 	rc=0; \
-	$(run_as_root) $(INSTALL_IF_CHANGED) \
-	    "$(DNSDIST_CONF_SRC)" "$(DNSDIST_CONF_DST)" root root 0644 || rc="$$?"; \
+	$(call install_file,$(DNSDIST_CONF_SRC),$(DNSDIST_CONF_DST),root,root,0644) || rc="$$?"; \
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-	    echo "🔄 dnsdist.conf updated"; \
-	    echo "🔁 restarting dnsdist.service"; \
-	    $(DNSDIST_RESTART_CMD); \
+		echo "🔄 dnsdist.conf updated"; \
+		echo "🔁 restarting dnsdist.service"; \
+		$(DNSDIST_RESTART_CMD); \
 	elif [ "$$rc" -ne 0 ]; then \
-	    exit "$$rc"; \
+		exit "$$rc"; \
 	fi
 
 # --------------------------------------------------------------------
@@ -136,17 +134,20 @@ dnsdist-systemd-dropin:
 	@set -eu; \
 	echo "⚙️ Installing dnsdist systemd drop-in"; \
 	$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
-	$(run_as_root) $(INSTALL_IF_CHANGED) \
-	    "$(MAKEFILE_DIR)scripts/systemd/dnsdist.service.d/10-no-port53.conf" \
-	    "/etc/systemd/system/dnsdist.service.d/10-no-port53.conf" \
-	    root root 0644; \
-	rc="$$?"; \
+	rc=0; \
+	$(call install_file, \
+		$(MAKEFILE_DIR)scripts/systemd/dnsdist.service.d/10-no-port53.conf, \
+		/etc/systemd/system/dnsdist.service.d/10-no-port53.conf, \
+		root,root,0644) || rc="$$?"; \
 	$(run_as_root) systemctl daemon-reload; \
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-	    echo "🔄 dnsdist drop-in updated"; \
-	    echo "🔁 restarting dnsdist.service"; \
-	    $(DNSDIST_RESTART_CMD); \
+		echo "🔄 dnsdist drop-in updated"; \
+		echo "🔁 restarting dnsdist.service"; \
+		$(DNSDIST_RESTART_CMD); \
+	elif [ "$$rc" -ne 0 ]; then \
+		exit "$$rc"; \
 	fi
+
 
 assert-dnsdist-running:
 	@systemctl is-active --quiet dnsdist \

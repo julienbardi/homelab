@@ -13,12 +13,12 @@ caddy: ensure-run-as-root gitcheck assert-caddy-ports-free deploy-caddy
 	echo "📄⬇️ Installing Caddyfile"; \
 	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
 	changed=0; \
-	$(run_as_root) $(INSTALL_PATH)/install_if_changed.sh \
-	    "$(SRC_CADDYFILE)" "$(CADDYFILE)" root root 0644 || rc=$$?; \
+	rc=0; \
+	$(call install_file,$(SRC_CADDYFILE),$(CADDYFILE),root,root,0644) || rc=$$?; \
 	case "$${rc:-0}" in \
-	    0) ;; \
-	    3) changed=1 ;; \
-	    *) exit "$$rc" ;; \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
 	esac; \
 	echo "📦 Deploying custom Caddy binary with rate_limit plugin"; \
 	#if [ -x "$(CADDY_BIN)" ] && [ ! -f "$(CADDY_BACKUP)" ]; then \
@@ -58,7 +58,7 @@ caddy: ensure-run-as-root gitcheck assert-caddy-ports-free deploy-caddy
 
 caddy-validate:
 	@if [ ! -f /etc/ssl/caddy/fullchain.pem ]; then \
-	  echo "� ️ Certs missing; skipping full validation"; \
+	  echo "� ️ Certs missing; skipping full validation"; \
 	  echo "👉 Run 'make deploy-caddy' or 'make all-caddy' once to install certs."; \
 	  exit 0; \
 	fi
