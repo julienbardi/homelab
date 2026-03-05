@@ -30,12 +30,9 @@ log "🔐 Publishing homelab CA to router"
 
 require_file "$CA_SRC"
 
-atomic_install \
-    "$CA_SRC" \
-    "$CA_DST" \
-    "root:root" \
-    "0644" \
-    "$ROUTER_HOST" \
-    "$ROUTER_SSH_PORT"
+/usr/local/bin/install_file_if_changed.sh --quiet \
+    "" "" "$CA_SRC" \
+    "$ROUTER_HOST" "$ROUTER_SSH_PORT" "$CA_DST" \
+    root root 0644
 
 echo "✅ CA installed on router"

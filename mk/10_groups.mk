@@ -157,7 +157,10 @@ KNOWN_HOSTS_SCRIPT_MODE := 0755
 
 .PHONY: prereqs-enforce-known-hosts-script
 prereqs-enforce-known-hosts-script:
-	@$(INSTALL_PATH)/atomic_install "$(KNOWN_HOSTS_SCRIPT_SRC)" "$(KNOWN_HOSTS_SCRIPT_DST)" "$(KNOWN_HOSTS_SCRIPT_OWNER):$(KNOWN_HOSTS_SCRIPT_GROUP)" "$(KNOWN_HOSTS_SCRIPT_MODE)"
+	@/usr/local/bin/install_file_if_changed.sh --quiet \
+	"" "" "$(KNOWN_HOSTS_SCRIPT_SRC)" \
+	"" "" "$(KNOWN_HOSTS_SCRIPT_DST)" \
+	$(KNOWN_HOSTS_SCRIPT_OWNER) $(KNOWN_HOSTS_SCRIPT_GROUP) $(KNOWN_HOSTS_SCRIPT_MODE)
 
 # ============================================================
 # SSH known_hosts enforcement
