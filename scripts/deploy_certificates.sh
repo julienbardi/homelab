@@ -126,16 +126,22 @@ deploy_caddy() {
     log "🔐 Deploying ECC TLS material to caddy"
     sudo mkdir -p "$SSL_DEPLOY_DIR_CADDY"
 
-    # Capture results from atomic_install
+    # Capture results from install_file_if_changed
     local res1
-    res1=$(atomic_install "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-                          "$SSL_DEPLOY_DIR_CADDY/fullchain.pem" \
-                          "caddy:caddy" 0644)
+    res1=$(
+        /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
+            "" "" "$SSL_DEPLOY_DIR_CADDY/fullchain.pem" \
+            caddy caddy 0644
+    )
 
     local res2
-    res2=$(atomic_install "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
-                          "$SSL_DEPLOY_DIR_CADDY/privkey.pem" \
-                          "caddy:caddy" 0640)
+    res2=$(
+        /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
+            "" "" "$SSL_DEPLOY_DIR_CADDY/privkey.pem" \
+            caddy caddy 0640
+    )
 
     if ! service_exists caddy; then
         log "⏭️ caddy not installed — skipping TLS deployment"
@@ -155,14 +161,20 @@ deploy_headscale() {
     sudo mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
 
     local res1
-    res1=$(atomic_install "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-                          "$SSL_DEPLOY_DIR_HEADSCALE/fullchain.pem" \
-                          "headscale:headscale" 0644)
+    res1=$(
+        /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
+            "" "" "$SSL_DEPLOY_DIR_HEADSCALE/fullchain.pem" \
+            headscale headscale 0644
+    )
 
     local res2
-    res2=$(atomic_install "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
-                          "$SSL_DEPLOY_DIR_HEADSCALE/privkey.pem" \
-                          "headscale:headscale" 0640)
+    res2=$(
+        /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
+            "" "" "$SSL_DEPLOY_DIR_HEADSCALE/privkey.pem" \
+            headscale headscale 0640
+    )
 
     if ! service_exists headscale; then
         log "⏭️ headscale not installed — skipping TLS deployment"
@@ -239,14 +251,18 @@ deploy_router() {
 
     # Push cert and key to the router (remote host $ROUTER_HOST, user $ROUTER_USER, group root)
     local res1
-    res1=$(atomic_install "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-                          "/jffs/ssl/fullchain.pem" \
-                          "$ROUTER_USER:root" 0644 "$ROUTER_HOST")
+    res1=$(
+        /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
+            "$ROUTER_HOST" 22 "/jffs/ssl/fullchain.pem" \
+            "$ROUTER_USER" root 0644
+    )
 
     local res2
-    res2=$(atomic_install "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
-                          "/jffs/ssl/privkey.pem" \
-                          "$ROUTER_USER:root" 0600 "$ROUTER_HOST")
+    res2=$(
+        /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
+            "$ROUTER_HOST"
 
     # Only log update if either file changed
     if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
@@ -266,21 +282,34 @@ deploy_diskstation() {
     fi
 
     local res1 res2 res3 res4
-    res1=$(timeout 10 atomic_install "$SSL_CANONICAL_DIR/bardi.ch.cer" \
-                          "/usr/syno/etc/certificate/system/default/cert.pem" \
-                          "julie:root" 0644 10.89.12.2) || { log "❌ [deploy][diskstation] cert.pem push failed"; return 1; }
 
-    res2=$(timeout 10 atomic_install "$SSL_CANONICAL_DIR/fullchain.cer" \
-                          "/usr/syno/etc/certificate/system/default/fullchain.pem" \
-                          "julie:root" 0644 10.89.12.2) || { log "❌ [deploy][diskstation] fullchain.pem push failed"; return 1; }
+    res1=$(
+        timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/bardi.ch.cer" \
+            10.89.12.2 22 "/usr/syno/etc/certificate/system/default/cert.pem" \
+            julie root 0644
+    ) || { log "❌ [deploy][diskstation] cert.pem push failed"; return 1; }
 
-    res3=$(timeout 10 atomic_install "$SSL_CANONICAL_DIR/ca.cer" \
-                          "/usr/syno/etc/certificate/system/default/chain.pem" \
-                          "julie:root" 0644 10.89.12.2) || { log "❌ [deploy][diskstation] chain.pem push failed"; return 1; }
+    res2=$(
+        timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/fullchain.cer" \
+            10.89.12.2 22 "/usr/syno/etc/certificate/system/default/fullchain.pem" \
+            julie root 0644
+    ) || { log "❌ [deploy][diskstation] fullchain.pem push failed"; return 1; }
 
-    res4=$(timeout 10 atomic_install "$SSL_CANONICAL_DIR/bardi.ch.key" \
-                          "/usr/syno/etc/certificate/system/default/privkey.pem" \
-                          "julie:root" 0600 10.89.12.2) || { log "❌ [deploy][diskstation] privkey.pem push failed"; return 1; }
+    res3=$(
+        timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/ca.cer" \
+            10.89.12.2 22 "/usr/syno/etc/certificate/system/default/chain.pem" \
+            julie root 0644
+    ) || { log "❌ [deploy][diskstation] chain.pem push failed"; return 1; }
+
+    res4=$(
+        timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
+            "" "" "$SSL_CANONICAL_DIR/bardi.ch.key" \
+            10.89.12.2 22 "/usr/syno/etc/certificate/system/default/privkey.pem" \
+            julie root 0600
+    ) || { log "❌ [deploy][diskstation] privkey.pem push failed"; return 1; }
 
     if [[ "$res1" == "changed" || "$res2" == "changed" || "$res3" == "changed" || "$res4" == "changed" ]]; then
         log "🔁 [deploy][diskstation] ECC cert updated; restarting DSM web service"
@@ -291,6 +320,7 @@ deploy_diskstation() {
     else
         log "⚪ diskstation ECC cert unchanged"
     fi
+
 
     log "✅ [deploy][diskstation] complete"
     # DSM regenerates root.pem and short-chain.pem automatically.

@@ -107,9 +107,13 @@ fi
 # ------------------------------------------------------------
 grep -E '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' "$tmp_all" | sort -u > "$tmp_final"
 
-# Atomic and idempotent installation using common.sh helper
-# atomic_install <src> <dest> <owner:group> <mode>
-result=$(atomic_install "$tmp_final" "$DOMAINS_FILE" "root:root" "0644")
+# Atomic and idempotent installation using install_file_if_changed
+result=$(
+    timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
+        "" "" "$tmp_final" \
+        "" "" "$DOMAINS_FILE" \
+        root root 0644
+)
 
 rm -f "$tmp_all" "$tmp_final"
 
