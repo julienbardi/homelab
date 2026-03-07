@@ -254,7 +254,7 @@ deploy_router() {
     res1=$(
         /usr/local/bin/install_file_if_changed.sh --quiet \
             "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-            "$ROUTER_HOST" 22 "/jffs/ssl/fullchain.pem" \
+            "$ROUTER_HOST" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" \
             "$ROUTER_USER" root 0644
     )
 
@@ -262,7 +262,9 @@ deploy_router() {
     res2=$(
         /usr/local/bin/install_file_if_changed.sh --quiet \
             "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
-            "$ROUTER_HOST"
+            "$ROUTER_HOST" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
+            "$ROUTER_USER" root 0600
+    )
 
     # Only log update if either file changed
     if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
@@ -271,6 +273,7 @@ deploy_router() {
         log "🔁 router ECC cert unchanged"
     fi
 }
+
 
 deploy_diskstation() {
     log "ℹ️ [deploy][diskstation] ECC cert to Synology DSM (default slot)"
