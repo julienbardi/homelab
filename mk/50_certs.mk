@@ -76,7 +76,7 @@ certs-expiry:
 	fi
 
 # --------------------------------------------------------------------
-# � ️  DESTRUCTIVE OPERATION — CA ROTATION
+# � ️  DESTRUCTIVE OPERATION — CA ROTATION
 #
 # - Invalidates ALL existing client certificates
 # - Requires manual confirmation
@@ -90,7 +90,7 @@ certs-rotate-dangerous: certs-rotate
 certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	@echo "🔥 ROTATE CA - this will create a new CA and invalidate existing client certs"; \
 	read -p "Type YES to ROTATE THE CA: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1); \
-	@echo "� ️  Proceeding with CA rotation — this cannot be undone"; \
+	@echo "� ️  Proceeding with CA rotation — this cannot be undone"; \
 	# exclusive lock to avoid concurrent runs
 	$(run_as_root) bash -c 'exec 9>/var/lock/certs-rotate.lock || exit 1; flock -n 9 || { echo "another certs-rotate is running"; exit 1; }; \
 	set -euo pipefail; \
@@ -174,12 +174,12 @@ certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 # - They depend on the internal CA being present
 # - They must never mutate CA material
 .PHONY: issue renew prepare \
-	deploy-caddy deploy-headscale deploy-dnsdist deploy-router deploy-diskstation deploy-qnap \
-	validate-caddy validate-headscale validate-router validate-diskstation validate-qnap \
+	deploy-caddy deploy-headscale deploy-dnsdist deploy-diskstation deploy-qnap \
+	validate-caddy validate-headscale validate-diskstation validate-qnap \
 	all-caddy all-headscale all-router all-diskstation all-qnap \
 	setup-cert-watch-% setup-cert-watch-all \
 	deploy-cert-watch-% deploy-cert-watch-all \
-	bootstrap-caddy bootstrap-headscale bootstrap-router bootstrap-diskstation bootstrap-qnap \
+	bootstrap-caddy bootstrap-headscale bootstrap-diskstation bootstrap-qnap \
 	bootstrap-all
 
 # Base actions
@@ -207,9 +207,6 @@ deploy-headscale: prepare
 deploy-dnsdist: prepare
 	$(call deploy_with_status,dnsdist)
 
-deploy-router: prepare
-	$(call deploy_with_status,router)
-
 deploy-diskstation: prepare
 	$(call deploy_with_status,diskstation)
 
@@ -224,14 +221,13 @@ endef
 
 validate-caddy:       $(call validate_with_status,caddy)
 validate-headscale:   $(call validate_with_status,headscale)
-validate-router:      $(call validate_with_status,router)
 validate-diskstation: $(call validate_with_status,diskstation)
 validate-qnap:        $(call validate_with_status,qnap)
 
 # All-in-one targets (pattern rule: renew + prepare + deploy + validate)
 all-caddy:       renew prepare deploy-caddy       validate-caddy
 all-headscale:   renew prepare deploy-headscale   validate-headscale
-all-router:      renew prepare deploy-router      validate-router
+all-router:      renew prepare deploy-router
 all-diskstation: renew prepare deploy-diskstation validate-diskstation
 all-qnap:        renew prepare deploy-qnap        validate-qnap
 
@@ -267,7 +263,6 @@ endef
 
 bootstrap-caddy:         $(call bootstrap_with_status,caddy)
 bootstrap-headscale:     $(call bootstrap_with_status,headscale)
-bootstrap-router:        $(call bootstrap_with_status,router)
 bootstrap-diskstation:   $(call bootstrap_with_status,diskstation)
 bootstrap-qnap:          $(call bootstrap_with_status,qnap)
 
