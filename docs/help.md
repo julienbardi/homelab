@@ -93,6 +93,82 @@
 - `make install-all`
 - `make uninstall-all`
 
+### Router: Access & diagnostics
+
+- `make router-ssh-check` — Verify non‑interactive SSH access to router
+- `make router-health` — Read‑only router health check
+- `make router-health-strict` — Enforce strict security invariants
+
+### Router: Bootstrap & firewall
+
+- `make router-bootstrap` — Install helpers and converge base services
+- `make router-firewall` — Assert Skynet firewall enforcement
+- `make router-firewall-install` — Deploy firewall hook script
+- `make router-firewall-started` — Assert base firewall is running
+- `make router-firewall-hardened` — Assert full firewall hardening
+- `make router-firewall-audit` — Dump firewall rules and WireGuard state
+
+### Router: Certificates (internal CA)
+
+- `make certs-create` — Create internal CA (idempotent)
+- `make certs-deploy` — Deploy certificates to router
+- `make certs-ensure` — Ensure CA exists and is deployed
+- `make certs-status` — Show deployed certificate status
+- `make certs-expiry` — Show CA expiry date
+- `make certs-rotate-dangerous` — Rotate CA (DESTRUCTIVE)
+- `make router-certs-deploy` — Deploy router certificates
+- `make router-certs-validate` — Validate router certificates
+- `make router-certs-validate-caddy` — Validate Caddy certificates
+
+### Router: Caddy (router edge)
+
+- `make router-caddy-install` — Install Caddy binary on router
+- `make router-caddy-config` — Push and validate Caddy configuration
+- `make router-caddy` — Full Caddy deployment
+- `make router-caddy-status` — Show Caddy process status
+- `make router-caddy-start` — Start Caddy
+- `make router-caddy-stop` — Stop Caddy
+
+### Router: WireGuard (control plane)
+
+- `make router-wg-deploy` — Deploy WireGuard compiler scripts to router
+- `make router-wg-check` — Run WireGuard compilers on router
+- `make router-wg-dump` — Run WireGuard compilers with WG_DUMP=1
+- `make router-wg-preflight` — Validate router WireGuard environment
+
+### Router orchestration (aggregates)
+
+- `make router-all` — Install DDNS, warm dnsmasq cache, ensure firewall started
+- `make router-all-full` — router-all + full Caddy converge
+
+### 🧰 Local Developer Tools
+
+- `make lint` — Lint Makefiles with checkmake
+
+- `make lint-fast` — Fast linting (subset of checks)
+
+- `make lint-all` — Full lint suite across repo
+
+- `make lint-scripts` — Lint shell scripts
+
+- `make lint-scripts-partial` — Lint only changed scripts
+
+- `make lint-semantic` — Validate semantic commit messages
+
+- `make lint-semantic-strict` — Strict semantic commit validation
+
+- `make tools` — Install local developer tooling
+
+- `make spellcheck` — Interactive spellcheck of Markdown files
+
+- `make spellcheck-comments` — Spellcheck Makefile comments
+
+- `make distclean` — Remove local tools and staged scripts
+
+- `make clean` — Remove local build artifacts
+
+- `make clean-soft` — Remove temporary files without touching tools
+
 ## 📝 Notes
 
 - All state is intent-driven; validation failures never modify deployed state.

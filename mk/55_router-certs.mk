@@ -1,84 +1,162 @@
-# mk/certs.mk
-# ------------------------------------------------------------
-# CERTIFICATE DEPLOYMENT AND VALIDATION
-# ------------------------------------------------------------
-#
-# Purpose:
-#   Consume, deploy, and validate certificates produced externally.
-#
-# Responsibilities:
-#   - Deploy certificates to router services
-#   - Reload dependent services
-#   - Validate certificate presence and expiry
-#
-# Non-responsibilities:
-#   - Certificate authority operations
-#   - Certificate creation or rotation
-#   - ACME or renewal logic
-#
-# Authority:
-#   - Certificates are produced externally (e.g. NAS)
-#   - This module makes no assumptions about the issuer
-#
-# Safety:
-#   - Missing or invalid certificates MUST fail loudly
-#
-# Contracts:
-#   - MUST NOT assume presence of ACME tooling
-#   - MUST NOT invoke $(MAKE)
-#
-# External requirements:
-#   - CERTS_DEPLOY: executable certificate deployment command
-#     (defined in mk/config.mk)
-# ------------------------------------------------------------
-
-ifndef CERTS_DEPLOY
-$(error CERTS_DEPLOY is not defined. This module requires CERTS_DEPLOY to be set by the including Makefile to an executable command that deploys certificates on the router.)
+# ============================================================
+# mk/55_router_certs.mk — Router certificate deployment
+# ============================================================
+ifeq ($(shell id -u),0)
+$(error Do not run deploy-router as root; run make deploy-router as an unprivileged user)
 endif
 
-define deploy_with_status
-	@$(run_as_root) $(CERTS_DEPLOY) deploy $(1)
-	@if [ "$(1)" = "caddy" ]; then \
-		$(run_as_root) /jffs/scripts/caddy-reload.sh; \
+ROUTER_CERT_CHECKSUM := /tmp/router-cert-checksum.txt
+
+# Content-only checksum guard
+$(ROUTER_CERT_CHECKSUM):
+	@newsum=$$( \
+		HOME=/home/julie $(run_as_root) sha256sum \
+			"$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" \
+			"$(SSL_CANONICAL_DIR)/privkey_ecc.pem" \
+		| sha256sum | cut -d' ' -f1 \
+	); \
+	oldsum=""; \
+	[ -f "$(ROUTER_CERT_CHECKSUM)" ] && oldsum=$$(cat "$(ROUTER_CERT_CHECKSUM)"); \
+	if [ "$$newsum" != "$$oldsum" ]; then \
+		echo "$$newsum" > "$(ROUTER_CERT_CHECKSUM)"; \
+		echo "🔐  Router cert checksum updated"; \
+	else \
+		echo "🔁  Router certs unchanged"; \
 	fi
-endef
 
-define validate_with_status
-	@$(run_as_root) $(CERTS_DEPLOY) validate $(1)
-endef
+# ------------------------------------------------------------
+# Internal: ensure SSH key auth works for router
+# ------------------------------------------------------------
+.PHONY: prereqs-router-ssh
+prereqs-router-ssh:
+	@ssh -o BatchMode=yes -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) true 2>/dev/null || { \
+		echo "❌ SSH key authentication to router failed (BatchMode refused)"; \
+		echo "👉 Your key *is probably already installed*, but the router is rejecting non-interactive key auth."; \
+		echo "👉 Fix this in the router UI: Administration → System → SSH Daemon:"; \
+		echo "       • Enable SSH"; \
+		echo "       • SSH Port: $(ROUTER_SSH_PORT)"; \
+		echo "       • Allow SSH key authentication: ON"; \
+		echo "       • Allow SSH key authentication for LAN: ON"; \
+		echo "       • Ensure your key is in julie’s authorized_keys"; \
+		echo "👉 If needed, reinstall key: ssh-copy-id -p $(ROUTER_SSH_PORT) $(ROUTER_HOST)"; \
+		exit 1; \
+	}
 
-.PHONY: certs-deploy
-certs-deploy: require-run-as-root certs-prepare
-	@$(run_as_root) test -x $(CERTS_DEPLOY)
-	@$(run_as_root) $(CERTS_DEPLOY)
+# ------------------------------------------------------------
+# Internal: Generate and deploy router apply script
+# ------------------------------------------------------------
+/tmp/router-apply-local.sh:
+	@$(call log,"🛠️  Generating router apply script")
+	@set -e; \
+	tmp=$$(mktemp /tmp/router-apply-XXXXXX.sh); \
+	printf '%s\n' \
+		'#!/bin/sh' \
+		'set -eu' \
+		'' \
+		'SRC_CHAIN="/jffs/ssl/fullchain.pem"' \
+		'SRC_KEY="/jffs/ssl/privkey.pem"' \
+		'' \
+		'DST_CERT="/tmp/etc/cert.pem"' \
+		'DST_KEY="/tmp/etc/key.pem"' \
+		'' \
+		'log() { logger -t "router-cert-apply" "$$*"; echo "$$*"; }' \
+		'' \
+		'if [ ! -f "$$SRC_CHAIN" ] || [ ! -f "$$SRC_KEY" ]; then' \
+		'   log "❌ source cert/key missing in /jffs/ssl"' \
+		'   exit 1' \
+		'fi' \
+		'' \
+		'cp "$$SRC_CHAIN" "$$DST_CERT"' \
+		'cp "$$SRC_KEY" "$$DST_KEY"' \
+		'' \
+		'chmod 0644 "$$DST_CERT"' \
+		'chmod 0600 "$$DST_KEY"' \
+		'' \
+		'log "🔐 installed ECC cert/key to $$DST_CERT"' \
+		'' \
+		'service restart_httpd 2>/dev/null || log "⚠️ restart_httpd failed (non-fatal)"' \
+		'service restart_httpds 2>/dev/null || log "⚠️ restart_httpds failed (non-fatal)"' \
+		'' \
+		'log "✅ router UI cert apply complete"' \
+		> "$$tmp"; \
+	cp "$$tmp" /tmp/router-apply-local.sh; \
+	rm -f "$$tmp"
+	@$(call log,"📄  Router apply script deployed")
 
-.PHONY: certs-ensure
-certs-ensure: certs-deploy ## Ensure certificates are present and deployed
+# ------------------------------------------------------------
+# Internal: Deploy certs + apply script + execute apply (BusyBox-safe single SSH session)
+# ------------------------------------------------------------
+/tmp/router-deploy.stamp: /tmp/router-apply-local.sh
+	@set -e; \
+	$(call log,"📁  Uploading router certs + apply script + executing apply"); \
+	tmp=/tmp/router-bundle-$$.tmp; \
+	{ \
+		echo "===FULLCHAIN==="; \
+		HOME=/home/julie $(run_as_root) cat "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem"; \
+		echo "===PRIVKEY==="; \
+		HOME=/home/julie $(run_as_root) cat "$(SSL_CANONICAL_DIR)/privkey_ecc.pem"; \
+		echo "===APPLY==="; \
+		cat /tmp/router-apply-local.sh; \
+	} > "$$tmp"; \
+	\
+	ssh -o BatchMode=no -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) ' \
+		mkdir -p /jffs/ssl && chmod 700 /jffs/ssl; \
+		> /jffs/scripts/apply-router-cert.sh; \
+		mode=""; \
+		while IFS= read -r line; do \
+			case "$$line" in \
+				"===FULLCHAIN===") mode="fullchain"; continue ;; \
+				"===PRIVKEY===")   mode="privkey";   continue ;; \
+				"===APPLY===")     mode="apply";     continue ;; \
+			esac; \
+			case "$$mode" in \
+				fullchain) echo "$$line" >> /jffs/ssl/fullchain.pem ;; \
+				privkey)   echo "$$line" >> /jffs/ssl/privkey.pem ;; \
+				apply)     echo "$$line" >> /jffs/scripts/apply-router-cert.sh ;; \
+			esac; \
+		done; \
+		chmod 0644 /jffs/ssl/fullchain.pem; \
+		chmod 0600 /jffs/ssl/privkey.pem; \
+		chmod 0755 /jffs/scripts/apply-router-cert.sh; \
+		/jffs/scripts/apply-router-cert.sh \
+	' < "$$tmp" >/dev/null 2>&1; \
+	rm -f "$$tmp"; \
+	echo "ok" > /tmp/router-deploy.stamp; \
+	$(call log,"✨  Router certs uploaded + applied")
 
-.PHONY: certs-status
-certs-status:
-	@$(run_as_root) ls -l /jffs/ssl || true
+# ------------------------------------------------------------
+# Public: deploy-router
+# ------------------------------------------------------------
+deploy-router: $(ROUTER_CERT_CHECKSUM) /tmp/router-deploy.stamp
+	@$(call log,"🔁 Nothing to deploy — router certs unchanged")
 
-.PHONY: certs-expiry
-certs-expiry:
-	@$(run_as_root) openssl x509 -in /etc/ssl/certs/homelab_bardi_CA.pem -noout -enddate
+# ------------------------------------------------------------
+# Public: validate-router
+# ------------------------------------------------------------
+validate-router:
+	@$(call log,"Validating router certificate")
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
+		if [ ! -f /tmp/etc/cert.pem ]; then echo "❌ cert.pem missing"; exit 1; fi; \
+		if [ ! -f /tmp/etc/key.pem ]; then echo "❌ key.pem missing"; exit 1; fi; \
+		echo "🔍 Router cert/key present"; \
+	'
+	@$(call log,"✅ Router certificate validation OK")
 
-.PHONY: deploy-router
-deploy-router: router-prepare
-	$(call deploy_with_status,router)
+# ------------------------------------------------------------
+# Public: router-logs (live tail of router cert apply logs)
+# ------------------------------------------------------------
+router-logs:
+	@$(call log,"Tailing router certificate logs")
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) "logread -f | grep -E 'router-cert-apply'"
 
-.PHONY: validate-router
-validate-router: certs-ensure
-	$(call validate_with_status,router)
+# ------------------------------------------------------------
+# Public: bootstrap-router
+# ------------------------------------------------------------
+bootstrap-router: prepare deploy-router validate-router
+	@$(call log,"🚀 Router bootstrapped")
 
-.PHONY: validate-caddy
-validate-caddy: certs-ensure
-	$(call validate_with_status,caddy)
-
-.PHONY: deploy-certs-deploy
-deploy-certs-deploy:
-	$(call deploy_if_changed,$(SRC_SCRIPTS)/certs-deploy.sh,/jffs/scripts/certs-deploy.sh)
-
-.PHONY: certs-prepare
-certs-prepare: deploy-certs-deploy require-run-as-root
-	@$(run_as_root) $(CERTS_DEPLOY) prepare
+.PHONY: \
+deploy-router \
+validate-router \
+router-logs \
+bootstrap-router
