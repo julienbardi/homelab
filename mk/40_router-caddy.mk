@@ -1,4 +1,4 @@
-# mk/caddy.mk
+# mk/40_router-caddy.mk — Router Caddy lifecycle (namespaced)
 # ------------------------------------------------------------
 # CADDY LIFECYCLE MANAGEMENT
 # ------------------------------------------------------------
@@ -19,36 +19,57 @@
 #   - MUST be correct under 'make -j'
 #   - MUST NOT rely on timestamps for remote state
 # ------------------------------------------------------------
-.PHONY: require-arm64
-require-arm64: | ssh-check
+.PHONY: router-require-arm64
+router-require-arm64: | router-ssh-check
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) uname -m | grep -q aarch64
 
-.NOTPARALLEL: caddy-install caddy-config
+.NOTPARALLEL: router-caddy-install router-caddy-config
 
-.PHONY: caddy-install
-caddy-install: | ssh-check require-arm64
-	$(call deploy_if_changed, $(SRC_SCRIPTS)/caddy, $(CADDY_BIN))
+# ------------------------------------------------------------
+# Install Caddy binary
+# ------------------------------------------------------------
 
-.PHONY: caddy-config
-caddy-config: firewall-started | require-arm64
+.PHONY: router-caddy-install
+router-caddy-install: | router-ssh-check router-require-arm64
+	$(call deploy_if_changed,$(SRC_SCRIPTS)/caddy,$(CADDY_BIN))
+
+# ------------------------------------------------------------
+# Push and validate Caddyfile
+# ------------------------------------------------------------
+
+.PHONY: router-caddy-config
+router-caddy-config: router-firewall-started | router-require-arm64
 	@scp -q -O -P $(ROUTER_SSH_PORT) $(CADDYFILE_SRC) $(ROUTER_HOST):$(CADDYFILE_DST)
 	@$(run_as_root) $(CADDY_BIN) validate --config $(CADDYFILE_DST)
 	@$(run_as_root) /jffs/scripts/caddy-reload.sh
 
-.PHONY: deploy-caddy
-deploy-caddy: router-prepare caddy-install caddy-config
+# ------------------------------------------------------------
+# High‑level deploy
+# ------------------------------------------------------------
 
-.PHONY: caddy
-caddy: deploy-caddy
+.PHONY: router-caddy-deploy
+router-caddy-deploy: router-certs-prepare router-caddy-install router-caddy-config
 
-.PHONY: caddy-status
-caddy-status: | ssh-check
+# ------------------------------------------------------------
+# Router‑side Caddy entrypoint
+# ------------------------------------------------------------
+
+.PHONY: router-caddy
+router-caddy: router-caddy-deploy
+
+# ------------------------------------------------------------
+# Status & control
+# ------------------------------------------------------------
+
+.PHONY: router-caddy-status
+router-caddy-status: | router-ssh-check
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) pidof caddy || true
 
-.PHONY: caddy-start
-caddy-start: | ssh-check
+.PHONY: router-caddy-start
+router-caddy-start: | router-ssh-check
 	@$(run_as_root) $(CADDY_BIN) start
 
-.PHONY: caddy-stop
-caddy-stop: | ssh-check
+.PHONY: router-caddy-stop
+router-caddy-stop: | router-ssh-check
 	@$(run_as_root) $(CADDY_BIN) stop
+

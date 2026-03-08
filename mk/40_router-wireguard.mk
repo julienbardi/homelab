@@ -1,38 +1,35 @@
-# mk/wireguard.mk
+# mk/40_router-wireguard.mk
 # ------------------------------------------------------------
-# WireGuard control plane
-# ------------------------------------------------------------
-#
-# Purpose:
-#   - Execute WireGuard control-plane compilers on the router
-#   - Validate and optionally dump derived state
-#
-# Contract:
-#   - Scripts execute on the router, never locally
-#   - No implicit execution
-#   - No runtime convergence here
+# WireGuard control plane (namespaced)
 # ------------------------------------------------------------
 
 WG_DIR := $(ROUTER_SCRIPTS)/wireguard
 HOST_AWK := /usr/bin/awk
 HOST_SHA256SUM := /usr/bin/sha256sum
 
-# yq is a build-host tool; define it here (tools.mk is included later)
 YQ := $(TOOLS_DIR)/yq/yq
 
-.PHONY: wg-domain-build
-wg-domain-build: $(YQ) domain.tsv
+# ------------------------------------------------------------
+# Build domain.tsv
+# ------------------------------------------------------------
+
+.PHONY: router-wg-domain-build
+router-wg-domain-build: $(YQ) domain.tsv
 	@echo "🛠️ built domain.tsv"
 
-domain.tsv: domain.yaml
+domain.tsv: config/domain.yaml
 	@set -eu; \
-	$(YQ) -r '.interfaces | to_entries[] | .key as $$iface | .value as $$i | ["global", $$iface, ($$i.lan_subnets != null), ($$i.internet // false), $$i.server, ($$i.vpn_subnet.ipv4 // ""), ($$i.vpn_subnet.ipv6 // "")] | @tsv' domain.yaml \
+	$(YQ) -r '.interfaces | to_entries[] | .key as $$iface | .value as $$i | ["global", $$iface, ($$i.lan_subnets != null), ($$i.internet // false), $$i.server, ($$i.vpn_subnet.ipv4 // ""), ($$i.vpn_subnet.ipv6 // "")] | @tsv' config/domain.yaml \
 	| sed '1i base\tiface\tlan\twan\tserver\tvpn4_cidr\tvpn6_cidr' \
 	> "$@"; \
 	[ "$$(wc -l <"$@")" -gt 1 ] || { echo "❌ domain.tsv empty"; exit 1; }
 
-.PHONY: wg-deploy
-wg-deploy: domain.tsv
+# ------------------------------------------------------------
+# Deploy WireGuard control-plane scripts
+# ------------------------------------------------------------
+
+.PHONY: router-wg-deploy
+router-wg-deploy: domain.tsv
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) 'mkdir -p $(ROUTER_SCRIPTS)'
 
 	@echo "🚀 deploying domain.tsv"
@@ -55,8 +52,12 @@ wg-deploy: domain.tsv
 		fi; \
 	done
 
-.PHONY: wg-preflight
-wg-preflight:
+# ------------------------------------------------------------
+# Preflight checks
+# ------------------------------------------------------------
+
+.PHONY: router-wg-preflight
+router-wg-preflight:
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \
 		die(){ echo "wg-preflight: ERROR: $$*" >&2; exit 1; }; \
@@ -71,8 +72,12 @@ wg-preflight:
 		echo "✓ wg-preflight OK"; \
 	'
 
-.PHONY: wg-check
-wg-check: wg-deploy wg-preflight
+# ------------------------------------------------------------
+# WireGuard control-plane check
+# ------------------------------------------------------------
+
+.PHONY: router-wg-check
+router-wg-check: router-wg-deploy router-wg-preflight
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
 		'cd "$(WG_DIR)" && WG_DUMP=1 "$(ROUTER_SCRIPTS)/wg-compile-domain.sh"'
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
@@ -81,8 +86,12 @@ wg-check: wg-deploy wg-preflight
 		'cd "$(WG_DIR)" && "$(ROUTER_SCRIPTS)/wg-compile-keys.sh"'
 	@echo "✅ WireGuard control-plane check passed"
 
-.PHONY: wg-dump
-wg-dump: wg-domain-build wg-deploy wg-preflight
+# ------------------------------------------------------------
+# Dump WireGuard derived state
+# ------------------------------------------------------------
+
+.PHONY: router-wg-dump
+router-wg-dump: router-wg-domain-build router-wg-deploy router-wg-preflight
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
 		'cd "$(WG_DIR)" && WG_DUMP=1 "$(ROUTER_SCRIPTS)/wg-compile-domain.sh"'
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
@@ -90,4 +99,3 @@ wg-dump: wg-domain-build wg-deploy wg-preflight
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
 		'cd "$(WG_DIR)" && WG_DUMP=1 "$(ROUTER_SCRIPTS)/wg-compile-keys.sh"'
 	@echo "📦 WireGuard control-plane dumps generated"
-

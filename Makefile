@@ -4,9 +4,12 @@
 
 .DEFAULT_GOAL := help
 
-MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
+# Root of the Git repository (directory containing the top-level Makefile), no trailing slash
+REPO_ROOT := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
+# Old name (kept temporarily for compatibility), no trailing slash
+MAKEFILE_DIR := $(REPO_ROOT)
 
 include $(MAKEFILE_DIR)mk/graph.mk
 
-print-makefile-dir:
-	@echo "MAKEFILE_DIR='$(MAKEFILE_DIR)'"
+.PHONY: router
+router: router-converge
