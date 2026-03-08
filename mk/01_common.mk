@@ -68,6 +68,32 @@ MODE ?= 0755
 # Stamp file is written as root so subsequent runs by non-root users still see it.
 STAMP_DIR ?= /var/lib/homelab
 
+# ------------------------------------------------------------
+# deploy_local_if_changed
+# Atomic, idempotent local file deployment with SHA256 drift detection
+# Usage:
+#   $(call deploy_local_if_changed,srcfile,dstfile,mode)
+# ------------------------------------------------------------
+define deploy_local_if_changed
+	@src="$(1)"; \
+	dst="$(2)"; \
+	mode="$(3)"; \
+	\
+	if [ ! -f "$$dst" ]; then \
+		echo "➕ Installing $$dst"; \
+		install -m "$$mode" "$$src" "$$dst"; \
+	else \
+		src_hash=$$(sha256sum "$$src" | awk '{print $$1}'); \
+		dst_hash=$$(sha256sum "$$dst" | awk '{print $$1}'); \
+		if [ "$$src_hash" != "$$dst_hash" ]; then \
+			echo "🔄 Updating $$dst (hash mismatch)"; \
+			install -m "$$mode" "$$src" "$$dst"; \
+		else \
+			echo "✨ $$dst already up-to-date"; \
+		fi; \
+	fi
+endef
+
 .PHONY: ensure-run-as-root
 ensure-run-as-root:
 	@if echo "$(MAKECMDGOALS)" | grep -qw install-all; then \

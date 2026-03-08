@@ -1,4 +1,4 @@
-# mk/router.mk
+# mk/40_router-control.mk
 # ------------------------------------------------------------
 # ROUTER CONTROL PLANE
 # ------------------------------------------------------------
@@ -117,16 +117,38 @@ define deploy_if_changed
 	fi
 endef
 
+# ------------------------------------------------------------
+# ROUTER CONTROL PLANE (namespaced)
+# ------------------------------------------------------------
 
+include mk/router/05_ssh.mk
+include mk/router/10_bootstrap.mk
+include mk/router/20_firewall.mk
+include mk/router/90_health.mk
 
-include mk/router/ssh.mk
-include mk/router/bootstrap.mk
-include mk/router/firewall.mk
-include mk/router/health.mk
+# ------------------------------------------------------------
+# Router readiness
+# ------------------------------------------------------------
 
 .PHONY: router-ready
-router-ready: firewall-hardened dnsmasq-cache
+router-ready: router-firewall-hardened router-dnsmasq-cache
 	@echo "🛡️ Router base services converged"
 
 .PHONY: router-prepare
-router-prepare: router-ready require-run-as-root certs-prepare
+router-prepare: router-ready router-require-run-as-root router-certs-prepare
+
+# ------------------------------------------------------------
+# ROUTER FULL CONVERGENCE
+# ------------------------------------------------------------
+
+.PHONY: router-converge
+router-converge: \
+	router-ssh-check \
+	router-bootstrap \
+	router-firewall-hardened \
+	router-certs-deploy \
+	router-caddy \
+	router-wg-check \
+	router-health \
+	router-health-strict
+	@echo "🚀 Router fully converged"

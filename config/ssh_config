@@ -1,0 +1,52 @@
+# config/ssh_config
+# ------------------------------------------------------------
+# GLOBAL OPERATOR IDENTITY
+# One keypair reused across all homelab devices
+# ------------------------------------------------------------
+Host *
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+
+    # SSH multiplexing for speed
+    ControlMaster auto
+    ControlPath ~/.ssh/cm-%r@%h:%p
+    ControlPersist 10m
+
+    # Safety & ergonomics
+    ServerAliveInterval 30
+    ServerAliveCountMax 3
+    StrictHostKeyChecking accept-new
+    UserKnownHostsFile ~/.ssh/known_hosts
+
+# ------------------------------------------------------------
+# ROUTER — Asus RT‑AX86U Pro
+# ------------------------------------------------------------
+Host router
+    HostName 10.89.12.1
+    Port 2222
+    User julie
+
+# ------------------------------------------------------------
+# DISKSTATION — Synology DS218play
+# ------------------------------------------------------------
+Host diskstation
+    HostName 10.89.12.2
+    Port 2222
+    User julie
+
+# ------------------------------------------------------------
+# QNAP — TS210
+# ------------------------------------------------------------
+Host qnap
+    HostName 10.89.12.3
+    Port 2222
+    User admin
+
+# ------------------------------------------------------------
+# NAS — Ugreen DXP4800+
+# Self‑reference for consistency
+# ------------------------------------------------------------
+Host nas
+    HostName 10.89.12.4
+    Port 2222
+    User julie

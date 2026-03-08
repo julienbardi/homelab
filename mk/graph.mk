@@ -45,6 +45,21 @@ include $(MAKEFILE_DIR)mk/20_net-tunnel.mk
 include $(MAKEFILE_DIR)mk/20_sysctl.mk
 include $(MAKEFILE_DIR)mk/30_config_validation.mk
 include $(MAKEFILE_DIR)mk/30_firewall-nas.mk
+# ------------------------------------------------------------
+# Router control-plane (integrated from homelab-router)
+# ------------------------------------------------------------
+include $(MAKEFILE_DIR)mk/30_router-config.mk
+include $(MAKEFILE_DIR)mk/30_router-platform.mk
+
+include $(MAKEFILE_DIR)mk/40_router-control.mk
+include $(MAKEFILE_DIR)mk/40_router-caddy.mk
+include $(MAKEFILE_DIR)mk/40_router-wireguard.mk
+
+include $(MAKEFILE_DIR)mk/56_router-certs.mk
+
+include $(MAKEFILE_DIR)mk/99_router-tools.mk
+include $(MAKEFILE_DIR)mk/99_router-python.mk
+
 include $(MAKEFILE_DIR)mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
 include $(MAKEFILE_DIR)mk/40_code-server.mk
 include $(MAKEFILE_DIR)mk/40_router.mk      # Router orchestration
@@ -56,6 +71,7 @@ include $(MAKEFILE_DIR)mk/43_wireguard-runtime.mk
 include $(MAKEFILE_DIR)mk/40_caddy.mk
 include $(MAKEFILE_DIR)mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include $(MAKEFILE_DIR)mk/50_dnsmasq.mk
+include $(MAKEFILE_DIR)mk/55_router-certs.mk
 include $(MAKEFILE_DIR)mk/60_unbound.mk     # Unbound DNS resolver setup
 include $(MAKEFILE_DIR)mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
 include $(MAKEFILE_DIR)mk/70_dnsdist.mk     #
