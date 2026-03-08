@@ -1,27 +1,10 @@
-# mk/router/health.mk
+# mk/router/90_health.mk
 # ------------------------------------------------------------
-# ROUTER HEALTH & SECURITY INVARIANTS
+# ROUTER HEALTH & SECURITY INVARIANTS (namespaced)
 # ------------------------------------------------------------
-#
-# Responsibilities:
-#   - Router health diagnostics
-#   - Runtime firewall and WireGuard assertions
-#   - Strict security posture verification
-#
-# Non-responsibilities:
-#   - Deployment or configuration changes
-#   - Firewall rule installation
-#   - Service lifecycle management
-#
-# Contracts:
-#   - Read-only checks only
-#   - Safe under 'make -j'
-#   - MUST NOT mutate router state
-# ------------------------------------------------------------
-
 
 .PHONY: router-health
-router-health: ssh-check
+router-health: router-ssh-check
 	@echo "🩺 Router health check"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \
@@ -58,7 +41,7 @@ router-health: ssh-check
 			echo "   ✓ binary present"; \
 			echo "   ✓ process running"; \
 			echo "   ✓ config valid"; \
-			echo "→ IPv6 FORWARD hook scope:"; \
+		echo "→ IPv6 FORWARD hook scope:"; \
 			if ip6tables -S FORWARD | grep -q -- "-j WGSF6"; then \
 				echo "   ❌ WGSF6 is globally hooked into FORWARD"; exit 1; \
 			fi; \
@@ -71,7 +54,7 @@ router-health: ssh-check
 	'
 
 .PHONY: router-health-strict
-router-health-strict: router-health | ssh-check
+router-health-strict: router-health | router-ssh-check
 	@echo "🔒 Enforcing strict security invariants"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \

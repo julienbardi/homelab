@@ -1,4 +1,11 @@
 # mk/00_constants.mk
+# ------------------------------------------------------------
+# Operator identity (local user, never root)
+# ------------------------------------------------------------
+OPERATOR_USER := $(shell id -un)
+OPERATOR_GROUP := $(shell id -gn)
+OPERATOR_HOME := $(shell getent passwd $(OPERATOR_USER) | cut -d: -f6)
+
 # Canonical Make constants (build-time)
 
 # Router connection (single source of truth for deployment)
@@ -7,6 +14,14 @@ ROUTER_USER     ?= julie
 ROUTER_HOST     ?= $(ROUTER_USER)@$(ROUTER_ADDR)
 ROUTER_SSH_PORT ?= 2222
 ROUTER_SCRIPTS  ?= /jffs/scripts
+
+# Router script metadata (owner/group/mode)
+ROUTER_SCRIPTS_OWNER := root
+ROUTER_SCRIPTS_GROUP := root
+ROUTER_SCRIPTS_MODE  := 0755
+
+# Local source directory for router scripts
+SRC_SCRIPTS := 10.89.12.1/jffs/scripts
 
 # ---------------------------------------------------------------------------
 # Network identities (do not alias; roles are distinct by contract)
