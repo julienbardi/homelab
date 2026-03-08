@@ -1,6 +1,6 @@
-# mk/router/ssh.mk
+# mk/router/05_ssh.mk
 # ------------------------------------------------------------
-# ROUTER SSH PREFLIGHT & PRIVILEGE GUARDS
+# ROUTER SSH PREFLIGHT & PRIVILEGE GUARDS (namespaced)
 # ------------------------------------------------------------
 #
 # Responsibilities:
@@ -8,19 +8,14 @@
 #   - SSH connectivity validation
 #   - Presence verification of privileged helpers
 #
-# Non-responsibilities:
-#   - Deployment of router artifacts
-#   - Firewall or service configuration
-#   - State mutation on the router
-#
 # Contracts:
 #   - Read-only checks only
 #   - Safe under 'make -j'
 #   - MUST NOT mutate router state
 # ------------------------------------------------------------
 
-.PHONY: ssh-check
-ssh-check:
+.PHONY: router-ssh-check
+router-ssh-check: install-ssh-config
 	@command -v nc >/dev/null 2>&1 || \
 	( \
 		echo "❌ Missing dependency: nc (netcat)"; \
@@ -40,14 +35,14 @@ ssh-check:
 		exit 1; \
 	)
 
-.PHONY: require-run-as-root
-require-run-as-root: | ssh-check
+.PHONY: router-require-run-as-root
+router-require-run-as-root: | router-ssh-check
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		test -x "$(RUN_AS_ROOT)" || \
 		( \
 			echo "❌ run-as-root missing"; \
 			echo "ℹ️  Router helpers not installed (likely after reset)"; \
-			echo "➡️  Recovery: make bootstrap"; \
+			echo "➡️  Recovery: make router-bootstrap"; \
 			exit 1; \
 		) \
 	'
