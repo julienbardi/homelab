@@ -7,3 +7,6 @@
 MAKEFILE_DIR := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
 
 include $(MAKEFILE_DIR)mk/graph.mk
+
+print-makefile-dir:
+	@echo "MAKEFILE_DIR='$(MAKEFILE_DIR)'"
