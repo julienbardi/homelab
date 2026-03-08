@@ -1,25 +1,18 @@
-# mk/router/firewall.mk
+# mk/router/20_firewall.mk
 # ------------------------------------------------------------
-# ROUTER FIREWALL & DNSMASQ CONVERGENCE
+# ROUTER FIREWALL & DNSMASQ CONVERGENCE (namespaced)
 # ------------------------------------------------------------
-#
-# Responsibilities:
-#   - dnsmasq cache configuration
-#   - Firewall script deployment
-#   - Firewall runtime assertions
-#   - IPv6 forwarding enforcement (WireGuard scope)
-#
-# Contracts:
-#   - Owns all firewall-related router artifacts
-#   - MUST NOT overlap ownership with other modules
-#   - MUST be safe under 'make -j'
-# ------------------------------------------------------------
-.NOTPARALLEL: \
-	dnsmasq-cache \
-	firewall-install
 
-.PHONY: dnsmasq-cache
-dnsmasq-cache: | ssh-check
+.NOTPARALLEL: \
+	router-dnsmasq-cache \
+	router-firewall-install
+
+# ------------------------------------------------------------
+# dnsmasq cache configuration
+# ------------------------------------------------------------
+
+.PHONY: router-dnsmasq-cache
+router-dnsmasq-cache: | router-ssh-check
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \
 		mkdir -p /jffs/configs; \
@@ -34,22 +27,29 @@ dnsmasq-cache: | ssh-check
 		fi \
 	'
 
-.PHONY: firewall-install
-firewall-install: | ssh-check require-run-as-root
+# ------------------------------------------------------------
+# Firewall script deployment
+# ------------------------------------------------------------
+
+.PHONY: router-firewall-install
+router-firewall-install: | router-ssh-check router-require-run-as-root
 	$(call deploy_if_changed,\
 		$(SRC_SCRIPTS)/firewall-start,\
 		/jffs/scripts/firewall-start)
 
-.PHONY: firewall-base-running
-firewall-base-running: | ssh-check
+# ------------------------------------------------------------
+# Firewall runtime assertions
+# ------------------------------------------------------------
+
+.PHONY: router-firewall-base-running
+router-firewall-base-running: | router-ssh-check
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		iptables -L INPUT >/dev/null 2>&1 || \
 		{ echo "❌ Base firewall not running"; exit 1; } \
 	'
 
-#  asserts observed enforcement, not configuration
-.PHONY: firewall-skynet-running
-firewall-skynet-running: firewall-install firewall-base-running | ssh-check
+.PHONY: router-firewall-skynet-running
+router-firewall-skynet-running: router-firewall-install router-firewall-base-running | router-ssh-check
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \
 		echo "→ Skynet firewall:"; \
@@ -64,29 +64,15 @@ firewall-skynet-running: firewall-install firewall-base-running | ssh-check
 		echo "   ✓ Skynet chains present and active" \
 	'
 
-.PHONY: firewall-started
-firewall-started: firewall-base-running
+.PHONY: router-firewall-started
+router-firewall-started: router-firewall-base-running
 
-.PHONY: firewall-hardened
-firewall-hardened: firewall-started firewall-skynet-running firewall-ipv6-forwarding
-	@echo "🛡️ Firewall hardened and actively blocking threats"
+# ------------------------------------------------------------
+# IPv6 forwarding enforcement (WireGuard scope)
+# ------------------------------------------------------------
 
-.PHONY: firewall
-firewall: firewall-skynet-running
-
-.PHONY: firewall-audit
-firewall-audit: | ssh-check
-	@echo "🔍 Router firewall audit"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
-		iptables  -S INPUT; \
-		iptables  -S FORWARD; \
-		ip6tables -S INPUT; \
-		ip6tables -S FORWARD; \
-		wg show \
-	'
-
-.PHONY: firewall-ipv6-forwarding
-firewall-ipv6-forwarding: | ssh-check
+.PHONY: router-firewall-ipv6-forwarding
+router-firewall-ipv6-forwarding: | router-ssh-check
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \
 		echo "→ IPv6 forwarding (WireGuard scope):"; \
@@ -102,4 +88,33 @@ firewall-ipv6-forwarding: | ssh-check
 		ip6tables -S WGSF6 | tail -n1 | grep -qx -- "-A WGSF6 -j DROP" || \
 			{ echo "   ❌ WGSF6 missing terminal DROP"; exit 1; }; \
 		echo "   ✓ IPv6 forwarding enforced (WireGuard-only)" \
+	'
+
+# ------------------------------------------------------------
+# Hardened firewall entrypoint
+# ------------------------------------------------------------
+
+.PHONY: router-firewall-hardened
+router-firewall-hardened: \
+	router-firewall-started \
+	router-firewall-skynet-running \
+	router-firewall-ipv6-forwarding
+	@echo "🛡️ Firewall hardened and actively blocking threats"
+
+# ------------------------------------------------------------
+# Convenience aliases
+# ------------------------------------------------------------
+
+.PHONY: router-firewall
+router-firewall: router-firewall-skynet-running
+
+.PHONY: router-firewall-audit
+router-firewall-audit: | router-ssh-check
+	@echo "🔍 Router firewall audit"
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
+		iptables  -S INPUT; \
+		iptables  -S FORWARD; \
+		ip6tables -S INPUT; \
+		ip6tables -S FORWARD; \
+		wg show \
 	'
