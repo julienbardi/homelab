@@ -39,7 +39,7 @@ endif
 
 # minimum required to route packets
 prereqs-network: ensure-run-as-root prereqs-network-verify
-	@echo "Installing base networking prerequisites"
+	@echo "📦 Installing base networking prerequisites"
 	@$(run_as_root) apt-get update
 	@$(run_as_root) apt-get install -y \
 		wireguard \
@@ -84,23 +84,38 @@ prereqs-operator-ssh-key:
 		chmod 644 $$key.pub; \
 	fi
 
+.PHONY: install-ssh-config
+install-ssh-config: prereqs-operator-ssh-key
+	@echo "🔧 Ensuring SSH config is up to date"
+	@sudo install -d -m 700 $(OPERATOR_HOME)/.ssh
+	@sudo chown $(OPERATOR_USER):$(OPERATOR_GROUP) $(OPERATOR_HOME)/.ssh
+	@sudo chmod 700 $(OPERATOR_HOME)/.ssh
+	@sudo $(INSTALL_PATH)/install_file_if_changed.sh \
+		"" "" "$(MAKEFILE_DIR)config/ssh_config" \
+		"" "" "$(OPERATOR_HOME)/.ssh/config" \
+		"$(OPERATOR_USER)" "$(OPERATOR_GROUP)" 600
+
 # ------------------------------------------------------------
 # run-as-root wrapper (system-wide helper)
 # ------------------------------------------------------------
-.PHONY: prereqs-run-as-root
-prereqs-run-as-root:
-	@src="$(MAKEFILE_DIR)scripts/run-as-root.sh"; \
-	dst="$(INSTALL_PATH)/run-as-root.sh"; \
+.PHONY: bootstrap-run-as-root
+bootstrap-run-as-root:
+	@dst="$(INSTALL_PATH)/run-as-root.sh"; \
 	if [ -x "$$dst" ]; then \
-		echo "ℹ️  run-as-root wrapper already installed"; \
-	else \
-		echo "➕ Installing run-as-root wrapper"; \
-		sudo install -m 0755 "$$src" "$$dst"; \
-	fi
+		echo "ℹ️  run-as-root already bootstrapped"; \
+		exit 0; \
+	fi; \
+	echo "🚀 Bootstrapping run-as-root wrapper"; \
+	sudo install -m 0755 "$(MAKEFILE_DIR)scripts/run-as-root.sh" "$$dst"
 
-
-prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST) prereqs-dns-warm-verify prereqs-docs-verify
-	@echo "[check] Verifying public DNS CNAME for apt.bardi.ch by asking a public DNS"
+prereqs: \
+	ensure-run-as-root \
+	prereqs-network \
+	$(HOMELAB_ENV_DST) \
+	prereqs-dns-warm-verify \
+	prereqs-docs-verify \
+	install-ssh-config
+	@echo "🔍 Verifying public DNS CNAME for apt.bardi.ch via public resolvers"
 	@cname=$$(dig +short @$(PUBLIC_DNS) apt.bardi.ch CNAME | sed 's/\.$$//'); \
 	if [ "$$cname" != "$(APT_CNAME_EXPECTED)" ]; then \
 		echo "❌ ERROR: Public DNS misconfiguration detected"; \
@@ -114,7 +129,7 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST) prereqs-dns-warm-
 	@echo "✅ Public DNS CNAME for apt.bardi.ch is correct"
 
 	# APT trust bootstrap for third-party repositories (must run before any apt install)
-	@echo "Ensuring Tailscale APT signing key"
+	@echo "🔐 Ensuring Tailscale APT signing key"
 	@if [ -f $(TAILSCALE_KEYRING) ]; then \
 		echo "ℹ️  Tailscale key already present"; \
 	else \
@@ -123,7 +138,7 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST) prereqs-dns-warm-
 			$(run_as_root) tee $(TAILSCALE_KEYRING) >/dev/null; \
 	fi
 
-	@echo "[check] Verifying Tailscale repo uses signed-by"
+	@echo "🔍 Verifying Tailscale repo uses signed-by"
 	@bad=$$(grep -Rl "pkgs.tailscale.com" /etc/apt/sources.list.d \
 		| xargs -r grep -L "signed-by=$(TAILSCALE_KEYRING)"); \
 	if [ -n "$$bad" ]; then \
@@ -140,7 +155,7 @@ prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST) prereqs-dns-warm-
 	fi
 
 	# apt-cacher-ng: local APT proxy for homelab clients
-	@echo "Ensuring installation of prerequisite tools"
+	@echo "📦 Ensuring installation of prerequisite tools"
 	@$(call apt_update_if_needed)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 		build-essential \
@@ -180,7 +195,7 @@ fix-tailscale-repo: ensure-run-as-root
 # ------------------------------------------------------------
 rust-system: ensure-run-as-root
 	@command -v cargo >/dev/null 2>&1 || { \
-		echo "-> Installing Rust system-wide"; \
+		echo "📦 Installing Rust system-wide"; \
 		$(run_as_root) sh -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path'; \
 		$(run_as_root) ln -sf /root/.cargo/bin/cargo "$(INSTALL_PATH)/cargo"; \
 		$(run_as_root) ln -sf /root/.cargo/bin/rustc "$(INSTALL_PATH)/rustc"; \
