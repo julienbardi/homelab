@@ -49,11 +49,6 @@ prereqs-network: ensure-run-as-root prereqs-network-verify
 		ethtool \
 		tcpdump
 
-# everything else
-prereqs-docs-verify:
-	@command -v glow >/dev/null || \
-		echo "ℹ️  glow not installed (Markdown help will be shown raw)"
-
 # ------------------------------------------------------------
 # Root SSH identity (required for non-interactive router access)
 # ------------------------------------------------------------
@@ -104,7 +99,7 @@ prereqs-run-as-root:
 	fi
 
 
-prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST) prereqs-dns-warm-verify
+prereqs: ensure-run-as-root prereqs-network $(HOMELAB_ENV_DST) prereqs-dns-warm-verify prereqs-docs-verify
 	@echo "[check] Verifying public DNS CNAME for apt.bardi.ch by asking a public DNS"
 	@cname=$$(dig +short @$(PUBLIC_DNS) apt.bardi.ch CNAME | sed 's/\.$$//'); \
 	if [ "$$cname" != "$(APT_CNAME_EXPECTED)" ]; then \
