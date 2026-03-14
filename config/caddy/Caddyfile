@@ -65,6 +65,8 @@
 # UGOS nginx is using port 80 for UGOS UI
 {
 	auto_https off
+	# Bind admin API to LAN IP to bypass UGOS loopback blackholes
+	admin 10.89.12.4:2019
 }
 
 # Syncthing GUI
@@ -74,14 +76,14 @@ bardi.ch:8384 {
 
 # Consolidated HTTPS listener - Control Panel>Device Connection>Portal Setting, be sure to disable Redirect port 443 to https port ! UGOS owns port 9999
 :443 {
-	tls /etc/ssl/caddy/fullchain.pem /etc/ssl/caddy/privkey.pem
+	tls /etc/ssl/caddy/bardi.ch.cer /etc/ssl/caddy/bardi.ch.key
 
 	# DNS over HTTPS (public)
 	@doh {
 		host dns.bardi.ch
 		path /dns-query
 	}
-	reverse_proxy @doh https://127.0.0.1:8053 {
+	reverse_proxy @doh https://10.89.12.4:8053 {
 		transport http {
 			tls
 			tls_insecure_skip_verify
@@ -92,8 +94,11 @@ bardi.ch:8384 {
 	@bardi_internal {
 		host bardi.ch
 	}
-	reverse_proxy @bardi_internal 10.89.12.2:443 {
+	reverse_proxy @bardi_internal https://10.89.12.2:443 {
 		header_up Host bardi.ch
+		transport http {
+			tls_insecure_skip_verify
+		}
 	}
 
 	# DSM management (internal only)
@@ -102,8 +107,11 @@ bardi.ch:8384 {
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
 	}
-	reverse_proxy @syno5001_internal 10.89.12.2:5001 {
+	reverse_proxy @syno5001_internal https://10.89.12.2:5001 {
 		header_up Host bardi.ch
+		transport http {
+			tls_insecure_skip_verify
+		}
 	}
 
 	# Synology service (internal only)
@@ -112,8 +120,11 @@ bardi.ch:8384 {
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
 	}
-	reverse_proxy @syno5006_internal 10.89.12.2:5006 {
+	reverse_proxy @syno5006_internal https://10.89.12.2:5006 {
 		header_up Host bardi.ch
+		transport http {
+			tls_insecure_skip_verify
+		}
 	}
 
 	# Synology Drive (internal only)
@@ -122,8 +133,11 @@ bardi.ch:8384 {
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
 	}
-	reverse_proxy @syno6690_internal 10.89.12.2:6690 {
+	reverse_proxy @syno6690_internal https://10.89.12.2:6690 {
 		header_up Host bardi.ch
+		transport http {
+			tls_insecure_skip_verify
+		}
 	}
 
 	# Headscale control plane (external clients allowed)
