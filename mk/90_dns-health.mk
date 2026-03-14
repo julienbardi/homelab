@@ -10,8 +10,13 @@ RESOLVER_PORT := 5335
 .PHONY: install-dns-health
 install-dns-health: $(DNS_CHECK)
 
+$(DNS_CHECK): $(MAKEFILE_DIR)scripts/dns-health-check.sh
+	@echo "📦 Installing dns-health-check"
+	@$(run_as_root) install -o root -g root -m 0755 \
+		"$<" "$@"
+
 # Remove the dependency on install-all to prevent the restart loop
 .PHONY: check-dns
 check-dns: prereqs-dns-health-check-verify ensure-run-as-root #| install-all
 	@echo "🩺 Running DNS health check on $(RESOLVER_ADDR):$(RESOLVER_PORT)..."
-	@$(run_as_root) $(DNS_CHECK) "$(RESOLVER_ADDR) -p $(RESOLVER_PORT)" || echo "⚠️ DNS health check reported issues (likely cold cache)"
+	@$(run_as_root) $(DNS_CHECK) "$(RESOLVER_ADDR)" -p "$(RESOLVER_PORT)" || echo "⚠️ DNS health check reported issues (likely cold cache)"

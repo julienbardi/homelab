@@ -1,38 +1,34 @@
-# --------------------------------------------------------------------
+# ============================================================
 # mk/20_net-tunnel.mk — UDP tunnel network invariants
-# --------------------------------------------------------------------
-# CONTRACT:
-# - Ensures NIC offload settings compatible with UDP tunnels
-# - Applies to WireGuard, Tailscale, and future UDP-based tunnels
-# - Idempotent and safe to re-run
-# --------------------------------------------------------------------
+# ============================================================
 
-# Set when UDP tunnel preflight has been executed in this make invocation
-NET_TUNNEL_PREFLIGHT_DONE :=
+# Use the physical interface from constants (e.g., eth0)
+# Ensure this matches your DXP 4800+ hardware
+PRIMARY_IFACE ?= eth0
 
-ifdef CI
-define warn_if_no_net_tunnel_preflight
-$(if $(NET_TUNNEL_PREFLIGHT_DONE),,\
-	$(error UDP tunnel preflight missing))
-endef
-endif
+# Derived from your Addressing Contract: wg13 -> 10.13.0.0/16
+ROUTER_WG_SUBNET := 10.13.0.0/16
+ROUTER_LAN_GW    := 10.89.12.1
 
-.PHONY: net-tunnel-preflight
+.PHONY: net-tunnel-persist net-tunnel-routing net-tunnel-status
 
+# 1. Persistent NIC Offload Logic ---
+UDEV_OFFLOAD_SRC := $(MAKEFILE_DIR)config/udev/99-udp-offloads.rules
+UDEV_OFFLOAD_DST := /etc/udev/rules.d/99-udp-offloads.rules
+
+net-tunnel-persist: ensure-run-as-root
+	@echo "🛠️  Deploying persistent UDP offload rules..."
+	@$(call install_file,$(UDEV_OFFLOAD_SRC),$(UDEV_OFFLOAD_DST),root,root,0644)
+	@$(run_as_root) udevadm control --reload-rules && $(run_as_root) udevadm trigger
+	@echo "✅ udev rules applied"
+
+# 2. Assert current runtime state (The "No Lie" check)
 net-tunnel-preflight: ensure-run-as-root net-tunnel-routing
-	@NETDEV="$$(ip -o route get 8.8.8.8 | awk '{print $$5}')" && \
-	    $(run_as_root) ethtool -k "$$NETDEV" | grep -q 'rx-udp-gro-forwarding: on' || \
-	    $(run_as_root) ethtool -K "$$NETDEV" rx-udp-gro-forwarding on rx-gro-list off
-	$(eval NET_TUNNEL_PREFLIGHT_DONE := yes)
+	@echo "🔎 Verifying UDP GRO offloads on $(PRIMARY_IFACE)"
+	@$(run_as_root) ethtool -k $(PRIMARY_IFACE) | grep -q 'rx-udp-gro-forwarding: on' || \
+		{ echo "⚠️ Offloads not active. Running fix..."; $(run_as_root) ethtool -K $(PRIMARY_IFACE) rx-udp-gro-forwarding on rx-gro-list off; }
 
-# Router-terminated WireGuard return path
-# Required for symmetric routing when WG terminates on the router
-ROUTER_WG_SUBNET := 10.89.13.0/24
-ROUTER_LAN_GW    := $(ROUTER_LAN_IP)
-
-.PHONY: net-tunnel-routing
-
+# 3. Routing Invariants
 net-tunnel-routing: ensure-run-as-root
-	@echo "🛣️  Ensuring return route for router-terminated WireGuard"
+	@echo "🛣️  Ensuring return route for $(ROUTER_WG_SUBNET)"
 	@$(run_as_root) ip route replace $(ROUTER_WG_SUBNET) via $(ROUTER_LAN_GW)
-

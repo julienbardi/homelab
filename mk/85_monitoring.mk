@@ -32,7 +32,11 @@ monitoring: prometheus
 # --------------------------------------------------------------------
 # Install Prometheus (explicit, opt-in)
 # --------------------------------------------------------------------
-prometheus: ensure-run-as-root prometheus-install prometheus-config prometheus-enable
+prometheus: \
+	prometheus-install \
+	prometheus-config \
+	prometheus-enable \
+	prometheus-restart
 	@echo "📊 Prometheus UI reachable at: http://$(PROMETHEUS_ADDR)"
 	@echo "📊 Targets page shows both jobs UP at: http://$(PROMETHEUS_ADDR)/targets"
 	@echo "🚀 Prometheus observability ready"
@@ -48,18 +52,8 @@ prometheus-install: ensure-run-as-root
 # --------------------------------------------------------------------
 prometheus-config: ensure-run-as-root $(PROMETHEUS_CONFIG_SRC)
 	@echo "📦 Installing Prometheus configuration"
-	@changed=0; \
-	$(call install_file,$(PROMETHEUS_CONFIG_SRC),$(PROMETHEUS_CONFIG_DST),root,root,0644); \
-	rc=$$?; \
-	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		changed=1; \
-	elif [ $$rc -ne 0 ]; then \
-		exit $$rc; \
-	fi; \
-	if [ $$changed -eq 1 ]; then \
-		echo "🔄 Prometheus config updated"; \
-		$(run_as_root) systemctl restart $(PROMETHEUS_SERVICE); \
-	fi
+	@$(call install_file,$(PROMETHEUS_CONFIG_SRC),$(PROMETHEUS_CONFIG_DST),root,root,0644) \
+		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # --------------------------------------------------------------------
 # Restart Prometheus explicitly

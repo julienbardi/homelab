@@ -39,6 +39,32 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   exit 1
 fi
 
+require_cmd() {
+  local c
+  for c in "$@"; do
+    command -v "$c" >/dev/null 2>&1 || {
+      echo "Missing required command: $c"
+      exit 2
+    }
+  done
+}
+
+CHECK_ONLY=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --check-only)
+      CHECK_ONLY=1
+      ;;
+  esac
+done
+
+if [[ "$CHECK_ONLY" == "1" ]]; then
+  require_cmd dig sed grep logger awk head tr date stat expr
+  [[ -n "${DOH_HOST:-}" ]] && require_cmd kdig
+  exit 0
+fi
+
 RESOLVER="${1:-127.0.0.1}"
 
 # Auto-append port if querying local Unbound
@@ -54,16 +80,6 @@ MAX_RETRIES=2
 # Optional DoH configuration
 DOH_HOST="${DOH_HOST:-}"
 DOH_PATH="${DOH_PATH:-}"
-
-require_cmd() {
-  local c
-  for c in "$@"; do
-    command -v "$c" >/dev/null 2>&1 || {
-      echo "Missing required command: $c"
-      exit 2
-    }
-  done
-}
 
 require_cmd dig sed grep logger awk head tr date stat expr
 if [[ -n "$DOH_HOST" ]]; then
