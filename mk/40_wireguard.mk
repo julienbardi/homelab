@@ -1,7 +1,7 @@
 # ============================================================
 # mk/40_wireguard.mk — Essential WireGuard workflow
 # - Authoritative CSV -> validated compile -> atomic deploy
-# - All paths anchored to mk/00_constants.mk
+# - Using IFC V2 Engine (9-argument signature)
 # ============================================================
 
 WG_INPUT := $(WG_ROOT)/input
@@ -9,6 +9,22 @@ WG_CSV   := $(WG_INPUT)/clients.csv
 
 WG_SCRIPTS_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../scripts)
 
+# IFC V2 Engine Path
+IFC_V2 := $(INSTALL_PATH)/install_file_if_changed_v2.sh
+
+# ---------------------------------------------------------------------------
+# Internal Macro: Push WG script to NAS via IFC v2
+# ---------------------------------------------------------------------------
+# We now use the global install_script macro to handle Exit Code 3 correctly.
+define PUSH_WG_SCRIPT
+    $(call install_script,$(1),$(notdir $(2)))
+endef
+
+# ---------------------------------------------------------------------------
+# Script Path Definitions
+# ---------------------------------------------------------------------------
+
+WG_VALIDATE_SCRIPT                := $(WG_SCRIPTS_ROOT)/wg-validate-tsv.sh
 WG_COMPILE_SCRIPT                 := $(WG_SCRIPTS_ROOT)/wg-compile.sh
 WG_KEYS_SCRIPT                    := $(WG_SCRIPTS_ROOT)/wg-compile-keys.sh
 WG_SERVER_KEYS_SCRIPT             := $(WG_SCRIPTS_ROOT)/wg-ensure-server-keys.sh
@@ -24,11 +40,8 @@ WG_REMOVE_CLIENT                  := $(WG_SCRIPTS_ROOT)/wg-remove-client.sh
 WG_ROTATE_CLIENT                  := $(WG_SCRIPTS_ROOT)/wg-rotate-client.sh
 WG_PLAN_READ_SCRIPT               := $(WG_SCRIPTS_ROOT)/wg-plan-read.sh
 
-# ---------------------------------------------------------------------------
-# WireGuard scripts that must be installed into $(INSTALL_PATH)
-# ---------------------------------------------------------------------------
-
 WG_INSTALL_SOURCES := \
+	$(WG_VALIDATE_SCRIPT) \
 	$(WG_COMPILE_SCRIPT) \
 	$(WG_KEYS_SCRIPT) \
 	$(WG_SERVER_KEYS_SCRIPT) \
@@ -48,57 +61,54 @@ WG_INSTALL_SOURCES := \
 # Install edges (repo -> $(INSTALL_PATH))
 # ---------------------------------------------------------------------------
 
-$(INSTALL_PATH)/wg-compile.sh: $(WG_COMPILE_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-validate-tsv.sh: $(WG_VALIDATE_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-compile-keys.sh: $(WG_KEYS_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-compile.sh: $(WG_COMPILE_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-ensure-server-keys.sh: $(WG_SERVER_KEYS_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-compile-keys.sh: $(WG_KEYS_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-compile-clients.sh: $(WG_RENDER_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-compile-clients.sh: $(WG_RENDER_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-render-missing-clients.sh: $(WG_RENDER_MISSING_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-render-missing-clients.sh: $(WG_RENDER_MISSING_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-client-export.sh: $(WG_EXPORT_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-client-export.sh: $(WG_EXPORT_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-deploy.sh: $(WG_DEPLOY_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-deploy.sh: $(WG_DEPLOY_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-check.sh: $(WG_CHECK_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-check.sh: $(WG_CHECK_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-render-server-base.sh: $(WG_SERVER_BASE_RENDER_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-render-server-base.sh: $(WG_SERVER_BASE_RENDER_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-check-render.sh: $(WG_RENDER_CHECK_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-check-render.sh: $(WG_RENDER_CHECK_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-record-compromised-keys.sh: $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-record-compromised-keys.sh: $(WG_RECORD_COMPROMISED_KEYS_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-remove-client.sh: $(WG_REMOVE_CLIENT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-remove-client.sh: $(WG_REMOVE_CLIENT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-rotate-client.sh: $(WG_ROTATE_CLIENT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-rotate-client.sh: $(WG_ROTATE_CLIENT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-plan-read.sh: $(WG_PLAN_READ_SCRIPT)
-	@$(run_as_root) env CHANGED_EXIT_CODE=0 $(INSTALL_PATH)/install_file_if_changed.sh "" "" "$<" "" "" "$@" root root 0755
+$(INSTALL_PATH)/wg-plan-read.sh: $(WG_PLAN_READ_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
 
 # ---------------------------------------------------------------------------
-# Install contract enforcement (fail fast if repo scripts are not executable)
+# Install contract enforcement
 # ---------------------------------------------------------------------------
 $(foreach s, $(WG_INSTALL_SOURCES), \
 	$(if $(shell test -x $(s) && echo ok),, \
 		$(error Script not executable: $(s))))
-
-# No need to export WG_ROOT here
-# It is already exported globally by mk/00_constants.mk
 
 .PHONY: wg-install-scripts \
 	wg-clean-out \
@@ -124,6 +134,7 @@ $(foreach s, $(WG_INSTALL_SOURCES), \
 	wg-remove-client
 
 wg-install-scripts: ensure-run-as-root \
+	$(INSTALL_PATH)/wg-validate-tsv.sh \
 	$(INSTALL_PATH)/wg-compile.sh \
 	$(INSTALL_PATH)/wg-compile-keys.sh \
 	$(INSTALL_PATH)/wg-ensure-server-keys.sh \
@@ -145,27 +156,17 @@ wg-clean-out: ensure-run-as-root
 	@$(run_as_root) rm -rf "$(WG_ROOT)/out/clients"
 
 # ------------------------------------------------------------
-# Compile intent -> plan.tsv
+# Compilation & Rendering
 # ------------------------------------------------------------
-# wg-compile-intent
-# Reads: input/clients.csv
-# Writes: compiled/plan.tsv, compiled/alloc.csv
-# Must not read: export/, /etc/wireguard
 wg-compile-intent: wg-install-scripts wg-clean-out
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_COMPILE_SCRIPT)"
 
 wg-ensure-server-keys: wg-install-scripts wg-compile-intent
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_KEYS_SCRIPT)"
 
-# ------------------------------------------------------------
-# Generate client keys -> keys.tsv
-# ------------------------------------------------------------
 wg-compile-keys: wg-install-scripts wg-compile-intent
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_KEYS_SCRIPT)"
 
-# ------------------------------------------------------------
-# Render client + server configs from plan.tsv + keys.tsv
-# ------------------------------------------------------------
 wg-render-server-base: wg-install-scripts wg-ensure-server-keys
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_BASE_RENDER_SCRIPT)"
 
@@ -177,13 +178,10 @@ wg-render-missing: wg-install-scripts wg-compile-intent wg-compile-keys wg-rende
 
 $(WG_ROOT)/compiled/plan.tsv: wg-compile-intent
 
-# ------------------------------------------------------------
-# Compile everything (no deployment)
-# ------------------------------------------------------------
 wg-compile: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-missing wg-check-render wg-check
 
 # ------------------------------------------------------------
-# Deploy compiled state (requires successful compile)
+# Deployment & Kernel State Sync
 # ------------------------------------------------------------
 wg-deployed: wg-install-scripts ensure-run-as-root net-tunnel-preflight firewall-nas wg-compile wg-check
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔄 WireGuard deployment requested"; fi
@@ -246,64 +244,28 @@ wg-apply: wg-install-scripts wg-deployed
 			exit 1; \
 		}; \
 		if ! ip link show "$$iface" >/dev/null 2>&1; then \
-			# First bring-up: wg-quick installs routes/rules derived from AllowedIPs. \
 			wg-quick up "$$iface" >/dev/null; \
 		else \
-			# Update peers/keys without tearing down interface state (routes stay). \
 			wg syncconf "$$iface" <(wg-quick strip "$$conf"); \
 		fi; \
 		ip link set mtu 1420 dev "$$iface" 2>/dev/null || true; \
 		ip link set up dev "$$iface" 2>/dev/null || true; \
-		# Hard guard: routes must exist (otherwise we're back to "no connectivity"). \
 		if ! ip route show dev "$$iface" | grep -q . && ! ip -6 route show dev "$$iface" | grep -q .; then \
 			echo "wg-apply: ERROR: $$iface has no routes (v4 or v6)" >&2; \
 			exit 1; \
 		fi; \
 	done; \
 	'
-
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "✅ WireGuard kernel state converged"; fi
 
 # ------------------------------------------------------------
-# Consistency / sanity checks
+# Consistency & Verification
 # ------------------------------------------------------------
 wg-check: wg-install-scripts ensure-run-as-root
 	@$(run_as_root) $(WG_CHECK_SCRIPT) $(WG_ROOT)/compiled/plan.tsv
 
-wg-rebuild-clean: wg-install-scripts ensure-run-as-root
-	@echo "🔥 FULL WireGuard rebuild (keys + config)"
-	@echo "� ️  This will invalidate ALL existing clients"
-	@echo "� ️  Press Ctrl-C now if this is not intended"
-	@sleep 5
-	@echo "▶ recording compromised WireGuard keys and destroying existing WireGuard state"
-	@$(run_as_root) $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
-
-wg-rebuild-guard:
-	@if [ "$(FORCE)" != "1" ]; then \
-		echo "❌ wg-rebuild-all is destructive. Re-run with FORCE=1"; \
-		exit 1; \
-	fi
-
-wg-rebuild-all: \
-	wg-rebuild-guard \
-	wg-install-scripts \
-	wg-rebuild-clean \
-	wg-ensure-server-keys \
-	wg-apply-verified
-	@echo "🔥 WireGuard fully rebuilt with fresh keys"
-
 wg-check-render: wg-install-scripts wg-render-missing
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_CHECK_SCRIPT)"
-
-wg: wg-install-scripts \
-	wg-ensure-server-keys \
-	wg-render-missing \
-	wg-apply-verified \
-	wg-intent \
-	wg-dashboard \
-	wg-status \
-	wg-runtime \
-	wg-clients
 
 wg-verify-no-key-reuse: wg-install-scripts ensure-run-as-root
 	@$(run_as_root) bash -euo pipefail -c '\
@@ -312,7 +274,7 @@ wg-verify-no-key-reuse: wg-install-scripts ensure-run-as-root
 		tmp="$$(mktemp)"; \
 		trap "rm -f '\''$$tmp'\''" EXIT; \
 		\
-		wg show | awk '\''/^interface: /{iface=$$2} /^  public key: /{print iface "\t" $$3}'\'' \
+		wg show | awk '\''/^interface: /{iface=$$2} /^  public key: /{print iface "\t" $$3}'\'' \
 		| while IFS=$$'\''\t'\'' read -r iface pub; do \
 			fp="$$(printf "%s" "$$pub" | sha256sum | awk '\''{print $$1}'\'')"; \
 			printf "%s\tSHA256:%s\n" "$$iface" "$$fp"; \
@@ -320,9 +282,6 @@ wg-verify-no-key-reuse: wg-install-scripts ensure-run-as-root
 		\
 		if awk -F"\t" '\''{print $$2}'\'' "$$tmp" | grep -Fxf - "$$ledger" >/dev/null; then \
 			echo "❌ REUSED KEY DETECTED (active key intersects compromised ledger)"; \
-			echo "---- active fingerprints ----"; \
-			cat "$$tmp"; \
-			echo "----------------------------"; \
 			exit 1; \
 		fi; \
 		echo "✅ No compromised keys in active WireGuard state"; \
@@ -334,33 +293,35 @@ wg-verify-no-legacy-keys: wg-install-scripts ensure-run-as-root
 		exit 1; \
 	}
 
+# ------------------------------------------------------------
+# Maintenance & Destruction
+# ------------------------------------------------------------
+wg-rebuild-clean: wg-install-scripts ensure-run-as-root
+	@echo "🔥 FULL WireGuard rebuild (keys + config)"
+	@sleep 5
+	@$(run_as_root) $(WG_RECORD_COMPROMISED_KEYS_SCRIPT)
+
+wg-rebuild-guard:
+	@if [ "$(FORCE)" != "1" ]; then echo "❌ wg-rebuild-all is destructive. Re-run with FORCE=1"; exit 1; fi
+
+wg-rebuild-all: wg-rebuild-guard wg-install-scripts wg-rebuild-clean wg-ensure-server-keys wg-apply-verified
+	@echo "🔥 WireGuard fully rebuilt with fresh keys"
+
 wg-rotate-client: wg-install-scripts ensure-run-as-root
-	@if [ -z "$(base)" ] || [ -z "$(iface)" ]; then \
-		echo "Usage: make wg-rotate-client base=<base> iface=<iface>"; \
-		exit 1; \
-	fi
-	@echo "🔁 Rotating WireGuard client: base=$(base) iface=$(iface)"
+	@if [ -z "$(base)" ] || [ -z "$(iface)" ]; then echo "Usage: make wg-rotate-client base=<base> iface=<iface>"; exit 1; fi
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_ROTATE_CLIENT)" "$(base)" "$(iface)"
-	@echo "➡️  Now run: make wg"
 
 wg-remove-client: wg-install-scripts ensure-run-as-root
-	@if [ -z "$(base)" ] || [ -z "$(iface)" ]; then \
-		echo "Usage: make wg-remove-client base=<base> iface=<iface>"; \
-		exit 1; \
-	fi
-	@echo "🗑️  Removing WireGuard client: base=$(base) iface=$(iface)"
+	@if [ -z "$(base)" ] || [ -z "$(iface)" ]; then echo "Usage: make wg-remove-client base=<base> iface=<iface>"; exit 1; fi
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_REMOVE_CLIENT)" "$(base)" "$(iface)"
-	@echo "➡️  Now run: make wg"
 
-.PHONY: wg-validate-input
+.PHONY: wg-validate-input wg-contract-check
 wg-validate-input:
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) scripts/wg-validate-tsv.sh
 
-.PHONY: wg-contract-check
 wg-contract-check:
 	@echo "🔍 Checking WireGuard build contract"
-	@$(foreach s,$(WG_INSTALL_SOURCES), \
-		test -x "$(s)" || { echo "❌ Script not executable: $(s)"; exit 1; } ;)
+	@$(foreach s,$(WG_INSTALL_SOURCES), test -x "$(s)" || { echo "❌ Script not executable: $(s)"; exit 1; } ;)
 	@echo "✅ WireGuard build contract holds"
 
-wg: wg-contract-check
+wg: wg-contract-check wg-install-scripts wg-ensure-server-keys wg-render-missing wg-apply-verified

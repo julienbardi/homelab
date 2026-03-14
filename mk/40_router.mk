@@ -49,7 +49,7 @@ REQUIRED_PKGS := coreutils-timeout openssh-client coreutils iperf3 htop
 
 .PHONY: install-router-tools
 install-router-tools: router-ssh-prereqs
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
+	@$(router_exec) '\
 mkdir -p /jffs/sentinels && chmod 700 /jffs/sentinels; \
 SENTINEL="/jffs/sentinels/opkg_update"; \
 MAX_AGE=$$((24*3600)); \

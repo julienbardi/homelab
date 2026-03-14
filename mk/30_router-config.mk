@@ -1,4 +1,4 @@
-# mk/config.mk
+# mk/30_router_config.mk
 # ------------------------------------------------------------
 # GLOBAL CONFIGURATION
 # ------------------------------------------------------------
@@ -43,8 +43,9 @@ CHECKMAKE     := $(TOOLS_DIR)/checkmake
 # ------------------------------------------------------------
 # Remote execution primitives
 # ------------------------------------------------------------
-RUN_AS_ROOT := /jffs/scripts/run-as-root.sh
-run_as_root := ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) $(RUN_AS_ROOT)
+# Use a distinct prefix so it never touches the local 'run_as_root'
+ROUTER_REMOTE_BIN := /jffs/scripts/run-as-root.sh
+router_exec       := ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) $(ROUTER_REMOTE_BIN)
 
 # ------------------------------------------------------------
 # Installed helpers (overrideable for testing or alternate platforms)

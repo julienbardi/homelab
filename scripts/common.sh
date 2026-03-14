@@ -10,21 +10,25 @@ set -euo pipefail
 [[ -n "${_HOMELAB_COMMON_SH_LOADED:-}" ]] && return
 readonly _HOMELAB_COMMON_SH_LOADED=1
 
-SCRIPT_NAME="$(basename "$0" .sh)"
+# Only set a default if SCRIPT_NAME is completely unset.
+# If it is set to "" (empty), we respect that for minimalist logging.
+if [ "${SCRIPT_NAME+set}" != "set" ]; then
+    SCRIPT_NAME="$(basename "$0" .sh)"
+fi
 
 export INSTALL_IF_CHANGED_EXIT_CHANGED=3
 
 # shellcheck disable=SC2317
 log() {
-    local screen_msg="[${SCRIPT_NAME:-${0##*/}}] $*"
-    local syslog_msg
-    syslog_msg="$(date '+%Y-%m-%d %H:%M:%S') [${SCRIPT_NAME:-${0##*/}}] $*"
+    if [ "${SCRIPT_NAME+set}" = "set" ] && [ -z "$SCRIPT_NAME" ]; then
+        # Minimalist mode: No brackets, just the message (preserves icons)
+        printf "%s\n" "$*" >&2
+    else
+        # Explicit or Default: [name] message
+        printf "[%s] %s\n" "${SCRIPT_NAME:-$(basename "$0" .sh)}" "$*" >&2
+    fi
 
-    # Human-friendly output: no timestamp
-    echo "$screen_msg" >&2
-
-    # Syslog: keep timestamp for auditability
-    logger -t "${SCRIPT_NAME:-${0##*/}}" "$syslog_msg"
+    command -v logger >/dev/null 2>&1 && logger -t homelab "${SCRIPT_NAME:-${0##*/}}: $*"
 }
 
 # Idempotent rule inserter: checks with -C first
@@ -115,4 +119,27 @@ require_bin() {
         log "ℹ️ 👉 Fix with: make prereqs"
         exit 1
     fi
+}
+
+install_files_if_changed_v2() {
+    local -n _changed_ref=$1  # Added underscore to prevent name collision
+    shift
+    local total_args=$#
+
+	# Precision check: Ensure the installer exists before processing the vector
+    require_file "/usr/local/bin/install_file_if_changed_v2.sh"
+
+    for (( i=1; i<=total_args; i+=9 )); do
+        set +e
+        /usr/local/bin/install_file_if_changed_v2.sh -q "${@:i:9}"
+        local rc=$?
+        set -e
+
+        if [[ "$rc" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]]; then
+            _changed_ref=1
+        elif [[ "$rc" -ne 0 ]]; then
+            log "❌ install_file_if_changed_v2.sh failed (rc=$rc) for ${@:i+2:1}"
+            exit 1
+        fi
+    done
 }

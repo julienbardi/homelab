@@ -47,20 +47,15 @@ check_file "$INPUT/wg-profiles.tsv"
 check_file "$INPUT/wg-clients.tsv"
 
 # ---- headers ----
-check_header "$INPUT/users.tsv" \
-    "user_id\tdisplay_name\temail\tenabled"
+check_header "$INPUT/users.tsv" $'user_id\tdisplay_name\temail\tenabled'
 
-check_header "$INPUT/hosts.tsv" \
-    "host_id\thostname\tmgmt_host\tmgmt_port\tmgmt_user\tlocality\tenabled"
+check_header "$INPUT/hosts.tsv" $'host_id\thostname\tmgmt_host\tmgmt_port\tmgmt_user\tlocality\tenabled'
 
-check_header "$INPUT/wg-interfaces.tsv" \
-    "iface\thost_id\tlisten_port\tmtu\taddress_v4\taddress_v6\tenabled"
+check_header "$INPUT/wg-interfaces.tsv" $'iface\thost_id\tlisten_port\tmtu\taddress_v4\taddress_v6\tenabled'
 
-check_header "$INPUT/wg-profiles.tsv" \
-    "profile\tlan_access\tinternet_v4\tinternet_v6\tdns_mode\tdescription\tenabled"
+check_header "$INPUT/wg-profiles.tsv" $'profile\tlan_access\tinternet_v4\tinternet_v6\tdns_mode\tdescription\tenabled'
 
-check_header "$INPUT/wg-clients.tsv" \
-    "client_id\tuser_id\tiface\tprofile\tbase\tos\tenabled"
+check_header "$INPUT/wg-clients.tsv" $'client_id\tuser_id\tiface\tprofile\tbase\tos\tenabled'
 
 # ---- uniqueness ----
 check_unique_col "$INPUT/users.tsv" 1

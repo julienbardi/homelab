@@ -11,7 +11,8 @@ OPERATOR_HOME := $(shell getent passwd $(OPERATOR_USER) | cut -d: -f6)
 # Router connection (single source of truth for deployment)
 ROUTER_ADDR     ?= 10.89.12.1
 ROUTER_USER     ?= julie
-ROUTER_HOST     ?= $(ROUTER_USER)@$(ROUTER_ADDR)
+#ROUTER_HOST     ?= $(ROUTER_USER)@$(ROUTER_ADDR)
+ROUTER_HOST     ?= $(ROUTER_ADDR)
 ROUTER_SSH_PORT ?= 2222
 ROUTER_SCRIPTS  ?= /jffs/scripts
 

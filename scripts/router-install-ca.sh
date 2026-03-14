@@ -30,7 +30,7 @@ log "🔐 Publishing homelab CA to router"
 
 require_file "$CA_SRC"
 
-/usr/local/bin/install_file_if_changed.sh --quiet \
+/usr/local/bin/install_file_if_changed_v2.sh -q \
     "" "" "$CA_SRC" \
     "$ROUTER_HOST" "$ROUTER_SSH_PORT" "$CA_DST" \
     root root 0644

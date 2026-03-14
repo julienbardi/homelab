@@ -107,18 +107,18 @@ fi
 # ------------------------------------------------------------
 grep -E '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' "$tmp_all" | sort -u > "$tmp_final"
 
-# Atomic and idempotent installation using install_file_if_changed
-result=$(
-    timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
-        "" "" "$tmp_final" \
-        "" "" "$DOMAINS_FILE" \
-        root root 0644
-)
+# Execute without capturing stdout, just capture the exit code
+rc=0
+timeout 10 /usr/local/bin/install_file_if_changed_v2.sh -q \
+    "" "" "$tmp_final" \
+    "" "" "$DOMAINS_FILE" \
+    root root 0644 || rc=$?
 
-rm -f "$tmp_all" "$tmp_final"
-
-if [[ "$result" == "changed" ]]; then
-	log "✅ Domain list updated: $(wc -l < "$DOMAINS_FILE") entries"
+if [ "$rc" -eq 3 ]; then
+    log "✅ Domain list updated: $(wc -l < "$DOMAINS_FILE") entries"
+elif [ "$rc" -eq 0 ]; then
+    log "⚪ Domain list unchanged: $(wc -l < "$DOMAINS_FILE") entries"
 else
-	log "⚪ Domain list unchanged: $(wc -l < "$DOMAINS_FILE") entries"
+    log "❌ Update failed with exit code $rc"
+    exit "$rc"
 fi

@@ -13,10 +13,10 @@ PUBDIR="${WG_ROOT}/compiled/server-pubkeys"
 OUTDIR="${WG_ROOT}/out/server/base"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed.sh"
+INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed_v2.sh"
 
 [ -x "${INSTALL_FILE_IF_CHANGED}" ] || {
-    echo "wg-render-server-base: ERROR: install_file_if_changed.sh not found or not executable" >&2
+    echo "wg-render-server-base: ERROR: install_file_if_changed_v2.sh not found or not executable" >&2
     exit 1
 }
 
@@ -100,8 +100,8 @@ Address = ${server_addr4}, ${server_addr6}
 EOF
 
     rc=0
-    CHANGED_EXIT_CODE=3 \
-    "$INSTALL_IF_CHANGED" --quiet "$tmp" "$conf" root root 600 || rc="$?"
+    # Note: Using the plural vector format or the V2 binary with -q
+    "$INSTALL_FILE_IF_CHANGED" -q "" "" "$tmp" "" "" "$conf" root root 600 || rc="$?"
 
     if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
         rm -f "$tmp"
