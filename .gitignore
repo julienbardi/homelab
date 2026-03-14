@@ -203,3 +203,6 @@ keys.tsv
 
 # Local tooling
 .tools/
+
+# Local cache and binaries
+.cache/
