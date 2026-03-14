@@ -1,3 +1,0 @@
-#!/bin/sh
-
-swapoff -a 2>/dev/null # Added by amtm

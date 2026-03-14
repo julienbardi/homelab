@@ -181,11 +181,8 @@ prereqs-python-venv: ensure-run-as-root prereqs-python-venv-verify
 	@$(run_as_root) apt-get install -y --no-install-recommends python3-venv
 
 prereqs-dns-health-check-verify: ensure-run-as-root
-	@$(run_as_root) $(INSTALL_FILE_IF_CHANGED) --check-only \
-		"" "" "scripts/dns-health-check.sh" \
-		"" "" "$(INSTALL_PATH)/dns-health-check.sh" \
-		"root" "root" "0755" || { \
-			echo "❌ DNS health check script drift detected"; \
-			echo "➡️  Remediate with: sudo make install-all"; \
-			exit 1; \
-		}
+	@$(run_as_root) $(INSTALL_PATH)/dns-health-check.sh --check-only || { \
+		echo "❌ DNS health check script drift detected"; \
+		echo "➡️  Remediate with: sudo make install-all"; \
+		exit 1; \
+	}
