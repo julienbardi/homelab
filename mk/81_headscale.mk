@@ -17,43 +17,35 @@ HEADSCALE_DERP_CONFIG_SRC := config/headscale/derp.yaml
 HEADSCALE_DERP_CONFIG_DST := /etc/headscale/derp.yaml
 
 HEADSCALE_METRICS_ADDR := $(NAS_LAN_IP):9091
+HEADSCALE_METRICS_URL := http://$(HEADSCALE_METRICS_ADDR)/metrics
+HEADSCALE_HEALTH_URL := http://127.0.0.1:8910/health
 
-WAIT_FOR_COMMAND := $(INSTALL_PATH)/wait_for_command.sh
+HEADSCALE_CACHE := $(MAKEFILE_DIR).cache/headscale_0.28.0-beta.1_$(shell uname -m)
 
 .NOTPARALLEL: headscale headscale-restart headscale-verify
 
-# --------------------------------------------------------------------
-# Configuration rendering (idempotent)
-# --------------------------------------------------------------------
+
 .PHONY: headscale-config
 headscale-config: ensure-run-as-root $(HEADSCALE_CONFIG_SRC)
-	@echo "📦 Installing Headscale configuration"
-	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-	    "$(HEADSCALE_CONFIG_SRC)" \
-	    "$(HEADSCALE_CONFIG_DST)" \
-	    headscale headscale 0640 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+	@$(call install_file,$(HEADSCALE_CONFIG_SRC),$(HEADSCALE_CONFIG_DST),headscale,headscale,0640)
 
 .PHONY: headscale-derp-config
 headscale-derp-config: ensure-run-as-root $(HEADSCALE_DERP_CONFIG_SRC)
-	@echo "📦 Installing Headscale DERP configuration"
-	@$(run_as_root) $(INSTALL_IF_CHANGED) \
-	    "$(HEADSCALE_DERP_CONFIG_SRC)" \
-	    "$(HEADSCALE_DERP_CONFIG_DST)" \
-	    headscale headscale 0640 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+	@$(call install_file,$(HEADSCALE_DERP_CONFIG_SRC),$(HEADSCALE_DERP_CONFIG_DST),headscale,headscale,0640)
 
 # --------------------------------------------------------------------
 # Bootstrap (one-time, idempotent)
 # --------------------------------------------------------------------
+$(HEADSCALE_CACHE):
+	@echo "⬇️  Downloading Headscale binary"
+	@mkdir -p $(dir $@)
+	@curl -fsSL "$(HEADSCALE_URL)" -o "$@"
+	@chmod 0755 "$@"
+
 .PHONY: headscale-bin
-headscale-bin: ensure-run-as-root
+headscale-bin: ensure-run-as-root $(HEADSCALE_CACHE)
 	@echo "📦 Ensuring Headscale binary"
-	@$(run_as_root) bash -c '\
-	    set -euo pipefail; \
-	    tmp=$$(mktemp); \
-	    trap "rm -f $$tmp" EXIT; \
-	    curl -fsSL "$(HEADSCALE_URL)" -o "$$tmp"; \
-	    $(INSTALL_IF_CHANGED) "$$tmp" "$(HEADSCALE_BIN)" root root 0755 || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
-	'
+	@$(call install_file,$(HEADSCALE_CACHE),$(HEADSCALE_BIN),root,root,0755)
 
 # --------------------------------------------------------------------
 # Tail Headscale logs
@@ -96,7 +88,7 @@ headscale: \
 	@echo "ℹ️  For detailed Headscale status:"
 	@echo "      sudo systemctl status headscale"
 	@echo "      sudo journalctl -u headscale -n 200"
-	@echo "📊 Metrics available at: http://$(HEADSCALE_METRICS_ADDR)/metrics"
+	@echo "📊 Metrics available at: $(HEADSCALE_METRICS_URL)"
 	@echo "🚀 Headscale control plane ready"
 
 .PHONY: headscale-restart
@@ -104,6 +96,8 @@ headscale-restart: ensure-run-as-root
 	@echo "🔁 Restarting Headscale"
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl restart headscale
+	@$(run_as_root) systemctl is-active --quiet headscale \
+		|| { echo "❌ Restart failed"; exit 1; }
 
 # --------------------------------------------------------------------
 # Install Headscale systemd unit (static, declarative)
@@ -125,41 +119,33 @@ headscale-systemd: ensure-run-as-root
 # --------------------------------------------------------------------
 # Verification (post-deploy, read-only)
 # --------------------------------------------------------------------
-.PHONY: test-headscale-service
-test-headscale-service: ensure-run-as-root
+.PHONY: test-headscale-core
+test-headscale-core: ensure-run-as-root
 	@$(run_as_root) systemctl is-active --quiet headscale \
-	    && echo "[verify] ✅ Service active" \
-	    || (echo "[verify] ❌ Service NOT active"; exit 1)
-
-.PHONY: test-headscale-config
-test-headscale-config: ensure-run-as-root
+		&& echo "[verify] ✅ Service active" \
+		|| (echo "[verify] ❌ Service NOT active"; exit 1)
 	@$(run_as_root) headscale configtest --config /etc/headscale/config.yaml >/dev/null \
-	    && echo "[verify] ✅ Configtest passed" \
-	    || (echo "[verify] ❌ Configtest FAILED"; exit 1)
-
-.PHONY: test-headscale-acl
-test-headscale-acl: ensure-run-as-root
+		&& echo "[verify] ✅ Configtest passed" \
+		|| (echo "[verify] ❌ Configtest FAILED"; exit 1)
 	@$(run_as_root) headscale policy show >/dev/null \
-	    && echo "[verify] ✅ ACL policy loaded" \
-	    || (echo "[verify] ❌ ACL policy NOT loaded"; exit 1)
-
-.PHONY: test-headscale-nodes
-test-headscale-nodes: ensure-run-as-root
+		&& echo "[verify] ✅ ACL policy loaded" \
+		|| (echo "[verify] ❌ ACL policy NOT loaded"; exit 1)
 	@$(run_as_root) headscale nodes list >/dev/null \
-	    && echo "[verify] ✅ Nodes reachable" \
-	    || (echo "[verify] ❌ Node list FAILED"; exit 1)
+		&& echo "[verify] ✅ Nodes reachable" \
+		|| (echo "[verify] ❌ Node list FAILED"; exit 1)
+
 
 .PHONY: test-headscale-unit
 test-headscale-unit:
 	@cmp -s config/systemd/headscale.service /etc/systemd/system/headscale.service \
-	    && echo "[verify] ✅ systemd unit matches repo" \
-	    || (echo "[verify] ❌ systemd unit differs from repo"; exit 1)
+		&& echo "[verify] ✅ systemd unit matches repo" \
+		|| (echo "[verify] ❌ systemd unit differs from repo"; exit 1)
 
 .PHONY: test-headscale-override
 test-headscale-override:
 	@cmp -s config/systemd/headscale.service.d/override.conf /etc/systemd/system/headscale.service.d/override.conf \
-	    && echo "[verify] ✅ override matches repo" \
-	    || (echo "[verify] ❌ override differs from repo"; exit 1)
+		&& echo "[verify] ✅ override matches repo" \
+		|| (echo "[verify] ❌ override differs from repo"; exit 1)
 
 # --------------------------------------------------------------------
 # Parallel verification suite (runs atomic tests concurrently)
@@ -170,27 +156,33 @@ test-headscale-override:
 # - Intended for post-deploy validation
 headscale-verify: \
 	headscale-wait-ready \
-	test-headscale-service \
-	test-headscale-config \
-	test-headscale-acl \
-	test-headscale-nodes \
+	test-headscale-core \
 	test-headscale-unit \
 	test-headscale-override
 	@echo "[verify] 🎉 Parallel verification complete"
 
 .PHONY: headscale-wait-ready
-headscale-wait-ready: ensure-run-as-root install-all
+headscale-wait-ready: ensure-run-as-root
 	@echo "⏳ Waiting for Headscale API"
-	@$(run_as_root) $(WAIT_FOR_COMMAND) curl -fsS http://127.0.0.1:8910/health
-	@echo "✅ Headscale API ready"
+	@$(run_as_root) sh -c '\
+		for i in 1 2 3 4 5 6 7 8 9 10; do \
+			if curl -fsS "$(HEADSCALE_HEALTH_URL)" >/dev/null; then \
+				echo "✅ Headscale API ready"; \
+				exit 0; \
+			fi; \
+			sleep 1; \
+		done; \
+		echo "❌ Headscale API did not become ready"; \
+		exit 1; \
+	'
 
 .PHONY: headscale-metrics
 headscale-metrics:
 	@echo "📊 Headscale metrics:"
-	@curl -fsS http://$(HEADSCALE_METRICS_ADDR)/metrics | sed -n '1,40p'
+	@curl -fsS $(HEADSCALE_METRICS_URL) | sed -n '1,40p'
 
 # --------------------------------------------------------------------
-# � ️  Destructive operations (operator-only)
+# � ️  Destructive operations (operator-only)
 # --------------------------------------------------------------------
 # WARNING:
 # - Invalidates Headscale identity
@@ -208,7 +200,7 @@ rotate-noise-key-dangerous: rotate-noise-key
 rotate-noise-key: ensure-run-as-root headscale-bin headscale-systemd
 	@echo "🔥 ROTATE HEADSCALE NOISE KEY — this will disconnect all clients"
 	@read -p "Type YES to ROTATE THE NOISE KEY: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1)
-	@echo "� ️  Proceeding with Noise key rotation — clients must re-authenticate"
+	@echo "� ️  Proceeding with Noise key rotation — clients must re-authenticate"
 	@$(run_as_root) systemctl stop headscale
 	@$(run_as_root) rm -f /etc/headscale/noise_private.key
 	@$(run_as_root) bash -c "umask 077; $(HEADSCALE_BIN) generate private-key > /etc/headscale/noise_private.key && chown headscale:headscale /etc/headscale/noise_private.key && chmod 600 /etc/headscale/noise_private.key"

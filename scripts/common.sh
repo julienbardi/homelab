@@ -67,20 +67,6 @@ changed() {
     return 1
 }
 
-# Restart service only if cert changed
-restart_if_CANDIDATE_FOR_DELETION() {
-    local svc="$1" changed="$2"
-    if [[ "${changed}" == "1" ]]; then
-        if ! sudo timeout 10 caddy reload --config /etc/caddy/Caddyfile --force; then
-            log "caddy reload via CLI failed, trying systemctl..."
-            sudo timeout 10 systemctl reload "${svc}" || sudo timeout 10 systemctl restart "${svc}"
-        fi
-        log "${svc} reloaded/restarted"
-    else
-        log "${svc} unchanged; no restart"
-    fi
-}
-
 reload_service() {
     local svc="$1"
     local config="$2"

@@ -25,20 +25,20 @@ DNSDIST_RESTART_CMD := $(run_as_root) systemctl restart $(DNSDIST_UNIT)
 	check-dnsdist-doh-local
 
 .NOTPARALLEL: dnsdist dnsdist-config dnsdist-systemd-dropin \
-	          deploy-dnsdist-certs dnsdist-install dnsdist-enable
+			  deploy-dnsdist-certs dnsdist-install dnsdist-enable
 
 install-kdig:
 	@$(call apt_install,kdig,dnsutils)
 
 assert-dnsdist-certs:
 	@$(run_as_root) sh -eu -c '\
-	    for f in "$(DNSDIST_CERT)" "$(DNSDIST_KEY)"; do \
-	        if [ ! -r "$$f" ]; then \
-	            echo "❌ Missing or unreadable dnsdist TLS file: $$f"; \
-	            echo "👉 Ensure certificates have been issued and permissions are correct"; \
-	            exit 1; \
-	        fi; \
-	    done'
+		for f in "$(DNSDIST_CERT)" "$(DNSDIST_KEY)"; do \
+			if [ ! -r "$$f" ]; then \
+				echo "❌ Missing or unreadable dnsdist TLS file: $$f"; \
+				echo "👉 Ensure certificates have been issued and permissions are correct"; \
+				exit 1; \
+			fi; \
+		done'
 
 dnsdist-bootstrap: \
 	dnsdist-install \
@@ -66,11 +66,11 @@ dnsdist: \
 # --------------------------------------------------------------------
 dnsdist-install:
 	@if command -v $(DNSDIST_BIN) >/dev/null; then \
-	    echo "🔁 dnsdist binary already present"; \
+		echo "🔁 dnsdist binary already present"; \
 	else \
-	    echo "Installing dnsdist"; \
-	    $(call apt_update_if_needed); \
-	    $(call apt_install,dnsdist,dnsdist); \
+		echo "Installing dnsdist"; \
+		$(call apt_update_if_needed) \
+		$(call apt_install,dnsdist,dnsdist) \
 	fi
 
 # --------------------------------------------------------------------
@@ -97,7 +97,11 @@ dnsdist-config:
 	@set -eu; \
 	$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
 	rc=0; \
-	$(call install_file,$(DNSDIST_CONF_SRC),$(DNSDIST_CONF_DST),root,root,0644) || rc="$$?"; \
+	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+		/usr/local/bin/install_file_if_changed_v2.sh -q \
+		"" "" "$(DNSDIST_CONF_SRC)" \
+		"" "" "$(DNSDIST_CONF_DST)" \
+		"root" "root" "0644" || rc=$$?; \
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsdist.conf updated"; \
 		echo "🔁 restarting dnsdist.service"; \
@@ -130,16 +134,17 @@ dnsdist-status:
 # - The following targets may restart dnsdist
 # - Restarts are disruptive to active clients
 # - Destructive behavior will be isolated explicitly
-dnsdist-systemd-dropin:
+dnsdist-systemd-dropin: ensure-run-as-root
 	@set -eu; \
 	echo "⚙️ Installing dnsdist systemd drop-in"; \
 	$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
 	rc=0; \
-	$(call install_file, \
-		$(MAKEFILE_DIR)scripts/systemd/dnsdist.service.d/10-no-port53.conf, \
-		/etc/systemd/system/dnsdist.service.d/10-no-port53.conf, \
-		root,root,0644) || rc="$$?"; \
-	$(run_as_root) systemctl daemon-reload; \
+	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+		/usr/local/bin/install_file_if_changed_v2.sh -q \
+		"" "" "$(MAKEFILE_DIR)scripts/systemd/dnsdist.service.d/10-no-port53.conf" \
+		"" "" "/etc/systemd/system/dnsdist.service.d/10-no-port53.conf" \
+		"root" "root" "0644" || rc=$$?; \
+	$(run_as_root) systemctl daemon-reload || true; \
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsdist drop-in updated"; \
 		echo "🔁 restarting dnsdist.service"; \
@@ -156,8 +161,8 @@ assert-dnsdist-running:
 
 check-dnsdist-doh-listener:
 	@ss -ltn sport = :8053 | grep -q LISTEN \
-	    && echo "✅ dnsdist DoH listener active on port 8053" \
-	    || ( echo "❌ dnsdist DoH listener NOT active on port 8053"; exit 1 )
+		&& echo "✅ dnsdist DoH listener active on port 8053" \
+		|| ( echo "❌ dnsdist DoH listener NOT active on port 8053"; exit 1 )
 
 dnsdist-verify: \
 	dnsdist-validate \

@@ -4,6 +4,23 @@
 
 UNBOUND_RESTART_STAMP := $(STAMP_DIR)/unbound.restart
 
+SYSCTL_UNBOUND_SRC := $(MAKEFILE_DIR)config/sysctl/99-unbound-buffers.conf
+SYSCTL_UNBOUND_DST := /etc/sysctl.d/99-unbound-buffers.conf
+
+deploy-unbound-sysctl: ensure-run-as-root
+	@changed=0; \
+	$(call install_file,$(SYSCTL_UNBOUND_SRC),$(SYSCTL_UNBOUND_DST),root,root,0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
+	if [ $$changed -eq 1 ]; then \
+		echo "🔄 sysctl config updated — reloading"; \
+		$(run_as_root) /sbin/sysctl --system >/dev/null; \
+		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
+	fi
+
 .PHONY: \
 	enable-unbound \
 	install-pkg-unbound \
@@ -15,7 +32,7 @@ UNBOUND_RESTART_STAMP := $(STAMP_DIR)/unbound.restart
 	deploy-unbound-local-internal \
 	install-unbound-systemd-dropin \
 	update-root-hints \
-	ensure-root-key \
+	ensure-dnssec-trust-anchor \
 	assert-unbound-tools \
 	assert-unbound-control \
 	setup-unbound-control \
@@ -59,7 +76,7 @@ install-pkg-unbound:
 		echo "🔁 unbound already installed"; \
 	else \
 		echo "📦 Installing unbound"; \
-		$(call apt_install,unbound,unbound); \
+		$(call apt_install,unbound,unbound) \
 	fi
 	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true
 	@echo "✅ Unbound installed and enabled"
@@ -100,7 +117,7 @@ update-root-hints: ensure-run-as-root
 	rm -f $$tmp
 
 # --- Trust anchor ---
-ensure-root-key: ensure-run-as-root
+ensure-dnssec-trust-anchor: ensure-run-as-root
 	@echo "🔑 Ensuring DNSSEC trust anchor -> /var/lib/unbound/root.key"
 	@$(run_as_root) mkdir -p /var/lib/unbound
 	@if [ ! -f /var/lib/unbound/root.key ]; then \
@@ -109,7 +126,7 @@ ensure-root-key: ensure-run-as-root
 	fi
 	@echo "✅ root key present"
 
-deploy-unbound-config: ensure-run-as-root update-root-hints ensure-root-key
+deploy-unbound-config: ensure-run-as-root update-root-hints ensure-dnssec-trust-anchor rotate
 	@$(run_as_root) install -d -m 0755 /etc/unbound
 	@changed=0; \
 	rc=0; \
@@ -198,6 +215,7 @@ install-unbound-systemd-dropin: ensure-run-as-root
 deploy-unbound:
 	dns-preflight \
 	install-pkg-unbound \
+	deploy-unbound-sysctl \
 	deploy-unbound-config \
 	deploy-unbound-local-internal \
 	deploy-unbound-service \
@@ -206,52 +224,10 @@ deploy-unbound:
 
 # --- Remote control ---
 setup-unbound-control: ensure-run-as-root
-	@if [ ! -f /etc/unbound/unbound_server.key ]; then \
-		echo "📦 Generating control certificates..."; \
-		$(run_as_root) unbound-control-setup; \
-	fi
-	# Ensure the directory is searchable by the group
-	@$(run_as_root) chown root:unbound /etc/unbound
-	@$(run_as_root) chmod 0755 /etc/unbound
-	# Fix ownership: both server and control certs root:unbound
-	@$(run_as_root) install -m 0640 -o root -g unbound /etc/unbound/unbound_{server,control}.{key,pem} /etc/unbound/
-	@echo "📝 Writing client config -> /etc/unbound/unbound-control.conf"
-	@$(run_as_root) sh -c 'printf "%s\n" \
-		"remote-control:" \
-		"    control-interface: /run/unbound.ctl" \
-		"    server-key-file: /etc/unbound/unbound_server.key" \
-		"    server-cert-file: /etc/unbound/unbound_server.pem" \
-		"    control-key-file: /etc/unbound/unbound_control.key" \
-		"    control-cert-file: /etc/unbound/unbound_control.pem" \
-		> /etc/unbound/unbound-control.conf'
-	@echo "Restarting unbound service (remote-control)"
-	@$(run_as_root) systemctl restart unbound || { echo "❌ restart failed"; exit 1; }
-	@if [ -f "$(UNBOUND_RESTART_STAMP)" ]; then \
-		echo "🔄 Restarted unbound — status:"; \
-		$(run_as_root) systemctl status --no-pager unbound; \
-	fi
-	@$(run_as_root) systemctl is-active --quiet unbound || \
-		( echo "❌ unbound failed to start after remote-control setup"; \
-		  $(run_as_root) systemctl status --no-pager unbound; \
-		  exit 1 )
-	@echo "✅ unbound running (remote-control enabled)"
-	@echo "🔎 Testing connectivity..."
-	@sleep 2
-	@if [ -e /run/unbound.ctl ] && ! ss -lxpn | grep -q '/run/unbound.ctl'; then \
-		echo "Removing stale /run/unbound.ctl and restarting unbound"; \
-		$(run_as_root) rm -f /run/unbound.ctl; \
-		$(run_as_root) systemctl restart unbound; \
-		sleep 1; \
-	fi
-	@if [ -e /run/unbound.ctl ]; then \
-		echo "-> using unix socket /run/unbound.ctl"; \
-		$(run_as_root) /usr/sbin/unbound-control -c /etc/unbound/unbound-control.conf -s /run/unbound.ctl status || { echo "❌ unbound-control (socket) not responding"; exit 1; }; \
-	else \
-		echo "❌ unix socket /run/unbound.ctl not present; please ensure Unbound is configured to use the socket and restart"; \
-		journalctl -u unbound -n 200 --no-pager | grep -i -E 'control|socket|error|refused' -n -C2 | sed -n '1,200p'; \
-		exit 1; \
-	fi
-	@echo "✅ unbound-control is responding"
+	@$(run_as_root) scripts/unbound-setup-control.sh
+
+dns-health: assert-unbound-tools assert-unbound-control dns-runtime
+	@$(run_as_root) scripts/unbound-health.sh
 
 reset-unbound-control: ensure-run-as-root
 	@echo "♻️ Forcing regeneration of Unbound control certificates"
@@ -300,6 +276,7 @@ dns-bench:
 dns-runtime: \
 	enable-systemd \
 	install-unbound-systemd-dropin \
+	deploy-unbound-sysctl \
 	dnsdist \
 	dns-warm-install \
 	dns-warm-enable
@@ -321,39 +298,6 @@ dns-reset: \
 	dns
 	@echo "✅ DNS reset + bootstrap complete"
 
-# --- Health check ---
-dns-health: assert-unbound-tools assert-unbound-control dns-runtime
-	@echo "🩺 Checking Unbound health and cache stats..."
-	@sudo -u unbound unbound-control \
-	-c /etc/unbound/unbound-control.conf \
-	stats_noreset 2>/dev/null | \
-awk -F= '\
-	/thread[0-9]+\.num\.queries=/        { q += $$2 } \
-	/thread[0-9]+\.num\.cachehits=/      { h += $$2 } \
-	/thread[0-9]+\.num\.cachemiss=/      { m += $$2 } \
-	/thread[0-9]+\.recursion\.time\.avg=/ { t += $$2; n++ } \
-	END { \
-		if (!q) exit; \
-		hp = (h/q)*100; \
-		mp = (m/q)*100; \
-		rt = (n ? (t/n)*1000 : 0); \
-		printf "Metric                    Value        Ratio\n"; \
-		printf "————————————————————————————————————————————\n"; \
-		printf "%-22s %10d %9.1f%%\n", "Total queries", q, 100; \
-		printf "%-22s %10d %9.1f%%\n", "Cache hits", h, hp; \
-		printf "%-22s %10d %9.1f%%\n", "Cache misses", m, mp; \
-		printf "%-22s %10.2f ms\n", "Avg recursion time", rt; \
-		printf "\n"; \
-		if (hp < 10) \
-			printf "Verdict: ℹ️ Expected after restart; will normalize within minutes\n"; \
-		else if (rt > 20) \
-			printf "Verdict: ⚠️ high recursion latency\n"; \
-		else \
-			printf "Verdict: ✅ healthy resolver\n"; \
-	}'
-
-	@echo "✅ dns-health check complete"
-
 assert-unbound-control:
 	@test -f /etc/unbound/unbound-control.conf || \
 		( echo "❌ unbound-control not configured. Run: make setup-unbound-control"; exit 1 )
@@ -370,29 +314,6 @@ dns-watch:
 		-e 's/warning:/⚠️ warning:/g' \
 		-e 's/error:/❌ error:/g' \
 		-e 's/notice:/ℹ️ notice:/g'
-
-sysctl: ensure-run-as-root
-	@echo "📄 Ensuring /etc/sysctl.d/99-unbound-buffers.conf exists and is correct..."
-	@if ! [ -f /etc/sysctl.d/99-unbound-buffers.conf ] || \
-		! grep -q "net.core.rmem_max = 8388608" /etc/sysctl.d/99-unbound-buffers.conf || \
-		! grep -q "net.core.wmem_max = 8388608" /etc/sysctl.d/99-unbound-buffers.conf; then \
-		echo "# Increase socket buffer sizes for Unbound DNS resolver" | $(run_as_root) tee /etc/sysctl.d/99-unbound-buffers.conf >/dev/null; \
-		echo "net.core.rmem_max = 8388608" | $(run_as_root) tee -a /etc/sysctl.d/99-unbound-buffers.conf >/dev/null; \
-		echo "net.core.wmem_max = 8388608" | $(run_as_root) tee -a /etc/sysctl.d/99-unbound-buffers.conf >/dev/null; \
-		echo "✅ Wrote /etc/sysctl.d/99-unbound-buffers.conf"; \
-	else \
-		echo "🔁 /etc/sysctl.d/99-unbound-buffers.conf already correct"; \
-	fi
-	@echo "🔧 Reloading sysctl configuration..."
-	@$(run_as_root) /sbin/sysctl --system >/dev/null
-	@echo "🔄 Restarting Unbound to apply new buffer sizes..."
-	@$(run_as_root) systemctl restart unbound
-	@$(run_as_root) systemctl is-active --quiet unbound || \
-		( echo "❌ unbound failed to start after sysctl reload"; \
-		  echo "ℹ️ Run: make unbound-status"; \
-		  exit 1 )
-	@echo "✅ Sysctl reload complete. Current buffer limits:"
-	@/sbin/sysctl -q net.core.rmem_max net.core.wmem_max
 
 unbound-status: ensure-run-as-root
 	@$(run_as_root) systemctl status unbound --no-pager --lines=0

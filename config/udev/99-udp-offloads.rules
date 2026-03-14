@@ -1,0 +1,8 @@
+# --------------------------------------------------------------------
+# 99-udp-offloads.rules — Persistent UDP performance for WireGuard
+# --------------------------------------------------------------------
+# Logic: When the primary ethernet interface is added, disable
+# GRO list and enable UDP GRO forwarding.
+# --------------------------------------------------------------------
+
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="eth0", RUN+="/usr/sbin/ethtool -K %k rx-udp-gro-forwarding on rx-gro-list off"

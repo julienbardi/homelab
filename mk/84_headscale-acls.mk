@@ -12,30 +12,12 @@ ACL_SRC ?= $(MAKEFILE_DIR)config/headscale/acl.json
 ACL_DST ?= /etc/headscale/acl.json
 
 .PHONY: headscale-acls
-
-headscale-acls:
+headscale-acls: ensure-run-as-root $(ACL_SRC)
 	@echo "🛂 Installing headscale ACL policy..."
-	@if [ ! -f "$(ACL_SRC)" ]; then \
-	    echo "❌ ACL source file not found: $(ACL_SRC)"; \
-	    exit 1; \
-	fi
-
-	@$(run_as_root) bash -eu -c '\
-	    changed=0; \
-	    if [ ! -f "$(ACL_DST)" ]; then \
-	        install -o root -g headscale -m 0640 "$(ACL_SRC)" "$(ACL_DST)"; \
-	        changed=1; \
-	    else \
-	        if ! cmp -s "$(ACL_SRC)" "$(ACL_DST)"; then \
-	            install -o root -g headscale -m 0640 "$(ACL_SRC)" "$(ACL_DST)"; \
-	            changed=1; \
-	        fi; \
-	    fi; \
-	    if [ $$changed -eq 1 ]; then \
-	        echo "🔄 Restarting headscale due to ACL update"; \
-	        systemctl daemon-reload; \
-	        systemctl restart headscale; \
-	    fi \
-	'
-
+	@$(run_as_root) env CHANGED_EXIT_CODE=3 \
+		$(INSTALL_FILE_IF_CHANGED) -q \
+		"" "" "$(ACL_SRC)" \
+		"" "" "$(ACL_DST)" \
+		root headscale 0640 \
+		|| [ $$? -eq 3 ]
 	@echo "✅ Headscale ACL policy processed"
