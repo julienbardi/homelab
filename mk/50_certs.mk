@@ -31,27 +31,27 @@ CADDY_DEPLOY_DIR ?= /etc/ssl/caddy
 # --------------------------------------------------------------------
 # Internal CA lifecycle (authoritative, idempotent)
 # --------------------------------------------------------------------
-.PHONY: certs-create certs-deploy certs-ensure certs-status
+.PHONY: certs-deploy certs-ensure certs-status
 
 # Create CA (idempotent). Uses EC P-384 by default.
-certs-create: $(CERTS_CREATE)
+certs-create: ensure-run-as-root $(CERTS_CREATE)
 	@$(run_as_root) $(CERTS_CREATE)
 
 .PHONY: gen-client-cert
-gen-client-cert: $(GEN_CLIENT_WRAPPER)
+gen-client-cert: ensure-run-as-root $(GEN_CLIENT_WRAPPER) $(GEN_CLIENT_CERT)
 	@if [ -z "$(CN)" ]; then \
 	  echo "[make] usage: make gen-client-cert CN=<name> [FORCE=1]"; exit 1; \
 	fi
 	@FORCE_FLAG=''; if [ "$(FORCE)" = "1" ]; then FORCE_FLAG="--force"; fi; \
-	$(GEN_CLIENT_WRAPPER) "$(CN)" "$(run_as_root)" "/usr/local/bin" "$$FORCE_FLAG"
+	$(GEN_CLIENT_WRAPPER) "$(CN)" "$(run_as_root)" "$(INSTALL_PATH)" "$$FORCE_FLAG"
 
 # Deploy CA public cert into canonical store and caddy deploy dir (idempotent)
-certs-deploy: certs-create $(CERTS_DEPLOY)
-	@CONF_FORCE=$(CONF_FORCE) $(run_as_root) $(CERTS_DEPLOY) 2>/dev/null
+certs-deploy: ensure-run-as-root certs-create $(CERTS_DEPLOY)
+	@$(run_as_root) $(CERTS_DEPLOY)
 	@echo "🔐 Certificates deployed"
 
 # Ensure CA exists and is deployed (used by other Makefiles)
-certs-ensure: certs-deploy
+certs-ensure: ensure-run-as-root certs-deploy
 	@echo "🔁 certificates ensured"
 
 # Status: list CA and client certs
@@ -63,7 +63,7 @@ certs-status:
 
 # Check CA expiry (prints human-readable expiry and days left)
 .PHONY: certs-expiry
-certs-expiry:
+certs-expiry: ensure-run-as-root
 	@if [ -f "$(CA_PUB)" ]; then \
 	  echo "🔍 CA public cert: $(CA_PUB)"; \
 	  $(run_as_root) openssl x509 -in "$(CA_PUB)" -noout -enddate -subject; \
@@ -76,7 +76,7 @@ certs-expiry:
 	fi
 
 # --------------------------------------------------------------------
-# � ️  DESTRUCTIVE OPERATION — CA ROTATION
+# ⚠️ ️DESTRUCTIVE OPERATION — CA ROTATION
 #
 # - Invalidates ALL existing client certificates
 # - Requires manual confirmation
@@ -87,10 +87,10 @@ certs-expiry:
 certs-rotate-dangerous: certs-rotate
 
 .PHONY: certs-rotate
-certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
+certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT) $(GEN_CLIENT_WRAPPER)
 	@echo "🔥 ROTATE CA - this will create a new CA and invalidate existing client certs"; \
 	read -p "Type YES to ROTATE THE CA: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1); \
-	@echo "� ️  Proceeding with CA rotation — this cannot be undone"; \
+	@echo "⚠️   Proceeding with CA rotation — this cannot be undone"; \
 	# exclusive lock to avoid concurrent runs
 	$(run_as_root) bash -c 'exec 9>/var/lock/certs-rotate.lock || exit 1; flock -n 9 || { echo "another certs-rotate is running"; exit 1; }; \
 	set -euo pipefail; \
@@ -115,7 +115,7 @@ certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	# create and deploy new CA via existing make targets
 	logger -t "$$TAG" -p user.info "Creating new CA"; \
 	$(run_as_root) $(CERTS_CREATE) || { logger -t "$$TAG" -p user.err "certs-create failed"; exit 1; }; \
-	CONF_FORCE=$(CONF_FORCE) $(run_as_root) $(CERTS_DEPLOY) || { logger -t "$$TAG" -p user.err "certs-deploy failed"; exit 1; }; \
+	$(run_as_root) $(CERTS_DEPLOY) || { logger -t "$$TAG" -p user.err "certs-deploy failed"; exit 1; }; \
 	logger -t "$$TAG" -p user.info "New CA created and deployed"; \
 	# list affected clients
 	clients=$$(ls -1 "$$CLIENT_DIR"/*.p12 2>/dev/null | xargs -n1 basename 2>/dev/null | sed "s/\.p12$$//") || true; \
@@ -173,7 +173,7 @@ certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 # - ACME certificates are derived artifacts
 # - They depend on the internal CA being present
 # - They must never mutate CA material
-.PHONY: issue renew prepare \
+.PHONY: renew prepare \
 	deploy-caddy deploy-headscale deploy-dnsdist deploy-diskstation deploy-qnap \
 	validate-caddy validate-headscale validate-diskstation validate-qnap \
 	all-caddy all-headscale all-router all-diskstation all-qnap \
@@ -183,13 +183,17 @@ certs-rotate: $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT)
 	bootstrap-all
 
 # Base actions
-issue:
-	@$(run_as_root) $(CERTS_DEPLOY) issue || { echo "[make] ❌ issue failed"; exit 1; }
+# Update the renew target dependencies
+renew: ensure-run-as-root install-helpers
+	@$(run_as_root) $(CERTS_DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE)
 
-renew: issue
-	@$(run_as_root) $(CERTS_DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE) || { echo "[make] ❌ renew failed"; exit 1; }
+# New target to ensure scripts are synced
+install-helpers:
+	@$(run_as_root) install -m 0755 scripts/common.sh /usr/local/bin/common.sh
+	@$(run_as_root) install -m 0755 scripts/install_file_if_changed_v2.sh /usr/local/bin/install_file_if_changed_v2.sh
+	@$(run_as_root) install -m 0755 scripts/certs-deploy.sh /usr/local/bin/certs-deploy.sh
 
-prepare: renew fix-acme-perms
+prepare: ensure-run-as-root renew $(CERTS_DEPLOY)
 	@$(run_as_root) $(CERTS_DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
 
 # Deploy targets
@@ -232,7 +236,7 @@ all-diskstation: renew prepare deploy-diskstation validate-diskstation
 all-qnap:        renew prepare deploy-qnap        validate-qnap
 
 # Cert watch setup targets
-setup-cert-watch-%:
+setup-cert-watch-%: ensure-run-as-root scripts/systemd/cert-reload@.service scripts/systemd/$*-cert.path
 	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service \
 	    /etc/systemd/system/cert-reload@.service && \
 	if [ "$*" = "dnsdist" ]; then \
@@ -269,11 +273,16 @@ bootstrap-qnap:          $(call bootstrap_with_status,qnap)
 # FIX: bootstrap-all wires only LOCAL watchers; no remote hosts here
 bootstrap-all: \
 	setup-cert-watch-caddy all-caddy \
-	setup-cert-watch-headscale
+	setup-cert-watch-headscale all-headscale
 
 # Cert watch deploy targets
 define deploy_cert_watch
+	@ls scripts/systemd/cert-reload@.service scripts/systemd/$(1)-cert.path >/dev/null
 	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service /etc/systemd/system/cert-reload@.service
+	@if [ "$(1)" = "dnsdist" ]; then \
+		$(run_as_root) install -d -m 0755 /etc/systemd/system/cert-reload@dnsdist.service.d; \
+		$(run_as_root) install -m 0644 scripts/systemd/cert-reload@dnsdist.service.d/override.conf /etc/systemd/system/cert-reload@dnsdist.service.d/override.conf; \
+	fi
 	@$(run_as_root) install -m 0644 scripts/systemd/$(1)-cert.path /etc/systemd/system/$(1)-cert.path
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable $(1)-cert.path

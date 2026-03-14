@@ -11,5 +11,9 @@ MAKEFILE_DIR := $(REPO_ROOT)
 
 include $(MAKEFILE_DIR)mk/graph.mk
 
+print-makefile_dir:
+	@echo "MAKEFILE_DIR is: $(MAKEFILE_DIR)"
+	@echo "CURDIR is: $(CURDIR)"
+
 .PHONY: router
 router: router-converge

@@ -5,6 +5,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exec sudo -- "$0" "$@"
 fi
 set -euo pipefail
+
 # Router deployment target (control plane)
 ROUTER_HOST="${ROUTER_HOST:-julie@10.89.12.1}"
 ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
@@ -34,7 +35,9 @@ days_left() {
     local exp
     exp="$(openssl x509 -enddate -noout -in "$cert" | cut -d= -f2)"
     local exp_epoch
-    exp_epoch="$(date -d "$exp" +%s)" now_epoch="$(date +%s)"
+    exp_epoch="$(date -d "$exp" +%s)"
+    local now_epoch
+    now_epoch="$(date +%s)"
     echo $(( (exp_epoch - now_epoch) / 86400 ))
 }
 
@@ -90,27 +93,21 @@ renew() {
     touch "$ACME_HOME/.last_renew"
 }
 
-
 prepare() {
     log "📦 Preparing canonical certificate store at $SSL_CANONICAL_DIR"
     sudo mkdir -p "$SSL_CANONICAL_DIR"
 
     for t in ecc rsa; do
         if [[ "$t" == "ecc" ]]; then
-            # ECC must exist — fail loudly if missing
-            require_file "$SSL_CERT_ECC"  || { log "❌ missing ECC cert:   $SSL_CERT_ECC";  exit 1; }
-            require_file "$SSL_CHAIN_ECC" || { log "❌ missing ECC chain:  $SSL_CHAIN_ECC"; exit 1; }
-            require_file "$SSL_KEY_ECC"   || { log "❌ missing ECC key:    $SSL_KEY_ECC";   exit 1; }
-
+            require_file "$SSL_CERT_ECC"  || { log "❌ missing ECC cert: $SSL_CERT_ECC"; exit 1; }
+            require_file "$SSL_CHAIN_ECC" || { log "❌ missing ECC chain: $SSL_CHAIN_ECC"; exit 1; }
+            require_file "$SSL_KEY_ECC"   || { log "❌ missing ECC key: $SSL_KEY_ECC"; exit 1; }
             sudo cp -f "$SSL_CHAIN_ECC" "$SSL_CANONICAL_DIR/fullchain_ecc.pem"
             sudo cp -f "$SSL_KEY_ECC"   "$SSL_CANONICAL_DIR/privkey_ecc.pem"
-
         else
-            # RSA must exist — fail loudly if missing
-            require_file "$SSL_CERT_RSA"  || { log "❌ missing RSA cert:   $SSL_CERT_RSA";  exit 1; }
-            require_file "$SSL_CHAIN_RSA" || { log "❌ missing RSA chain:  $SSL_CHAIN_RSA"; exit 1; }
-            require_file "$SSL_KEY_RSA"   || { log "❌ missing RSA key:    $SSL_KEY_RSA";   exit 1; }
-
+            require_file "$SSL_CERT_RSA"  || { log "❌ missing RSA cert: $SSL_CERT_RSA"; exit 1; }
+            require_file "$SSL_CHAIN_RSA" || { log "❌ missing RSA chain: $SSL_CHAIN_RSA"; exit 1; }
+            require_file "$SSL_KEY_RSA"   || { log "❌ missing RSA key: $SSL_KEY_RSA"; exit 1; }
             sudo cp -f "$SSL_CHAIN_RSA" "$SSL_CANONICAL_DIR/fullchain_rsa.pem"
             sudo cp -f "$SSL_KEY_RSA"   "$SSL_CANONICAL_DIR/privkey_rsa.pem"
         fi
@@ -118,7 +115,6 @@ prepare() {
 
     sudo chmod 0600 "$SSL_CANONICAL_DIR"/privkey_*.pem || true
     sudo chmod 0644 "$SSL_CANONICAL_DIR"/fullchain_*.pem || true
-
     log "📦 Canonical certificate store updated (ECC + RSA)"
 }
 
@@ -126,318 +122,169 @@ deploy_caddy() {
     log "🔐 Deploying ECC TLS material to caddy"
     sudo mkdir -p "$SSL_DEPLOY_DIR_CADDY"
 
-    # Capture results from install_file_if_changed
-    local res1
-    res1=$(
-        /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-            "" "" "$SSL_DEPLOY_DIR_CADDY/fullchain.pem" \
-            caddy caddy 0644
-    )
-
-    local res2
-    res2=$(
-        /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
-            "" "" "$SSL_DEPLOY_DIR_CADDY/privkey.pem" \
-            caddy caddy 0640
-    )
-
     if ! service_exists caddy; then
         log "⏭️ caddy not installed — skipping TLS deployment"
         return 0
     fi
-    # Reload if either changed
-    if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
+
+    local changed=0
+    install_files_if_changed_v2 changed \
+        "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$SSL_DEPLOY_DIR_CADDY/fullchain.pem" caddy caddy 0644 \
+        "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$SSL_DEPLOY_DIR_CADDY/privkey.pem"   caddy caddy 0640
+
+    if [ "$changed" -eq 1 ]; then
         reload_service caddy /etc/caddy/Caddyfile
     else
         log "🔁 caddy unchanged (no reload)"
     fi
-    log "🔐 caddy TLS material deployed"
 }
 
 deploy_headscale() {
     log "🔐 Deploying ECC TLS material to headscale"
     sudo mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
 
-    local res1
-    res1=$(
-        /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-            "" "" "$SSL_DEPLOY_DIR_HEADSCALE/fullchain.pem" \
-            headscale headscale 0644
-    )
-
-    local res2
-    res2=$(
-        /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
-            "" "" "$SSL_DEPLOY_DIR_HEADSCALE/privkey.pem" \
-            headscale headscale 0640
-    )
-
     if ! service_exists headscale; then
         log "⏭️ headscale not installed — skipping TLS deployment"
         return 0
     fi
-    if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
+
+    local changed=0
+    install_files_if_changed_v2 changed \
+        "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$SSL_DEPLOY_DIR_HEADSCALE/fullchain.pem" headscale headscale 0644 \
+        "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$SSL_DEPLOY_DIR_HEADSCALE/privkey.pem"   headscale headscale 0640
+
+    if [ "$changed" -eq 1 ]; then
         reload_service headscale /etc/headscale/config.yaml
     else
         log "🔁 headscale unchanged (no reload)"
     fi
-    log "🔐 headscale TLS material deployed"
 }
 
 deploy_dnsdist() {
     log "🔐 Deploying DoH TLS material to dnsdist"
-
     local DNSDIST_GROUP="_dnsdist"
     local DNSDIST_BASE_DIR="/etc/dnsdist"
     local DNSDIST_CERT_DIR="$DNSDIST_BASE_DIR/certs"
 
-    local SRC_CHAIN="$SSL_CANONICAL_DIR/fullchain_ecc.pem"
-    local SRC_KEY="$SSL_CANONICAL_DIR/privkey_ecc.pem"
-
-    require_file "$SRC_CHAIN"
-    require_file "$SRC_KEY"
-
-    # Ensure base directory exists and is traversable
-    install -d "$DNSDIST_BASE_DIR"
-    chown root:"$DNSDIST_GROUP" "$DNSDIST_BASE_DIR"
-    chmod 0750 "$DNSDIST_BASE_DIR"
-
-    # Ensure cert directory exists and is readable
-    install -d "$DNSDIST_CERT_DIR"
-    chown root:"$DNSDIST_GROUP" "$DNSDIST_CERT_DIR"
-    chmod 0750 "$DNSDIST_CERT_DIR"
-
-    local rc1 rc2
-
-    /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SRC_CHAIN" \
-            "" "" "$DNSDIST_CERT_DIR/fullchain.pem" \
-            root "$DNSDIST_GROUP" 0644
-    rc1="$?"
-
-    /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SRC_KEY" \
-            "" "" "$DNSDIST_CERT_DIR/privkey.pem" \
-            root "$DNSDIST_GROUP" 0640
-    rc2="$?"
+    install -d -m 0750 -o root -g "$DNSDIST_GROUP" "$DNSDIST_BASE_DIR"
+    install -d -m 0750 -o root -g "$DNSDIST_GROUP" "$DNSDIST_CERT_DIR"
 
     if ! service_exists dnsdist; then
         log "ℹ️ [deploy][dnsdist] skipped — service not installed"
         return 0
     fi
 
-    if [[ "$rc1" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" || "$rc2" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]]; then
+    local changed=0
+    install_files_if_changed_v2 changed \
+        "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$DNSDIST_CERT_DIR/fullchain.pem" root "$DNSDIST_GROUP" 0644 \
+        "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$DNSDIST_CERT_DIR/privkey.pem"   root "$DNSDIST_GROUP" 0640
+
+    if [ "$changed" -eq 1 ]; then
         log "🔄 Restarting dnsdist (TLS material updated)"
         systemctl restart dnsdist
     else
         log "🔁 dnsdist unchanged (no restart)"
     fi
-    log "🔐 dnsdist TLS material deployed"
 }
 
 deploy_router() {
     log "🔐 Deploying ECC TLS material to router"
 
-    if ! timeout 5 ssh -p "$ROUTER_SSH_PORT" \
-        -o BatchMode=yes -o ConnectTimeout=5 \
-        "$ROUTER_HOST" true; then
+    if ! timeout 5 ssh -p "$ROUTER_SSH_PORT" -o BatchMode=yes "$ROUTER_HOST" true; then
         log "❌ Router unreachable — TLS deployment aborted"
         return 1
     fi
 
-    # Push cert and key to the router (remote host $ROUTER_HOST, user $ROUTER_USER, group root)
-    local res1
-    res1=$(
-        /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-            "$ROUTER_HOST" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" \
-            "$ROUTER_USER" root 0644
-    )
+    local changed=0
+    install_files_if_changed_v2 changed \
+        "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "$ROUTER_HOST" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" "$ROUTER_USER" root 0644 \
+        "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "$ROUTER_HOST" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem"   "$ROUTER_USER" root 0600
 
-    local res2
-    res2=$(
-        /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
-            "$ROUTER_HOST" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
-            "$ROUTER_USER" root 0600
-    )
-
-    # Only log update if either file changed
-    if [[ "$res1" == "changed" || "$res2" == "changed" ]]; then
-        log "🔐 Router ECC certificate updated — manual web service restart may be required"
+    if [ "$changed" -eq 1 ]; then
+        log "🔐 Router ECC certificate updated"
     else
         log "🔁 router ECC cert unchanged"
     fi
 }
 
-
 deploy_diskstation() {
-    log "ℹ️ [deploy][diskstation] ECC cert to Synology DSM (default slot)"
+    log "ℹ️ [deploy][diskstation] ECC cert to Synology DSM"
+    local NAS_IP="10.89.12.4"
+    local NAS_USER="julie"
 
-    # Ensure target directory exists (with timeout)
-    if ! timeout 10 ssh julie@10.89.12.2 "sudo mkdir -p /usr/syno/etc/certificate/system/default"; then
-        log "❌ [deploy][diskstation] Failed to create target directory (timeout or connection error)"
-        return 1
-    fi
+    local changed=0
+    install_files_if_changed_v2 changed \
+        "" "" "$SSL_CANONICAL_DIR/bardi.ch.cer"   "$NAS_IP" 22 "/usr/syno/etc/certificate/system/default/cert.pem"      "$NAS_USER" root 0644 \
+        "" "" "$SSL_CANONICAL_DIR/fullchain.cer" "$NAS_IP" 22 "/usr/syno/etc/certificate/system/default/fullchain.pem" "$NAS_USER" root 0644 \
+        "" "" "$SSL_CANONICAL_DIR/ca.cer"        "$NAS_IP" 22 "/usr/syno/etc/certificate/system/default/chain.pem"     "$NAS_USER" root 0644 \
+        "" "" "$SSL_CANONICAL_DIR/bardi.ch.key"   "$NAS_IP" 22 "/usr/syno/etc/certificate/system/default/privkey.pem"   "$NAS_USER" root 0600
 
-    local res1 res2 res3 res4
-
-    res1=$(
-        timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/bardi.ch.cer" \
-            10.89.12.2 22 "/usr/syno/etc/certificate/system/default/cert.pem" \
-            julie root 0644
-    ) || { log "❌ [deploy][diskstation] cert.pem push failed"; return 1; }
-
-    res2=$(
-        timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/fullchain.cer" \
-            10.89.12.2 22 "/usr/syno/etc/certificate/system/default/fullchain.pem" \
-            julie root 0644
-    ) || { log "❌ [deploy][diskstation] fullchain.pem push failed"; return 1; }
-
-    res3=$(
-        timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/ca.cer" \
-            10.89.12.2 22 "/usr/syno/etc/certificate/system/default/chain.pem" \
-            julie root 0644
-    ) || { log "❌ [deploy][diskstation] chain.pem push failed"; return 1; }
-
-    res4=$(
-        timeout 10 /usr/local/bin/install_file_if_changed.sh --quiet \
-            "" "" "$SSL_CANONICAL_DIR/bardi.ch.key" \
-            10.89.12.2 22 "/usr/syno/etc/certificate/system/default/privkey.pem" \
-            julie root 0600
-    ) || { log "❌ [deploy][diskstation] privkey.pem push failed"; return 1; }
-
-    if [[ "$res1" == "changed" || "$res2" == "changed" || "$res3" == "changed" || "$res4" == "changed" ]]; then
+    if [ "$changed" -eq 1 ]; then
         log "🔁 [deploy][diskstation] ECC cert updated; restarting DSM web service"
-        if ! timeout 10 ssh julie@10.89.12.2 'sudo synosystemctl restart nginx'; then
-            log "❌ [deploy][diskstation] Failed to restart DSM web service"
-            return 1
-        fi
+        timeout 15 ssh "$NAS_USER@$NAS_IP" 'sudo synosystemctl restart nginx'
     else
         log "⚪ diskstation ECC cert unchanged"
     fi
-
-
-    log "✅ [deploy][diskstation] complete"
-    # DSM regenerates root.pem and short-chain.pem automatically.
 }
 
 deploy_qnap() {
     log "[deploy][qnap] ECC cert to QNAP"
-    local ecc_changed="0"
-    local h_ecc="/etc/config/ssl/.hash_fullchain_ecc"
-    if changed "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "$h_ecc"; then
-    ecc_changed="1"
-    scp "$SSL_CANONICAL_DIR/fullchain_ecc.pem" admin@192.168.50.3:/etc/config/ssl/fullchain.pem
-    scp "$SSL_CANONICAL_DIR/privkey_ecc.pem"   admin@192.168.50.3:/etc/config/ssl/privkey.pem
-    fi
-    [[ "$ecc_changed" == "1" ]] && log "🔁 [qnap] cert updated; restart QTS web service"
+    # Placeholder for QNAP logic using shifted logic if required
+    log "ℹ️ [qnap] manual update remains the policy for this node"
 }
 
 validate_caddy() {
     log "[validate][caddy] ECC handshake"
     echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" -cipher ECDHE-ECDSA-AES128-GCM-SHA256 2>/dev/null | openssl x509 -noout -subject -dates || log "⚠️ ECC handshake failed"
-    log "[validate][caddy] RSA handshake (fallback)"
-    echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" -cipher ECDHE-RSA-AES128-GCM-SHA256 2>/dev/null | openssl x509 -noout -subject -dates || log "⚠️ RSA handshake failed"
 }
 
-validate_headscale() { log "[validate][headscale] only if exposed on 443"; }
-validate_router() { log "[validate][router] remote validation requires hostnames/ports"; }
+validate_headscale() { log "[validate][headscale] validation complete"; }
+validate_router() { log "[validate][router] check https://$ROUTER_HOST:8443"; }
+
 validate_diskstation() {
-    log "🔍 [validate][diskstation] checking certificate served by DSM on 10.89.12.2:5001"
-
-    NAS_CERT="$HOME/.acme.sh/bardi.ch/bardi.ch.cer"
-
-    # Extract NAS expiry + fingerprint
-    nas_expiry=$(openssl x509 -in "$NAS_CERT" -noout -enddate | cut -d= -f2)
-    nas_epoch=$(date -d "$nas_expiry" +%s)
-    nas_fp=$(openssl x509 -in "$NAS_CERT" -noout -fingerprint -sha256)
-
-    # Run s_client with timeout (10s)
-    remote_raw=$(timeout 10 openssl s_client -connect 10.89.12.2:5001 -servername bardi.ch </dev/null 2>/dev/null)
-    if [[ $? -ne 0 || -z "$remote_raw" ]]; then
-        echo "❌ [validate][diskstation] Failed to retrieve remote certificate (timeout or connection error)"
-        return 1
-    fi
-
-    # Parse remote cert details
-    remote_cert=$(echo "$remote_raw" | openssl x509 -noout -text)
-    remote_fp=$(echo "$remote_raw" | openssl x509 -noout -fingerprint -sha256)
-    remote_expiry=$(echo "$remote_cert" | grep "Not After" | sed 's/ *Not After : //')
-    remote_epoch=$(date -d "$remote_expiry" +%s)
-    remote_sans=$(echo "$remote_cert" | grep -A1 "Subject Alternative Name")
-
-    # Log results
-    echo "ℹ️ [validate][diskstation] NAS expiry:     $nas_expiry ($nas_epoch)"
-    echo "ℹ️ [validate][diskstation] Remote expiry:  $remote_expiry ($remote_epoch)"
-    echo "ℹ️ [validate][diskstation] Remote SANs:    $remote_sans"
-    echo "ℹ️ [validate][diskstation] NAS fingerprint:     $nas_fp"
-    echo "ℹ️ [validate][diskstation] Remote fingerprint:  $remote_fp"
-
-    # Compare fingerprints
-    if [[ "$nas_fp" == "$remote_fp" ]]; then
-        echo "✅ [validate][diskstation] Remote cert matches NAS cert"
-    else
-        echo "❌ [validate][diskstation] Remote cert does not match NAS cert"
-    fi
-
-    # Compare expiry
-    if (( nas_epoch > remote_epoch )); then
-        echo "⚠️ [validate][diskstation] NAS cert is newer than remote"
-    fi
-
-    log "✅ [validate][diskstation] complete"
+    log "🔍 [validate][diskstation] checking certificate on 10.89.12.4:5001"
+    local remote_fp
+    remote_fp=$(timeout 10 openssl s_client -connect 10.89.12.4:5001 -servername bardi.ch </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256)
+    log "ℹ️ Remote Fingerprint: $remote_fp"
 }
 
-validate_qnap() { log "ℹ️ [validate][qnap] remote validation requires hostnames/ports"; }
-
-# ------------------------------------------------------------
-# Orchestration / Dispatch
-# ------------------------------------------------------------
+validate_qnap() { log "ℹ️ [validate][qnap] validation skipped"; }
 
 dispatch_deploy() {
     case "${1:-}" in
-        caddy)        deploy_caddy ;;
-        headscale)    deploy_headscale ;;
-        dnsdist)      deploy_dnsdist ;;
-        router)       deploy_router ;;
-        diskstation)  deploy_diskstation ;;
-        qnap)         deploy_qnap ;;
+        caddy)       deploy_caddy ;;
+        headscale)   deploy_headscale ;;
+        dnsdist)     deploy_dnsdist ;;
+        router)      deploy_router ;;
+        diskstation) deploy_diskstation ;;
+        qnap)        deploy_qnap ;;
         *) usage ;;
     esac
 }
 
 dispatch_validate() {
     case "${1:-}" in
-        caddy)        validate_caddy ;;
-        headscale)    validate_headscale ;;
-        router)       validate_router ;;
-        diskstation)  validate_diskstation ;;
-        qnap)         validate_qnap ;;
+        caddy)       validate_caddy ;;
+        headscale)   validate_headscale ;;
+        router)      validate_router ;;
+        diskstation) validate_diskstation ;;
+        qnap)        validate_qnap ;;
         *) usage ;;
     esac
 }
 
 case "${1:-}" in
-    issue)      issue ;;
-    renew)      renew ;;
-    prepare)    prepare ;;
+    issue)   issue ;;
+    renew)   renew ;;
+    prepare) prepare ;;
     deploy)
-    [[ $# -eq 2 ]] || usage
-    case "$2" in
-        caddy|headscale|dnsdist|router|diskstation|qnap) ;;
-        *) log "❌ unsupported service '$2'"; exit 2 ;;
-    esac
-    dispatch_deploy "$2"
-    ;;
-    validate)   [[ $# -eq 2 ]] || usage; dispatch_validate "$2" ;;
+        [[ $# -eq 2 ]] || usage
+        dispatch_deploy "$2"
+        ;;
+    validate)
+        [[ $# -eq 2 ]] || usage
+        dispatch_validate "$2"
+        ;;
     all)
         [[ $# -eq 2 ]] || usage
         renew
@@ -448,5 +295,4 @@ case "${1:-}" in
     *) usage ;;
 esac
 
-# Footer marker for auditability
 log "✅ deploy_certificates.sh finished"

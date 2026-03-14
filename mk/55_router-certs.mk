@@ -1,8 +1,13 @@
 # ============================================================
 # mk/55_router_certs.mk — Router certificate deployment
 # ============================================================
-ifeq ($(shell id -u),0)
-$(error Do not run deploy-router as root; run make deploy-router as an unprivileged user)
+# SSH-based targets that should NEVER be run as root to protect the user's SSH environment
+SENSITIVE_ROUTER_GOALS := deploy-router bootstrap-router router-all router-all-full
+
+ifneq ($(filter $(SENSITIVE_ROUTER_GOALS),$(MAKECMDGOALS)),)
+	ifeq ($(shell id -u),0)
+		$(error ❌ Do not run $(filter $(SENSITIVE_ROUTER_GOALS),$(MAKECMDGOALS)) as root; run as an unprivileged user)
+	endif
 endif
 
 ROUTER_CERT_CHECKSUM := /tmp/router-cert-checksum.txt
