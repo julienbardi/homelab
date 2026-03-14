@@ -2,14 +2,9 @@
 # /usr/local/bin/certs-deploy.sh
 set -euo pipefail
 
-# --- MINIMALIST LOGGING ---
-# Setting this to empty tells common.sh to suppress the [certs-deploy] prefix
 SCRIPT_NAME=""
-
-# Sourcing the COMMON to provide the install_files_if_changed_v2 function
 COMMON="/usr/local/bin/common.sh"
 [[ -f "$COMMON" ]] || { echo "❌ Error: $COMMON not found" >&2; exit 1; }
-# shellcheck source=scripts/common.sh
 source "$COMMON"
 
 # Constants
@@ -18,39 +13,50 @@ CANON_CA="/var/lib/ssl/canonical/ca.cer"
 CADDY_CA="/etc/ssl/caddy/homelab_bardi_CA.pem"
 ACME_HOME="/var/lib/acme"
 ACME_GROUP="ssl-cert"
+DOMAIN="bardi.ch"
 
-# 1. Environment Hardening (Replaces Makefile fix-acme-perms)
+# Caddy Target Paths
+CADDY_CERT_DIR="/etc/ssl/caddy"
+CADDY_CERT="$CADDY_CERT_DIR/$DOMAIN.cer"
+CADDY_KEY="$CADDY_CERT_DIR/$DOMAIN.key"
+
+# 1. Environment Hardening
 if [ -d "$ACME_HOME" ]; then
     log "🔧 Hardening ACME permissions at $ACME_HOME"
-    # Ensure group exists and set ownership
     chown -R root:"$ACME_GROUP" "$ACME_HOME"
-
-    # Secure directories
     find "$ACME_HOME" -type d -exec chmod 750 {} +
-
-    # Secure sensitive keys
-    find "$ACME_HOME" -type f -name "*.key" -exec chmod 600 {} + 2>/dev/null
-
-    # Set public readability for certificates and configs
-    find "$ACME_HOME" -type f \( -name "*.cer" -o -name "*.conf" -o -name "*.csr" \) -exec chmod 644 {} + 2>/dev/null
-
-    # Ensure scripts are executable but protected
-    find "$ACME_HOME" -type f -name "*.sh" -exec chmod 750 {} + 2>/dev/null
+    find "$ACME_HOME" -type f -exec chmod 600 {} +
+    find "$ACME_HOME" -name "*.sh" -exec chmod 750 {} +
 fi
 
 # 2. Synchronization Logic
 require_file "$CA_PUB"
-#log "🛡️  Synchronizing CA public certs..."
-
 ANY_CHANGED=0
 
-# Use the V2 engine for atomic, hash-based deployment
+# Sync CA Public Certs
 install_files_if_changed_v2 ANY_CHANGED \
     "" "" "$CA_PUB"   "" "" "$CANON_CA" "root" "root" "0644" \
     "" "" "$CANON_CA" "" "" "$CADDY_CA" "root" "root" "0644"
 
+# Sync Site Certificates (Pushing ECC certs to Caddy)
+SRC_DIR="$ACME_HOME/${DOMAIN}_ecc"
+if [ -d "$SRC_DIR" ]; then
+    log "📦 Deploying $DOMAIN ECC certificates to $CADDY_CERT_DIR"
+    mkdir -p "$CADDY_CERT_DIR"
+
+    # We use fullchain.cer for Caddy to ensure the intermediate is provided
+    install_files_if_changed_v2 ANY_CHANGED \
+        "" "" "$SRC_DIR/fullchain.cer" "" "" "$CADDY_CERT" "root" "root" "0644" \
+        "" "" "$SRC_DIR/$DOMAIN.key"   "" "" "$CADDY_KEY"  "root" "root" "0600"
+fi
+
+# 3. Service Reload
 if [[ "$ANY_CHANGED" -eq 1 ]]; then
-    log "✅ CA public cert updated and deployed"
+    log "✅ Certificates updated and deployed"
+    if systemctl is-active --quiet caddy; then
+        log "🔄 Reloading Caddy..."
+        systemctl reload caddy
+    fi
 else
-    log "⚪ CA public cert already up-to-date"
+    log "⚪ All certificates already up-to-date"
 fi
