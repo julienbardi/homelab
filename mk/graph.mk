@@ -60,10 +60,10 @@ include $(MAKEFILE_DIR)mk/56_router-certs.mk
 include $(MAKEFILE_DIR)mk/99_router-tools.mk
 include $(MAKEFILE_DIR)mk/99_router-python.mk
 
-include $(MAKEFILE_DIR)mk/40_acme.mk        # ACME client orchestration (Let's Encrypt, etc.)
+include $(MAKEFILE_DIR)mk/40_acme.mk
 include $(MAKEFILE_DIR)mk/40_code-server.mk
-include $(MAKEFILE_DIR)mk/40_router.mk      # Router orchestration
-include $(MAKEFILE_DIR)mk/40_wireguard.mk   # Wireguard orchestration
+include $(MAKEFILE_DIR)mk/40_nas-router.mk
+include $(MAKEFILE_DIR)mk/40_wireguard.mk
 include $(MAKEFILE_DIR)mk/40_wireguard_py.mk
 include $(MAKEFILE_DIR)mk/41_wireguard-status.mk
 include $(MAKEFILE_DIR)mk/42_wireguard-qr.mk
