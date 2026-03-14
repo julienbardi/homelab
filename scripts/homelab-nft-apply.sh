@@ -19,7 +19,7 @@ log "🔧 Ensuring nftables config directory exists..."
 run_as_root install -d -o root -g root -m 0755 "$HOMELAB_NFT_ETC_DIR"
 
 log "📦 Installing nftables ruleset..."
-/usr/local/bin/install_file_if_changed.sh --quiet "" "" "$HOMELAB_NFT_RULES_SRC" "" "" "$HOMELAB_NFT_RULESET" root root 0644
+/usr/local/bin/install_file_if_changed_v2.sh -q "" "" "$HOMELAB_NFT_RULES_SRC" "" "" "$HOMELAB_NFT_RULESET" root root 0644
 
 log "🔍 Validating nft ruleset..."
 run_as_root nft -c -f "$HOMELAB_NFT_RULESET"

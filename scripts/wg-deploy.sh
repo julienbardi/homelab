@@ -21,8 +21,8 @@ DRY_RUN="${WG_DRY_RUN:-0}"
 die()  { echo "❌ wg-deploy: ERROR: $*" >&2; exit 1; }
 need() { [ -e "$1" ] || die "missing required path: $1"; }
 
-INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed.sh"
-[ -x "$INSTALL_FILE_IF_CHANGED" ] || die "install_file_if_changed.sh not found or not executable"
+INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed_v2.sh"
+[ -x "$INSTALL_FILE_IF_CHANGED" ] || die "install_file_if_changed_v2.sh not found or not executable"
 
 if [ "$DRY_RUN" != "1" ]; then
     LOCKFILE="/run/wg-apply.lock"
@@ -192,7 +192,7 @@ META_TMP="$(mktemp)"
 } >"$META_TMP"
 
 # Metadata updates are not failures
-"$INSTALL_FILE_IF_CHANGED" --quiet "" "" "$META_TMP" "" "" "$META" root root 600 || true
+"$INSTALL_FILE_IF_CHANGED" -q "" "" "$META_TMP" "" "" "$META" root root 600 || true
 
 # Hard policy guard: forbid legacy artifacts
 if [ -d "$WG_DIR/.legacy" ]; then

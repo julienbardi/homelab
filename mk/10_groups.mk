@@ -156,11 +156,8 @@ KNOWN_HOSTS_SCRIPT_GROUP := root
 KNOWN_HOSTS_SCRIPT_MODE := 0755
 
 .PHONY: prereqs-enforce-known-hosts-script
-prereqs-enforce-known-hosts-script:
-	@/usr/local/bin/install_file_if_changed.sh --quiet \
-	"" "" "$(KNOWN_HOSTS_SCRIPT_SRC)" \
-	"" "" "$(KNOWN_HOSTS_SCRIPT_DST)" \
-	$(KNOWN_HOSTS_SCRIPT_OWNER) $(KNOWN_HOSTS_SCRIPT_GROUP) $(KNOWN_HOSTS_SCRIPT_MODE)
+prereqs-enforce-known-hosts-script: ensure-run-as-root
+	@$(call install_file,$(KNOWN_HOSTS_SCRIPT_SRC),$(KNOWN_HOSTS_SCRIPT_DST),$(KNOWN_HOSTS_SCRIPT_OWNER),$(KNOWN_HOSTS_SCRIPT_GROUP),$(KNOWN_HOSTS_SCRIPT_MODE))
 
 # ============================================================
 # SSH known_hosts enforcement

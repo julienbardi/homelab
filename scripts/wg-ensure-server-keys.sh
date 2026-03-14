@@ -14,10 +14,10 @@ PUBDIR="$WG_ROOT/compiled/server-pubkeys"
 PLAN="$WG_ROOT/compiled/plan.tsv"
 OUT_BASE="$WG_ROOT/out/server/base"
 
-INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed.sh"
+INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed_v2.sh"
 
 [ -x "$INSTALL_FILE_IF_CHANGED" ] || {
-    echo "wg-ensure-server-keys: ERROR: install_file_if_changed.sh not found or not executable" >&2
+    echo "wg-ensure-server-keys: ERROR: install_file_if_changed_v2.sh not found or not executable" >&2
     exit 1
 }
 
@@ -47,7 +47,6 @@ ifaces="$(
                 { print $2 }
         ' "$PLAN" | sort -u
 )"
-
 
 [ -n "$ifaces" ] || {
     echo "wg-ensure-server-keys: ERROR: no ifaces found in $PLAN" >&2
@@ -79,14 +78,11 @@ for iface in $ifaces; do
     fi
 
     # Publish the server pubkey into the compiled artifact directory (renderer contract)
-        rc=0
-        "$INSTALL_FILE_IF_CHANGED" --quiet \
-            "" "" "$pub" \
-            "" "" "$PUBDIR/$iface.pub" \
-            root root 644 || rc=$?
-        if [ "$rc" -ne 0 ] && [ "$rc" -ne "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]; then
-            exit "$rc"
-        fi
+    # Using the 9-argument vector format for V2
+    "$INSTALL_FILE_IF_CHANGED" -q \
+        "" "" "$pub" \
+        "" "" "$PUBDIR/$iface.pub" \
+        root root 644
 
     i="${iface#wg}"
     out="$OUT_BASE/$iface.conf"
@@ -98,6 +94,7 @@ for iface in $ifaces; do
         tmp="$(mktemp)"
         trap 'rm -f "$tmp"' EXIT
 
+        # Note: server addressing logic follows the deterministic contract: 10.N.0.1
         cat >"$tmp" <<EOF
 [Interface]
 Address = 10.${i}.0.1/16, fd89:7a3b:42c0:${i}::1/64
@@ -109,7 +106,6 @@ EOF
             wg4|wg7) echo "Table = off" >>"$tmp" ;;
         esac
 
-        "$INSTALL_FILE_IF_CHANGED" --quiet "" "" "$tmp" "" "" "$out" root root 600
-
+        "$INSTALL_FILE_IF_CHANGED" -q "" "" "$tmp" "" "" "$out" root root 600
     )
 done

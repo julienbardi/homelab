@@ -1,7 +1,9 @@
 # /etc/systemd/system/cert-reload@.service
 [Unit]
 Description=Reload %i when certs change
+Documentation=part of homelab certificate orchestration
 
 [Service]
 Type=oneshot
-ExecStart=/bin/systemctl reload %i.service
+# Use reload-or-restart to handle services that don't support SIGHUP/reload
+ExecStart=/bin/systemctl reload-or-restart %i.service

@@ -33,12 +33,22 @@
 #   3  -> Success, destination updated
 #   2  -> Dependency missing (sha256sum on source or destination)
 #   1  -> Failure (invalid args, SSH/access/IO error, hash mismatch, lock timeout)
-set -eu
+set -u
 LC_ALL=C; export LC_ALL
 
-# ---------------------------------------------------------------------------
-# CONFIGURATION & ARGUMENTS
-# ---------------------------------------------------------------------------
+# --- Sourcing common.sh ---
+SCRIPT_NAME="" # Tells common.sh to suppress brackets
+
+# Using absolute path for the system-wide library
+if [ -f "/usr/local/bin/common.sh" ]; then
+    # Use the POSIX dot operator for maximum compatibility with /bin/sh
+    . /usr/local/bin/common.sh
+fi
+# If common.sh wasn't found, we define a barebones log so the script doesn't crash
+if ! command -v log >/dev/null 2>&1; then
+    log() { echo "$*" >&2; }
+fi
+
 quiet=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -59,152 +69,115 @@ OWNER="${7:-}"
 GROUP="${8:-}"
 MODE="${9:-}"
 
-log() { [ "$quiet" -eq 0 ] && echo "📦 ifc: $*" >&2; }
+INSTALL_MODE=local
+[ -n "$DST_HOST" ] && INSTALL_MODE=remote
 
-[ "$(id -u)" -eq 0 ] || { echo "❌ Must be run as root" >&2; exit 1; }
-
+# Validations
 [ -n "$SRC_PATH" ] && [ -n "$DST_PATH" ] && [ -n "$OWNER" ] && [ -n "$GROUP" ] && [ -n "$MODE" ] || {
-    echo "❌ Usage: $0 SRC_HOST SRC_PORT SRC_PATH DST_HOST DST_PORT DST_PATH OWNER GROUP MODE" >&2
+    echo "❌ Usage: SRC_HOST SRC_PORT SRC_PATH DST_HOST DST_PORT DST_PATH OWNER GROUP MODE" >&2
     exit 1
 }
 
-case "$MODE" in
-    [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;;
-    *) echo "❌ Invalid octal mode: $MODE" >&2; exit 1 ;;
-esac
-
-: "${TMPDIR:=/tmp}"
-[ -d "$TMPDIR" ] && [ -w "$TMPDIR" ] || { echo "❌ TMPDIR not writable: $TMPDIR" >&2; exit 1; }
-
 PID="$$"
 TS="$(date +%s).${PID}"
+: "${TMPDIR:=/tmp}"
 
 # ---------------------------------------------------------------------------
-# SSH / EXECUTION WRAPPERS (Argument Boundary Policy)
+# STEP 1: HASH CALCULATION
 # ---------------------------------------------------------------------------
-MUX_SRC="$TMPDIR/.ifc_s_${PID}"
-MUX_DST="$TMPDIR/.ifc_d_${PID}"
-F_SRC="$TMPDIR/.ifc_src.${TS}"
-F_DST="$TMPDIR/.ifc_dst.${TS}"
+#[ "$quiet" -eq 0 ] && log "📦 Checking $SRC_PATH..."
 
-cleanup() {
-    [ -n "$SRC_HOST" ] && [ -S "$MUX_SRC" ] && ssh -o ControlPath="$MUX_SRC" -O exit "$SRC_HOST" >/dev/null 2>&1 || true
-    [ -n "$DST_HOST" ] && [ -S "$MUX_DST" ] && ssh -o ControlPath="$MUX_DST" -O exit "$DST_HOST" >/dev/null 2>&1 || true
-    rm -f "$F_SRC" "$F_DST" "$MUX_SRC" "$MUX_DST"
-}
-trap cleanup EXIT INT TERM
-
-ssh_cmd() {
-    _H="$1"; _P="$2"; shift 2
-    if [ -z "$_H" ]; then
-        "$@"
-    else
-        case "$_H" in
-            "$SRC_HOST") _MUX="$MUX_SRC" ;;
-            "$DST_HOST") _MUX="$MUX_DST" ;;
-            *) echo "❌ Multiplexing host mismatch: $_H" >&2; exit 1 ;;
-        esac
-        ssh -p "$_P" -o BatchMode=yes -o ConnectTimeout=10 \
-            -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
-            -o ControlMaster=auto -o ControlPath="$_MUX" -o ControlPersist=1m \
-            -o LogLevel=ERROR "$_H" "$@"
-    fi
-}
-
-run_on_dst() {
-    if [ -z "$DST_HOST" ]; then
-        sh -s -- "$@"
-    else
-        ssh_cmd "$DST_HOST" "$DST_PORT" sh -s -- "$@"
-    fi
-}
-
-# ---------------------------------------------------------------------------
-# STEP 1: PARALLEL HASH COMPARISON
-# ---------------------------------------------------------------------------
-( ssh_cmd "$SRC_HOST" "$SRC_PORT" sh -s -- "$SRC_PATH" <<'EOF'
-set -eu
-LC_ALL=C; export LC_ALL
-command -v sha256sum >/dev/null 2>&1 || exit 2
-[ -f "$1" ] || exit 1
-sha256sum "$1" | awk '{print $1}'
-EOF
-) >"$F_SRC" & P1=$!
-
-( ssh_cmd "$DST_HOST" "$DST_PORT" sh -s -- "$DST_PATH" <<'EOF'
-set -eu
-LC_ALL=C; export LC_ALL
-command -v sha256sum >/dev/null 2>&1 || exit 2
-if [ -f "$1" ]; then
-  sha256sum "$1" | awk '{print $1}'
+# Calculate Source Hash
+if [ -z "$SRC_HOST" ]; then
+    SRC_HASH=$(sha256sum "$SRC_PATH" 2>/dev/null | awk '{print $1}')
+else
+    SRC_HASH=$(ssh -p "$SRC_PORT" -o BatchMode=yes "$SRC_HOST" "sha256sum '$SRC_PATH'" 2>/dev/null | awk '{print $1}')
 fi
-EOF
-) >"$F_DST" & P2=$!
 
-wait "$P1" || { ec=$?; [ "$ec" -eq 2 ] && exit 2; exit 1; }
-wait "$P2" || { ec=$?; [ "$ec" -eq 2 ] && exit 2; exit 1; }
+if [ -z "$SRC_HASH" ]; then
+    echo "❌ IFC: Failed to calculate source hash for $SRC_PATH" >&2
+    exit 1
+fi
 
-SRC_HASH="$(cat "$F_SRC")"
-DST_HASH="$(cat "$F_DST" 2>/dev/null || echo "")"
-
-[ -n "$SRC_HASH" ] || { echo "❌ Source hash calculation failed" >&2; exit 1; }
+# Calculate Destination Hash (using sudo locally to handle /etc/ssl permissions)
+if [ -z "$DST_HOST" ]; then
+    DST_HASH=$(sudo sha256sum "$DST_PATH" 2>/dev/null | awk '{print $1}') || DST_HASH="none"
+else
+    DST_HASH=$(ssh -p "$DST_PORT" -o BatchMode=yes "$DST_HOST" "sha256sum '$DST_PATH'" 2>/dev/null | awk '{print $1}') || DST_HASH="none"
+fi
 
 if [ "$SRC_HASH" = "$DST_HASH" ]; then
-    log "⚪ $DST_PATH up-to-date"
+    [ "$quiet" -eq 0 ] && log "⚪ $DST_PATH up-to-date"
     exit 0
 fi
 
 # ---------------------------------------------------------------------------
-# STEP 2: ATOMIC INSTALL WITH DESTINATION LOCK
+# STEP 2: UPDATE (ATOMIC)
 # ---------------------------------------------------------------------------
-H_SHORT="$(echo "$SRC_HASH" | cut -c1-16)"
-DST_DIR="$(ssh_cmd "$DST_HOST" "$DST_PORT" dirname -- "$DST_PATH")"
-BASE="$(ssh_cmd "$DST_HOST" "$DST_PORT" basename -- "$DST_PATH")"
-TMP_REMOTE="$DST_DIR/.${BASE}.ifc_${H_SHORT}_${TS}"
+[ "$quiet" -eq 0 ] && log "🔄 Updating $DST_PATH..."
 
-ssh_cmd "$DST_HOST" "$DST_PORT" mkdir -p -- "$DST_DIR"
-log "🔄 Updating $DST_PATH..."
+if [ -z "$DST_HOST" ]; then
+    # --- LOCAL INSTALL STRATEGY ---
+    LOCK="${DST_PATH}.lock"
+    BUFFER="${TMPDIR}/.ifc_buf_${PID}"
 
-if [ -z "$SRC_HOST" ]; then
-    cat -- "$SRC_PATH"
+    # Capture source data into a buffer julie can write to
+    if [ -z "$SRC_HOST" ]; then
+        cat "$SRC_PATH" > "$BUFFER"
+    else
+        ssh -p "$SRC_PORT" -o BatchMode=yes "$SRC_HOST" "cat '$SRC_PATH'" > "$BUFFER"
+    fi
+
+    # Verify buffer hash before escalation
+    BUF_HASH=$(sha256sum "$BUFFER" | awk '{print $1}')
+    if [ "$BUF_HASH" != "$SRC_HASH" ]; then
+        echo "❌ IFC: Buffer corruption detected" >&2
+        rm -f "$BUFFER"
+        exit 1
+    fi
+
+    # Escalated Atomicity: Lock, Move, Chown, Chmod
+    # We use a single sudo call with a simple command chain to ensure it works on UGOS
+    sudo sh -c "
+        mkdir '$LOCK' 2>/dev/null || { echo 'Lock exists' >&2; exit 1; }
+        mv -f '$BUFFER' '$DST_PATH'
+        chown '$OWNER:$GROUP' '$DST_PATH' 2>/dev/null || chown '$OWNER' '$DST_PATH'
+        chmod '$MODE' '$DST_PATH'
+        rm -rf '$LOCK'
+        sync
+    " || {
+        echo "❌ IFC: Local installation failed" >&2
+        sudo rm -rf "$LOCK"
+        rm -f "$BUFFER"
+        exit 1
+    }
+    rm -f "$BUFFER"
+
 else
-    ssh_cmd "$SRC_HOST" "$SRC_PORT" cat -- "$SRC_PATH"
-fi | run_on_dst \
-    "$TMP_REMOTE" "$DST_PATH" "$OWNER" "$GROUP" "$MODE" "$SRC_HASH" <<'EOF'
-set -eu
-PATH=/usr/sbin:/usr/bin:/sbin:/bin; export PATH
-LC_ALL=C; export LC_ALL
+    # --- REMOTE INSTALL STRATEGY ---
+    # Pipe data through base64 to ensure binary safety over SSH
+    {
+        if [ -z "$SRC_HOST" ]; then
+            cat "$SRC_PATH"
+        else
+            ssh -p "$SRC_PORT" -o BatchMode=yes "$SRC_HOST" "cat '$SRC_PATH'"
+        fi
+    } | base64 | ssh -p "$DST_PORT" -o BatchMode=yes "$DST_HOST" "
+        set -eu
+        T=\"/tmp/.ifc_rem_${PID}\"
+        base64 -d > \"\$T\"
+        H=\$(sha256sum \"\$T\" | awk '{print \$1}')
+        if [ \"\$H\" != \"$SRC_HASH\" ]; then exit 1; fi
+        mkdir -p \"\$(dirname '$DST_PATH')\"
+        mv -f \"\$T\" '$DST_PATH'
+        chown '$OWNER:$GROUP' '$DST_PATH' 2>/dev/null || chown '$OWNER' '$DST_PATH'
+        chmod '$MODE' '$DST_PATH'
+        sync
+    " || {
+        echo "❌ IFC: Remote installation failed" >&2
+        exit 1
+    }
+fi
 
-tmp="$1"; dst="$2"; owner="$3"; group="$4"; mode="$5"; expected="$6"
-lock="${dst}.lock"
-
-# Mutex acquisition (mkdir is atomic)
-i=0; locked=0
-while [ "$i" -lt 10 ]; do
-    if mkdir "$lock" 2>/dev/null; then locked=1; break; fi
-    i=$((i + 1)); sleep 1
-done
-
-[ "$locked" -eq 1 ] || { echo "❌ Timeout waiting for lock: $lock" >&2; exit 1; }
-
-trap 'rm -rf "$lock" "$tmp" 2>/dev/null' EXIT
-
-# Atomic Write to temporary location
-cat >"$tmp"
-
-# Post-write Integrity Check
-actual="$(sha256sum "$tmp" | awk '{print $1}')"
-[ "$actual" = "$expected" ] || { echo "❌ Hash mismatch" >&2; exit 1; }
-[ -s "$tmp" ] || { echo "❌ Empty file written" >&2; exit 1; }
-
-# Permissions and Atomic Swap
-chown "$owner:$group" "$tmp" 2>/dev/null || chown "$owner" "$tmp" 2>/dev/null || true
-chmod "$mode" "$tmp"
-mv -f "$tmp" "$dst"
-sync "$dst" 2>/dev/null || sync "$(dirname "$dst")" 2>/dev/null || sync
-
-trap - EXIT
-rm -rf "$lock"
-EOF
-
+[ "$quiet" -eq 0 ] && log "✅ $DST_PATH updated successfully"
 exit 3
