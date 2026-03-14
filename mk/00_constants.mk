@@ -17,8 +17,8 @@ ROUTER_SSH_PORT ?= 2222
 ROUTER_SCRIPTS  ?= /jffs/scripts
 
 # Router script metadata (owner/group/mode)
-ROUTER_SCRIPTS_OWNER := root
-ROUTER_SCRIPTS_GROUP := root
+ROUTER_SCRIPTS_OWNER := 0
+ROUTER_SCRIPTS_GROUP := 0
 ROUTER_SCRIPTS_MODE  := 0755
 
 # Local source directory for router scripts
