@@ -30,8 +30,8 @@ router-require-arm64: | router-ssh-check
 # ------------------------------------------------------------
 
 .PHONY: router-caddy-install
-router-caddy-install: | router-ssh-check router-require-arm64
-	$(call deploy_if_changed,$(SRC_SCRIPTS)/caddy,$(CADDY_BIN))
+router-caddy-install: $(ROUTER_CADDY_BIN) | router-ssh-check router-require-arm64
+	@$(call PUSH_ROUTER_SCRIPT,$(ROUTER_CADDY_BIN),$(ROUTER_SCRIPTS)/caddy)
 
 # ------------------------------------------------------------
 # Push and validate Caddyfile
@@ -39,9 +39,13 @@ router-caddy-install: | router-ssh-check router-require-arm64
 
 .PHONY: router-caddy-config
 router-caddy-config: router-firewall-started | router-require-arm64
-	@scp -q -O -P $(ROUTER_SSH_PORT) $(CADDYFILE_SRC) $(ROUTER_HOST):$(CADDYFILE_DST)
-	@$(run_as_root) $(CADDY_BIN) validate --config $(CADDYFILE_DST)
-	@$(run_as_root) /jffs/scripts/caddy-reload.sh
+	@scp -q -O -P $(ROUTER_SSH_PORT) \
+		$(ROUTER_CADDYFILE_SRC) \
+		$(ROUTER_HOST):$(ROUTER_CADDYFILE_DST)
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
+		'$(ROUTER_CADDY_BIN) validate --config $(ROUTER_CADDYFILE_DST)'
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '/jffs/scripts/caddy-reload.sh'
+
 
 # ------------------------------------------------------------
 # High‑level deploy
@@ -67,9 +71,8 @@ router-caddy-status: | router-ssh-check
 
 .PHONY: router-caddy-start
 router-caddy-start: | router-ssh-check
-	@$(run_as_root) $(CADDY_BIN) start
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_CADDY_BIN) start'
 
 .PHONY: router-caddy-stop
 router-caddy-stop: | router-ssh-check
-	@$(run_as_root) $(CADDY_BIN) stop
-
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_CADDY_BIN) stop'

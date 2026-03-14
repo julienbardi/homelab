@@ -15,12 +15,11 @@
 # Authoritative local paths (Sync with mk/01_common.mk)
 IFC_V2_BIN        := /usr/local/bin/install_file_if_changed_v2.sh
 IFC_V2_PLURAL_BIN := /usr/local/bin/install_files_if_changed_v2.sh
-IFC_V1_BIN        := /usr/local/bin/install_file_if_changed.sh
 
 # Grouping target for local tools (Phony)
 # Recipes are defined in mk/01_common.mk
 .PHONY: install-local-ifc-engine
-install-local-ifc-engine: $(IFC_V2_BIN) $(IFC_V2_PLURAL_BIN) $(IFC_V1_BIN)
+install-local-ifc-engine:  $(IFC_V2_BIN) $(IFC_V2_PLURAL_BIN)
 
 # Update the base dependency to ensure the engine is present before any push
 router-install-scripts: ensure-run-as-root install-local-ifc-engine

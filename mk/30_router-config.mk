@@ -25,17 +25,17 @@ ROUTER_SSH_PORT  := 2222
 ROUTER_SCRIPTS   := /jffs/scripts
 REPO_ROOT        := $(MAKEFILE_DIR)
 
-SRC_DDNS         := $(REPO_ROOT)ddns
-SRC_CADDY        := $(REPO_ROOT)caddy
-SRC_SCRIPTS      := $(REPO_ROOT)jffs/scripts
+SRC_DDNS           := $(REPO_ROOT)ddns
+ROUTER_SRC_CADDY   := $(REPO_ROOT)caddy
+ROUTER_SRC_SCRIPTS := $(REPO_ROOT)jffs/scripts
 
-DNSMASQ_CONF_ADD := /jffs/configs/dnsmasq.conf.add
-DNS_CACHE_SIZE   := 10000
-DNSMASQ_CACHE_LINE := cache-size=$(DNS_CACHE_SIZE)
+ROUTER_DNSMASQ_CONF_ADD   := /jffs/configs/dnsmasq.conf.add
+ROUTER_DNS_CACHE_SIZE     := 10000
+ROUTER_DNSMASQ_CACHE_LINE := cache-size=$(ROUTER_DNS_CACHE_SIZE)
 
-CADDYFILE_SRC := $(SRC_CADDY)/Caddyfile
-CADDYFILE_DST := /etc/caddy/Caddyfile
-CADDY_BIN     := /tmp/mnt/sda/router/bin/caddy
+ROUTER_CADDYFILE_SRC := $(ROUTER_SRC_CADDY)/Caddyfile
+ROUTER_CADDYFILE_DST := /etc/caddy/Caddyfile
+ROUTER_CADDY_BIN     := /tmp/mnt/sda/router/bin/caddy
 
 TOOLS_DIR     := .tools
 CHECKMAKE     := $(TOOLS_DIR)/checkmake
