@@ -8,6 +8,9 @@
 #   DNS_WARM_PROFILE=full   (explicitly enable large lists)
 
 set -euo pipefail
+# shellcheck disable=SC2034
+SCRIPT_NAME="dns-warm-update-domains"
+# shellcheck disable=SC1091
 source "/home/julie/src/homelab/scripts/common.sh"
 
 require_bin funzip "Tranco list extraction"
@@ -25,14 +28,14 @@ CURATED_FILE="/etc/dns-warm/curated.txt"
 # Profile controls inclusion of large external lists
 PROFILE="${DNS_WARM_PROFILE:-full}"
 
-[ "$(id -u)" -eq 0 ] || {
-	log "❌ must be run as root"
-	exit 1
-}
+if [[ $EUID -ne 0 ]]; then
+    log "❌ must be run as root"
+    exit 1
+fi
 
 [ "$DOMAIN_CACHE_TTL" -eq 0 ] && log "Cache disabled (TTL=0)"
 
-install -d "$(dirname "$DOMAINS_FILE")"
+run_as_root install -d "$(dirname "$DOMAINS_FILE")"
 
 now=$(date +%s)
 
@@ -80,7 +83,7 @@ log "Including large external domain lists"
 
 	# 2. Fetch Tranco list with SIGPIPE handling
 	set +o pipefail
-	curl -fsSL "$TRANCO_URL" | funzip | \
+	curl -fsSL "$TRANCO_URL" 2>/dev/null | funzip | \
 		awk -F, -v limit="$TRANCO_LIMIT" 'NR > 1 && NF >= 2 {
 			sub(/\r$/, "", $2);
 			print $2;
