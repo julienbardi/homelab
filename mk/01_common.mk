@@ -10,15 +10,18 @@ INSTALL_PATH      ?= /usr/local/bin
 INSTALL_SBIN_PATH ?= /usr/local/sbin
 
 # Global Engine Pointers (V2 ONLY)
-INSTALL_FILE_IF_CHANGED         := $(INSTALL_PATH)/install_file_if_changed_v2.sh
-INSTALL_FILES_IF_CHANGED        := $(INSTALL_PATH)/install_files_if_changed_v2.sh
+INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
+INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v2.sh
+INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_changed.sh
+
 INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
 
 # Source Paths
 IFC_V2_SINGLE_SRC := $(MAKEFILE_DIR)scripts/install_file_if_changed_v2.sh
 IFC_V2_PLURAL_SRC := $(MAKEFILE_DIR)scripts/install_files_if_changed_v2.sh
-COMMON_SRC         := $(MAKEFILE_DIR)scripts/common.sh
-RUN_ROOT_SRC       := $(MAKEFILE_DIR)scripts/run-as-root.sh
+IFC_URL_SRC       := $(MAKEFILE_DIR)scripts/install_url_file_if_changed.sh
+COMMON_SRC        := $(MAKEFILE_DIR)scripts/common.sh
+RUN_ROOT_SRC      := $(MAKEFILE_DIR)scripts/run-as-root.sh
 
 # ------------------------------------------------------------
 # Tools Installation (The Bootstrap Core)
@@ -32,19 +35,25 @@ $(INSTALL_SBIN_PATH)/run-as-root.sh: $(RUN_ROOT_SRC)
 run_as_root := $(INSTALL_SBIN_PATH)/run-as-root.sh
 
 # 2. Singular V2 Engine
-$(INSTALL_PATH)/install_file_if_changed_v2.sh: $(IFC_V2_SINGLE_SRC) $(run_as_root)
+$(INSTALL_PATH)/install_file_if_changed_v2.sh: $(IFC_V2_SINGLE_SRC) $(INSTALL_FILE_IF_CHANGED)
 	@echo "🚀 Installing Singular V2 Engine: $@"
-	@$(run_as_root) install -o root -g root -m 0755 $< $@
+	@$(call install_file,$<,$@,root,root,0755)
 
 # 3. Vectorized V2 Engine
-$(INSTALL_PATH)/install_files_if_changed_v2.sh: $(IFC_V2_PLURAL_SRC) $(run_as_root)
+$(INSTALL_PATH)/install_files_if_changed_v2.sh: $(IFC_V2_PLURAL_SRC) $(INSTALL_FILE_IF_CHANGED)
 	@echo "🚀 Installing Vectorized V2 Engine: $@"
-	@$(run_as_root) install -o root -g root -m 0755 $< $@
+	@$(call install_file,$<,$@,root,root,0755)
 
 # 4. Common library
-$(INSTALL_PATH)/common.sh: $(COMMON_SRC) $(run_as_root)
+$(INSTALL_PATH)/common.sh: $(COMMON_SRC) $(INSTALL_FILE_IF_CHANGED)
 	@echo "📦 Installing Common Lib: $@"
-	@$(run_as_root) install -o root -g root -m 0755 $< $@
+	@$(call install_file,$<,$@,root,root,0755)
+
+
+# 5. URL-based IFC Engine
+$(INSTALL_URL_FILE_IF_CHANGED): $(IFC_URL_SRC) $(INSTALL_FILE_IF_CHANGED)
+	@echo "🚀 Installing URL IFC Engine: $@"
+	@$(call install_file,$<,$@,root,root,0755)
 
 # ------------------------------------------------------------
 # Macros
@@ -76,12 +85,22 @@ BOOTSTRAP_FILES := \
 	$(run_as_root) \
 	$(INSTALL_FILE_IF_CHANGED) \
 	$(INSTALL_FILES_IF_CHANGED) \
+	$(INSTALL_URL_FILE_IF_CHANGED) \
 	$(INSTALL_PATH)/common.sh \
 	$(HOMELAB_ENV_DST)
 
-# Pattern rules for general scripts
+
+# Prevent Make from generating install targets for router scripts
+$(INSTALL_PATH)/router-%.sh: ;
+
+# Install only non-router scripts
 $(INSTALL_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh | $(BOOTSTRAP_FILES)
-	@$(call install_script,$<,$(notdir $<))
+	@if echo "$(notdir $<)" | grep -q '^router-'; then \
+		echo "⏭️  Skipping router script $< (no target generated)"; \
+		exit 0; \
+	else \
+		$(call install_script,$<,$(notdir $<)); \
+	fi
 
 $(INSTALL_SBIN_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh | $(BOOTSTRAP_FILES)
 	@$(call install_sbin_script,$<,$(notdir $<))
@@ -91,10 +110,11 @@ ALL_SCRIPTS  := $(notdir $(wildcard $(MAKEFILE_DIR)scripts/*.sh))
 
 # Exclude bootstrap files and sbin files from the generic bin list
 EXCLUDE_LIST := $(SBIN_SCRIPTS) \
-                install_file_if_changed_v2.sh \
-                install_files_if_changed_v2.sh \
-                common.sh \
-                install_file_if_changed.sh
+				install_file_if_changed_v2.sh \
+				install_files_if_changed_v2.sh \
+				common.sh \
+				install_file_if_changed.sh \
+				router-*.sh
 
 BIN_FILES        := $(addprefix $(INSTALL_PATH)/,$(filter-out $(EXCLUDE_LIST),$(ALL_SCRIPTS)))
 OTHER_SBIN_FILES := $(addprefix $(INSTALL_SBIN_PATH)/,$(filter-out run-as-root.sh,$(SBIN_SCRIPTS)))
