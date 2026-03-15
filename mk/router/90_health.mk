@@ -34,9 +34,9 @@ router-health: router-ssh-check
 				echo "   ❌ WGCI chain missing"; exit 1; \
 			fi; \
 		echo "→ Caddy:"; \
-			test -x "$(CADDY_BIN)" || { echo "   ❌ binary missing"; exit 1; }; \
+			test -x "$(ROUTER_CADDY_BIN)" || { echo "   ❌ binary missing"; exit 1; }; \
 			pidof caddy >/dev/null || { echo "   ❌ process not running"; exit 1; }; \
-			$(CADDY_BIN) validate --config $(CADDYFILE_DST) >/dev/null 2>&1 || \
+			$(ROUTER_CADDY_BIN) validate --config $(CADDYFILE_DST) >/dev/null 2>&1 || \
 				{ echo "   ❌ config invalid"; exit 1; }; \
 			echo "   ✓ binary present"; \
 			echo "   ✓ process running"; \

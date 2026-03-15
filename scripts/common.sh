@@ -31,6 +31,14 @@ log() {
     command -v logger >/dev/null 2>&1 && logger -t homelab "${SCRIPT_NAME:-${0##*/}}: $*"
 }
 
+run_as_root() {
+    if [[ $EUID -eq 0 ]]; then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
 # Idempotent rule inserter: checks with -C first
 ensure_rule() {
     local cmd="$1"; shift

@@ -118,13 +118,13 @@ define deploy_if_changed
 endef
 
 # ------------------------------------------------------------
-# ROUTER CONTROL PLANE (namespaced)
+# ROUTER CONTROL PLANE (namespaced, already include in mk/graph.mk)
 # ------------------------------------------------------------
 
-include mk/router/05_ssh.mk
-include mk/router/10_bootstrap.mk
-include mk/router/20_firewall.mk
-include mk/router/90_health.mk
+#include mk/router/05_ssh.mk
+#include mk/router/10_bootstrap.mk
+#include mk/router/20_firewall.mk
+#include mk/router/90_health.mk
 
 # ------------------------------------------------------------
 # Router readiness

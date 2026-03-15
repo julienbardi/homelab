@@ -7,7 +7,7 @@
 #
 # 🌐 Infomaniak setup:
 # 1. Log in to https://manager.infomaniak.com/
-# 2. Go to: Products>Web & Domains>Domain 
+# 2. Go to: Products>Web & Domains>Domain
 # 3. Select the domain, then Dynamic DNS
 # 4. Create an login:
 #       Username (login)  → DDNSUSERNAME
