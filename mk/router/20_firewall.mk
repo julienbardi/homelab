@@ -11,13 +11,19 @@
 # dnsmasq cache configuration
 # ------------------------------------------------------------
 
+DNSMASQ_CONF_ADD   := $(ROUTER_DNSMASQ_CONF_ADD)
+DNSMASQ_CACHE_LINE := $(ROUTER_DNSMASQ_CACHE_LINE)
+
+$(if $(strip $(DNSMASQ_CONF_ADD)),,$(error DNSMASQ_CONF_ADD is empty))
+$(if $(strip $(DNSMASQ_CACHE_LINE)),,$(error DNSMASQ_CACHE_LINE is empty))
+
 .PHONY: router-dnsmasq-cache
 router-dnsmasq-cache: | router-ssh-check
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \
 		mkdir -p /jffs/configs; \
-		touch $(DNSMASQ_CONF_ADD); \
-		if grep -qx "$(DNSMASQ_CACHE_LINE)" $(DNSMASQ_CONF_ADD); then \
+		touch "$(DNSMASQ_CONF_ADD)"; \
+		if grep -qx "$(DNSMASQ_CACHE_LINE)" "$(DNSMASQ_CONF_ADD)"; then \
 			echo "dnsmasq cache OK"; \
 		else \
 			tmp="$(DNSMASQ_CONF_ADD).tmp.$$"; \
@@ -26,6 +32,7 @@ router-dnsmasq-cache: | router-ssh-check
 			service restart_dnsmasq; \
 		fi \
 	'
+
 
 # ------------------------------------------------------------
 # Firewall script deployment

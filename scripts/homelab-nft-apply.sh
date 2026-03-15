@@ -2,12 +2,15 @@
 # homelab-nft-apply.sh
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+# shellcheck disable=SC2034
+SCRIPT_NAME="homelab-nft-apply"
+# shellcheck disable=SC1091
+source /usr/local/bin/common.sh
 
 HOMELAB_NFT_ETC_DIR="/etc/nftables"
-HOMELAB_NFT_RULES_SRC="${SCRIPT_DIR}/homelab.nft"
-HOMELAB_NFT_RULESET="${HOMELAB_NFT_ETC_DIR}/homelab.nft"
+# The Makefile already synced the ruleset to HOMELAB_NFT_RULESET
+HOMELAB_NFT_RULESET="/etc/nftables/homelab.nft"
+HOMELAB_NFT_RULES_SRC="$HOMELAB_NFT_RULESET"
 HOMELAB_NFT_ROLLBACK_FLAG="/run/homelab-nft.pending"
 
 if [[ ! -f "$HOMELAB_NFT_RULES_SRC" ]]; then
@@ -17,9 +20,6 @@ fi
 
 log "🔧 Ensuring nftables config directory exists..."
 run_as_root install -d -o root -g root -m 0755 "$HOMELAB_NFT_ETC_DIR"
-
-log "📦 Installing nftables ruleset..."
-/usr/local/bin/install_file_if_changed_v2.sh -q "" "" "$HOMELAB_NFT_RULES_SRC" "" "" "$HOMELAB_NFT_RULESET" root root 0644
 
 log "🔍 Validating nft ruleset..."
 run_as_root nft -c -f "$HOMELAB_NFT_RULESET"

@@ -45,33 +45,25 @@ include $(MAKEFILE_DIR)mk/20_net-tunnel.mk
 include $(MAKEFILE_DIR)mk/20_sysctl.mk
 include $(MAKEFILE_DIR)mk/30_config_validation.mk
 include $(MAKEFILE_DIR)mk/30_firewall-nas.mk
-# ------------------------------------------------------------
-# Router control-plane (integrated from homelab-router)
-# ------------------------------------------------------------
 include $(MAKEFILE_DIR)mk/30_router-config.mk
 include $(MAKEFILE_DIR)mk/30_router-platform.mk
-
+include $(MAKEFILE_DIR)mk/35_router-caddy-fetch.mk
+include $(MAKEFILE_DIR)mk/40_acme.mk
+include $(MAKEFILE_DIR)mk/40_code-server.mk
+include $(MAKEFILE_DIR)mk/40_nas-caddy.mk
 include $(MAKEFILE_DIR)mk/40_router-control.mk
 include $(MAKEFILE_DIR)mk/40_router-caddy.mk
 include $(MAKEFILE_DIR)mk/40_router-wireguard.mk
-
-include $(MAKEFILE_DIR)mk/56_router-certs.mk
-
-include $(MAKEFILE_DIR)mk/99_router-tools.mk
-include $(MAKEFILE_DIR)mk/99_router-python.mk
-
-include $(MAKEFILE_DIR)mk/40_acme.mk
-include $(MAKEFILE_DIR)mk/40_code-server.mk
-include $(MAKEFILE_DIR)mk/40_nas-router.mk
+include $(MAKEFILE_DIR)mk/40_router.mk
 include $(MAKEFILE_DIR)mk/40_wireguard.mk
 include $(MAKEFILE_DIR)mk/40_wireguard_py.mk
 include $(MAKEFILE_DIR)mk/41_wireguard-status.mk
 include $(MAKEFILE_DIR)mk/42_wireguard-qr.mk
 include $(MAKEFILE_DIR)mk/43_wireguard-runtime.mk
-include $(MAKEFILE_DIR)mk/40_caddy.mk
 include $(MAKEFILE_DIR)mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include $(MAKEFILE_DIR)mk/50_dnsmasq.mk
 include $(MAKEFILE_DIR)mk/55_router-certs.mk
+include $(MAKEFILE_DIR)mk/56_router-certs.mk
 include $(MAKEFILE_DIR)mk/60_unbound.mk     # Unbound DNS resolver setup
 include $(MAKEFILE_DIR)mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
 include $(MAKEFILE_DIR)mk/70_dnsdist.mk     #
@@ -88,6 +80,12 @@ include $(MAKEFILE_DIR)mk/90_help.mk
 include $(MAKEFILE_DIR)mk/90_converge.mk
 include $(MAKEFILE_DIR)mk/95_status.mk
 include $(MAKEFILE_DIR)mk/99_lint.mk        # lint and safety checks (always last)
+include $(MAKEFILE_DIR)mk/99_router-python.mk
+include $(MAKEFILE_DIR)mk/99_router-tools.mk
+include $(MAKEFILE_DIR)mk/router/05_ssh.mk
+include $(MAKEFILE_DIR)mk/router/10_bootstrap.mk
+include $(MAKEFILE_DIR)mk/router/20_firewall.mk
+include $(MAKEFILE_DIR)mk/router/90_health.mk
 
 # ============================================================
 # Makefile — homelab certificate orchestration
@@ -106,21 +104,21 @@ SKIP_KNOWN_HOSTS ?= 0
 ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
 	@echo "🔐 Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE) (SKIP_KNOWN_HOSTS=$(SKIP_KNOWN_HOSTS))"
 	@if [ "$(SKIP_KNOWN_HOSTS)" = "1" ]; then \
-	    echo "⏭️ Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
+		echo "⏭️ Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
 	else \
-	    # best-effort: interactive / non-fatal
-	    $(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
+		# best-effort: interactive / non-fatal
+		$(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
 	fi
 
 .PHONY: gitcheck update
 gitcheck:
 	@if [ ! -d $(MAKEFILE_DIR)/.git ]; then \
-	    echo "📦 Cloning homelab repo"; \
-	    mkdir -p $(dir $(MAKEFILE_DIR)); \
-	    git clone $(HOMELAB_REPO) $(MAKEFILE_DIR); \
+		echo "📦 Cloning homelab repo"; \
+		mkdir -p $(dir $(MAKEFILE_DIR)); \
+		git clone $(HOMELAB_REPO) $(MAKEFILE_DIR); \
 	else \
-	    echo "📍 homelab repo already present at $(MAKEFILE_DIR)"; \
-	    git -C $(MAKEFILE_DIR) rev-parse --short HEAD; \
+		echo "📍 homelab repo already present at $(MAKEFILE_DIR)"; \
+		git -C $(MAKEFILE_DIR) rev-parse --short HEAD; \
 	fi
 
 update: gitcheck
@@ -182,7 +180,7 @@ tailscaled: \
 	start-tailscaled \
 	tailscaled-status
 	@COMMIT_HASH=$$(git -C $(MAKEFILE_DIR) rev-parse --short HEAD); \
-	    echo "🧬 Completed tailscaled orchestration at commit $$COMMIT_HASH"
+		echo "🧬 Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
 SYSTEMD_DIR = /etc/systemd/system
 REPO_SYSTEMD = config/systemd
@@ -193,7 +191,7 @@ REPO_SYSTEMD = config/systemd
 install-systemd: ensure-run-as-root
 	@echo "🧩 Installing systemd units"
 	@if [ ! -d "$(MAKEFILE_DIR)$(REPO_SYSTEMD)" ]; then \
-	    echo "ERROR: $(MAKEFILE_DIR)$(REPO_SYSTEMD) not found"; exit 1; \
+		echo "ERROR: $(MAKEFILE_DIR)$(REPO_SYSTEMD) not found"; exit 1; \
 	fi
 	# ensure target dirs
 	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
@@ -227,9 +225,9 @@ uninstall-systemd: ensure-run-as-root
 	@$(run_as_root) systemctl stop --now unbound-ctl-fix.path unbound-ctl-fix.service || true
 	@$(run_as_root) systemctl disable unbound-ctl-fix.path || true
 	@$(run_as_root) rm -f $(SYSTEMD_DIR)/unbound-ctl-fix.path \
-	          $(SYSTEMD_DIR)/unbound-ctl-fix.service \
-	          $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf \
-	          $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf || true
+			  $(SYSTEMD_DIR)/unbound-ctl-fix.service \
+			  $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf \
+			  $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf || true
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound-ctl-fix.service.d || true
 	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound.service.d || true
 	@$(run_as_root) systemctl daemon-reload
@@ -240,7 +238,11 @@ uninstall-systemd: ensure-run-as-root
 install-nft-apply: ensure-run-as-root
 	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
 
-nft-apply: install-nft-apply ensure-run-as-root
+nft-sync: ensure-run-as-root
+	@echo "🔄 Syncing homelab.nft ruleset"
+	@$(call install_file,$(MAKEFILE_DIR)scripts/homelab.nft,$(HOMELAB_NFT_RULESET),root,root,0644)
+
+nft-apply: install-nft-apply nft-sync ensure-run-as-root
 	$(run_as_root) $(INSTALL_PATH)/homelab-nft-apply.sh
 	@echo "🧾 Recording applied nftables ruleset hash"
 	$(run_as_root) sh -c 'sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"'
