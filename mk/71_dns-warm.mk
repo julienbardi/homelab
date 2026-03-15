@@ -3,7 +3,8 @@
 
 ROTATE_SCRIPT_NAME      ?= dns-warm-rotate.sh
 ROTATE_SCRIPT_PATH      ?= $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
-ROTATE_SCRIPT_SRC_INST  := $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
+#ROTATE_SCRIPT_SRC_INST  := $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
+ROTATE_SCRIPT_SRC := $(MAKEFILE_DIR)scripts/$(ROTATE_SCRIPT_NAME)
 
 DOMAINS_DIR    ?= /etc/dns-warm
 DOMAINS_FILE   ?= $(DOMAINS_DIR)/domains.txt
@@ -109,7 +110,7 @@ dns-warm-dirs: ensure-run-as-root
 	@$(run_as_root) chmod 750 $(DNS_WARM_STATE_DIR)
 
 dns-warm-install-script: dns-warm-async-install ensure-run-as-root
-	@$(call install_file,$(ROTATE_SCRIPT_SRC_INST),$(ROTATE_SCRIPT_PATH),$(DNS_WARM_USER),$(DNS_WARM_GROUP),0755)
+	@$(call install_file,$(ROTATE_SCRIPT_SRC),$(ROTATE_SCRIPT_PATH),$(DNS_WARM_USER),$(DNS_WARM_GROUP),0755)
 	@$(run_as_root) bash -n $(ROTATE_SCRIPT_PATH)
 
 # Fix parallel ordering
@@ -162,3 +163,51 @@ dns-warm-async: $(DNS_WARM_ASYNC_SRC) prereqs
 
 dns-warm-async-install: dns-warm-async ensure-run-as-root
 	@$(call install_file,dns-warm-async,$(INSTALL_PATH)/dns-warm-async,root,root,0755)
+
+.PHONY: dns-warm-health
+dns-warm-health: ensure-run-as-root
+	@echo "🔍 DNS-warm health check"
+	@echo "────────────────────────────────────────"
+	@echo "⏱️  Timer status"
+	@if $(run_as_root) systemctl is-active --quiet $(TIMER); then \
+		echo "   ✅ Timer active"; \
+	else \
+		echo "   ❌ Timer inactive"; \
+	fi
+	@echo
+	@echo "🛠️  Service status"
+	@if $(run_as_root) systemctl is-active --quiet $(SERVICE); then \
+		echo "   ✅ Service healthy (oneshot)"; \
+	else \
+		echo "   ⚠️ Service not running (oneshot expected)"; \
+	fi
+	@echo
+	@echo "📁 Domain list"
+	@if [ -s $(DOMAINS_FILE) ]; then \
+		age=$$(( $$(date +%s) - $$(stat -c %Y $(DOMAINS_FILE)) )); \
+		count=$$(wc -l < $(DOMAINS_FILE)); \
+		echo "   ✅ Present"; \
+		echo "   • Entries: $$count"; \
+		echo "   • Age: $$age seconds"; \
+	else \
+		echo "   ❌ Missing or empty"; \
+	fi
+	@echo
+	@echo "📄 State file"
+	@if $(run_as_root) test -f $(STATE_FILE); then \
+		echo "   ✅ Present : $(STATE_FILE)"; \
+		$(run_as_root) stat -c '   • Size: %s bytes' $(STATE_FILE); \
+		$(run_as_root) stat -c '   • Updated: %y' $(STATE_FILE); \
+	else \
+		echo "   ⚠️ Missing (rotate job may not have run yet)"; \
+	fi
+	@echo
+	@echo "🌐 Resolver test ($(RESOLVER))"
+	@if $(run_as_root) dig +time=1 +tries=1 @$(RESOLVER) example.com >/dev/null 2>&1; then \
+		echo "   ✅ Resolver reachable"; \
+	else \
+		echo "   ❌ Resolver unreachable"; \
+	fi
+	@echo "────────────────────────────────────────"
+	@echo "✅ Health check complete"
+
