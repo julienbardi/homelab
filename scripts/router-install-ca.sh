@@ -12,8 +12,9 @@ set -eu
 # shellcheck disable=SC1091
 source /usr/local/bin/common.sh
 
-[ "${CALLED_BY_ROUTER_SYNC_SCRIPTS:-}" = "1" ] || {
-    echo "❌ router-install-ca.sh must be executed via router-sync-scripts.sh"
+[ "${ROUTER_CONTROL_PLANE:-}" = "1" ] || {
+    echo "❌ router-install-ca.sh must be executed via the router control plane"
+    echo "   (make router-converge or a router-* target)"
     exit 1
 }
 

@@ -91,13 +91,18 @@ router-install-scripts: \
 router-ensure-ipv6-ula: router-install-provision-ipv6-ula
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_SCRIPTS)/provision-ipv6-ula.sh'
 
+.PHONY: router-install-ca
+router-install-ca:
+	@ROUTER_CONTROL_PLANE=1 $(INSTALL_PATH)/router-install-ca.sh
+
 .PHONY: router-bootstrap
 router-bootstrap: \
 	router-install-scripts \
 	router-install-ddns \
 	router-dnsmasq-cache \
 	router-firewall-install \
-	install-ssh-config
+	install-ssh-config \
+	router-install-ca
 	@echo "✅ Router bootstrap complete"
 
 .PHONY: router-all

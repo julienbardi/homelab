@@ -31,7 +31,8 @@ router-certs-prereqs-ssh:
 
 .PHONY: router-certs-deploy-script
 router-certs-deploy-script:
-	$(call deploy_if_changed,$(SRC_SCRIPTS)/certs-deploy.sh,/jffs/scripts/certs-deploy.sh)
+	@$(INSTALL_FILE_IF_CHANGED) "" "" $(SRC_SCRIPTS)/certs-deploy.sh \
+		$(ROUTER_HOST) $(ROUTER_SSH_PORT) /jffs/scripts/certs-deploy.sh root root 0755
 
 .PHONY: router-certs-prepare
 router-certs-prepare: router-certs-deploy-script router-require-run-as-root
