@@ -150,29 +150,17 @@
 ### 🧰 Local Developer Tools
 
 - `make lint` — Lint Makefiles with checkmake
-
 - `make lint-fast` — Fast linting (subset of checks)
-
 - `make lint-all` — Full lint suite across repo
-
 - `make lint-scripts` — Lint shell scripts
-
 - `make lint-scripts-partial` — Lint only changed scripts
-
 - `make lint-semantic` — Validate semantic commit messages
-
 - `make lint-semantic-strict` — Strict semantic commit validation
-
 - `make tools` — Install local developer tooling
-
 - `make spellcheck` — Interactive spellcheck of Markdown files
-
 - `make spellcheck-comments` — Spellcheck Makefile comments
-
 - `make distclean` — Remove local tools and staged scripts
-
 - `make clean` — Remove local build artifacts
-
 - `make clean-soft` — Remove temporary files without touching tools
 
 ## 📝 Notes
