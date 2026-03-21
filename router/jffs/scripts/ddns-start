@@ -24,8 +24,6 @@ update_ip() {
     status4=$(curl -s $AUTH "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip=${IPV4}" | cut -d' ' -f1)
     status6=$(curl -s $AUTH "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip=${IPV6}" | cut -d' ' -f1)
 
-    echo "🔍 IP detected for ${DNS_TOPDOMAIN_NAME}: IPv4=$IPV4 ($status4) | IPv6=$IPV6 ($status6)"
-
     if { [ "$status4" = "good" ] || [ "$status4" = "nochg" ]; } &&
        { [ "$status6" = "good" ] || [ "$status6" = "nochg" ]; }; then
 		echo "✅ DynDNS update successful for ${DNS_TOPDOMAIN_NAME}: IPv4=$IPV4 ($status4) | IPv6=$IPV6 ($status6)"
