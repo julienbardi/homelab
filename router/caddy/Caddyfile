@@ -18,7 +18,7 @@
 # DO NOT proxy via 127.0.0.1.
 # ------------------------------------------------------------
 {
-	auto_https off
+	auto_https disable_redirects
 	admin off
 
 	log {
@@ -39,7 +39,16 @@
 # Syncthing GUI (explicit port)
 # ------------------------------------------------------------
 bardi.ch:8384 {
-	reverse_proxy 10.89.12.2:8384
+	@internal {
+		remote_ip 10.89.12.0/24
+		remote_ip fd89:7a3b:42c0::/64
+		remote_ip 100.64.0.0/10
+		remote_ip fd7a:115c:a1e0::/48
+	}
+	@external not @internal
+
+	reverse_proxy @internal 10.89.12.2:8384
+	respond @external "Forbidden" 403
 }
 
 # ------------------------------------------------------------
@@ -107,6 +116,16 @@ bardi.ch:8384 {
 		remote_ip fd89:7a3b:42c0::/64
 	}
 	reverse_proxy @router_internal 10.89.12.1:8080
+
+	# --------------------------------------------------------
+	# Router UI escape hatch
+	# --------------------------------------------------------
+	@router_operator {
+		host router.bardi.ch
+		remote_ip 100.64.0.0/10
+		remote_ip fd7a:115c:a1e0::/48
+	}
+	reverse_proxy @router_operator 10.89.12.1:8080
 
 	# --------------------------------------------------------
 	# NAS-hosted services (delegated)
