@@ -1,9 +1,8 @@
 # mk/router/40_router-wireguard.mk
 .PHONY: router-sync-wg
 router-sync-wg: | router-ssh-check router-require-run-as-root
-	$(call deploy_if_changed, \
-		$(WG_ROOT)/plan.tsv, \
-		$(ROUTER_SCRIPTS)/wireguard/plan.tsv)
+	@$(INSTALL_FILE_IF_CHANGED) "" "" $(WG_ROOT)/plan.tsv \
+		$(ROUTER_HOST) $(ROUTER_SSH_PORT) $(ROUTER_SCRIPTS)/wireguard/plan.tsv root root 0644
 
 	@echo "🔁 Restarting router firewall..."
 	ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) "/jffs/scripts/firewall-start"

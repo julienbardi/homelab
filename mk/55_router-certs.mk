@@ -2,7 +2,7 @@
 # mk/55_router_certs.mk — Router certificate deployment
 # ============================================================
 # SSH-based targets that should NEVER be run as root to protect the user's SSH environment
-SENSITIVE_ROUTER_GOALS := deploy-router bootstrap-router router-all router-all-full
+SENSITIVE_ROUTER_GOALS := deploy-router router-all router-all-full
 
 ifneq ($(filter $(SENSITIVE_ROUTER_GOALS),$(MAKECMDGOALS)),)
 	ifeq ($(shell id -u),0)
@@ -154,14 +154,7 @@ router-logs:
 	@$(call log,"Tailing router certificate logs")
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) "logread -f | grep -E 'router-cert-apply'"
 
-# ------------------------------------------------------------
-# Public: bootstrap-router
-# ------------------------------------------------------------
-bootstrap-router: prepare deploy-router validate-router
-	@$(call log,"🚀 Router bootstrapped")
-
 .PHONY: \
 deploy-router \
 validate-router \
-router-logs \
-bootstrap-router
+router-logs
