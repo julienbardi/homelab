@@ -65,7 +65,7 @@ ddns-secret-ensure:
 	@echo "✅ DDNS secret present, secure, and structurally valid"
 
 .PHONY: router-ddns-check
-router-ddns-check: ddns-secret-ensure
+router-ddns-check: router-ddns ddns-secret-ensure
 	@echo "🌐 Verifying DDNS update on router"
 	@# Functional validation (idempotent at provider level; safe to re-run)
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '/jffs/scripts/ddns-start'

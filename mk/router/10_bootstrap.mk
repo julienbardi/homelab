@@ -24,32 +24,32 @@ define PUSH_ROUTER_SCRIPT
 endef
 
 # ------------------------------------------------------------
-# DDNS Runtime Surface (single convergence unit; hash‑driven refresh)
+# DDNS Runtime Surface (deploy vs execute split; composed)
 # ------------------------------------------------------------
 
-.PHONY: router-ddns
-router-ddns: router-bootstrap-run-as-root prereqs-helper-scripts \
+.PHONY: router-ddns-deploy
+router-ddns-deploy: router-bootstrap-run-as-root prereqs-helper-scripts \
 	$(INSTALL_FILE_IF_CHANGED) \
 	$(INSTALL_FILES_IF_CHANGED) \
 	ddns-secret-ensure
 	@echo "🔁 Syncing DDNS runtime surface to router"
 	@DDNS_CHANGED=0; export DDNS_CHANGED; \
-	$(INSTALL_FILES_IF_CHANGED) DDNS_CHANGED \
+		$(INSTALL_FILES_IF_CHANGED) DDNS_CHANGED \
 		"" "" "$(ROUTER_SCRIPTS_SRC_DIR)/ddns-start" \
 		"$(ROUTER_HOST)" "$(ROUTER_SSH_PORT)" "$(ROUTER_SCRIPTS)/ddns-start" \
 		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0755" \
 		"" "" "$(DDNS_SECRET_FILE)" \
 		"$(ROUTER_HOST)" "$(ROUTER_SSH_PORT)" "/jffs/scripts/.ddns_confidential" \
-		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0600" \
-	|| { \
-		rc=$$?; \
-		if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-			echo "🌐 DDNS surface changed — refreshing"; \
-			ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_SCRIPTS)/ddns-start'; \
-		else \
-			exit $$rc; \
-		fi; \
-	}
+		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0600"
+
+.PHONY: router-ddns-run
+router-ddns-run:
+	@echo "🌐 Executing DDNS update on router"
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_SCRIPTS)/ddns-start'
+
+.PHONY: router-ddns
+router-ddns: router-ddns-deploy router-ddns-run
+
 
 # ------------------------------------------------------------
 # Phase 0: Root bootstrap (transport ssh + cat)
@@ -57,7 +57,7 @@ router-ddns: router-bootstrap-run-as-root prereqs-helper-scripts \
 
 .PHONY: router-bootstrap-run-as-root
 router-bootstrap-run-as-root:
-	@echo "🛡️  Bootstrapping run-as-root on router"
+	@echo "🛡️ Bootstrapping run-as-root on router"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
 		'mkdir -p /jffs/scripts && cat > /jffs/scripts/run-as-root && chmod 0755 /jffs/scripts/run-as-root' \
 		< $(ROUTER_SCRIPTS_SRC_DIR)/run-as-root.sh
