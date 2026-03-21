@@ -22,7 +22,7 @@ ROUTER_SCRIPTS_GROUP := 0
 ROUTER_SCRIPTS_MODE  := 0755
 
 # Local source directory for router scripts
-SRC_SCRIPTS := $(REPO_ROOT)10.89.12.1/jffs/scripts
+SRC_SCRIPTS := $(REPO_ROOT)router/jffs/scripts
 
 # ---------------------------------------------------------------------------
 # Network identities (do not alias; roles are distinct by contract)
@@ -53,6 +53,12 @@ SECURITY_DIR := $(HOMELAB_ROOT)/security
 N_WORKERS := $(shell nproc | awk '{print ($$1 > 1 ? $$1 - 1 : 1)}')
 
 VERBOSE ?= 0
+
+# ---------------------------------------------------------------------------
+# Local tooling root (host-only, disposable, never touches router state)
+# ---------------------------------------------------------------------------
+
+TOOLS_DIR ?= $(REPO_ROOT).tools
 
 # ---------------------------------------------------------------------------
 # WireGuard subnet derivation (authoritative from wg-interfaces.tsv)
