@@ -1,0 +1,44 @@
+#!/bin/sh
+# Infomaniak DynDNS updater for Asuswrt-Merlin
+
+CONF_FILE="/jffs/scripts/.ddns_confidential"
+
+# Load secrets
+if [ -r "$CONF_FILE" ]; then
+    . "$CONF_FILE"
+else
+    echo "⚠️  Missing configuration file: $CONF_FILE"
+    /sbin/ddns_custom_updated 0
+    exit 1
+fi
+
+debug() {
+    [ "$DEBUG" = "1" ] && echo "🔍 $1"
+}
+
+update_ip() {
+    BASE_URL="https://infomaniak.com/nic/update?hostname=${DNS_TOPDOMAIN_NAME}&username=${DDNSUSERNAME}&password=${DDNSPASSWORD}"
+
+    IPV4=$(curl -4 -s icanhazip.com)
+    IPV6=$(curl -6 -s icanhazip.com)
+
+    debug "IPv4 detected: $IPV4"
+    debug "IPv6 detected: $IPV6"
+
+    status4=$(curl -s "${BASE_URL}&myip=${IPV4}" | cut -d " " -f1)
+    status6=$(curl -s "${BASE_URL}&myip=${IPV6}" | cut -d " " -f1)
+
+    debug "IPv4 update: $status4"
+    debug "IPv6 update: $status6"
+
+    if { [ "$status4" = "good" ] || [ "$status4" = "nochg" ]; } &&
+       { [ "$status6" = "good" ] || [ "$status6" = "nochg" ]; }; then
+        echo "✅ DynDNS update successful for ${DNS_TOPDOMAIN_NAME}"
+        /sbin/ddns_custom_updated 1
+    else
+        echo "❌ DynDNS update failed for ${DNS_TOPDOMAIN_NAME}"
+        /sbin/ddns_custom_updated 0
+    fi
+}
+
+update_ip
