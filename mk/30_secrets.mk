@@ -26,7 +26,7 @@
 .PHONY: ddns-secret-ensure
 ddns-secret-ensure:
 	@echo "🔐 Ensuring DDNS secret directory"
-	@$(INSTALL_PATH)/ensure_dir.sh root root 0700 "$(DDNS_SECRET_DIR)"
+	@$(INSTALL_PATH)/ensure_dir.sh root admin 0750 "$(DDNS_SECRET_DIR)"
 
 	@echo "🔍 Checking DDNS secret file presence"
 	@if ! sudo test -f "$(DDNS_SECRET_FILE)"; then \
@@ -44,13 +44,13 @@ ddns-secret-ensure:
 	fi
 
 	@echo "🔒 Enforcing ownership and permissions"
-	@sudo stat -c '%U:%G:%a' "$(DDNS_SECRET_FILE)" | grep -qx 'root:root:600' || \
-		{ sudo chown root:root "$(DDNS_SECRET_FILE)"; sudo chmod 0600 "$(DDNS_SECRET_FILE)"; }
+	@sudo stat -c '%U:%G:%a' "$(DDNS_SECRET_FILE)" | grep -qx 'root:admin:640' || \
+		{ sudo chown root:admin "$(DDNS_SECRET_FILE)"; sudo chmod 0640 "$(DDNS_SECRET_FILE)"; }
 
 	@echo "🧪 Validating DDNS secret structure"
 	@missing=0; \
 	for var in DNS_TOPDOMAIN_NAME DDNSUSERNAME DDNSPASSWORD; do \
-		if ! sudo grep -Eq "^[[:space:]]*$$var=['\"][^'\"]+['\"]" "$(DDNS_SECRET_FILE)"; then \
+		if ! grep -Eq "^[[:space:]]*$$var=['\"][^'\"]+['\"]" "$(DDNS_SECRET_FILE)"; then \
 			echo "❌ Missing or empty variable: $$var"; \
 			missing=1; \
 		fi; \
