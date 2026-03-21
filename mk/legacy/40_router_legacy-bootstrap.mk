@@ -1,6 +1,18 @@
 # ============================================================
 # mk/40_router.mk — Router orchestration
 # ============================================================
+# ⚠️ LEGACY BOOTSTRAP — DO NOT USE FOR NORMAL OPERATIONS
+#
+# This file represents the pre–control-plane router orchestration model.
+# It is retained ONLY for:
+#   - first-time router bootstrap
+#   - emergency recovery
+#   - historical reference
+#
+# Normal router management MUST use:
+#   mk/40_router-control.mk
+#
+# This file is NOT included in graph.mk.
 # --------------------------------------------------------------------
 # CONTRACT:
 # - Router is treated as a remote execution surface

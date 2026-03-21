@@ -54,7 +54,6 @@ include $(MAKEFILE_DIR)mk/40_nas-caddy.mk
 include $(MAKEFILE_DIR)mk/40_router-control.mk
 include $(MAKEFILE_DIR)mk/40_router-caddy.mk
 include $(MAKEFILE_DIR)mk/40_router-wireguard.mk
-include $(MAKEFILE_DIR)mk/40_router.mk
 include $(MAKEFILE_DIR)mk/40_wireguard.mk
 include $(MAKEFILE_DIR)mk/40_wireguard_py.mk
 include $(MAKEFILE_DIR)mk/41_wireguard_clients.mk
