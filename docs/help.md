@@ -9,6 +9,7 @@
 - 🚀 [ACME / service certificates](#-acme--service-certificates)
 - 📡 [Router certificate lifecycle](#-router-certificate-lifecycle)
 - 🌐 [DNS](#-dns)
+- 🌐 [DNS / DDNS](#-dns--ddns)
 - 🔐 [WireGuard — lifecycle](#-wireguard--lifecycle)
 - 🔐 [WireGuard — client lifecycle](#-wireguard--client-lifecycle)
 - 🔍 [WireGuard — inspection (read-only)](#-wireguard--inspection-read-only)
@@ -65,6 +66,11 @@
 - `make dns-preflight`
 - `make dns-postflight`
 - `make dnsmasq-status`
+
+## 🌐 DNS / DDNS
+
+- `make router-ddns` — Install and converge DDNS runtime surface on router
+  (hash‑driven; refreshes only on semantic change)
 
 ## 🔐 WireGuard — lifecycle
 
