@@ -1,9 +1,10 @@
 # 📄 Example configuration for Infomaniak DynDNS
 # 🔐 Copy this file and set permission (crucial):
 #     cp /jffs/scripts/.ddns.conf.example /jffs/scripts/.ddns_confidential
-#     chmod u=rwx,go= /jffs/scripts/.ddns_confidential
+#     chmod 600 /jffs/scripts/.ddns_confidential
+#     chown 0:0 /jffs/scripts/.ddns_confidential
 #
-# 🌐 Infomaniak setup:
+# 🌐 Infomaniak setup, see https://faq.infomaniak.com/2376
 # 1. Log in to https://manager.infomaniak.com/
 # 2. Go to: Products>Web & Domains>Domain
 # 3. Select the domain, then Dynamic DNS
@@ -17,11 +18,7 @@
 # Default is 0 (silent unless error).
 
 # --- Zone information ---
-DNS_TOPDOMAIN_NAME='bardi.ch'
-
-# --- Infomaniak DynDNS credentials ---
+DNS_TOPDOMAIN_NAME='example.com'
 DDNSUSERNAME='your_identifier'
 DDNSPASSWORD='your_password'
-
-# --- Debug mode (0 or 1) ---
 DEBUG=0
