@@ -92,8 +92,10 @@ VERBOSE ?= 0
 # ---------------------------------------------------------------------------
 # Local tooling root (host-only, disposable, never touches router state)
 # ---------------------------------------------------------------------------
-
 TOOLS_DIR ?= $(REPO_ROOT).tools
+
+# Local helper scripts (authoritative paths only)
+ENSURE_DIR := $(INSTALL_PATH)/ensure_dir.sh
 
 # ---------------------------------------------------------------------------
 # WireGuard subnet derivation (authoritative from wg-interfaces.tsv)

@@ -16,7 +16,8 @@
 	prereqs-root-ssh-key prereqs-operator-ssh-key \
 	install-ssh-config fix-tailscale-repo \
 	rust-system prereqs-python-venv prereqs-python-venv-verify \
-	prereqs-dns-health-check-verify prereqs-tailscale-repo-verify
+	prereqs-dns-health-check-verify prereqs-tailscale-repo-verify \
+	prereqs-helper-scripts
 
 PREREQ_PKGS := build-essential curl jq git nftables iptables shellcheck \
 			   pup codespell aspell aspell-en ndppd knot-dnsutils \
@@ -81,6 +82,7 @@ prereqs: \
 	$(HOMELAB_ENV_DST) \
 	prereqs-dns-warm-verify \
 	prereqs-docs-verify \
+	prereqs-helper-scripts \
 	install-ssh-config
 	# APT trust bootstrap for third-party repositories
 	@echo "🔐 Ensuring Tailscale APT signing key"
@@ -186,3 +188,14 @@ prereqs-dns-health-check-verify: ensure-run-as-root
 		echo "➡️  Remediate with: sudo make install-all"; \
 		exit 1; \
 	}
+
+# ------------------------------------------------------------
+# Helper scripts
+# ------------------------------------------------------------
+
+prereqs-helper-scripts: ensure-run-as-root
+	@echo "📦 Ensuring helper scripts are installed"
+	@$(run_as_root) install -d -o root -g root -m 0755 $(INSTALL_PATH)
+	@$(run_as_root) install -o root -g root -m 0755 \
+		$(MAKEFILE_DIR)scripts/ensure_dir.sh \
+		$(INSTALL_PATH)/ensure_dir.sh
