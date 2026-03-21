@@ -7,8 +7,9 @@
 # - Idempotent and safe to re-run
 # --------------------------------------------------------------------
 
-ROUTER_WG_SUBNET   := 10.89.13.0/24
-ROUTER_WG_SUBNET6  := fd89:7a3b:42c0:13::/64
+# Derived from authoritative wg-interfaces.tsv via wg-plan-subnets.sh
+ROUTER_WG_SUBNET   := $(WG_ROUTER_SUBNET_V4)
+ROUTER_WG_SUBNET6  := $(WG_ROUTER_SUBNET_V6)
 
 IPTABLES  := /usr/sbin/iptables
 IP6TABLES := /usr/sbin/ip6tables

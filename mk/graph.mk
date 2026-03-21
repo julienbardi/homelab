@@ -57,8 +57,10 @@ include $(MAKEFILE_DIR)mk/40_router-wireguard.mk
 include $(MAKEFILE_DIR)mk/40_router.mk
 include $(MAKEFILE_DIR)mk/40_wireguard.mk
 include $(MAKEFILE_DIR)mk/40_wireguard_py.mk
+include $(MAKEFILE_DIR)mk/41_wireguard_clients.mk
 include $(MAKEFILE_DIR)mk/41_wireguard-status.mk
 include $(MAKEFILE_DIR)mk/42_wireguard-qr.mk
+include $(MAKEFILE_DIR)mk/42_wireguard_runtime.mk
 include $(MAKEFILE_DIR)mk/43_wireguard-runtime.mk
 include $(MAKEFILE_DIR)mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include $(MAKEFILE_DIR)mk/50_dnsmasq.mk
@@ -82,10 +84,6 @@ include $(MAKEFILE_DIR)mk/95_status.mk
 include $(MAKEFILE_DIR)mk/99_lint.mk        # lint and safety checks (always last)
 include $(MAKEFILE_DIR)mk/99_router-python.mk
 include $(MAKEFILE_DIR)mk/99_router-tools.mk
-include $(MAKEFILE_DIR)mk/router/05_ssh.mk
-include $(MAKEFILE_DIR)mk/router/10_bootstrap.mk
-include $(MAKEFILE_DIR)mk/router/20_firewall.mk
-include $(MAKEFILE_DIR)mk/router/90_health.mk
 
 # ============================================================
 # Makefile — homelab certificate orchestration

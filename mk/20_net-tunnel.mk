@@ -6,9 +6,9 @@
 # Ensure this matches your DXP 4800+ hardware
 PRIMARY_IFACE ?= eth0
 
-# Derived from your Addressing Contract: wg13 -> 10.13.0.0/16
-ROUTER_WG_SUBNET := 10.13.0.0/16
-ROUTER_LAN_GW    := 10.89.12.1
+# Derived from authoritative wg-interfaces.tsv via wg-plan-subnets.sh
+ROUTER_WG_SUBNET := $(WG_ROUTER_SUBNET_V4)
+ROUTER_LAN_GW    := $(ROUTER_LAN_IP)
 
 .PHONY: net-tunnel-persist net-tunnel-routing net-tunnel-status
 

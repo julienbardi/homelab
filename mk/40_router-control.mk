@@ -121,10 +121,11 @@ endef
 # ROUTER CONTROL PLANE (namespaced, already include in mk/graph.mk)
 # ------------------------------------------------------------
 
-#include mk/router/05_ssh.mk
-#include mk/router/10_bootstrap.mk
-#include mk/router/20_firewall.mk
-#include mk/router/90_health.mk
+include $(MAKEFILE_DIR)mk/router/05_ssh.mk
+include $(MAKEFILE_DIR)mk/router/10_bootstrap.mk
+include $(MAKEFILE_DIR)mk/router/20_firewall.mk
+include $(MAKEFILE_DIR)mk/router/40_router-wireguard.mk
+include $(MAKEFILE_DIR)mk/router/90_health.mk
 
 # ------------------------------------------------------------
 # Router readiness
