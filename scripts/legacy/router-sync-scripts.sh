@@ -1,5 +1,9 @@
 #!/bin/sh
 # router-sync-scripts.sh
+# ⚠️ LEGACY SCRIPT
+# This script belongs to the pre–control-plane router model.
+# Router state is now converged via Make targets and
+# install_file_if_changed_v2.sh.
 #
 # Contract:
 # - The repo directory 10.89.12.1/jffs/scripts/ is authoritative

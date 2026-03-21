@@ -39,9 +39,11 @@ router-dnsmasq-cache: | router-ssh-check
 
 .PHONY: router-firewall-install
 router-firewall-install: | router-ssh-check router-require-run-as-root
-	$(call deploy_if_changed,\
-		$(SRC_SCRIPTS)/firewall-start,\
-		/jffs/scripts/firewall-start)
+	@$(INSTALL_FILE_IF_CHANGED) \
+	"" "" $(SRC_SCRIPTS)/firewall-start \
+	$(ROUTER_HOST) $(ROUTER_SSH_PORT) /jffs/scripts/firewall-start \
+	root root 0755
+
 
 # ------------------------------------------------------------
 # Firewall runtime assertions
