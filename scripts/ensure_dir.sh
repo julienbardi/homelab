@@ -17,21 +17,10 @@ group="$2"
 mode="$3"
 path="$4"
 
-need_root=0
-
-if [ ! -d "$path" ]; then
-    need_root=1
-else
-    current="$(stat -c '%U:%G:%a' "$path")"
+if [ -d "$path" ]; then
+    current="$(stat -c '%U:%G:%a' "$path" 2>/dev/null || true)"
     expected="$owner:$group:$mode"
-    if [ "$current" != "$expected" ]; then
-        need_root=1
-    fi
-fi
-
-if [ "$need_root" -eq 0 ]; then
-    # Directory already correct
-    exit 0
+    [ "$current" = "$expected" ] && exit 0
 fi
 
 # Try without escalation first
