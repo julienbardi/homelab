@@ -50,6 +50,7 @@ include $(MAKEFILE_DIR)mk/30_config_validation.mk
 include $(MAKEFILE_DIR)mk/30_firewall-nas.mk
 include $(MAKEFILE_DIR)mk/30_router-config.mk
 include $(MAKEFILE_DIR)mk/30_router-platform.mk
+include $(MAKEFILE_DIR)mk/30_secrets.mk
 include $(MAKEFILE_DIR)mk/35_router-caddy-fetch.mk
 include $(MAKEFILE_DIR)mk/40_acme.mk
 include $(MAKEFILE_DIR)mk/40_code-server.mk
