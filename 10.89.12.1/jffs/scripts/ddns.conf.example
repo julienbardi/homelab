@@ -1,9 +1,7 @@
 # 📄 Example configuration for Infomaniak DynDNS
-# Copy this file to:
-#     /jffs/scripts/.ddns_confidential
-#
-# 🔐 Permissions (required):
-#     chmod u+rwx go-rwx /jffs/scripts/.ddns_confidential
+# 🔐 Copy this file and set permission (crucial):
+#     cp /jffs/scripts/.ddns.conf.example /jffs/scripts/.ddns_confidential
+#     chmod u=rwx,go= /jffs/scripts/.ddns_confidential
 #
 # 🌐 Infomaniak setup:
 # 1. Log in to https://manager.infomaniak.com/

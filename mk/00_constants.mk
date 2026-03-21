@@ -22,7 +22,7 @@ ROUTER_SCRIPTS_GROUP := 0
 ROUTER_SCRIPTS_MODE  := 0755
 
 # Local source directory for router scripts
-SRC_SCRIPTS := 10.89.12.1/jffs/scripts
+SRC_SCRIPTS := $(REPO_ROOT)10.89.12.1/jffs/scripts
 
 # ---------------------------------------------------------------------------
 # Network identities (do not alias; roles are distinct by contract)
@@ -53,6 +53,20 @@ SECURITY_DIR := $(HOMELAB_ROOT)/security
 N_WORKERS := $(shell nproc | awk '{print ($$1 > 1 ? $$1 - 1 : 1)}')
 
 VERBOSE ?= 0
+
+# ---------------------------------------------------------------------------
+# WireGuard subnet derivation (authoritative from wg-interfaces.tsv)
+# ---------------------------------------------------------------------------
+
+WG_PLAN_SUBNETS := $(INSTALL_PATH)/wg-plan-subnets.sh
+
+# Bootstrap guard: only enforce when NOT running install-all
+ifeq (,$(filter install-all uninstall-all,$(MAKECMDGOALS)))
+  $(if $(wildcard $(WG_PLAN_SUBNETS)),,$(error Missing $(WG_PLAN_SUBNETS). Run 'sudo make install-all' first.))
+endif
+
+WG_ROUTER_SUBNET_V4 := $(shell WG_ROOT="$(WG_ROOT)" $(WG_PLAN_SUBNETS) --router --v4 | awk 'NR==1 {print $$2}')
+WG_ROUTER_SUBNET_V6 := $(shell WG_ROOT="$(WG_ROOT)" $(WG_PLAN_SUBNETS) --router --v6 | awk 'NR==1 {print $$2}')
 
 # Export global paths for all scripts
 export WG_ROOT
