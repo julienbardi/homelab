@@ -150,7 +150,7 @@ CHECKMAKE_BIN := /usr/local/bin/checkmake
 STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
 
 install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go
-	@echo "� ️ Installing checkmake (v$(CHECKMAKE_VERSION))"
+	@echo "� ️ Installing checkmake (v$(CHECKMAKE_VERSION))"
 	@if [ -f "$(STAMP_CHECKMAKE)" ]; then \
 	    INST_VER=$$(grep '^version=' "$(STAMP_CHECKMAKE)" | cut -d= -f2); \
 	    if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
@@ -187,13 +187,13 @@ remove-pkg-strace:
 HEADSCALE_VERSION ?= v0.27.1
 
 headscale-build: install-pkg-go
-	@echo "� ️ Building Headscale $(HEADSCALE_VERSION)..."
+	@echo "� ️ Building Headscale $(HEADSCALE_VERSION)..."
 	@if ! command -v headscale >/dev/null 2>&1; then \
 	    GOBIN=$(INSTALL_PATH) go install github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION); \
 	else \
 	    CURRENT_VER=$$(headscale version | awk '{print $$3}'); \
 	    if [ "$$CURRENT_VER" != "$(HEADSCALE_VERSION)" ]; then \
-	        echo "� ️  A new version has been detected: $$CURRENT_VER"; \
+	        echo "� ️  A new version has been detected: $$CURRENT_VER"; \
 	        echo "👉 See https://github.com/juanfont/headscale/releases"; \
 	    fi; \
 	    command -v headscale >/dev/null 2>&1 && headscale version; \
@@ -215,7 +215,7 @@ fetch-pandoc:
 .SILENT: install-pkg-pandoc
 
 install-pkg-pandoc: ensure-run-as-root fetch-pandoc
-	@$(run_as_root) install -d -m 0755 $(STAMP_DIR); \
+	@$(ENSURE_DIR) root root 0755 $(STAMP_DIR); \
 	installed_bin=$$(command -v pandoc 2>/dev/null || true); \
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
 	installed_version_base=$${installed_version%%-*}; \

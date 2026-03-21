@@ -1,0 +1,51 @@
+#!/bin/sh
+set -eu
+
+# ensure_dir.sh
+# Ensure directory exists with given owner, group, and mode.
+# Escalates only if required.
+#
+# Usage:
+#   ensure_dir.sh OWNER GROUP MODE PATH
+
+[ "$#" -eq 4 ] || {
+    echo "usage: $0 OWNER GROUP MODE PATH" >&2
+    exit 64
+}
+
+owner="$1"
+group="$2"
+mode="$3"
+path="$4"
+
+need_root=0
+
+if [ ! -d "$path" ]; then
+    need_root=1
+else
+    current="$(stat -c '%U:%G:%a' "$path")"
+    expected="$owner:$group:$mode"
+    if [ "$current" != "$expected" ]; then
+        need_root=1
+    fi
+fi
+
+if [ "$need_root" -eq 0 ]; then
+    # Directory already correct
+    exit 0
+fi
+
+# Try without escalation first
+if install -d -o "$owner" -g "$group" -m "$mode" "$path" 2>/dev/null; then
+    exit 0
+fi
+
+# Escalate explicitly
+if command -v sudo >/dev/null 2>&1; then
+    exec sudo install -d -o "$owner" -g "$group" -m "$mode" "$path"
+elif command -v doas >/dev/null 2>&1; then
+    exec doas install -d -o "$owner" -g "$group" -m "$mode" "$path"
+else
+    echo "🚫 ensure_dir: insufficient privileges and no escalation tool available" >&2
+    exit 77
+fi

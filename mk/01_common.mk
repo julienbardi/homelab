@@ -144,7 +144,7 @@ HOMELAB_ENV_SRC := $(MAKEFILE_DIR)config/homelab.env
 HOMELAB_ENV_DST := /volume1/homelab/homelab.env
 
 $(HOMELAB_ENV_DST): $(HOMELAB_ENV_SRC) | $(INSTALL_FILE_IF_CHANGED)
-	@$(run_as_root) install -d -o root -g root -m 0755 $(dir $@)
+	@$(ENSURE_DIR) root root 0755 $(dir $@)
 	@$(call install_file,$(HOMELAB_ENV_SRC),$@,root,root,0600)
 
 ensure-run-as-root:

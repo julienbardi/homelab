@@ -3,18 +3,27 @@
 # Help system (pure, dependency‑free)
 # ------------------------------------------------------------
 
-DOCS_DIR ?= $(DOCS_DIR)
+# Public entrypoint (no forced escalation)
+.PHONY: help
+help: help-docs-install help-render
 
-# ------------------------------------------------------------
-# Public entrypoint
-# ------------------------------------------------------------
-help: help-docs-install
+# Opportunistic doc install (conditional escalation)
+.PHONY: help-docs-install
+help-docs-install:
+	@$(ENSURE_DIR) root root 0755 $(DOCS_DIR)
+	@env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+		$(INSTALL_FILE_IF_CHANGED) -q \
+			"" "" "$(MAKEFILE_DIR)docs/help.md" \
+			"" "" "$(DOCS_DIR)/help.md" \
+			"root" "root" "0644"
+
+# Help rendering (always unprivileged)
+.PHONY: help-render
+help-render:
 	@if [ "$(VERBOSE)" -ne 0 ]; then \
 		echo "ℹ️  Pretty Markdown rendering is optional."; \
-		echo "ℹ️  If you install 'mdr', 'glow', or 'mdcat' manually, help will render nicely."; \
-		echo "ℹ️  Otherwise, raw Markdown will be shown."; \
+		echo "ℹ️  Install 'mdr', 'glow', or 'mdcat' for nicer output."; \
 	fi
-	# Pretty renderer if available, raw fallback otherwise
 	@if command -v mdr >/dev/null 2>&1; then \
 		mdr $(DOCS_DIR)/help.md; \
 	elif command -v glow >/dev/null 2>&1; then \
@@ -24,24 +33,3 @@ help: help-docs-install
 	else \
 		cat $(DOCS_DIR)/help.md; \
 	fi
-
-# ------------------------------------------------------------
-# Preconditions
-# ------------------------------------------------------------
-.PHONY: prereqs-docs-verify
-prereqs-docs-verify:
-	@echo "ℹ️  Pretty Markdown rendering is optional."
-	@echo "ℹ️  If you install 'mdr', 'glow', or 'mdcat' manually, help will render nicely."
-	@echo "ℹ️  Otherwise, raw Markdown will be shown."
-
-# ------------------------------------------------------------
-# Idempotent help doc install (IFC v2)
-# ------------------------------------------------------------
-.PHONY: help-docs-install
-help-docs-install: ensure-run-as-root
-	@$(run_as_root) install -d -o root -g root -m 0755 $(DOCS_DIR)
-	@env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-		$(INSTALL_FILE_IF_CHANGED) -q \
-			"" "" "$(MAKEFILE_DIR)docs/help.md" \
-			"" "" "$(DOCS_DIR)/help.md" \
-			"root" "root" "0644"
