@@ -39,8 +39,11 @@ include $(MAKEFILE_DIR)mk/00_prereqs.mk
 include $(MAKEFILE_DIR)mk/01_common.mk
 include $(MAKEFILE_DIR)mk/05_bootstrap_wireguard.mk
 include $(MAKEFILE_DIR)mk/10_groups.mk      # group membership enforcement (security bootstrap)
+include $(MAKEFILE_DIR)mk/10_local-tools.mk
+include $(MAKEFILE_DIR)mk/15_local-python-env.mk
 include $(MAKEFILE_DIR)mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include $(MAKEFILE_DIR)mk/20_gitignore.mk
+include $(MAKEFILE_DIR)mk/20_local-python.mk
 include $(MAKEFILE_DIR)mk/20_net-tunnel.mk
 include $(MAKEFILE_DIR)mk/20_sysctl.mk
 include $(MAKEFILE_DIR)mk/30_config_validation.mk
@@ -81,8 +84,7 @@ include $(MAKEFILE_DIR)mk/90_help.mk
 include $(MAKEFILE_DIR)mk/90_converge.mk
 include $(MAKEFILE_DIR)mk/95_status.mk
 include $(MAKEFILE_DIR)mk/99_lint.mk        # lint and safety checks (always last)
-include $(MAKEFILE_DIR)mk/99_router-python.mk
-include $(MAKEFILE_DIR)mk/99_router-tools.mk
+
 
 # ============================================================
 # Makefile — homelab certificate orchestration
