@@ -1,4 +1,35 @@
 # mk/00_constants.mk
+# ============================================================================
+# mk/00_constants.mk — Canonical build-time constants
+# ----------------------------------------------------------------------------
+# PURPOSE:
+#   This file defines the authoritative, side-effect-free constants used by
+#   the homelab Make DAG. These values describe identities, paths, roles, and
+#   network coordinates, but MUST NOT perform actions or depend on runtime
+#   state.
+#
+# CONTRACT:
+#   - Variables in this file are declarative only.
+#   - No commands, no filesystem mutation, no network access.
+#   - No secrets, credentials, tokens, or derived secret material.
+#   - Values here may be exported, but never computed from secret content.
+#   - Shell invocations are permitted ONLY for local identity discovery
+#     and deterministic, read-only derivation (no mutation, no secrets).
+#
+# SCOPE:
+#   - Operator identity (local, non-root)
+#   - Canonical paths (NAS, router, tooling)
+#   - Network identities and roles
+#   - Build-time defaults and invariants
+#
+# NON-GOALS:
+#   - Runtime configuration
+#   - Secret validation or handling
+#   - Host-specific probing or mutation
+#
+# Any logic, validation, or side effects MUST live in later mk/* layers.
+# ============================================================================
+
 # ------------------------------------------------------------
 # Operator identity (local user, never root)
 # ------------------------------------------------------------
@@ -15,6 +46,10 @@ ROUTER_USER     ?= julie
 ROUTER_HOST     ?= $(ROUTER_ADDR)
 ROUTER_SSH_PORT ?= 2222
 ROUTER_SCRIPTS  ?= /jffs/scripts
+
+# DDNS secret paths (authoritative location only; no secrets or validation here)
+DDNS_SECRET_DIR  := /volume1/homelab/secrets
+DDNS_SECRET_FILE := $(DDNS_SECRET_DIR)/ddns.conf
 
 # Router script metadata (owner/group/mode)
 ROUTER_SCRIPTS_OWNER := 0
