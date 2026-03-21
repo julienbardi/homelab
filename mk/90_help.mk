@@ -40,11 +40,8 @@ prereqs-docs-verify:
 .PHONY: help-docs-install
 help-docs-install: ensure-run-as-root
 	@$(run_as_root) install -d -o root -g root -m 0755 $(DOCS_DIR)
-	@{ \
+	@env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 		$(INSTALL_FILE_IF_CHANGED) -q \
 			"" "" "$(MAKEFILE_DIR)docs/help.md" \
 			"" "" "$(DOCS_DIR)/help.md" \
-			"root" "root" "0644"; \
-		rc=$$?; \
-		[ $$rc -eq 0 ] || [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
-	}
+			"root" "root" "0644"
