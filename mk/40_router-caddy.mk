@@ -51,7 +51,11 @@ router-caddy-config: router-firewall-started | router-require-arm64
 # ------------------------------------------------------------
 
 .PHONY: router-caddy-deploy
-router-caddy-deploy: router-certs-prepare router-caddy-install router-caddy-config
+router-caddy-deploy: \
+	router-ddns-check \
+	router-certs-prepare \
+	router-caddy-install \
+	router-caddy-config
 
 # ------------------------------------------------------------
 # Router‑side Caddy entrypoint

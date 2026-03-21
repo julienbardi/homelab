@@ -4,8 +4,8 @@
 # ------------------------------------------------------------
 
 .NOTPARALLEL: \
-	router-install-run-as-root \
-	router-install-ddns
+	router-bootstrap-run-as-root \
+	router-ddns
 
 # Router script sources inside the repository
 ROUTER_SCRIPTS_SRC_DIR := $(REPO_ROOT)router/jffs/scripts
@@ -23,41 +23,55 @@ define PUSH_ROUTER_SCRIPT
 	|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; }
 endef
 
-.PHONY: router-install-ddns
-router-install-ddns: router-install-ddns-start
+# ------------------------------------------------------------
+# DDNS Runtime Surface (single convergence unit; hash‑driven refresh)
+# ------------------------------------------------------------
 
-.PHONY: router-clear-mux
-router-clear-mux:
-	@rm -f ~/.ssh/cm-*
+.PHONY: router-ddns
+router-ddns: ddns-secret-ensure
+	@echo "🔁 Syncing DDNS runtime surface to router"
+	@$(INSTALL_FILES_IF_CHANGED) DDNS_CHANGED \
+		"" "" "$(ROUTER_SCRIPTS_SRC_DIR)/ddns-start" \
+		"$(ROUTER_HOST)" "$(ROUTER_SSH_PORT)" "$(ROUTER_SCRIPTS)/ddns-start" \
+		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0755" \
+		"" "" "$(DDNS_SECRET_FILE)" \
+		"$(ROUTER_HOST)" "$(ROUTER_SSH_PORT)" "$(ROUTER_SCRIPTS)/.ddns_confidential" \
+		"root" "root" "0600" \
+	|| { \
+		rc=$$?; \
+		if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+			echo "🌐 DDNS surface changed — refreshing"; \
+			ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_SCRIPTS)/ddns-start'; \
+		else \
+			exit $$rc; \
+		fi; \
+	}
 
-# Phase Root bootstrap, transport ssh + cat
-.PHONY: router-install-run-as-root
-router-install-run-as-root: ;
+# ------------------------------------------------------------
+# Phase 0: Root bootstrap (transport ssh + cat)
+# ------------------------------------------------------------
 
 .PHONY: router-bootstrap-run-as-root
 router-bootstrap-run-as-root:
 	@echo "🛡️  Bootstrapping run-as-root on router"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) 'mkdir -p /jffs/scripts'
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
-		'cat > /jffs/scripts/run-as-root' < \
-		$(ROUTER_SCRIPTS_SRC_DIR)/run-as-root.sh
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
-		'chmod 0755 /jffs/scripts/run-as-root'
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) sh -c '\
+		set -e; \
+		mkdir -p /jffs/scripts; \
+		cat > /jffs/scripts/run-as-root; \
+		chmod 0755 /jffs/scripts/run-as-root \
+	' < $(ROUTER_SCRIPTS_SRC_DIR)/run-as-root.sh
 
 # ------------------------------------------------------------
-# Router script installation (explicit)
+# Router script installation (explicit, generic)
 # ------------------------------------------------------------
-
-# Base dependency: all scripts require run-as-root.sh to exist first
-ROUTER_SCRIPT_BASE := router-bootstrap-run-as-root
 
 # Authoritative list of router-managed scripts
+# (DDNS is intentionally excluded — it owns its own surface)
 ROUTER_SCRIPT_FILES := \
 	caddy-reload.sh \
 	certs-create.sh \
 	certs-deploy.sh \
 	common.sh \
-	ddns-start \
 	gen-client-cert-wrapper.sh \
 	generate-client-cert.sh \
 	provision-ipv6-ula.sh \
@@ -66,7 +80,7 @@ ROUTER_SCRIPT_FILES := \
 	wg-compile-keys.sh
 
 .PHONY: router-install-%
-router-install-%: | $(ROUTER_SCRIPT_BASE)
+router-install-%: | router-bootstrap-run-as-root
 	@$(call PUSH_ROUTER_SCRIPT, \
 		$(ROUTER_SCRIPTS_SRC_DIR)/$*, \
 		$(ROUTER_SCRIPTS)/$*)
@@ -76,11 +90,11 @@ ROUTER_INSTALL_TARGETS := $(addprefix router-install-,$(ROUTER_SCRIPT_FILES))
 .PHONY: router-install-scripts
 router-install-scripts: \
 	install-ssh-config \
-	router-clear-mux \
 	ensure-run-as-root \
 	$(INSTALL_FILE_IF_CHANGED) \
-	router-install-run-as-root \
+	router-bootstrap-run-as-root \
 	$(ROUTER_INSTALL_TARGETS)
+	@rm -f ~/.ssh/cm-*
 	@echo "✅ Router scripts installed"
 
 # ------------------------------------------------------------
@@ -98,7 +112,7 @@ router-install-ca:
 .PHONY: router-bootstrap
 router-bootstrap: \
 	router-install-scripts \
-	router-install-ddns \
+	router-ddns \
 	router-dnsmasq-cache \
 	router-firewall-install \
 	install-ssh-config \
@@ -106,7 +120,11 @@ router-bootstrap: \
 	@echo "✅ Router bootstrap complete"
 
 .PHONY: router-all
-router-all: router-install-scripts router-dnsmasq-cache router-firewall-started install-ssh-config
+router-all: \
+	router-install-scripts \
+	router-dnsmasq-cache \
+	router-firewall-started \
+	install-ssh-config
 	@echo "🚀 Router base converge complete"
 
 .PHONY: router-all-full

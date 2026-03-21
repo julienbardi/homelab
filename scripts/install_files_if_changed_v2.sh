@@ -4,8 +4,9 @@
 # --------------------------------------------------------------------
 # Standalone wrapper for the vectorized IFC engine.
 # Usage:
-#   install_files_if_changed_v2.sh <var_name> <spec1> [spec2...]
-# Specs format: "src_path:dst_path:mode"
+#   install_files_if_changed_v2.sh <var_name> <ifc_args...>
+# Arguments are passed in groups of 9, matching install_file_if_changed_v2.sh:
+#   "" "" SRC HOST PORT DST OWNER GROUP MODE
 # --------------------------------------------------------------------
 
 # 1. Locate and source common.sh
