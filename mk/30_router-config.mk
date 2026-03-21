@@ -16,29 +16,18 @@
 #   - MUST be included before any other module
 # ------------------------------------------------------------
 
-# ROUTER_HOST is the single source of truth; USER and ADDR are derived
-ROUTER_HOST := julie@10.89.12.1
-ROUTER_USER := $(word 1,$(subst @, ,$(ROUTER_HOST)))
-ROUTER_ADDR := $(word 2,$(subst @, ,$(ROUTER_HOST)))
-ROUTER_SSH_PORT  := 2222
+ROUTER_SCRIPTS   ?= /jffs/scripts
 
-ROUTER_SCRIPTS   := /jffs/scripts
-REPO_ROOT        := $(MAKEFILE_DIR)
-
-SRC_DDNS           := $(REPO_ROOT)ddns
-ROUTER_SRC_CADDY   := $(REPO_ROOT)caddy
-ROUTER_SRC_SCRIPTS := $(REPO_ROOT)jffs/scripts
+ROUTER_SRC_CADDY   := $(REPO_ROOT)router/caddy
+ROUTER_SRC_SCRIPTS := $(REPO_ROOT)router/jffs/scripts
 
 ROUTER_DNSMASQ_CONF_ADD   := /jffs/configs/dnsmasq.conf.add
 ROUTER_DNS_CACHE_SIZE     := 10000
 ROUTER_DNSMASQ_CACHE_LINE := cache-size=$(ROUTER_DNS_CACHE_SIZE)
 
 ROUTER_CADDYFILE_SRC := $(ROUTER_SRC_CADDY)/Caddyfile
-ROUTER_CADDYFILE_DST := /etc/caddy/Caddyfile
+ROUTER_CADDYFILE_DST := /jffs/caddy/Caddyfile
 ROUTER_CADDY_BIN     := /tmp/mnt/sda/router/bin/caddy
-
-TOOLS_DIR     := .tools
-CHECKMAKE     := $(TOOLS_DIR)/checkmake
 
 # ------------------------------------------------------------
 # Remote execution primitives
@@ -59,14 +48,5 @@ GEN_CLIENT_WRAPPER ?= /jffs/scripts/gen-client-cert-wrapper.sh
 # Shell platform contract
 # ------------------------------------------------------------
 
-COMMON_SH_SRC := $(REPO_ROOT)jffs/scripts/common.sh
+COMMON_SH_SRC := $(REPO_ROOT)router/jffs/scripts/common.sh
 COMMON_SH_DST := $(ROUTER_SCRIPTS)/common.sh
-
-# ------------------------------------------------------------
-# Python toolchain configuration
-# ------------------------------------------------------------
-
-PYTHON        ?= python3
-PYTHON_VENV   ?= .venv
-PYTHON_BIN    := $(PYTHON_VENV)/bin/python
-PIP_BIN       := $(PYTHON_VENV)/bin/pip
