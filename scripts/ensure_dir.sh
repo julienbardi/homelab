@@ -1,9 +1,8 @@
 #!/bin/sh
 set -eu
-
 # ensure_dir.sh
-# Ensure directory exists with given owner, group, and mode.
-# Escalates only if required.
+# Idempotently ensure a directory exists with given owner/group/mode.
+# Escalates only if required (sudo/doas).
 #
 # Usage:
 #   ensure_dir.sh OWNER GROUP MODE PATH
@@ -46,6 +45,6 @@ if command -v sudo >/dev/null 2>&1; then
 elif command -v doas >/dev/null 2>&1; then
     exec doas install -d -o "$owner" -g "$group" -m "$mode" "$path"
 else
-    echo "🚫 ensure_dir: insufficient privileges and no escalation tool available" >&2
+    echo "🚫 ensure_dir: cannot create $path (no sudo/doas available)" >&2
     exit 77
 fi
