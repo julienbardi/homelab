@@ -26,6 +26,8 @@
 secrets/
 config/*.generated
 *.bak.conf
+/volume1/homelab/secrets/
+/**/secrets/
 
 # === FreeFileSync databases & temp files ===
 # FreeFileSync creates sync databases (.ffs_db), temp files (.ffs_tmp), and lock files (.ffs_lock)
