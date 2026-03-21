@@ -154,18 +154,37 @@ if [ -z "$DST_HOST" ]; then
     rm -f "$BUFFER"
 
 else
-    # --- REMOTE INSTALL STRATEGY ---
-    # Pipe data through base64 to ensure binary safety over SSH
-    {
-        if [ -z "$SRC_HOST" ]; then
-            cat "$SRC_PATH"
-        else
-            ssh -p "$SRC_PORT" -o BatchMode=yes "$SRC_HOST" "cat '$SRC_PATH'"
-        fi
-    } | base64 | ssh -p "$DST_PORT" -o BatchMode=yes "$DST_HOST" "
+    # --- REMOTE INSTALL STRATEGY (binary-safe, no router deps) ---
+    BUFFER="${TMPDIR}/.ifc_buf_${PID}"
+
+    # Capture source into local buffer (binary-safe)
+    if [ -z "$SRC_HOST" ]; then
+        cat "$SRC_PATH" > "$BUFFER"
+    else
+        ssh -p "$SRC_PORT" -o BatchMode=yes "$SRC_HOST" "cat '$SRC_PATH'" > "$BUFFER"
+    fi
+
+    # Verify buffer integrity before transfer
+    BUF_HASH=$(sha256sum "$BUFFER" | awk '{print $1}')
+    if [ "$BUF_HASH" != "$SRC_HASH" ]; then
+        echo "❌ IFC: Buffer corruption detected" >&2
+        rm -f "$BUFFER"
+        exit 1
+    fi
+
+    # Transfer raw bytes safely
+    scp -O -P "$DST_PORT" "$BUFFER" "$DST_HOST:/tmp/.ifc_rem_${PID}" || {
+        echo "❌ IFC: SCP transfer failed" >&2
+        rm -f "$BUFFER"
+        exit 1
+    }
+
+    rm -f "$BUFFER"
+
+    # Finalize atomically on router
+    ssh -p "$DST_PORT" -o BatchMode=yes "$DST_HOST" "
         set -eu
         T=\"/tmp/.ifc_rem_${PID}\"
-        base64 -d > \"\$T\"
         H=\$(sha256sum \"\$T\" | awk '{print \$1}')
         if [ \"\$H\" != \"$SRC_HASH\" ]; then exit 1; fi
         mkdir -p \"\$(dirname '$DST_PATH')\"
@@ -178,6 +197,7 @@ else
         exit 1
     }
 fi
+
 
 [ "$quiet" -eq 0 ] && log "✅ $DST_PATH updated successfully"
 exit 3
