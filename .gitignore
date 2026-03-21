@@ -136,42 +136,42 @@ dns-warm-async
 # === Router runtime artifacts (ASUSWRT-Merlin) ===
 # These patterns prevent accidental commits of router runtime state,
 # secrets, addon caches, and ephemeral files from ASUSWRT-Merlin.
-# Router scripts under 10.89.12.1/ are source of truth.
+# Router scripts under router/ are source of truth.
 # Everything else under that path is runtime noise and must be ignored.
 
 # Directories (broadest)
-10.89.12.1/archive/
-10.89.12.1/addons/
-10.89.12.1/cron/
-10.89.12.1/wireguard/
-10.89.12.1/openvpn/
-10.89.12.1/backup/
+router/archive/
+router/addons/
+router/cron/
+router/wireguard/
+router/openvpn/
+router/backup/
 
 # Logs and temp files
-10.89.12.1/*.log
-10.89.12.1/*.tmp
-10.89.12.1/*.swp
-10.89.12.1/*.bak
-10.89.12.1/*.old
-10.89.12.1/*.orig
-10.89.12.1/*~
-10.89.12.1/*.cache
+router/*.log
+router/*.tmp
+router/*.swp
+router/*.bak
+router/*.old
+router/*.orig
+router/*~
+router/*.cache
 
 # Runtime state files
-10.89.12.1/*.state
-10.89.12.1/*.pid
-10.89.12.1/*.lock
-10.89.12.1/*.json
+router/*.state
+router/*.pid
+router/*.lock
+router/*.json
 
 # Secrets (broad patterns)
-10.89.12.1/*secret*
-10.89.12.1/*token*
-10.89.12.1/*key*
+router/*secret*
+router/*token*
+router/*key*
 
 # Cloudflare DDNS artifacts
-10.89.12.1/cloudflare_ddns*
-10.89.12.1/.cloudflare
-10.89.12.1/.ddns_confidential
+router/cloudflare_ddns*
+router/.cloudflare
+router/.ddns_confidential
 
 # Build / runtime state
 .state/

@@ -23,7 +23,7 @@ ROUTER_SCRIPTS="${ROUTER_SCRIPTS:-/jffs/scripts}"
 : "${HOMELAB_DIR:?HOMELAB_DIR must be set by Make}"
 
 # NOTE: repo_root is identity, not transport — do not parameterize
-repo_root="$HOMELAB_DIR/10.89.12.1/jffs/scripts"
+repo_root="$HOMELAB_DIR/router/jffs/scripts"
 
 # Mark invocation as originating from the sole authorized router orchestrator.
 # Mutation scripts MUST refuse to run unless this variable is set,

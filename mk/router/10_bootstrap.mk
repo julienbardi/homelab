@@ -8,7 +8,7 @@
 	router-install-ddns
 
 # Router script sources inside the repository
-ROUTER_SCRIPTS_SRC_DIR := $(REPO_ROOT)10.89.12.1/jffs/scripts
+ROUTER_SCRIPTS_SRC_DIR := $(REPO_ROOT)router/jffs/scripts
 
 # ------------------------------------------------------------
 # Internal Macro: Push script to Router via IFC v2
