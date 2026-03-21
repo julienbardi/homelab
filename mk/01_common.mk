@@ -35,7 +35,8 @@ $(INSTALL_SBIN_PATH)/run-as-root.sh: $(RUN_ROOT_SRC)
 run_as_root := $(INSTALL_SBIN_PATH)/run-as-root.sh
 
 # 2. Singular V2 Engine
-$(INSTALL_PATH)/install_file_if_changed_v2.sh: $(IFC_V2_SINGLE_SRC) $(INSTALL_FILE_IF_CHANGED)
+# Avoid self-dependency: do NOT depend on $(INSTALL_FILE_IF_CHANGED) here
+$(INSTALL_PATH)/install_file_if_changed_v2.sh: $(IFC_V2_SINGLE_SRC)
 	@echo "🚀 Installing Singular V2 Engine: $@"
 	@$(call install_file,$<,$@,root,root,0755)
 
@@ -48,7 +49,6 @@ $(INSTALL_PATH)/install_files_if_changed_v2.sh: $(IFC_V2_PLURAL_SRC) $(INSTALL_F
 $(INSTALL_PATH)/common.sh: $(COMMON_SRC) $(INSTALL_FILE_IF_CHANGED)
 	@echo "📦 Installing Common Lib: $@"
 	@$(call install_file,$<,$@,root,root,0755)
-
 
 # 5. URL-based IFC Engine
 $(INSTALL_URL_FILE_IF_CHANGED): $(IFC_URL_SRC) $(INSTALL_FILE_IF_CHANGED)
