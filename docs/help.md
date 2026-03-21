@@ -67,10 +67,27 @@
 - `make dns-postflight`
 - `make dnsmasq-status`
 
-## 🌐 DNS / DDNS
+## 🌐 Router DDNS (Infomaniak)
 
-- `make router-ddns` — Install and converge DDNS runtime surface on router
-  (hash‑driven; refreshes only on semantic change)
+The router uses an event-driven DynDNS script compatible with Asuswrt-Merlin.
+The DDNS layer is split into deployment and execution for clarity and safety.
+
+Targets:
+
+- `router-ddns-deploy`
+  Deploys the DDNS runtime surface (`ddns-start` and secret material) to the router.
+  This target is idempotent and performs no network calls.
+
+- `router-ddns-run`
+  Executes the DDNS update logic on the router. Safe to re-run; provider-level
+  idempotence (`good` / `nochg`) is relied upon.
+
+- `router-ddns`
+  Convenience target that performs both deployment and execution.
+  This is the default and recommended entry point.
+
+Secrets are validated structurally via `ddns-secret-ensure` before deployment.
+No cron jobs are installed; execution is event-driven by Asuswrt-Merlin.
 
 ## 🔐 WireGuard — lifecycle
 
@@ -106,6 +123,9 @@
 - `make router-health-strict` — Enforce strict security invariants
 
 ### Router: Bootstrap & firewall
+
+`router-bootstrap` establishes a safe, minimal control plane on the router
+(SSH access, helper scripts, DDNS, base firewall hooks) but does not expose services.
 
 - `make router-bootstrap` — Install helpers and converge base services
 - `make router-firewall` — Assert Skynet firewall enforcement
@@ -144,8 +164,8 @@
 
 ### Router orchestration (aggregates)
 
-- `make router-all` — Install DDNS, warm dnsmasq cache, ensure firewall started
-- `make router-all-full` — router-all + full Caddy converge
+- `make router-all` — Converge router baseline (DDNS, dnsmasq cache, firewall started)
+- `make router-all-full` — router-all + full Caddy converge (service exposure)
 
 ### 🧰 Local Developer Tools
 
@@ -165,6 +185,8 @@
 
 ## 📝 Notes
 
+- Router targets are split into deploy vs execute where side effects exist.
+  Aggregate targets compose these explicitly.
 - All state is intent-driven; validation failures never modify deployed state.
 - Scripts are never executed from the repository.
 - Destructive targets are explicit and never run implicitly.
