@@ -13,6 +13,7 @@
 - 🔐 [WireGuard — lifecycle](#-wireguard--lifecycle)
 - 🔐 [WireGuard — client lifecycle](#-wireguard--client-lifecycle)
 - 🔍 [WireGuard — inspection (read-only)](#-wireguard--inspection-read-only)
+- 🔐 [Router WireGuard — control plane (layered)](#-router-wireguard--control-plane-layered)
 - 📦 [Infrastructure](#-infrastructure)
 - 📝 [Notes](#-notes)
 
@@ -103,6 +104,10 @@ No cron jobs are installed; execution is event-driven by Asuswrt-Merlin.
 - `make wg-rotate-client base=<base> iface=<iface>` — Rotate client key (revokes old key)
 - `make wg-remove-client base=<base> iface=<iface>` — Permanently remove client
 
+Note: These targets manage WireGuard intent and runtime state.
+Router forwarding and authorization are handled by the
+**Router WireGuard — control plane (layered)** targets.
+
 ## 🔍 WireGuard — inspection (read-only)
 
 - `make wg-status` — Interface and peer summary
@@ -110,6 +115,56 @@ No cron jobs are installed; execution is event-driven by Asuswrt-Merlin.
 - `make wg-dashboard` — Client ↔ interface mapping
 - `make wg-clients` — Client inventory
 - `make wg-intent` — Addressing and endpoint intent
+
+## 🔐 Router WireGuard — control plane (layered)
+
+The router WireGuard control plane is explicitly layered and fail‑closed:
+
+- **Transport layer** — packet reachability only (DNAT / FORWARD)
+- **Policy layer** — per‑client authorization (LAN / WAN access)
+- **Composition layer** — deterministic ordering and auditing
+
+Firewall invariants and WireGuard policy are intentionally decoupled.
+
+### Transport & policy
+
+- `make router-wg-transport`
+  Deploy and apply WireGuard transport rules on the router.
+  This enables packet flow but does **not** grant access.
+
+- `make router-wg-policy`
+  Apply WireGuard authorization policy from `plan.tsv`.
+  This layer is **fail‑closed**: if the plan is missing or invalid,
+  WireGuard forwarding is blocked.
+
+### Canonical entrypoint
+
+Typical workflow:
+
+```sh
+make router-wg-converge
+make router-wg-audit
+```
+
+This applies transport and policy deterministically and verifies that no drift occurred.
+This does three things:
+- Makes the commands memorable
+- Prevents people from running transport/policy separately
+- Encodes your operational intent in documentation
+
+- `make router-wg-converge`
+  Apply WireGuard transport **then** policy in the correct order.
+  This is the **only recommended entrypoint** for router WireGuard changes.
+
+### Auditing & diagnostics (read‑only)
+
+- `make router-wg-audit`
+  Verify WireGuard policy chains, FORWARD hooks, and interface state.
+  Detects drift after reboot or firmware updates.
+
+- `make router-wg-reset`
+  Flush WireGuard policy chains only (transport untouched).
+  Intended for debugging and recovery.
 
 ## 📦 Infrastructure
 
@@ -157,10 +212,17 @@ No cron jobs are installed; execution is event-driven by Asuswrt-Merlin.
 
 ### Router: WireGuard (control plane)
 
+These targets manage WireGuard **intent compilation and runtime validation**
+on the router. They do not modify firewall or forwarding policy.
+
 - `make router-wg-deploy` — Deploy WireGuard compiler scripts to router
-- `make router-wg-check` — Run WireGuard compilers on router
-- `make router-wg-dump` — Run WireGuard compilers with WG_DUMP=1
+- `make router-wg-check` — Compile and validate WireGuard intent
+- `make router-wg-dump` — Compile with WG_DUMP=1 for inspection
 - `make router-wg-preflight` — Validate router WireGuard environment
+
+Firewall transport and authorization are handled separately
+by the router WireGuard control‑plane targets.
+
 
 ### Router orchestration (aggregates)
 
@@ -191,3 +253,7 @@ No cron jobs are installed; execution is event-driven by Asuswrt-Merlin.
 - Scripts are never executed from the repository.
 - Destructive targets are explicit and never run implicitly.
 - Runtime reconciliation is gated; use `FORCE=1` only after reviewing drift.
+- Router WireGuard forwarding is explicitly layered:
+  transport enables reachability, policy grants access.
+  Missing or invalid policy fails closed.
+
