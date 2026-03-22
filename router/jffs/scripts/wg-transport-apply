@@ -7,7 +7,9 @@
 #   - Minimal FORWARD allowances
 #
 # No policy decisions here.
-
+# DATA FLOW:
+# This script CONSUMES WireGuard configs generated on the NAS.
+# It must never generate keys or configs itself.
 set -e
 
 log() { echo "[wg-transport] $*" >&2; }
@@ -15,32 +17,68 @@ log() { echo "[wg-transport] $*" >&2; }
 WAN_IF="$(ip route show default 2>/dev/null | awk 'NR==1{print $5}')"
 NAS4="10.89.12.4"
 WG_PORTS="51420:51435"
+PLAN="/jffs/scripts/wireguard/plan.tsv"
 
 [ -z "$WAN_IF" ] && { log "WAN interface not detected; aborting"; exit 1; }
 
-# Dedicated chains
-iptables -t nat    -N HL_WG_NAT 2>/dev/null || iptables -t nat    -F HL_WG_NAT
-iptables -t filter -N HL_WG_FWD 2>/dev/null || iptables -t filter -F HL_WG_FWD
+# ------------------------------------------------------------
+# Dedicated chains (transport-owned)
+# ------------------------------------------------------------
+
+iptables -t nat    -N HL_WG_NAT_PRE  2>/dev/null || iptables -t nat    -F HL_WG_NAT_PRE
+iptables -t nat    -N HL_WG_NAT_POST 2>/dev/null || iptables -t nat    -F HL_WG_NAT_POST
+iptables -t filter -N HL_WG_FWD      2>/dev/null || iptables -t filter -F HL_WG_FWD
 
 # Attach chains (single jump)
-iptables -t nat -C PREROUTING -j HL_WG_NAT 2>/dev/null || \
-iptables -t nat -A PREROUTING -j HL_WG_NAT
+iptables -t nat -C PREROUTING  -j HL_WG_NAT_PRE  2>/dev/null || iptables -t nat -A PREROUTING  -j HL_WG_NAT_PRE
+iptables -t nat -C POSTROUTING -j HL_WG_NAT_POST 2>/dev/null || iptables -t nat -A POSTROUTING -j HL_WG_NAT_POST
 
-iptables -C FORWARD -j HL_WG_FWD 2>/dev/null || \
-iptables -A FORWARD -j HL_WG_FWD
+iptables -C FORWARD -j HL_WG_FWD 2>/dev/null || iptables -A FORWARD -j HL_WG_FWD
 
+# ------------------------------------------------------------
+# Per-client IPv4 egress NAT (policy-gated)
+# ------------------------------------------------------------
+
+if [ -s "$PLAN" ]; then
+	busybox awk -F'\t' '
+		/^#/ { next }
+		NR==1 && $1=="node" { next }
+		NF>=9 { print }
+	' "$PLAN" | while IFS="$(printf '\t')" read -r \
+		node iface profile tunnel_mode lan_access egress_v4 egress_v6 \
+		client_v4 client_v6 _
+	do
+		[ "$egress_v4" -eq 1 ] 2>/dev/null || continue
+		[ -n "$client_v4" ] || continue
+
+		log "NAT v4 enabled for $node ($client_v4)"
+		iptables -t nat -A HL_WG_NAT_POST -s "$client_v4" -o "$WAN_IF" -j MASQUERADE
+	done
+else
+	log "plan.tsv missing or empty; skipping per-client NAT"
+fi
+
+# ------------------------------------------------------------
 # DNAT: WAN → NAS (WG handshake)
-iptables -t nat -A HL_WG_NAT -i "$WAN_IF" -p udp --dport "$WG_PORTS" \
-    -j DNAT --to-destination "$NAS4"
+# ------------------------------------------------------------
 
+iptables -t nat -A HL_WG_NAT_PRE -i "$WAN_IF" -p udp --dport "$WG_PORTS" \
+	-j DNAT --to-destination "$NAS4"
+
+# ------------------------------------------------------------
 # Forward WG traffic to NAS
+# ------------------------------------------------------------
+
 iptables -A HL_WG_FWD -p udp -d "$NAS4" --dport "$WG_PORTS" \
-    -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+	-m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
 
 iptables -A HL_WG_FWD -p udp -s "$NAS4" --sport "$WG_PORTS" \
-    -m conntrack --ctstate ESTABLISHED -j ACCEPT
+	-m conntrack --ctstate ESTABLISHED -j ACCEPT
 
-# SNAT for NAS‑terminated WG egress
-iptables -t nat -A HL_WG_NAT -s "$NAS4" -o "$WAN_IF" -j MASQUERADE
+# ------------------------------------------------------------
+# SNAT for NAS-terminated WG egress
+# ------------------------------------------------------------
+
+iptables -t nat -A HL_WG_NAT_POST -s "$NAS4" -o "$WAN_IF" -j MASQUERADE
 
 log "WireGuard transport rules applied"
