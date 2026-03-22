@@ -1,4 +1,8 @@
 #!/bin/sh
+# NOTE:
+# This script is NOT executed by Make.
+# It is a router-side runtime helper only.
+# The authoritative compiler lives in: scripts/wg-compile.sh
 set -eu; umask 077
 
 # Implements the contracts defined in contracts.inc.

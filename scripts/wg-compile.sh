@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# AUTHORITATIVE WIREGUARD COMPILER
+# This is the single source of truth for key and config generation.
+# Router-side scripts must never reimplement this logic.
 
 # wg-compile.sh — validate staged CSV, allocate deterministic slots, render a plan snapshot
 #
@@ -298,21 +301,23 @@ EOF
 
         set -- $(profile_intent "$profile")
         tunnel_mode="$1"
-        lan_access="$2"
-        egress_v4="$3"
-        egress_v6="$4"
+
+        lan_access=$([ "$2" -eq 1 ] && echo "lan_access" || echo "none")
+        egress_v4=$([ "$3" -eq 1 ] && echo "egress_v4" || echo "none")
+        egress_v6=$([ "$4" -eq 1 ] && echo "egress_v6" || echo "none")
+
 
         client_allowed_v4="10.${ifnum}.0.0/16"
         client_allowed_v6="$(wg_ula_subnet6_for_ifnum "$ifnum")"
 
-        [ "$lan_access" -eq 1 ] && {
+        [ "$lan_access" = "lan_access" ] && {
             client_allowed_v4="${client_allowed_v4},10.89.12.0/24"
             client_allowed_v6="${client_allowed_v6},${WG_ULA_LAN_CIDR}"
         }
 
         [ "$tunnel_mode" = "full" ] && {
-            [ "$egress_v4" -eq 1 ] && client_allowed_v4="${client_allowed_v4},0.0.0.0/1,128.0.0.0/1"
-            [ "$egress_v6" -eq 1 ] && client_allowed_v6="${client_allowed_v6},::/1,8000::/1"
+            [ "$egress_v4" = "egress_v4" ] && client_allowed_v4="${client_allowed_v4},0.0.0.0/1,128.0.0.0/1"
+            [ "$egress_v6" = "egress_v6" ] && client_allowed_v6="${client_allowed_v6},::/1,8000::/1"
         }
 
         server_allowed_v4="$client_addr4"
