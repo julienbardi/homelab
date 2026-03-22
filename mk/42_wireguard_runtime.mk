@@ -1,4 +1,7 @@
 # mk/42_wireguard_runtime.mk
+WG_ROUTER_SUBNET_V4 = $(shell WG_ROOT="$(WG_ROOT)" $(WG_PLAN_SUBNETS) --router --v4 | awk 'NR==1 {print $$2}')
+WG_ROUTER_SUBNET_V6 = $(shell WG_ROOT="$(WG_ROOT)" $(WG_PLAN_SUBNETS) --router --v6 | awk 'NR==1 {print $$2}')
+
 wg-prepare: wg-install-scripts wg-compile wg-check
 wg-runtime: wg-install-scripts ensure-run-as-root wg-check wg-apply-verified
 
