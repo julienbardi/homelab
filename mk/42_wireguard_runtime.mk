@@ -3,7 +3,7 @@ WG_ROUTER_SUBNET_V4 = $(shell WG_ROOT="$(WG_ROOT)" $(WG_PLAN_SUBNETS) --router -
 WG_ROUTER_SUBNET_V6 = $(shell WG_ROOT="$(WG_ROOT)" $(WG_PLAN_SUBNETS) --router --v6 | awk 'NR==1 {print $$2}')
 
 wg-prepare: wg-install-scripts wg-compile wg-check
-wg-runtime: wg-install-scripts ensure-run-as-root wg-check wg-apply-verified
+wg-runtime: require-wg-plan-subnets wg-install-scripts ensure-run-as-root wg-check wg-apply-verified
 
 # ------------------------------------------------------------
 # Consistency & Verification
