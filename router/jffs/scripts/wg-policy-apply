@@ -4,10 +4,28 @@
 #
 # WireGuard policy layer (fail-closed)
 # Owns: WGSF / WGSF6
-
+# EXECUTION CONTEXT:
+# This script is executed manually or by router hooks only.
+# It is NEVER invoked by Make or by scripts/wg-compile.sh.
 set -e
 
 log() { echo "[wg-policy] $*" >&2; }
+
+resolve_lan() {
+    case "$1" in
+        lan_access) echo 1 ;;
+        none|"")    echo 0 ;;
+        *) log "invalid lan role: $1"; exit 2 ;;
+    esac
+}
+
+resolve_egress() {
+    case "$1" in
+        egress_v4|egress_v6) echo 1 ;;
+        none|"")             echo 0 ;;
+        *) log "invalid egress role: $1"; exit 2 ;;
+    esac
+}
 
 PLAN="/jffs/scripts/wireguard/plan.tsv"
 
@@ -33,7 +51,7 @@ fail_closed() {
 
 if ! busybox awk -F'\t' '
     /^#/ { next }
-    NR==1 && $1=="node" { next }
+    $1=="node" && $2=="iface" && $8=="client_addr_v4" && $9=="client_addr_v6" { next }
     NF>=9 { ok=1 }
     END { exit(ok?0:1) }
 ' "$PLAN"; then
@@ -44,15 +62,15 @@ log "Applying WireGuard policy"
 
 busybox awk -F'\t' '
     /^#/ { next }
-    NR==1 && $1=="node" { next }
+    $1=="node" && $2=="iface" && $8=="client_addr_v4" && $9=="client_addr_v6" { next }
     NF>=9 { print }
 ' "$PLAN" | while IFS="$(printf '\t')" read -r \
     node iface profile tunnel_mode lan_access egress_v4 egress_v6 \
     client_v4 client_v6 _
 do
-    lan_access="${lan_access:-0}"
-    egress_v4="${egress_v4:-0}"
-    egress_v6="${egress_v6:-0}"
+    lan_access="$(resolve_lan "$lan_access")"
+    egress_v4="$(resolve_egress "$egress_v4")"
+    egress_v6="$(resolve_egress "$egress_v6")"
 
     [ -z "$client_v4" ] && [ -z "$client_v6" ] && continue
 
