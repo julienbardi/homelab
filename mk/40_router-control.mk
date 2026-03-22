@@ -98,3 +98,12 @@ router-converge: \
 	router-health \
 	router-health-strict
 	@echo "🚀 Router fully converged"
+
+.PHONY: router-verify
+router-verify: \
+	router-ssh-check \
+	router-firewall-hardened \
+	router-wg-health-strict \
+	router-wg-audit \
+	router-health-strict
+	@echo "✅ Router verification passed"
