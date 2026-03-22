@@ -1,9 +1,12 @@
 # mk/42_wireguard_runtime.mk
+wg-prepare: wg-install-scripts wg-compile wg-check
+wg-runtime: wg-install-scripts ensure-run-as-root wg-check wg-apply-verified
 
 # ------------------------------------------------------------
 # Consistency & Verification
 # ------------------------------------------------------------
 wg-check: wg-install-scripts ensure-run-as-root
+	@test -f "$(WG_ROOT)/compiled/plan.tsv" || { echo "❌ missing plan: $(WG_ROOT)/compiled/plan.tsv (run: make wg-prepare)"; exit 1; }
 	@$(run_as_root) $(WG_CHECK_SCRIPT) $(WG_ROOT)/compiled/plan.tsv
 
 wg-check-render: wg-install-scripts wg-render-missing
@@ -57,8 +60,7 @@ wg-remove-client: wg-install-scripts ensure-run-as-root
 	@if [ -z "$(base)" ] || [ -z "$(iface)" ]; then echo "Usage: make wg-remove-client base=<base> iface=<iface>"; exit 1; fi
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_REMOVE_CLIENT)" "$(base)" "$(iface)"
 
-wg: wg-contract-check wg-install-scripts wg-ensure-server-keys wg-render-missing wg-apply-verified
-
+wg: wg-prepare wg-runtime
 
 # ------------------------------------------------------------
 # Compilation & Rendering
@@ -70,7 +72,7 @@ wg-ensure-server-keys: wg-install-scripts wg-compile-intent
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_KEYS_SCRIPT)"
 
 wg-compile-keys: wg-install-scripts wg-compile-intent
-	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_KEYS_SCRIPT)"
+	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" WG_PHASE=compile "$(WG_KEYS_SCRIPT)"
 
 wg-render-server-base: wg-install-scripts wg-ensure-server-keys
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_BASE_RENDER_SCRIPT)"
@@ -88,7 +90,7 @@ wg-compile: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-missi
 # ------------------------------------------------------------
 # Deployment & Kernel State Sync
 # ------------------------------------------------------------
-wg-deployed: wg-install-scripts ensure-run-as-root net-tunnel-preflight firewall-nas wg-compile wg-check
+wg-deployed: wg-install-scripts ensure-run-as-root net-tunnel-preflight firewall-nas wg-check
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔄 WireGuard deployment requested"; fi
 	@$(run_as_root) $(WG_DEPLOY_SCRIPT)
 
