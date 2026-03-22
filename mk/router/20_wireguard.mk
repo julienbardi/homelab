@@ -5,37 +5,42 @@
 
 .PHONY: router-wg-transport-deploy
 router-wg-transport-deploy:
-	@$(call PUSH_ROUTER_SCRIPT, \
-		$(ROUTER_SCRIPTS_SRC_DIR)/wg-transport-apply, \
-		$(ROUTER_SCRIPTS)/wg-transport-apply)
+	@$(call PUSH_ROUTER_SCRIPT, $(ROUTER_SCRIPTS_SRC_DIR)/wg-transport-apply, $(ROUTER_SCRIPTS)/wg-transport-apply)
 
 .PHONY: router-wg-transport-apply
 router-wg-transport-apply:
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
-		'$(ROUTER_SCRIPTS)/wg-transport-apply'
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_SCRIPTS)/wg-transport-apply'
 
 .PHONY: router-wg-transport
 router-wg-transport: router-wg-transport-deploy router-wg-transport-apply
 
-
 .PHONY: router-wg-policy-deploy
 router-wg-policy-deploy:
-	@$(call PUSH_ROUTER_SCRIPT, \
-		$(ROUTER_SCRIPTS_SRC_DIR)/wg-policy-apply, \
-		$(ROUTER_SCRIPTS)/wg-policy-apply)
+	@$(call PUSH_ROUTER_SCRIPT, $(ROUTER_SCRIPTS_SRC_DIR)/wg-policy-apply, $(ROUTER_SCRIPTS)/wg-policy-apply)
+
+.PHONY: router-wg-plan-deploy
+router-wg-plan-deploy:
+	@$(run_as_root) $(INSTALL_PATH)/install_file_if_changed_v2.sh -q \
+		"" "" "$(ROUTER_WG_PLAN_SRC)" \
+		"$(ROUTER_HOST)" "$(ROUTER_SSH_PORT)" "$(ROUTER_SCRIPTS)/wireguard/plan.tsv" \
+		$(ROUTER_SCRIPTS_OWNER) \
+		$(ROUTER_SCRIPTS_GROUP) \
+		$(ROUTER_WG_PLAN_MODE) \
+	|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 .PHONY: router-wg-policy-apply
 router-wg-policy-apply:
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
-		'$(ROUTER_SCRIPTS)/wg-policy-apply'
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_SCRIPTS)/wg-policy-apply'
 
 .PHONY: router-wg-policy
-router-wg-policy: router-wg-policy-deploy router-wg-policy-apply
+router-wg-policy: \
+	router-wg-plan-deploy \
+	router-wg-policy-deploy \
+	router-wg-policy-apply
+
 
 .PHONY: router-wg-converge
-router-wg-converge: \
-	router-wg-transport \
-	router-wg-policy
+router-wg-converge: router-wg-transport router-wg-policy
 	@echo "🔐 WireGuard transport + policy converged"
 
 .PHONY: router-wg-audit
@@ -58,12 +63,6 @@ router-wg-audit: | router-ssh-check
 		echo "→ WireGuard interfaces:"; \
 		wg show \
 	'
-
-.PHONY: router-wg-converge
-router-wg-converge: \
-	router-wg-transport \
-	router-wg-policy
-	@echo "🔐 WireGuard transport + policy converged"
 
 .PHONY: router-wg-reset
 router-wg-reset: | router-ssh-check
