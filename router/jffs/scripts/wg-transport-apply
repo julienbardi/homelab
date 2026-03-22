@@ -1,0 +1,46 @@
+#!/bin/sh
+# Managed by git: router/jffs/scripts/wg-transport-apply
+# DO NOT EDIT ON ROUTER
+#
+# WireGuard transport layer:
+#   - DNAT/SNAT for WG ports
+#   - Minimal FORWARD allowances
+#
+# No policy decisions here.
+
+set -e
+
+log() { echo "[wg-transport] $*" >&2; }
+
+WAN_IF="$(ip route show default 2>/dev/null | awk 'NR==1{print $5}')"
+NAS4="10.89.12.4"
+WG_PORTS="51420:51435"
+
+[ -z "$WAN_IF" ] && { log "WAN interface not detected; aborting"; exit 1; }
+
+# Dedicated chains
+iptables -t nat    -N HL_WG_NAT 2>/dev/null || iptables -t nat    -F HL_WG_NAT
+iptables -t filter -N HL_WG_FWD 2>/dev/null || iptables -t filter -F HL_WG_FWD
+
+# Attach chains (single jump)
+iptables -t nat -C PREROUTING -j HL_WG_NAT 2>/dev/null || \
+iptables -t nat -A PREROUTING -j HL_WG_NAT
+
+iptables -C FORWARD -j HL_WG_FWD 2>/dev/null || \
+iptables -A FORWARD -j HL_WG_FWD
+
+# DNAT: WAN → NAS (WG handshake)
+iptables -t nat -A HL_WG_NAT -i "$WAN_IF" -p udp --dport "$WG_PORTS" \
+    -j DNAT --to-destination "$NAS4"
+
+# Forward WG traffic to NAS
+iptables -A HL_WG_FWD -p udp -d "$NAS4" --dport "$WG_PORTS" \
+    -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+
+iptables -A HL_WG_FWD -p udp -s "$NAS4" --sport "$WG_PORTS" \
+    -m conntrack --ctstate ESTABLISHED -j ACCEPT
+
+# SNAT for NAS‑terminated WG egress
+iptables -t nat -A HL_WG_NAT -s "$NAS4" -o "$WAN_IF" -j MASQUERADE
+
+log "WireGuard transport rules applied"

@@ -1,0 +1,92 @@
+#!/bin/sh
+# Managed by git: router/jffs/scripts/wg-policy-apply
+# DO NOT EDIT ON ROUTER
+#
+# WireGuard policy layer (fail-closed)
+# Owns: WGSF / WGSF6
+
+set -e
+
+log() { echo "[wg-policy] $*" >&2; }
+
+PLAN="/jffs/scripts/wireguard/plan.tsv"
+
+WAN_IF="$(ip route show default | awk 'NR==1{print $5}')"
+LAN_V4="$(ip -4 addr show br0 | awk '/inet /{print $2; exit}')"
+LAN_V6="$(ip -6 addr show br0 | awk '/inet6 fd/{print $2; exit}')"
+
+[ -n "$WAN_IF" ] || { log "WAN interface missing"; exit 1; }
+
+# Ensure chains exist and are flushed
+iptables  -N WGSF  2>/dev/null || iptables  -F WGSF
+ip6tables -N WGSF6 2>/dev/null || ip6tables -F WGSF6
+
+fail_closed() {
+    log "FAIL-CLOSED: blocking all WireGuard forwarding"
+    iptables  -A WGSF  -j DROP
+    ip6tables -A WGSF6 -j DROP
+    exit 2
+}
+
+# Validate plan.tsv
+[ -f "$PLAN" ] || fail_closed
+
+if ! busybox awk -F'\t' '
+    /^#/ { next }
+    NR==1 && $1=="node" { next }
+    NF>=9 { ok=1 }
+    END { exit(ok?0:1) }
+' "$PLAN"; then
+    fail_closed
+fi
+
+log "Applying WireGuard policy"
+
+busybox awk -F'\t' '
+    /^#/ { next }
+    NR==1 && $1=="node" { next }
+    NF>=9 { print }
+' "$PLAN" | while IFS="$(printf '\t')" read -r \
+    node iface profile tunnel_mode lan_access egress_v4 egress_v6 \
+    client_v4 client_v6 _
+do
+    lan_access="${lan_access:-0}"
+    egress_v4="${egress_v4:-0}"
+    egress_v6="${egress_v6:-0}"
+
+    [ -z "$client_v4" ] && [ -z "$client_v6" ] && continue
+
+    log "client=$node lan=$lan_access ev4=$egress_v4 ev6=$egress_v6"
+
+    # LAN access
+    if [ -n "$LAN_V4" ] && [ -n "$client_v4" ]; then
+        [ "$lan_access" -eq 1 ] \
+            && iptables -A WGSF -s "$client_v4" -d "$LAN_V4" -j ACCEPT \
+            || iptables -A WGSF -s "$client_v4" -d "$LAN_V4" -j DROP
+    fi
+
+    if [ -n "$LAN_V6" ] && [ -n "$client_v6" ]; then
+        [ "$lan_access" -eq 1 ] \
+            && ip6tables -A WGSF6 -s "$client_v6" -d "$LAN_V6" -j ACCEPT \
+            || ip6tables -A WGSF6 -s "$client_v6" -d "$LAN_V6" -j DROP
+    fi
+
+    # WAN egress
+    if [ -n "$client_v4" ]; then
+        [ "$egress_v4" -eq 1 ] \
+            && iptables -A WGSF -s "$client_v4" -o "$WAN_IF" -j ACCEPT \
+            || iptables -A WGSF -s "$client_v4" -o "$WAN_IF" -j DROP
+    fi
+
+    if [ -n "$client_v6" ]; then
+        [ "$egress_v6" -eq 1 ] \
+            && ip6tables -A WGSF6 -s "$client_v6" -o "$WAN_IF" -j ACCEPT \
+            || ip6tables -A WGSF6 -s "$client_v6" -o "$WAN_IF" -j DROP
+    fi
+done
+
+# Terminal drop (required by firewall assertions)
+iptables  -A WGSF  -j DROP
+ip6tables -A WGSF6 -j DROP
+
+log "WireGuard policy applied"
