@@ -72,7 +72,8 @@ wg-compile-intent: wg-install-scripts wg-clean-out
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_COMPILE_SCRIPT)"
 
 wg-ensure-server-keys: wg-install-scripts wg-compile-intent
-	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_KEYS_SCRIPT)"
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SERVER_KEYS_SCRIPT)" \
+		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 wg-compile-keys: wg-install-scripts wg-compile-intent
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" WG_PHASE=compile "$(WG_KEYS_SCRIPT)"
@@ -167,3 +168,7 @@ wg-apply: wg-install-scripts wg-deployed
 	done; \
 	'
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "✅ WireGuard kernel state converged"; fi
+
+wg-seed-keys: wg-install-scripts wg-compile-intent
+	@echo "⚠️  Explicit key seeding requested"
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_SEED_KEYS_SCRIPT)"

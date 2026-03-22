@@ -68,9 +68,14 @@ awk -F'\t' '
                 $9=="client_addr_v6" &&
                 $10=="client_allowed_ips_v4" &&
                 $11=="client_allowed_ips_v6" &&
-                $12=="server_allowed_ips_v4" &&
-                $13=="server_allowed_ips_v6" &&
-                $14=="dns") exit 0
+                $12=="server_addr4" &&
+                $13=="server_addr6" &&
+                $14=="server_allowed_ips_v4" &&
+                $15=="server_allowed_ips_v6" &&
+                $16=="dns" &&
+                $17=="endpoint" &&
+                $18=="listen_port" &&
+                $19=="host_kind") exit 0
         } else {
             if ($1=="base" &&
                 $2=="iface" &&
@@ -99,7 +104,7 @@ compile_iface() {
         exit 1
     }
 
-    local server_pub="${WG_ROOT}/server-keys/${iface}.pub"
+    local server_pub="${WG_ROOT}/compiled/server-pubkeys/${iface}.pub"
     [ -f "$server_pub" ] || {
         echo "ERROR: missing server public key $server_pub" >&2
         exit 1
