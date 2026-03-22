@@ -23,8 +23,22 @@ die() { echo "wg-check: ERROR: $*" >&2; exit 1; }
 [ -f "$ALLOC" ] || die "missing alloc.csv"
 [ -f "$KEYS" ]  || die "missing keys.tsv"
 
-# Canonical plan reader (must be on PATH via wg-install-scripts)
-PLAN_READ() { wg-plan-read.sh "$PLAN"; }
+# Canonical (base, iface) pairs from plan.tsv (header-safe)
+PLAN_PAIRS() {
+    awk -F'\t' '
+        /^#/ { next }
+        /^[[:space:]]*$/ { next }
+
+        # New plan.tsv header
+        $1=="node" && $2=="iface" { next }
+        $2=="iface" { next }
+
+        # Legacy header
+        $1=="base" && $2=="iface" && $3=="slot" { next }
+
+        { print $1 "\t" $2 }
+    ' "$PLAN" | sort -u
+}
 
 # --------------------------------------------------------------------
 # plan.tsv ↔ alloc.csv consistency
@@ -32,10 +46,13 @@ PLAN_READ() { wg-plan-read.sh "$PLAN"; }
 
 say "🔍 checking plan.tsv ↔ alloc.csv consistency"
 
-PLAN_READ | awk -F'\t' '{ print $1 }' | sort -u | while read -r base; do
-    grep -q "^$(printf '%s' "$base" | sed 's/[.[\*^$]/\\&/g')," "$ALLOC" \
-        || die "base '$base' missing from alloc.csv"
-done
+while IFS=$'\t' read -r base iface; do
+    awk -F',' -v b="$base" -v i="$iface" '
+        NR==1 { next }
+        $1==b && $2==i { found=1; exit 0 }
+        END { exit(found?0:1) }
+    ' "$ALLOC" || die "base '$base' iface '$iface' missing from alloc.csv"
+done < <(PLAN_PAIRS)
 
 # --------------------------------------------------------------------
 # Server public keys
@@ -43,9 +60,9 @@ done
 
 say "🔍 checking server public keys"
 
-PLAN_READ | awk -F'\t' '{ print $2 }' | sort -u | while read -r iface; do
+while read -r iface; do
     [ -f "$SERVER_PUBDIR/$iface.pub" ] || die "missing server pubkey $iface.pub"
-done
+done < <(PLAN_PAIRS | awk -F'\t' '{ print $2 }' | sort -u)
 
 # --------------------------------------------------------------------
 # Client keys (keys.tsv)
@@ -53,7 +70,7 @@ done
 
 say "🔍 checking client keys (keys.tsv)"
 
-PLAN_READ | awk -F'\t' '{ print $1 "\t" $2 }' | while read -r base iface; do
+while IFS=$'\t' read -r base iface; do
     awk -F'\t' -v b="$base" -v i="$iface" '
         /^#/ { next }
         /^[[:space:]]*$/ { next }
@@ -61,7 +78,8 @@ PLAN_READ | awk -F'\t' '{ print $1 "\t" $2 }' | while read -r base iface; do
         $1==b && $2==i { found=1 }
         END { exit(found?0:1) }
     ' "$KEYS" || die "missing client key for $base $iface in keys.tsv"
-done
+done < <(PLAN_PAIRS)
+
 
 # --------------------------------------------------------------------
 # Orphan client keys
@@ -69,19 +87,24 @@ done
 
 say "🔍 checking for orphan client keys (keys.tsv)"
 
-awk -F'\t' '
-    /^#/ { next }
-    /^[[:space:]]*$/ { next }
-    $1=="base" && $2=="iface" { next }
-    { print $1 "\t" $2 }
-' "$KEYS" | while read -r base iface; do
-    if ! PLAN_READ | awk -F'\t' -v b="$base" -v i="$iface" '
-        $1==b && $2==i { found=1 }
-        END { exit(found?0:1) }
-    '; then
-        echo "� ️  wg-check: orphan client key $base $iface"
+plan_pairs="$(PLAN_PAIRS)"
+orphans=0
+
+while IFS=$'\t' read -r base iface; do
+    if ! printf '%s\n' "$plan_pairs" | grep -Fqx -- "$base"$'\t'"$iface"; then
+        echo "❌ wg-check: orphan client key $base $iface"
+        orphans=1
     fi
-done
+done < <(
+    awk -F'\t' '
+        /^#/ { next }
+        /^[[:space:]]*$/ { next }
+        $1=="base" && $2=="iface" { next }
+        { print $1 "\t" $2 }
+    ' "$KEYS"
+)
+
+[ "$orphans" -eq 0 ] || exit 1
 
 # --------------------------------------------------------------------
 # Guard: LAN prefixes must never be routed via WireGuard

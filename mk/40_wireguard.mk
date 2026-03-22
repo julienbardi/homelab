@@ -39,6 +39,8 @@ WG_RECORD_COMPROMISED_KEYS_SCRIPT := $(WG_SCRIPTS_ROOT)/wg-record-compromised-ke
 WG_REMOVE_CLIENT                  := $(WG_SCRIPTS_ROOT)/wg-remove-client.sh
 WG_ROTATE_CLIENT                  := $(WG_SCRIPTS_ROOT)/wg-rotate-client.sh
 WG_PLAN_READ_SCRIPT               := $(WG_SCRIPTS_ROOT)/wg-plan-read.sh
+WG_SEED_KEYS_SCRIPT               := $(WG_SCRIPTS_ROOT)/wg-seed-missing-keys.sh
+
 
 WG_INSTALL_SOURCES := \
 	$(WG_VALIDATE_SCRIPT) \
@@ -56,6 +58,7 @@ WG_INSTALL_SOURCES := \
 	$(WG_REMOVE_CLIENT) \
 	$(WG_ROTATE_CLIENT) \
 	$(WG_PLAN_READ_SCRIPT) \
+	$(WG_SEED_KEYS_SCRIPT) \
 	$(WG_SCRIPTS_ROOT)/wg-qr.sh \
 	$(WG_SCRIPTS_ROOT)/wg-runtime-recover.sh
 
@@ -105,6 +108,9 @@ $(INSTALL_PATH)/wg-rotate-client.sh: $(WG_ROTATE_CLIENT) | $(BOOTSTRAP_FILES)
 $(INSTALL_PATH)/wg-plan-read.sh: $(WG_PLAN_READ_SCRIPT) | $(BOOTSTRAP_FILES)
 	$(call PUSH_WG_SCRIPT,$<,$@)
 
+$(INSTALL_PATH)/wg-seed-missing-keys.sh: $(WG_SEED_KEYS_SCRIPT) | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
+
 $(INSTALL_PATH)/wg-qr.sh: $(WG_SCRIPTS_ROOT)/wg-qr.sh | $(BOOTSTRAP_FILES)
 	$(call PUSH_WG_SCRIPT,$<,$@)
 
@@ -136,6 +142,7 @@ wg-install-scripts: ensure-run-as-root \
 	$(INSTALL_PATH)/wg-remove-client.sh \
 	$(INSTALL_PATH)/wg-rotate-client.sh \
 	$(INSTALL_PATH)/wg-plan-read.sh \
+	$(INSTALL_PATH)/wg-seed-missing-keys.sh \
 	$(INSTALL_PATH)/wg-qr.sh \
 	$(INSTALL_PATH)/wg-runtime-recover.sh
 	@true
@@ -151,5 +158,3 @@ wg-contract-check:
 	@echo "🔍 Checking WireGuard build contract"
 	@$(foreach s,$(WG_INSTALL_SOURCES), test -x "$(s)" || { echo "❌ Script not executable: $(s)"; exit 1; } ;)
 	@echo "✅ WireGuard build contract holds"
-
-

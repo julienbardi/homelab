@@ -77,7 +77,7 @@ compile_iface() {
         exit 1
     }
 
-    local server_pub="${WG_ROOT}/server-keys/${iface}.pub"
+    local server_pub="${WG_ROOT}/compiled/server-pubkeys/${iface}.pub"
     [ -f "$server_pub" ] || {
         echo "ERROR: missing server public key $server_pub" >&2
         exit 1

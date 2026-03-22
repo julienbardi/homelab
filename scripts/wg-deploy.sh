@@ -14,7 +14,7 @@ WG_BIN="/usr/bin/wg"
 
 PLAN="$ROOT/compiled/plan.tsv"
 
-SERVER_KEYS_DIR="$ROOT/server-keys"
+SERVER_KEYS_DIR="$ROOT/compiled/server-pubkeys"
 
 DRY_RUN="${WG_DRY_RUN:-0}"
 
