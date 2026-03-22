@@ -78,7 +78,8 @@ ROUTER_SCRIPT_FILES := \
 	provision-ipv6-ula.sh \
 	wg-compile-alloc.sh \
 	wg-compile-domain.sh \
-	wg-compile-keys.sh
+	wg-compile-keys.sh \
+	wg-seed-missing-keys.sh
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-run-as-root

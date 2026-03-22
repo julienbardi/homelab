@@ -205,11 +205,11 @@ awk -F'\t' '
 
 # Ensure allocator exists and schema is correct
 if [ ! -f "$ALLOC" ]; then
-    printf "%s\n" "base,slot" >"$ALLOC"
+    printf "%s\n" "base,iface,slot" >"$ALLOC"
     chmod 600 "$ALLOC"
 else
     hdr="$(head -n 1 "$ALLOC")"
-    [ "$hdr" = "base,slot" ] || die "alloc.csv uses legacy schema '$hdr' — migrate manually"
+    [ "$hdr" = "base,iface,slot" ] || die "alloc.csv schema must be 'base,iface,slot' (got: '$hdr')"
 fi
 
 # --------------------------------------------------------------------
@@ -243,21 +243,21 @@ LOCK_TMP="$STAGE/clients.lock.csv"
 
 ALLOC_MERGED="$STAGE/alloc.merged.csv"
 {
-    printf "base,slot\n"
+    printf "base,iface,slot\n"
     awk -F',' 'NR>1{print}' "$ALLOC"
 } >"$ALLOC_MERGED"
 
-awk -F'\t' '{print $5}' "$NORM" | sort -u | while read -r base; do
-    if ! awk -F',' -v b="$base" 'NR>1 && $1==b{found=1} END{exit(found?0:1)}' "$ALLOC_MERGED"; then
+awk -F'\t' '{print $5 "\t" $3}' "$NORM" | sort -u | while IFS=$'\t' read -r base iface; do
+    if ! awk -F',' -v b="$base" -v i="$iface" 'NR>1 && $1==b && $2==i{found=1} END{exit(found?0:1)}' "$ALLOC_MERGED"; then
         slot="$(slot_from_base "$base")"
-        while awk -F',' -v s="$slot" 'NR>1 && $2==s{found=1} END{exit(found?0:1)}' "$ALLOC_MERGED"; do
+        while awk -F',' -v s="$slot" 'NR>1 && $3==s{found=1} END{exit(found?0:1)}' "$ALLOC_MERGED"; do
             slot=$(( (slot + 1) % SLOT_SPACE ))
         done
-        printf "%s,%s\n" "$base" "$slot" >>"$ALLOC_MERGED"
+        printf "%s,%s,%s\n" "$base" "$iface" "$slot" >>"$ALLOC_MERGED"
     fi
 done
 
-awk -F',' 'NR>1{printf "%s\t%s\n",$1,$2}' "$ALLOC_MERGED" >"$STAGE/alloc.tsv"
+awk -F',' 'NR>1{printf "%s\t%s\t%s\n",$1,$2,$3}' "$ALLOC_MERGED" >"$STAGE/alloc.tsv"
 
 # --------------------------------------------------------------------
 # Emit plan.tsv (authoritative)
@@ -287,7 +287,7 @@ EOF
         server_addr4="$(server_addr4_for_ifnum "$ifnum")"
         server_addr6="$(server_addr6_for_ifnum "$ifnum")"
 
-        slot="$(awk -F'\t' -v b="$base" '$1==b{print $2}' "$STAGE/alloc.tsv")"
+        slot="$(awk -F'\t' -v b="$base" -v i="$iface" '$1==b && $2==i{print $3}' "$STAGE/alloc.tsv")"
         [ -n "$slot" ] || die "no slot allocated for base '$base'"
 
         ab="$(ab_from_slot "$slot")"
