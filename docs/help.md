@@ -92,12 +92,23 @@ No cron jobs are installed; execution is event-driven by Asuswrt-Merlin.
 
 ## 🔐 WireGuard — lifecycle
 
+No WireGuard configuration reaches runtime unless both intent and rendered artifacts validate successfully.
+
 - `make wg-install-scripts` — Install WireGuard operational scripts
 - `make wg` — Compile, deploy, apply, and verify WireGuard state
 - `make wg-compile` — Compile intent and keys
 - `make wg-apply` — Apply rendered configuration to runtime
-- `make wg-check` — Validate rendered and runtime state
+- `make wg-check` — Validate compiled WireGuard intent (`plan.tsv`)
+- `make wg-render` — Render configs **and validate rendered artifacts**
 - ⚠️ `make wg-rebuild-all` — Full destructive rebuild
+
+`wg-render` includes a mandatory post‑render validation step.
+Rendered client and server configs are checked against `plan.tsv`
+and the build fails if any artifact deviates from intent.
+
+Rendered WireGuard configurations are treated as authoritative artifacts.
+They are validated against `plan.tsv` before deployment.
+Any mismatch causes the build to fail and prevents runtime changes.
 
 ## 🔐 WireGuard — client lifecycle
 
@@ -115,6 +126,7 @@ Router forwarding and authorization are handled by the
 - `make wg-dashboard` — Client ↔ interface mapping
 - `make wg-clients` — Client inventory
 - `make wg-intent` — Addressing and endpoint intent
+- `make wg-check-rendered` — Validate rendered WireGuard configs against plan intent
 
 ## 🔐 Router WireGuard — control plane (layered)
 
@@ -212,8 +224,8 @@ This does three things:
 
 ### Router: WireGuard (control plane)
 
-These targets manage WireGuard **intent compilation and runtime validation**
-on the router. They do not modify firewall or forwarding policy.
+These targets manage WireGuard intent compilation, rendered‑artifact validation,
+and runtime state on the router. They do not modify firewall or forwarding policy.
 
 - `make router-wg-deploy` — Deploy WireGuard compiler scripts to router
 - `make router-wg-check` — Compile and validate WireGuard intent
