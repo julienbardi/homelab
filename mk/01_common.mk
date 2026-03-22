@@ -14,6 +14,7 @@ INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
 INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v2.sh
 INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_changed.sh
 
+# Default exit code used to signal "changed"; defined with ?= to allow upstream or environment overrides.
 INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
 
 # Source Paths
@@ -152,3 +153,10 @@ ensure-run-as-root:
 
 assert-sanity:
 	@test -d $(MAKEFILE_DIR)scripts || { echo "❌ Error: scripts directory missing"; exit 1; }
+
+.PHONY: require-wg-plan-subnets
+require-wg-plan-subnets:
+	@test -x "$(WG_PLAN_SUBNETS)" || { \
+		echo "❌ Missing $(WG_PLAN_SUBNETS). Run 'sudo make install-all' first."; \
+		exit 1; \
+	}
