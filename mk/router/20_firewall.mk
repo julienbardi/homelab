@@ -126,3 +126,36 @@ router-firewall-audit: | router-ssh-check
 		ip6tables -S FORWARD; \
 		wg show \
 	'
+
+.PHONY: router-wg-health-strict
+router-wg-health-strict: | router-ssh-check
+	@echo "🔒 WireGuard strict health check"
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
+		set -e; \
+		echo "→ IPv4 policy chain:"; \
+		iptables -S WGSF >/dev/null || \
+			{ echo "❌ WGSF missing"; exit 1; }; \
+		iptables -S WGSF | tail -n1 | grep -qx -- "-A WGSF -j DROP" || \
+			{ echo "❌ WGSF missing terminal DROP"; exit 1; }; \
+		echo "   ✓ WGSF OK"; \
+		echo; \
+		echo "→ IPv6 policy chain:"; \
+		ip6tables -S WGSF6 >/dev/null || \
+			{ echo "❌ WGSF6 missing"; exit 1; }; \
+		ip6tables -S WGSF6 | tail -n1 | grep -qx -- "-A WGSF6 -j DROP" || \
+			{ echo "❌ WGSF6 missing terminal DROP"; exit 1; }; \
+		echo "   ✓ WGSF6 OK"; \
+		echo; \
+		echo "→ FORWARD hooks (scoped):"; \
+		iptables  -S FORWARD | grep -q -- "-i wg\\+ -j WGSF" || \
+			{ echo "❌ missing IPv4 wg → WGSF hook"; exit 1; }; \
+		ip6tables -S FORWARD | grep -q -- "-i wg\\+ -j WGSF6" || \
+			{ echo "❌ missing IPv6 wg → WGSF6 hook"; exit 1; }; \
+		if iptables -S FORWARD | grep -q -- "-j WGSF"; then \
+			echo "❌ WGSF globally hooked into FORWARD"; exit 1; \
+		fi; \
+		if ip6tables -S FORWARD | grep -q -- "-j WGSF6"; then \
+			echo "❌ WGSF6 globally hooked into FORWARD"; exit 1; \
+		fi; \
+		echo "   ✓ FORWARD hooks scoped correctly"; \
+	'

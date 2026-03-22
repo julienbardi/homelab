@@ -256,4 +256,5 @@ by the router WireGuard control‑plane targets.
 - Router WireGuard forwarding is explicitly layered:
   transport enables reachability, policy grants access.
   Missing or invalid policy fails closed.
-
+- `make router-verify` asserts non‑negotiable router security invariants
+  and must pass after firmware updates or reboots.
