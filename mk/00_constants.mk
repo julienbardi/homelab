@@ -42,8 +42,7 @@ OPERATOR_HOME := $(shell getent passwd $(OPERATOR_USER) | cut -d: -f6)
 # Router connection (single source of truth for deployment)
 ROUTER_ADDR     ?= 10.89.12.1
 ROUTER_USER     ?= julie
-#ROUTER_HOST     ?= $(ROUTER_USER)@$(ROUTER_ADDR)
-ROUTER_HOST     ?= $(ROUTER_ADDR)
+ROUTER_HOST     ?= $(ROUTER_USER)@$(ROUTER_ADDR)
 ROUTER_SSH_PORT ?= 2222
 ROUTER_SCRIPTS  ?= /jffs/scripts
 
@@ -56,8 +55,13 @@ ROUTER_SCRIPTS_OWNER := 0
 ROUTER_SCRIPTS_GROUP := 0
 ROUTER_SCRIPTS_MODE  := 0755
 
+# WireGuard plan artifact metadata
+ROUTER_WG_PLAN_MODE  := 0644
+
 # Local source directory for router scripts
 SRC_SCRIPTS := $(REPO_ROOT)router/jffs/scripts
+
+ROUTER_WG_PLAN_SRC := /volume1/homelab/wireguard/compiled/plan.tsv
 
 # ---------------------------------------------------------------------------
 # Network identities (do not alias; roles are distinct by contract)
@@ -103,13 +107,9 @@ ENSURE_DIR := $(INSTALL_PATH)/ensure_dir.sh
 
 WG_PLAN_SUBNETS := $(INSTALL_PATH)/wg-plan-subnets.sh
 
-# Bootstrap guard: only enforce when NOT running install-all
-ifeq (,$(filter install-all uninstall-all,$(MAKECMDGOALS)))
-  $(if $(wildcard $(WG_PLAN_SUBNETS)),,$(error Missing $(WG_PLAN_SUBNETS). Run 'sudo make install-all' first.))
-endif
-
-WG_ROUTER_SUBNET_V4 := $(shell WG_ROOT="$(WG_ROOT)" $(WG_PLAN_SUBNETS) --router --v4 | awk 'NR==1 {print $$2}')
-WG_ROUTER_SUBNET_V6 := $(shell WG_ROOT="$(WG_ROOT)" $(WG_PLAN_SUBNETS) --router --v6 | awk 'NR==1 {print $$2}')
+# WireGuard router subnets (derived at runtime; declared here for visibility only)
+WG_ROUTER_SUBNET_V4 :=
+WG_ROUTER_SUBNET_V6 :=
 
 # Export global paths for all scripts
 export WG_ROOT
