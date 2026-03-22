@@ -83,6 +83,7 @@ wg-render-server-base: wg-install-scripts wg-ensure-server-keys
 
 wg-render: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-server-base
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_SCRIPT)"
+	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_CHECK_RENDERED_SCRIPT)"
 
 wg-render-missing: wg-install-scripts wg-compile-intent wg-compile-keys wg-render-server-base
 	@WG_ROOT="$(WG_ROOT)" $(run_as_root) "$(WG_RENDER_MISSING_SCRIPT)"
