@@ -1,6 +1,7 @@
 # Homelab Make Targets
 
 ## 📑 Table of Contents
+
 - 🧱 [Prerequisites](#-prerequisites)
 - 🔐 [Security / access control](#-security--access-control)
 - 🧩 [System tuning](#-system-tuning)
@@ -9,12 +10,14 @@
 - 🚀 [ACME / service certificates](#-acme--service-certificates)
 - 📡 [Router certificate lifecycle](#-router-certificate-lifecycle)
 - 🌐 [DNS](#-dns)
-- 🌐 [DNS / DDNS](#-dns--ddns)
+- 🌐 [Router DDNS](#-router-ddns)
 - 🔐 [WireGuard — lifecycle](#-wireguard--lifecycle)
 - 🔐 [WireGuard — client lifecycle](#-wireguard--client-lifecycle)
 - 🔍 [WireGuard — inspection (read-only)](#-wireguard--inspection-read-only)
 - 🔐 [Router WireGuard — control plane (layered)](#-router-wireguard--control-plane-layered)
 - 📦 [Infrastructure](#-infrastructure)
+- 💻 [Code‑server](#-codeserver)
+- 🔐 [NetBird control plane](#-netbird-control-plane)
 - 📝 [Notes](#-notes)
 
 ## 🧱 Prerequisites
@@ -68,7 +71,7 @@
 - `make dns-postflight`
 - `make dnsmasq-status`
 
-## 🌐 Router DDNS (Infomaniak)
+## 🌐 Router DDNS
 
 The router uses an event-driven DynDNS script compatible with Asuswrt-Merlin.
 The DDNS layer is split into deployment and execution for clarity and safety.
@@ -160,6 +163,7 @@ make router-wg-audit
 
 This applies transport and policy deterministically and verifies that no drift occurred.
 This does three things:
+
 - Makes the commands memorable
 - Prevents people from running transport/policy separately
 - Encodes your operational intent in documentation
@@ -235,7 +239,6 @@ and runtime state on the router. They do not modify firewall or forwarding polic
 Firewall transport and authorization are handled separately
 by the router WireGuard control‑plane targets.
 
-
 ### Router orchestration (aggregates)
 
 - `make router-all` — Converge router baseline (DDNS, dnsmasq cache, firewall started)
@@ -256,6 +259,81 @@ by the router WireGuard control‑plane targets.
 - `make distclean` — Remove local tools and staged scripts
 - `make clean` — Remove local build artifacts
 - `make clean-soft` — Remove temporary files without touching tools
+
+## 💻 Code‑server
+
+The local VS Code server is managed declaratively.
+
+- `make code-server-install`
+  Installs or upgrades code‑server using the upstream installer.
+  Always installs the latest stable release (e.g. v4.112.0).
+  Idempotent: safe to re‑run.
+
+- `make code-server-enable`
+  Enables the systemd user service and ensures it starts on boot.
+
+- `make code-server-ensure-running`
+  Ensures code‑server is running with the correct configuration and systemd override.
+  Restarts automatically if configuration changed.
+
+### Notes
+
+- The systemd override forces code‑server to run with the managed config at
+  `~/.config/code-server/config.yaml`.
+- The install target tracks upstream automatically.
+- If deterministic version pinning is required, replace the installer script with a pinned release artifact.
+
+## 🔐 NetBird control plane
+
+The NetBird control‑plane module provides a fully declarative, drift‑aware lifecycle for a self‑hosted NetBird stack.
+It manages:
+
+- IFC v2 installation of systemd units
+- docker‑compose stack convergence via systemd
+- management‑URL + setup‑key enrollment
+- declarative sync of groups, policies, and routes
+- hash‑based drift detection
+- plan / apply / status / clean workflows
+
+### Targets
+
+- `make netbird-plan`
+  Compute and print hashes for compose + groups + policies + routes.
+  Used to inspect drift before applying.
+
+- `make netbird-apply`
+  Converge the full NetBird control plane:
+  compose → enrollment → groups → policies → routes.
+
+- `make netbird-status`
+  Show NetBird node status and list active stamps.
+
+- `make netbird-clean`
+  Remove local NetBird state (stamps + hashes).
+  Does **not** touch containers or runtime data.
+
+### Declarative state
+
+All NetBird intent lives under:
+config/netbird/
+docker-compose.netbird.yaml
+management-url
+setup-key
+groups.yaml
+policies.yaml
+routes.yaml
+
+Systemd units are stored in:
+config/systemd/netbird-*.service
+
+and installed via IFC v2.
+
+### Remarks
+
+- `netbirdctl up` is guarded to avoid re‑enrollment.
+- Systemd units are only reloaded when IFC v2 detects drift.
+- No recursive make, no duplicate writers, no hidden state.
+- All sync operations are idempotent and drift‑aware.
 
 ## 📝 Notes
 
