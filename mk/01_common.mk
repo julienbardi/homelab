@@ -106,7 +106,7 @@ $(INSTALL_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh | $(BOOTSTRAP_FILES)
 $(INSTALL_SBIN_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh | $(BOOTSTRAP_FILES)
 	@$(call install_sbin_script,$<,$(notdir $<))
 
-SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh systemd-override-sync.sh
+SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh
 ALL_SCRIPTS  := $(notdir $(wildcard $(MAKEFILE_DIR)scripts/*.sh))
 
 # Exclude bootstrap files and sbin files from the generic bin list
