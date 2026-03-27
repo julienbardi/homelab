@@ -1,0 +1,15 @@
+[Unit]
+Description=NetBird STUN/TURN Service
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/julie/src/homelab
+ExecStart=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml up -d stun
+ExecStop=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml stop stun
+ExecReload=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml restart stun
+
+[Install]
+WantedBy=multi-user.target

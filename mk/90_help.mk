@@ -12,10 +12,11 @@ help: help-docs-install help-render
 help-docs-install:
 	@$(ENSURE_DIR) root root 0755 $(DOCS_DIR)
 	@env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-		$(INSTALL_FILE_IF_CHANGED) -q \
-			"" "" "$(MAKEFILE_DIR)docs/help.md" \
-			"" "" "$(DOCS_DIR)/help.md" \
-			"root" "root" "0644"
+	$(INSTALL_FILE_IF_CHANGED) -q \
+		"" "" "$(MAKEFILE_DIR)docs/help.md" \
+		"" "" "$(DOCS_DIR)/help.md" \
+		"root" "root" "0644" \
+		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # Help rendering (always unprivileged)
 .PHONY: help-render

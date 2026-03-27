@@ -35,6 +35,7 @@
 #    - bardi.ch          → A record or CNAME to your dynamic DNS (jam9.synology.me)
 #    - www.bardi.ch      → not needed in your setup
 #    - WireGuard (wgX) → no extra CNAMEs required; clients use vpn.bardi.ch + port
+#    - netbird.bardi.ch  → CNAME to bardi.ch   (NetBird control plane, proxied via Caddy)
 #
 # b) Ports to forward
 #    Forward to DiskStation (10.89.12.2):
@@ -77,6 +78,27 @@ bardi.ch:8384 {
 # Consolidated HTTPS listener - Control Panel>Device Connection>Portal Setting, be sure to disable Redirect port 443 to https port ! UGOS owns port 9999
 :443 {
 	tls /etc/ssl/caddy/bardi.ch.cer /etc/ssl/caddy/bardi.ch.key
+
+	# NetBird dashboard + management API
+	@netbird_mgmt {
+		host netbird.bardi.ch
+		path /api/*
+	}
+	reverse_proxy @netbird_mgmt 10.89.12.4:33073
+
+	# NetBird dashboard root (UI)
+	@netbird_ui {
+		host netbird.bardi.ch
+		not path /api/*
+	}
+	reverse_proxy @netbird_ui 10.89.12.4:33073
+
+	# NetBird signal service (WebRTC signaling)
+	@netbird_signal {
+		host netbird.bardi.ch
+		path /signalexchange/*
+	}
+	reverse_proxy @netbird_signal 10.89.12.4:33075
 
 	# DNS over HTTPS (public)
 	@doh {
@@ -241,7 +263,8 @@ bardi.ch:8384 {
  qnap.bardi.ch \
  nas.bardi.ch \
  dev.bardi.ch \
- apt.bardi.ch
+ apt.bardi.ch \
+ netbird.bardi.ch
 
 	respond @unknown "Not Found" 404
 

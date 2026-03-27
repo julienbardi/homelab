@@ -1,0 +1,15 @@
+[Unit]
+Description=NetBird Management Service
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/julie/src/homelab
+ExecStart=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml up -d management
+ExecStop=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml stop management
+ExecReload=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml restart management
+
+[Install]
+WantedBy=multi-user.target
