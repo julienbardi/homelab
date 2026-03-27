@@ -76,6 +76,7 @@ include $(MAKEFILE_DIR)mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
 include $(MAKEFILE_DIR)mk/70_apt_proxy_auto.mk
 include $(MAKEFILE_DIR)mk/80_tailnet.mk     # Tailscale/Headscale orchestration
 include $(MAKEFILE_DIR)mk/81_headscale.mk              # Headscale service + binary + systemd
+include $(MAKEFILE_DIR)mk/82_netbird.mk
 include $(MAKEFILE_DIR)mk/83_headscale-users.mk        # Users (future)
 include $(MAKEFILE_DIR)mk/84_headscale-acls.mk         # ACLs (future)
 include $(MAKEFILE_DIR)mk/85_monitoring.mk
