@@ -38,7 +38,7 @@ services:
       - "10.89.12.4:33080:33080/tcp"
 
   stun:
-    image: netbirdio/stun:latest
+    image: coturn/coturn:latest
     container_name: netbird-stun
     restart: unless-stopped
     environment:
