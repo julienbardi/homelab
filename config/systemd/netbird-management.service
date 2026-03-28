@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/home/julie/src/homelab
-ExecStart=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml up -d management
+ExecStart=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml -f /home/julie/src/homelab/config/netbird/docker-compose.netbird.override.yaml up -d management
 ExecStop=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml stop management
 ExecReload=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml restart management
 

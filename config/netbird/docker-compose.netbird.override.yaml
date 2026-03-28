@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  management:
+    volumes:
+      - /etc/netbird:/etc/netbird:ro
+      - /var/lib/netbird:/var/lib/netbird:rw
+  relay:
+    volumes:
+      - /etc/netbird:/etc/netbird:ro
+      - /var/lib/netbird:/var/lib/netbird:rw
