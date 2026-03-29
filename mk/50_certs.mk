@@ -28,6 +28,9 @@ CANON_CA          := $(SSL_CANONICAL_DIR)/ca.cer
 # Service deployment targets
 CADDY_DEPLOY_DIR ?= /etc/ssl/caddy
 
+$(CERTS_DEPLOY): $(MAKEFILE_DIR)scripts/certs-deploy.sh $(INSTALL_FILE_IF_CHANGED)
+	@$(call install_file,$<,$@,root,root,0755)
+
 # --------------------------------------------------------------------
 # Internal CA lifecycle (authoritative, idempotent)
 # --------------------------------------------------------------------

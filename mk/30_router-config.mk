@@ -21,10 +21,6 @@ ROUTER_SCRIPTS   ?= /jffs/scripts
 ROUTER_SRC_CADDY   := $(REPO_ROOT)router/caddy
 ROUTER_SRC_SCRIPTS := $(REPO_ROOT)router/jffs/scripts
 
-ROUTER_DNSMASQ_CONF_ADD   := /jffs/configs/dnsmasq.conf.add
-ROUTER_DNS_CACHE_SIZE     := 10000
-ROUTER_DNSMASQ_CACHE_LINE := cache-size=$(ROUTER_DNS_CACHE_SIZE)
-
 ROUTER_CADDYFILE_SRC := $(ROUTER_SRC_CADDY)/Caddyfile
 ROUTER_CADDYFILE_DST := /jffs/caddy/Caddyfile
 ROUTER_CADDY_BIN     := /tmp/mnt/sda/router/bin/caddy

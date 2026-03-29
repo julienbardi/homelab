@@ -22,11 +22,14 @@ CADDY_KEY="$CADDY_CERT_DIR/$DOMAIN.key"
 
 # 1. Environment Hardening
 if [ -d "$ACME_HOME" ]; then
-    log "🔧 Hardening ACME permissions at $ACME_HOME"
-    chown -R root:"$ACME_GROUP" "$ACME_HOME"
-    find "$ACME_HOME" -type d -exec chmod 750 {} +
-    find "$ACME_HOME" -type f -exec chmod 600 {} +
-    find "$ACME_HOME" -name "*.sh" -exec chmod 750 {} +
+    echo "🔧 Hardening ACME permissions at $ACME_HOME"
+    {
+        chown acme:acme "$ACME_HOME"
+        find "$ACME_HOME" -type f -exec chmod 640 {} \;
+        chmod 750 "$ACME_HOME"
+    } || {
+        echo "⚠️  ACME permission adjustment failed (non-fatal)"
+    }
 fi
 
 # 2. Synchronization Logic
