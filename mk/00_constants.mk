@@ -69,6 +69,9 @@ ROUTER_WG_PLAN_SRC := /volume1/homelab/wireguard/compiled/plan.tsv
 NAS_LAN_IP := 10.89.12.4
 NAS_LAN_IP6 := fd89:7a3b:42c0::4
 
+GATEWAY_IP  := 10.89.12.1
+LAN_IFACE   := eth0
+
 ROUTER_LAN_IP := 10.89.12.1
 
 PUBLIC_DNS := 1.1.1.1

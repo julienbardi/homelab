@@ -4,6 +4,7 @@
 # ------------------------------------------------------------
 
 .NOTPARALLEL: \
+	ensure-default-gateway \
 	router-bootstrap-run-as-root \
 	router-ddns
 
@@ -22,6 +23,13 @@ define PUSH_ROUTER_SCRIPT
 	$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE) \
 	|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; }
 endef
+
+.PHONY: ensure-default-gateway
+ensure-default-gateway: ## Ensure the IPv4 default route is present
+	@if ! ip route show default | grep -q "$(GATEWAY_IP)"; then \
+		echo "⚠️  Default gateway missing! Restoring path to $(GATEWAY_IP)..."; \
+		$(run_as_root) ip route add default via $(GATEWAY_IP) dev $(LAN_IFACE) 2>/dev/null || true; \
+	fi
 
 # ------------------------------------------------------------
 # DDNS Runtime Surface (deploy vs execute split; composed)
@@ -56,7 +64,7 @@ router-ddns: router-ddns-deploy router-ddns-run
 # ------------------------------------------------------------
 
 .PHONY: router-bootstrap-run-as-root
-router-bootstrap-run-as-root:
+router-bootstrap-run-as-root: ensure-default-gateway
 	@echo "🛡️ Bootstrapping run-as-root on router"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
 		'mkdir -p /jffs/scripts && cat > /jffs/scripts/run-as-root && chmod 0755 /jffs/scripts/run-as-root' \
@@ -78,8 +86,7 @@ ROUTER_SCRIPT_FILES := \
 	provision-ipv6-ula.sh \
 	wg-compile-alloc.sh \
 	wg-compile-domain.sh \
-	wg-compile-keys.sh \
-	wg-seed-missing-keys.sh
+	wg-compile-keys.sh
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-run-as-root
@@ -103,16 +110,23 @@ router-install-scripts: \
 # Execution & Orchestration
 # ------------------------------------------------------------
 
+# 1. Extract the /48 prefix from your constants (e.g., fd89:7a3b:42c0::/48)
+# We strip the host ID (::4) and append /48 as required by Asus NVRAM
+PROVISION_ULA_VAL := $(shell echo "$(NAS_LAN_IP6)" | sed 's/::[0-9a-fA-F]*$$/::\/48/')
+
 .PHONY: router-ensure-ipv6-ula
-router-ensure-ipv6-ula: router-install-provision-ipv6-ula
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_SCRIPTS)/provision-ipv6-ula.sh'
+router-ensure-ipv6-ula: ensure-default-gateway router-install-provision-ipv6-ula.sh
+	@echo "📡 Syncing Router ULA to: $(PROVISION_ULA_VAL)"
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
+		'DESIRED_ULA_PREFIX="$(PROVISION_ULA_VAL)" $(ROUTER_SCRIPTS)/provision-ipv6-ula.sh'
+
 
 .PHONY: router-install-ca
 router-install-ca:
 	@ROUTER_CONTROL_PLANE=1 $(INSTALL_PATH)/router-install-ca.sh
 
 .PHONY: router-bootstrap
-router-bootstrap: \
+router-bootstrap: ensure-default-gateway \
 	router-install-scripts \
 	router-ddns \
 	router-dnsmasq-cache \
@@ -122,7 +136,7 @@ router-bootstrap: \
 	@echo "✅ Router bootstrap complete"
 
 .PHONY: router-all
-router-all: \
+router-all: ensure-default-gateway \
 	router-install-scripts \
 	router-dnsmasq-cache \
 	router-firewall-started \
