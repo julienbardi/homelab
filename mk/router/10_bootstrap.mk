@@ -100,7 +100,6 @@ ROUTER_INSTALL_TARGETS := $(addprefix router-install-,$(ROUTER_SCRIPT_FILES))
 .PHONY: router-install-scripts
 router-install-scripts: \
 	install-ssh-config \
-	ensure-run-as-root \
 	$(INSTALL_FILE_IF_CHANGED) \
 	router-bootstrap-run-as-root \
 	$(ROUTER_INSTALL_TARGETS)
@@ -124,13 +123,16 @@ router-ensure-ipv6-ula: ensure-default-gateway router-install-provision-ipv6-ula
 
 .PHONY: router-install-ca
 router-install-ca:
-	@ROUTER_CONTROL_PLANE=1 $(INSTALL_PATH)/router-install-ca.sh
+	@$(INSTALL_PATH)/certs-deploy.sh
+#	@ROUTER_CONTROL_PLANE=1 $(INSTALL_PATH)/router-install-ca.sh
+
+export ROUTER_BOOTSTRAP
 
 .PHONY: router-bootstrap
+router-bootstrap: export ROUTER_BOOTSTRAP=1
 router-bootstrap: ensure-default-gateway \
 	router-install-scripts \
 	router-ddns \
-	router-dnsmasq-cache \
 	router-firewall-install \
 	install-ssh-config \
 	router-install-ca
@@ -139,7 +141,6 @@ router-bootstrap: ensure-default-gateway \
 .PHONY: router-all
 router-all: ensure-default-gateway \
 	router-install-scripts \
-	router-dnsmasq-cache \
 	router-firewall-started \
 	install-ssh-config
 	@echo "🚀 Router base converge complete"

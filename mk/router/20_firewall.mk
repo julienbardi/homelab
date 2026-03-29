@@ -3,40 +3,7 @@
 # ROUTER FIREWALL & DNSMASQ CONVERGENCE (namespaced)
 # ------------------------------------------------------------
 
-.NOTPARALLEL: \
-	router-dnsmasq-cache \
-	router-firewall-install
-
-# ------------------------------------------------------------
-# dnsmasq cache configuration
-# ------------------------------------------------------------
-
-DNSMASQ_CONF_ADD   := $(ROUTER_DNSMASQ_CONF_ADD)
-DNSMASQ_CACHE_LINE := $(ROUTER_DNSMASQ_CACHE_LINE)
-
-$(if $(strip $(DNSMASQ_CONF_ADD)),,$(error DNSMASQ_CONF_ADD is empty))
-$(if $(strip $(DNSMASQ_CACHE_LINE)),,$(error DNSMASQ_CACHE_LINE is empty))
-
-.PHONY: router-dnsmasq-cache
-router-dnsmasq-cache: | router-ssh-check
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
-		set -e; \
-		mkdir -p /jffs/configs; \
-		touch "$(DNSMASQ_CONF_ADD)"; \
-		if grep -qx "$(DNSMASQ_CACHE_LINE)" "$(DNSMASQ_CONF_ADD)"; then \
-			echo "dnsmasq cache OK"; \
-		else \
-			tmp="$(DNSMASQ_CONF_ADD).tmp.$$"; \
-			printf "%s\n" "$(DNSMASQ_CACHE_LINE)" > "$$tmp"; \
-			mv -f "$$tmp" "$(DNSMASQ_CONF_ADD)"; \
-			service restart_dnsmasq; \
-		fi; \
-		nvram set dhcp_dns1_x="$(NAS_LAN_IP)"; \
-		nvram set dhcp_dns2_x=""; \
-		nvram set dnsmasq_strict_order=1; \
-		nvram set dnsmasq_no_resolv=0; \
-		nvram commit; \
-	'
+.NOTPARALLEL: router-firewall-install
 
 # ------------------------------------------------------------
 # Firewall script deployment
@@ -44,11 +11,10 @@ router-dnsmasq-cache: | router-ssh-check
 
 .PHONY: router-firewall-install
 router-firewall-install: | router-ssh-check router-require-run-as-root
-	@$(INSTALL_FILE_IF_CHANGED) \
-	"" "" $(SRC_SCRIPTS)/firewall-start \
-	$(ROUTER_HOST) $(ROUTER_SSH_PORT) /jffs/scripts/firewall-start \
-	root root 0755
-
+	@$(INSTALL_FILE_IF_CHANGED) "" "" $(SRC_SCRIPTS)/firewall-start \
+		$(ROUTER_HOST) $(ROUTER_SSH_PORT) /jffs/scripts/firewall-start \
+		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" 0755 \
+		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 # ------------------------------------------------------------
 # Firewall runtime assertions

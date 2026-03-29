@@ -37,8 +37,9 @@ router-ssh-check: install-ssh-config
 
 .PHONY: router-require-run-as-root
 router-require-run-as-root: | router-ssh-check
+	@if [ "$$ROUTER_BOOTSTRAP" = "1" ]; then exit 0; fi
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
-		test -x "$(RUN_AS_ROOT)" || \
+		test -x /jffs/scripts/run-as-root || \
 		( \
 			echo "❌ run-as-root missing"; \
 			echo "ℹ️  Router helpers not installed (likely after reset)"; \
