@@ -1,23 +1,21 @@
 # mk/20_sysctl.mk
 
 # --- CONFIGURATION & PATHS ---
-# Anchor REPO_ROOT to the actual directory of this Makefile
 SYSCTL_SRC := $(REPO_ROOT)config/sysctl.d/99-homelab-forwarding.conf
 SYSCTL_DST := /etc/sysctl.d/99-homelab-forwarding.conf
 SYSCTL_BIN := /sbin/sysctl
 
-# Extract the IID suffix from your constants (e.g., extracts "4" from fd89:7a3b:42c0::4)
-# We use a simple shell strip to get everything after the last '::'
+# Extract IID from constants (e.g., ::4)
 NAS_IID_TOKEN := ::$(shell echo "$(NAS_LAN_IP6)" | sed 's/.*:://')
 
-.PHONY: install-homelab-sysctl sysctl-inspect sysctl-preflight set-ipv6-token
+.PHONY: install-homelab-sysctl sysctl-inspect sysctl-preflight set-ipv6-token rotate-ipv6-secrets
 
 # --- OPERATOR-GRADE MACROS ---
 
 define sysctl_preflight_check
 { \
 	echo "🔍 Verifying system dependencies..."; \
-	for cmd in ip awk sed grep python3; do \
+	for cmd in ip awk sed grep python3 openssl; do \
 		if ! command -v $$cmd >/dev/null 2>&1; then \
 			echo "❌ ERROR: Required command '$$cmd' not found."; exit 1; \
 		fi; \
@@ -52,9 +50,52 @@ define inspect_ipv6_identity
 		expanded=$$(python3 -c "import ipaddress; print(ipaddress.IPv6Address('$$full_addr').exploded)" 2>/dev/null || echo "$$full_addr"); \
 		prefix=$$(echo "$$expanded" | cut -d: -f1-4); \
 		iid=$$(echo "$$expanded" | cut -d: -f5-8); \
-		printf "🌐 Interface: %-10s | Prefix: %-25s | IID: %s\n" "$$iface" "$$prefix" "$$iid"; \
+		is_match=$$(python3 -c "import ipaddress; a=ipaddress.IPv6Address('::' + '$$iid'); b=ipaddress.IPv6Address('$(NAS_IID_TOKEN)'); print('YES' if a==b else 'NO')"); \
+		status="✅"; \
+		if [ "$$is_match" = "NO" ]; then status="⚠️  MISMATCH"; fi; \
+		printf "%-11s | Interface: %-6s | Prefix: %-22s | IID: %s\n" "$$status" "$$iface" "$$prefix" "$$iid"; \
 	done | sort -u; \
 	echo "--------------------------------------------------------------------------------"; \
+}
+endef
+
+define set_ipv6_token
+{ \
+	echo "📍 Checking IPv6 Token convergence ($(NAS_IID_TOKEN))..."; \
+	for iface in eth0 eth1; do \
+		if [ -d "/sys/class/net/$$iface" ]; then \
+			current_token=$$(ip token list dev $$iface | awk '{print $$1}'); \
+			if [ "$$current_token" = "$(NAS_IID_TOKEN)" ]; then \
+				echo "✅ $$iface: Token already matches. Skipping cycle."; \
+			else \
+				echo "🔄 $$iface: Token mismatch. Applying $(NAS_IID_TOKEN)..."; \
+				$(run_as_root) ip token set $(NAS_IID_TOKEN) dev $$iface; \
+				$(run_as_root) ip link set dev $$iface down; \
+				$(run_as_root) ip link set dev $$iface up; \
+				echo "✨ $$iface: Token applied and link cycled."; \
+			fi; \
+		fi; \
+	done; \
+}
+endef
+
+define set_ipv6_token
+{ \
+	echo "📍 Checking IPv6 Token convergence ($(NAS_IID_TOKEN))..."; \
+	for iface in eth0 eth1; do \
+		if [ -d "/sys/class/net/$$iface" ]; then \
+			current_token=$$(ip token list dev $$iface | awk '{print $$1}'); \
+			if [ "$$current_token" = "$(NAS_IID_TOKEN)" ]; then \
+				echo "✅ $$iface: Token already matches. Skipping cycle."; \
+			else \
+				echo "🔄 $$iface: Token mismatch. Applying $(NAS_IID_TOKEN)..."; \
+				$(run_as_root) ip token set $(NAS_IID_TOKEN) dev $$iface; \
+				$(run_as_root) ip link set dev $$iface down; \
+				$(run_as_root) ip link set dev $$iface up; \
+				echo "✨ $$iface: Token applied and link cycled."; \
+			fi; \
+		fi; \
+	done; \
 }
 endef
 
@@ -79,7 +120,6 @@ sysctl-preflight:
 sysctl-inspect: sysctl-preflight
 	@set -eu; ( $(inspect_ipv6_identity) )
 
-# Force the token during every install to ensure the ::4 is active
 set-ipv6-token: ensure-run-as-root
 	@set -eu; ( $(set_ipv6_token) )
 
