@@ -31,8 +31,6 @@ router-dnsmasq-cache: | router-ssh-check
 			mv -f "$$tmp" "$(DNSMASQ_CONF_ADD)"; \
 			service restart_dnsmasq; \
 		fi; \
-		\
-		# LAN DNS policy (safe: does NOT touch WAN DNS)
 		nvram set dhcp_dns1_x="$(NAS_LAN_IP)"; \
 		nvram set dhcp_dns2_x=""; \
 		nvram set dnsmasq_strict_order=1; \
