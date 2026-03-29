@@ -57,16 +57,23 @@ enable-unbound: ensure-default-gateway ensure-run-as-root \
 	@if [ -f "$(UNBOUND_RESTART_STAMP)" ]; then \
 		echo "🔄 unbound configuration changed — restarting"; \
 		$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true; \
-		$(run_as_root) systemctl restart unbound; \
+		$(run_as_root) systemctl try-restart unbound || true; \
 		$(run_as_root) rm -f $(UNBOUND_RESTART_STAMP); \
 	else \
 		echo "ℹ️ Unbound configuration unchanged — no restart needed"; \
 	fi
-	@$(run_as_root) systemctl is-active --quiet unbound || \
-		( echo "❌ Unbound failed to start"; \
-		  echo "ℹ️  Run: make unbound-status"; \
-		  exit 1 )
-	@echo "✅ Unbound enabled and running"
+	@echo "⏳ Waiting for Unbound to become active..."; \
+	for i in 1 2 3 4 5; do \
+		if $(run_as_root) systemctl is-active --quiet unbound; then \
+			echo "✅ Unbound enabled and running"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "❌ Unbound failed to start"; \
+	echo "ℹ️  Run: make unbound-status"; \
+	exit 1
+
 
 # ------------------------------------------------------------
 # Unbound
