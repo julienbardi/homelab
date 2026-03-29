@@ -6,19 +6,19 @@
 	code-server-ensure-running \
 	code-server
 
-CODE_SERVER_PORT := 8080
+CODE_SERVER_PORT = 8080
 
-CODE_SERVER_CONFIG_SRC := $(MAKEFILE_DIR)config/code-server/config.yaml
-CODE_SERVER_CONFIG_DST := $(HOME)/.config/code-server/config.yaml
+CODE_SERVER_CONFIG_SRC = $(MAKEFILE_DIR)config/code-server/config.yaml
+CODE_SERVER_CONFIG_DST = $(HOME)/.config/code-server/config.yaml
 
-CODE_SERVER_SYSTEMD_DIR := $(SYSTEMD_DIR)/code-server@.service.d
-CODE_SERVER_SYSTEMD_OVERRIDE := $(CODE_SERVER_SYSTEMD_DIR)/override.conf
+CODE_SERVER_SYSTEMD_DIR = $(SYSTEMD_DIR)/code-server@.service.d
+CODE_SERVER_SYSTEMD_OVERRIDE = $(CODE_SERVER_SYSTEMD_DIR)/override.conf
 
 # Detect installed version (semantic only)
-CODE_SERVER_INSTALLED_VERSION := $(shell code-server --version 2>/dev/null | head -n1 | awk '{print $$1}')
+CODE_SERVER_INSTALLED_VERSION = $(shell code-server --version 2>/dev/null | head -n1 | awk '{print $$1}')
 
-# Fetch latest version from GitHub API
-CODE_SERVER_LATEST_VERSION := $(shell curl -fsSL https://api.github.com/repos/coder/code-server/releases/latest | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/')
+# Fetch latest version from GitHub API (= for deferred expansion)
+CODE_SERVER_LATEST_VERSION = $(shell curl -fsSL https://api.github.com/repos/coder/code-server/releases/latest | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/')
 
 # Helper: compare versions
 code-server-version-check:

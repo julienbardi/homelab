@@ -20,12 +20,13 @@ router-wg-policy-deploy:
 
 .PHONY: router-wg-plan-deploy
 router-wg-plan-deploy:
-	@$(run_as_root) $(INSTALL_PATH)/install_file_if_changed_v2.sh -q \
+	@$(INSTALL_PATH)/install_file_if_changed_v2.sh -q \
 		"" "" "$(ROUTER_WG_PLAN_SRC)" \
 		"$(ROUTER_HOST)" "$(ROUTER_SSH_PORT)" "$(ROUTER_SCRIPTS)/wireguard/plan.tsv" \
-		$(ROUTER_SCRIPTS_OWNER) \
-		$(ROUTER_SCRIPTS_GROUP) \
-		$(ROUTER_WG_PLAN_MODE) \
+		"$(ROUTER_SCRIPTS_OWNER)" \
+		"$(ROUTER_SCRIPTS_GROUP)" \
+		"$(ROUTER_WG_PLAN_MODE)" \
+		"$(ROUTER_USER)" \
 	|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 .PHONY: router-wg-policy-apply
@@ -38,14 +39,13 @@ router-wg-policy: \
 	router-wg-policy-deploy \
 	router-wg-policy-apply
 
-
 .PHONY: router-wg-converge
 router-wg-converge: router-wg-transport router-wg-policy
 	@echo "🔐 WireGuard transport + policy converged"
 
 .PHONY: router-wg-audit
 router-wg-audit: | router-ssh-check
-	@echo "🔍 WireGuard audit"
+	@echo "🔍 WireGuard security audit"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \
 		echo "→ IPv4 policy chain:"; \
@@ -60,7 +60,7 @@ router-wg-audit: | router-ssh-check
 		ip6tables -S FORWARD | grep -E "wg\\+.*WGSF6" || \
 			{ echo "❌ missing IPv6 wg → WGSF6 hook"; exit 1; }; \
 		echo; \
-		echo "→ WireGuard interfaces:"; \
+		echo "✅ WireGuard policy hooks verified"; \
 		wg show \
 	'
 
