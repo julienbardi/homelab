@@ -42,13 +42,14 @@ router-ddns-deploy: router-bootstrap-run-as-root prereqs-helper-scripts \
 	ddns-secret-ensure
 	@echo "🔁 Syncing DDNS runtime surface to router"
 	@DDNS_CHANGED=0; export DDNS_CHANGED; \
-		$(INSTALL_FILES_IF_CHANGED) DDNS_CHANGED \
+		{ $(INSTALL_FILES_IF_CHANGED) DDNS_CHANGED \
 		"" "" "$(ROUTER_SCRIPTS_SRC_DIR)/ddns-start" \
 		"$(ROUTER_HOST)" "$(ROUTER_SSH_PORT)" "$(ROUTER_SCRIPTS)/ddns-start" \
 		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0755" \
 		"" "" "$(DDNS_SECRET_FILE)" \
 		"$(ROUTER_HOST)" "$(ROUTER_SSH_PORT)" "/jffs/scripts/.ddns_confidential" \
-		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0600"
+		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0600" \
+		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; }
 
 .PHONY: router-ddns-run
 router-ddns-run:
