@@ -48,7 +48,7 @@ deploy-unbound-sysctl: ensure-run-as-root
 	dns-bench \
 	rotate
 
-enable-unbound: ensure-run-as-root \
+enable-unbound: ensure-default-gateway ensure-run-as-root \
 	install-pkg-unbound \
 	deploy-unbound-config \
 	deploy-unbound-local-internal \
@@ -100,7 +100,7 @@ assert-unbound-tools:
 		( echo "❌ unbound-control not installed. Run: make prereqs"; exit 1 )
 
 # --- Root hints ---
-update-root-hints: ensure-run-as-root
+update-root-hints: ensure-default-gateway ensure-run-as-root
 	@echo "🌐 Updating root hints -> /var/lib/unbound/root.hints"
 	@$(run_as_root) mkdir -p /var/lib/unbound
 	@tmp=$$(mktemp); \
