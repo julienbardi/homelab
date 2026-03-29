@@ -33,7 +33,20 @@
 
 ## 🧩 System tuning
 
-- `make install-homelab-sysctl` — Install and apply homelab sysctl forwarding config
+- `make sysctl-preflight` — Validates system dependencies, source file existence. Run as a guard for all other sysctl targets.
+- `make sysctl-inspect` — Read-only audit of current IPv6 identities.
+  - IID Mapping: Displays the 64-bit Interface Identifier for every global and ULA prefix.
+  - Live State: Filters out "tentative" or "deprecated" addresses to show exactly what the kernel is using for active traffic.
+  - `make install-homelab-sysctl` — Reconciles the system-level forwarding rules with the repository source.
+    - Functional Diffing: Uses a strip-diff engine to ignore local secrets and comments.
+    - Hardware Aware: Only injects stable_secret for active interfaces (e.g., eth0, eth1).
+    - Post-Apply Validation: Queries the kernel via sysctl -n to verify the state was actually accepted.
+    - Idempotent Reporting: Summarizes changes (Config update / Secret injection / NOP).
+  - `make rotate-ipv6-secrets` — Destructive/Identity Rotation.
+  - Surgically removes existing IPv6 Stable Secrets and generates new 128-bit cryptographic identifiers.
+  - Privacy: Rotates the RFC 7217 Interface Identifier (IID).
+  - Side Effect: Triggers a 5-second countdown followed by a hard reboot to enforce kernel regeneration of IPv6 addresses.
+  - ⚠️ Note: This will change your NAS's IPv6 addresses (GUA and ULA). Firewall rules on the router or external peers may need updating.
 - `make net-tunnel-preflight` — Ensure NIC offload settings for UDP tunnels
 
 ## 🔥 NAS firewall — service exposure
