@@ -278,8 +278,8 @@ EOF
 
         # Enforce LOCKED naming/addressing contract
         case "$iface" in
-            wg[1-9]|wg1[0-5]) : ;;
-            *) die "❌ invalid iface '$iface' — only wg1..wg15 allowed" ;;
+            wg[1-9]|wg1[0-5]|wgs1) : ;;
+            *) die "❌ invalid iface '$iface' — only wg1..wg15 or wgs1 allowed" ;;
         esac
         ifnum="${iface#wg}"
         wg_ifnum_sanity "$ifnum"
