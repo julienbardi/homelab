@@ -17,7 +17,6 @@
 - 🔐 [Router WireGuard — control plane (layered)](#-router-wireguard--control-plane-layered)
 - 📦 [Infrastructure](#-infrastructure)
 - 💻 [Code‑server](#-codeserver)
-- 🔐 [NetBird control plane](#-netbird-control-plane)
 - 📝 [Notes](#-notes)
 
 ## 🧱 Prerequisites
@@ -282,58 +281,6 @@ The local VS Code server is managed declaratively.
   `~/.config/code-server/config.yaml`.
 - The install target tracks upstream automatically.
 - If deterministic version pinning is required, replace the installer script with a pinned release artifact.
-
-## 🔐 NetBird control plane
-
-The NetBird control‑plane module provides a fully declarative, drift‑aware lifecycle for a self‑hosted NetBird stack.
-It manages:
-
-- IFC v2 installation of systemd units
-- docker‑compose stack convergence via systemd
-- management‑URL + setup‑key enrollment
-- declarative sync of groups, policies, and routes
-- hash‑based drift detection
-- plan / apply / status / clean workflows
-
-### Targets
-
-- `make netbird-plan`
-  Compute and print hashes for compose + groups + policies + routes.
-  Used to inspect drift before applying.
-
-- `make netbird-apply`
-  Converge the full NetBird control plane:
-  compose → enrollment → groups → policies → routes.
-
-- `make netbird-status`
-  Show NetBird node status and list active stamps.
-
-- `make netbird-clean`
-  Remove local NetBird state (stamps + hashes).
-  Does **not** touch containers or runtime data.
-
-### Declarative state
-
-All NetBird intent lives under:
-config/netbird/
-docker-compose.netbird.yaml
-management-url
-setup-key
-groups.yaml
-policies.yaml
-routes.yaml
-
-Systemd units are stored in:
-config/systemd/netbird-*.service
-
-and installed via IFC v2.
-
-### Remarks
-
-- `netbirdctl up` is guarded to avoid re‑enrollment.
-- Systemd units are only reloaded when IFC v2 detects drift.
-- No recursive make, no duplicate writers, no hidden state.
-- All sync operations are idempotent and drift‑aware.
 
 ## 📝 Notes
 
