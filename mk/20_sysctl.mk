@@ -26,16 +26,19 @@ endef
 define inspect_ipv6_identity
 { \
 	echo "🔍 Current IPv6 Identity Mapping (Global & ULA):"; \
-	echo "--------------------------------------------------------"; \
-	# Filter for global scope, excluding tentative/deprecated/dynamic privacy addresses \
-	ip -6 addr show | grep "scope global" | grep -v "tentative" | awk '{print $$2, $$NF}' | while read addr iface; do \
-		prefix=$$(echo $$addr | cut -d':' -f1-4); \
-		iid=$$(echo $$addr | cut -d':' -f5-8 | cut -d'/' -f1); \
-		printf "🌐 Interface: %-6s | Prefix: %-22s | IID: %s\n" "$$iface" "$$prefix" "$$iid"; \
-	done; \
-	echo "--------------------------------------------------------"; \
+	echo "--------------------------------------------------------------------------------"; \
+	ip -6 -oneline addr show scope global | grep -v "tentative" | while read -r line; do \
+		iface=$$(echo "$$line" | awk '{print $$2}'); \
+		full_addr=$$(echo "$$line" | awk '{print $$4}' | cut -d/ -f1); \
+		expanded=$$(python3 -c "import ipaddress; print(ipaddress.IPv6Address('$$full_addr').exploded)" 2>/dev/null || echo "$$full_addr"); \
+		prefix=$$(echo "$$expanded" | cut -d: -f1-4); \
+		iid=$$(echo "$$expanded" | cut -d: -f5-8); \
+		printf "🌐 Interface: %-10s | Prefix: %-25s | IID: %s\n" "$$iface" "$$prefix" "$$iid"; \
+	done | sort -u; \
+	echo "--------------------------------------------------------------------------------"; \
 }
 endef
+
 
 define apply_sysctl_file
 { \
