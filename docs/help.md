@@ -78,10 +78,41 @@
 
 ## 🌐 DNS
 
-- `make dns-stack`
-- `make dns-preflight`
-- `make dns-postflight`
-- `make dnsmasq-status`
+### Unbound (recursive resolver)
+- `make enable-unbound`
+- `make deploy-unbound`
+- `make unbound-status`
+- `make dns-runtime`
+- `make dns`
+- `make dns-reset`
+- `make dns-reset-clean`
+- `make dns-bench`
+- `make dns-watch`
+- `make dns-health`
+- `make dns-runtime-check`
+- `make setup-unbound-control`
+- `make reset-unbound-control`
+
+### dnsmasq (local forwarder)
+- `make enable-dnsmasq`
+
+### dnsdist (DoH frontend)
+- `make dnsdist`
+- `make dnsdist-status`
+
+### DNS warm-up (dns-warm subsystem)
+- `make dns-warm-install`
+- `make dns-warm-enable`
+- `make dns-warm-disable`
+- `make dns-warm-start`
+- `make dns-warm-stop`
+- `make dns-warm-status`
+- `make dns-warm-uninstall`
+- `make dns-warm-health`
+
+### DNS health tooling
+- `make install-dns-health`
+- `make check-dns`
 
 ## 🌐 Router DDNS
 
