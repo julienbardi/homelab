@@ -100,15 +100,18 @@
 - `make dnsdist`
 - `make dnsdist-status`
 
-### DNS warm-up (dns-warm subsystem)
-- `make dns-warm-install`
-- `make dns-warm-enable`
-- `make dns-warm-disable`
-- `make dns-warm-start`
-- `make dns-warm-stop`
-- `make dns-warm-status`
-- `make dns-warm-uninstall`
-- `make dns-warm-health`
+### DNS warm‑up (dns‑warm subsystem)
+
+- `make dns-warm-install` — Install dns‑warm user, directories, scripts, and systemd units
+- `make dns-warm-enable` — Enable and start the dns‑warm timer (periodic warm)
+- `make dns-warm-disable` — Disable the timer
+- `make dns-warm-start` — Run a single warm‑up cycle immediately (oneshot)
+- `make dns-warm-stop` — Stop the oneshot service
+- `make dns-warm-status` — Show timer + service status
+- `make dns-warm-health` — Full health check (domain list, state file, resolver reachability)
+- `make dns-warm-uninstall` — Remove dns‑warm components
+- `make dns-warm-now` — Update domain list → run warm job → show last run + health summary
+
 
 ### DNS health tooling
 - `make install-dns-health`

@@ -167,21 +167,18 @@ dns-warm-async-install: dns-warm-async ensure-run-as-root
 .PHONY: dns-warm-health
 dns-warm-health: ensure-run-as-root
 	@echo "🔍 DNS-warm health check"
-	@echo "────────────────────────────────────────"
 	@echo "⏱️  Timer status"
 	@if $(run_as_root) systemctl is-active --quiet $(TIMER); then \
 		echo "   ✅ Timer active"; \
 	else \
 		echo "   ❌ Timer inactive"; \
 	fi
-	@echo
 	@echo "🛠️  Service status"
 	@if $(run_as_root) systemctl is-active --quiet $(SERVICE); then \
 		echo "   ✅ Service healthy (oneshot)"; \
 	else \
 		echo "   ⚠️ Service not running (oneshot expected)"; \
 	fi
-	@echo
 	@echo "📁 Domain list"
 	@if [ -s $(DOMAINS_FILE) ]; then \
 		age=$$(( $$(date +%s) - $$(stat -c %Y $(DOMAINS_FILE)) )); \
@@ -192,7 +189,6 @@ dns-warm-health: ensure-run-as-root
 	else \
 		echo "   ❌ Missing or empty"; \
 	fi
-	@echo
 	@echo "📄 State file"
 	@if $(run_as_root) test -f $(STATE_FILE); then \
 		echo "   ✅ Present : $(STATE_FILE)"; \
@@ -201,13 +197,24 @@ dns-warm-health: ensure-run-as-root
 	else \
 		echo "   ⚠️ Missing (rotate job may not have run yet)"; \
 	fi
-	@echo
 	@echo "🌐 Resolver test ($(RESOLVER))"
 	@if $(run_as_root) dig +time=1 +tries=1 @$(RESOLVER) example.com >/dev/null 2>&1; then \
 		echo "   ✅ Resolver reachable"; \
 	else \
 		echo "   ❌ Resolver unreachable"; \
 	fi
-	@echo "────────────────────────────────────────"
-	@echo "✅ Health check complete"
+	@echo "🌐 Resolver test (ULA)"
+	@if $(run_as_root) dig +time=1 +tries=1 @[fd89:7a3b:42c0::4] example.com >/dev/null 2>&1; then \
+		echo "   ✅ ULA resolver reachable"; \
+	else \
+		echo "   ❌ ULA resolver unreachable"; \
+	fi
+	@echo "✅ DNS-warm health check complete"
 
+.PHONY: dns-warm-now
+dns-warm-now: update-dns-warm-domains dns-warm-start dns-warm-health
+	@echo ""
+	@echo "📜 Last warm run"
+	@$(run_as_root) journalctl -u $(SERVICE) -n 1 --no-pager || true
+	@echo ""
+	@echo "✅ dns-warm-now complete"
