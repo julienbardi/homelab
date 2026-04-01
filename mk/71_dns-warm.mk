@@ -197,17 +197,18 @@ dns-warm-health: ensure-run-as-root
 	else \
 		echo "   ⚠️ Missing (rotate job may not have run yet)"; \
 	fi
-	@echo "🌐 Resolver test ($(RESOLVER))"
-	@if $(run_as_root) dig +time=1 +tries=1 @$(RESOLVER) example.com >/dev/null 2>&1; then \
-		echo "   ✅ Resolver reachable"; \
+	@printf "🌐 Resolver IPv4 (%s): " "$(RESOLVER)"; \
+	if $(run_as_root) dig +time=1 +tries=1 @$(RESOLVER) example.com >/dev/null 2>&1; then \
+			echo "✅ reachable"; \
 	else \
-		echo "   ❌ Resolver unreachable"; \
+			echo "❌ unreachable"; \
 	fi
-	@echo "🌐 Resolver test (ULA)"
-	@if $(run_as_root) dig +time=1 +tries=1 @[fd89:7a3b:42c0::4] example.com >/dev/null 2>&1; then \
-		echo "   ✅ ULA resolver reachable"; \
+
+	@printf "🌐 Resolver IPv6 (::1): "; \
+	if $(run_as_root) dig +time=1 +tries=1 @::1 example.com >/dev/null 2>&1; then \
+			echo "✅ reachable"; \
 	else \
-		echo "   ❌ ULA resolver unreachable"; \
+			echo "❌ unreachable"; \
 	fi
 	@echo "✅ DNS-warm health check complete"
 
