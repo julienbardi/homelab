@@ -197,18 +197,16 @@ dns-warm-health: ensure-run-as-root
 	else \
 		echo "   ⚠️ Missing (rotate job may not have run yet)"; \
 	fi
-	@printf "🌐 Resolver IPv4 (%s): " "$(RESOLVER)"; \
-	if $(run_as_root) dig +time=1 +tries=1 @$(RESOLVER) example.com >/dev/null 2>&1; then \
-			echo "✅ reachable"; \
+	@if $(run_as_root) dig +time=1 +tries=1 @$(RESOLVER) example.com >/dev/null 2>&1; then \
+			echo "✅ Resolver IPv4 (%s): $(RESOLVER) reachable"; \
 	else \
-			echo "❌ unreachable"; \
+			echo "❌ Resolver IPv4 (%s): $(RESOLVER) unreachable"; \
 	fi
 
-	@printf "🌐 Resolver IPv6 (::1): "; \
-	if $(run_as_root) dig +time=1 +tries=1 @::1 example.com >/dev/null 2>&1; then \
-			echo "✅ reachable"; \
+	@if $(run_as_root) dig +time=1 +tries=1 @::1 example.com >/dev/null 2>&1; then \
+			echo "✅ Resolver IPv6 (::1) reachable"; \
 	else \
-			echo "❌ unreachable"; \
+			echo "❌ Resolver IPv6 (::1) unreachable"; \
 	fi
 	@echo "✅ DNS-warm health check complete"
 
