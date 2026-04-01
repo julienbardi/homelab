@@ -1,6 +1,6 @@
 # mk/90_dns-health.mk
 
-DNS_CHECK := /usr/local/bin/dns-health-check.sh
+DNS_CHECK := $(INSTALL_PATH)/dns-health-check.sh
 
 # Specify the port since Unbound is on 5335
 RESOLVER_ADDR := 127.0.0.1

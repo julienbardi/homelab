@@ -24,7 +24,6 @@ CADDY_KEY="$CADDY_CERT_DIR/$DOMAIN.key"
 if [ -d "$ACME_HOME" ]; then
     echo "🔧 Hardening ACME permissions at $ACME_HOME"
     {
-        chown acme:acme "$ACME_HOME"
         find "$ACME_HOME" -type f -exec chmod 640 {} \;
         chmod 750 "$ACME_HOME"
     } || {
