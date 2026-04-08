@@ -1,0 +1,15 @@
+[Unit]
+Description=Pangolin Site Agent (Self‑Hosted)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/pangolin-site-agent \
+    --server-url https://pangolin.bardi.ch \
+    --site-secret /etc/pangolin/site-secret
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

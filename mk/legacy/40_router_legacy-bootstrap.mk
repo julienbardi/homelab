@@ -23,6 +23,13 @@
 # - Escape $ -> $$ (Make expands $ first)
 # --------------------------------------------------------------------
 
+# ------------------------------------------------------------
+# Remote execution primitives
+# ------------------------------------------------------------
+# Use a distinct prefix so it never touches the local 'run_as_root'
+ROUTER_REMOTE_BIN := /jffs/scripts/run-as-root
+router_exec := ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) $(ROUTER_REMOTE_BIN)
+
 # Installed execution surface (authoritative)
 ROUTER_SYNC_SCRIPT := $(INSTALL_PATH)/router-sync-scripts.sh
 ROUTER_INSTALL_CA_SCRIPT := $(INSTALL_PATH)/router-install-ca.sh

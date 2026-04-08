@@ -173,7 +173,12 @@ else
     fi
 
     # Transfer raw bytes safely
-    scp -O -P "$DST_PORT" "$BUFFER" "$DST_HOST:/tmp/.ifc_rem_${PID}" || {
+    scp -q -O \
+      -o PreferredAuthentications=publickey \
+      -o PubkeyAuthentication=yes \
+      -o PasswordAuthentication=no \
+      -o IdentityFile="$HOME/.ssh/id_ed25519" \
+      -P "$DST_PORT" "$BUFFER" "$DST_HOST:~/.ifc_rem_${PID}" || {
         echo "❌ IFC: SCP transfer failed" >&2
         rm -f "$BUFFER"
         exit 1
@@ -182,9 +187,14 @@ else
     rm -f "$BUFFER"
 
     # Finalize atomically on router
-    ssh -p "$DST_PORT" -o BatchMode=yes "$DST_HOST" "
+    ssh -p "$DST_PORT" \
+      -o PreferredAuthentications=publickey \
+      -o PubkeyAuthentication=yes \
+      -o PasswordAuthentication=no \
+      -o IdentityFile="$HOME/.ssh/id_ed25519" \
+	  "$DST_HOST" "
         set -eu
-        T=\"/tmp/.ifc_rem_${PID}\"
+        T=\"\$HOME/.ifc_rem_${PID}\"
         H=\$(sha256sum \"\$T\" | awk '{print \$1}')
         if [ \"\$H\" != \"$SRC_HASH\" ]; then exit 1; fi
         mkdir -p \"\$(dirname '$DST_PATH')\"
@@ -198,6 +208,5 @@ else
     }
 fi
 
-
-[ "$quiet" -eq 0 ] && log "✅ $DST_PATH updated successfully"
+[ "$quiet" -eq 0 ] && log "🚀 Installed IFC: $DST_PATH"
 exit 3

@@ -8,7 +8,7 @@ if [ -f "/jffs/scripts/.ddns_confidential" ]; then
 fi
 
 CADDY_BIN="/tmp/mnt/sda/router/bin/caddy"
-CADDY_CONF="/etc/caddy/Caddyfile"
+CADDY_CONF="/jffs/caddy/Caddyfile"
 
 # Validate config first
 if ! $CADDY_BIN validate --config "$CADDY_CONF" --adapter caddyfile; then

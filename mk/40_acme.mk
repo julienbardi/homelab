@@ -8,20 +8,27 @@ ACME_HOME ?= /var/lib/acme
 
 check-acme-perms: ensure-run-as-root
 	@if [ -d "$(ACME_HOME)" ]; then \
-		echo "[acme][check] 🔍 Verifying permissions under $(ACME_HOME)"; \
+		echo "🔍 Verifying permissions under $(ACME_HOME)"; \
 		$(run_as_root) find "$(ACME_HOME)" -ls | grep -E "key|cer|conf|csr|sh"; \
 	else \
-		echo "[acme][check] ℹ️  No ACME directory at $(ACME_HOME)"; \
+		echo "ℹ️ No ACME directory at $(ACME_HOME)"; \
 	fi
 
 fix-acme-perms: ensure-run-as-root
 	@if [ -d "$(ACME_HOME)" ]; then \
-		echo "[acme][fix] 🛡️  Enforcing root ownership and strict permissions on $(ACME_HOME)"; \
-		$(run_as_root) chown -R root:root "$(ACME_HOME)"; \
-		$(run_as_root) find "$(ACME_HOME)" -type d -exec chmod 700 {} +; \
-		$(run_as_root) find "$(ACME_HOME)" -type f -exec chmod 600 {} +; \
-		$(run_as_root) find "$(ACME_HOME)" -name "*.sh" -exec chmod 700 {} +; \
-		echo "[acme][fix] ✅ Permissions locked down."; \
+		echo "🛡️ Enforcing root ownership and correct permissions on $(ACME_HOME)"; \
+		$(run_as_root) chown -R $(ROUTER_SCRIPTS_OWNER):$(ROUTER_SCRIPTS_GROUP) "$(ACME_HOME)"; \
+		\
+		# Directories must be traversable (0755) \
+		$(run_as_root) find "$(ACME_HOME)" -type d -exec chmod $(ROUTER_SCRIPTS_MODE) {} +; \
+		\
+		# Scripts (*.sh) must be executable (0755) \
+		$(run_as_root) find "$(ACME_HOME)" -type f -name "*.sh" -exec chmod $(ROUTER_SCRIPTS_MODE) {} +; \
+		\
+		# Sensitive files (keys, certs, account data) remain locked down (0600) \
+		$(run_as_root) find "$(ACME_HOME)" -type f ! -name "*.sh" -exec chmod 600 {} +; \
+		\
+		echo "✅ Permissions corrected."; \
 	else \
-		echo "[acme][fix] ⚠️  Cannot fix: $(ACME_HOME) does not exist."; \
+		echo "⚠️ Cannot fix: $(ACME_HOME) does not exist."; \
 	fi

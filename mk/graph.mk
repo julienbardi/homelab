@@ -37,6 +37,7 @@ include $(MAKEFILE_DIR)mk/00_icons.mk
 include $(MAKEFILE_DIR)mk/00_sanity.mk
 include $(MAKEFILE_DIR)mk/00_prereqs.mk
 include $(MAKEFILE_DIR)mk/01_common.mk
+include $(MAKEFILE_DIR)mk/05_bootstrap_acme.mk
 include $(MAKEFILE_DIR)mk/05_bootstrap_wireguard.mk
 include $(MAKEFILE_DIR)mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include $(MAKEFILE_DIR)mk/10_local-tools.mk
@@ -48,10 +49,7 @@ include $(MAKEFILE_DIR)mk/20_net-tunnel.mk
 include $(MAKEFILE_DIR)mk/20_sysctl.mk
 include $(MAKEFILE_DIR)mk/30_config_validation.mk
 include $(MAKEFILE_DIR)mk/30_firewall-nas.mk
-include $(MAKEFILE_DIR)mk/30_router-config.mk
-include $(MAKEFILE_DIR)mk/30_router-platform.mk
 include $(MAKEFILE_DIR)mk/30_secrets.mk
-include $(MAKEFILE_DIR)mk/35_router-caddy-fetch.mk
 include $(MAKEFILE_DIR)mk/40_acme.mk
 include $(MAKEFILE_DIR)mk/40_code-server.mk
 include $(MAKEFILE_DIR)mk/40_nas-caddy.mk

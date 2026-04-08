@@ -1,22 +1,3 @@
-# ------------------------------------------------------------
-# EDGE CADDY — ROUTER (10.89.12.1)
-#
-# Responsibilities:
-#   - TLS termination
-#   - Host exposure
-#   - Access policy (LAN / VPN / WAN)
-#
-# Non-responsibilities:
-#   - Application routing
-#   - Health checks
-#   - Port fan-out
-#
-# All application logic for 10.89.12.4 is delegated to its
-# local Caddy instance.
-#
-# DO NOT bind :80.
-# DO NOT proxy via 127.0.0.1.
-# ------------------------------------------------------------
 {
 	auto_https disable_redirects
 	admin off
@@ -34,29 +15,54 @@
 		exclude http.handlers.reverse_proxy.health_checker.active
 	}
 }
-
+# above block must be at the very top of the file, no blank lines, no comments before it
 # ------------------------------------------------------------
-# Syncthing GUI (explicit port)
+# EDGE CADDY - ROUTER (10.89.12.1)
+#
+# Responsibilities:
+#   - TLS termination
+#   - Host exposure
+#   - Access policy (LAN / VPN / WAN)
+#
+# Non-responsibilities:
+#   - Application routing
+#   - Health checks
+#   - Port fan-out
+#
+# All application logic for 10.89.12.4 is delegated to its
+# local Caddy instance.
+#
+# DO NOT bind :80.
+# DO NOT proxy via 127.0.0.1.
 # ------------------------------------------------------------
-bardi.ch:8384 {
-	@internal {
-		remote_ip 10.89.12.0/24
-		remote_ip fd89:7a3b:42c0::/64
-		remote_ip 100.64.0.0/10
-		remote_ip fd7a:115c:a1e0::/48
-	}
-	@external not @internal
-
-	reverse_proxy @internal 10.89.12.2:8384
-	respond @external "Forbidden" 403
-}
 
 # ------------------------------------------------------------
 # Consolidated HTTPS listener (edge)
 # ------------------------------------------------------------
 :443 {
-	tls {
-		dns infomaniak {env.INFOMANIAK_API_TOKEN}
+	tls /jffs/ssl/caddy/fullchain.pem /jffs/ssl/caddy/privkey.pem
+
+	# ------------------------------------------------------------
+	# Syncthing GUI (explicit port)
+	# ------------------------------------------------------------
+	@syncthing_host {
+		host syncthing.bardi.ch
+	}
+
+	@syncthing_allowed {
+		remote_ip 10.89.12.0/24
+		remote_ip fd89:7a3b:42c0::/64
+		remote_ip 100.64.0.0/10
+		remote_ip fd7a:115c:a1e0::/48
+	}
+
+	@syncthing_denied {
+		host syncthing.bardi.ch
+	}
+
+	handle @syncthing_host {
+		reverse_proxy @syncthing_allowed 10.89.12.2:8384
+		respond @syncthing_denied "Forbidden" 403
 	}
 
 	# --------------------------------------------------------
@@ -78,18 +84,10 @@ bardi.ch:8384 {
 	respond @dev_denied "Forbidden" 403
 
 	# --------------------------------------------------------
-	# DiskStation main HTTPS site (WAN)
-	# --------------------------------------------------------
-	@bardi {
-		host bardi.ch
-	}
-	reverse_proxy @bardi 10.89.12.2:443 {
-		header_up Host bardi.ch
-	}
-
-	# --------------------------------------------------------
 	# DSM management (internal only)
 	# --------------------------------------------------------
+	# IMPORTANT: This block MUST come BEFORE the public bardi.ch block.
+	# Otherwise the public block matches first and LAN users get Forbidden.
 	@syno_internal {
 		host bardi.ch
 		remote_ip 10.89.12.0/24
@@ -97,6 +95,30 @@ bardi.ch:8384 {
 	}
 	reverse_proxy @syno_internal 10.89.12.2:5001
 
+	# --------------------------------------------------------
+	# DiskStation main HTTPS site (WAN)
+	# --------------------------------------------------------
+	# This must come AFTER @syno_internal so LAN/VPN users hit DSM admin.
+	@bardi {
+		host bardi.ch
+	}
+
+	handle @bardi {
+		reverse_proxy 10.89.12.2:443 {
+			header_up Host {http.request.host}
+			header_up X-Forwarded-Host {http.request.host}
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Scheme https
+			header_up X-Forwarded-Port 443
+			header_up X-Forwarded-For {http.request.remote}
+			header_up X-Real-IP {http.request.remote}
+
+			transport http {
+				tls
+				tls_insecure_skip_verify
+			}
+		}
+	}
 	# --------------------------------------------------------
 	# QNAP (internal only)
 	# --------------------------------------------------------
@@ -138,8 +160,10 @@ bardi.ch:8384 {
  apt.bardi.ch \
  nas.bardi.ch
 	}
-
 	reverse_proxy @nas_services 10.89.12.4:443
+
+	@www host www.bardi.ch
+	redir @www https://bardi.ch{uri}
 
 	# --------------------------------------------------------
 	# Unknown host fallback
