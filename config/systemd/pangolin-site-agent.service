@@ -1,0 +1,14 @@
+[Unit]
+Description=Pangolin Site Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/pangolin-site-agent --secret-file /etc/pangolin/site-secret
+Restart=always
+RestartSec=5
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

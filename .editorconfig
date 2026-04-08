@@ -14,5 +14,13 @@ indent_style = tab
 indent_size = 4
 
 [*.sh]
-indent_style = tab
+indent_style = space
+indent_size = 4
+
+[Caddyfile]
+indent_style = space
+indent_size = 4
+
+[*.caddy]
+indent_style = space
 indent_size = 4

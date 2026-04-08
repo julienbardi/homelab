@@ -37,31 +37,57 @@ OPERATOR_USER := $(shell id -un)
 OPERATOR_GROUP := $(shell id -gn)
 OPERATOR_HOME := $(shell getent passwd $(OPERATOR_USER) | cut -d: -f6)
 
-# Canonical Make constants (build-time)
+# ---------------------------------------------------------------------------
+# Router component constants (Caddy, certs, common.sh)
+# ---------------------------------------------------------------------------
 
 # Router connection (single source of truth for deployment)
 ROUTER_ADDR     ?= 10.89.12.1
 ROUTER_USER     ?= julie
-ROUTER_HOST     ?= $(ROUTER_USER)@$(ROUTER_ADDR)
 ROUTER_SSH_PORT ?= 2222
 ROUTER_SCRIPTS  ?= /jffs/scripts
 
-# DDNS secret paths (authoritative location only; no secrets or validation here)
-DDNS_SECRET_DIR  := /volume1/homelab/secrets
-DDNS_SECRET_FILE := $(DDNS_SECRET_DIR)/ddns.conf
+# must recompute if user overrides the above
+ROUTER_HOST     := $(ROUTER_USER)@$(ROUTER_ADDR)
+
+ROUTER_CADDYFILE_SRC := $(REPO_ROOT)router/caddy/Caddyfile
+ROUTER_CADDYFILE_DST := /jffs/caddy/Caddyfile
+ROUTER_CADDY_BIN     := /tmp/mnt/sda/router/bin/caddy
 
 # Router script metadata (owner/group/mode)
 ROUTER_SCRIPTS_OWNER := 0
 ROUTER_SCRIPTS_GROUP := 0
 ROUTER_SCRIPTS_MODE  := 0755
 
-# WireGuard plan artifact metadata
-ROUTER_WG_PLAN_MODE  := 0644
-
 # Local source directory for router scripts
 SRC_SCRIPTS := $(REPO_ROOT)router/jffs/scripts
 
+# WireGuard plan artifact metadata
+ROUTER_WG_PLAN_MODE  := 0644
 ROUTER_WG_PLAN_SRC := /volume1/homelab/wireguard/compiled/plan.tsv
+
+# ------------------------------------------------------------
+# Installed helpers (overrideable for testing or alternate platforms)
+# ------------------------------------------------------------
+CERTS_CREATE ?= /jffs/scripts/certs-create.sh
+CERTS_DEPLOY ?= /jffs/scripts/certs-deploy.sh
+GEN_CLIENT_CERT    ?= /jffs/scripts/generate-client-cert.sh
+GEN_CLIENT_WRAPPER ?= /jffs/scripts/gen-client-cert-wrapper.sh
+
+# ------------------------------------------------------------
+# Shell platform contract
+# ------------------------------------------------------------
+
+COMMON_SH_SRC := $(SRC_SCRIPTS)/common.sh
+COMMON_SH_DST := $(ROUTER_SCRIPTS)/common.sh
+
+# ---------------------------------------------------------------------------
+# End of Router component constants (Caddy, certs, common.sh)
+# ---------------------------------------------------------------------------
+
+# DDNS secret paths (authoritative location only; no secrets or validation here)
+DDNS_SECRET_DIR  := /volume1/homelab/secrets
+DDNS_SECRET_FILE := $(DDNS_SECRET_DIR)/ddns.conf
 
 # ---------------------------------------------------------------------------
 # Network identities (do not alias; roles are distinct by contract)

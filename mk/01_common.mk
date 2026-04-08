@@ -30,7 +30,6 @@ RUN_ROOT_SRC      := $(MAKEFILE_DIR)scripts/run-as-root.sh
 
 # 1. Root wrapper must be installed first using standard host install
 $(INSTALL_SBIN_PATH)/run-as-root.sh: $(RUN_ROOT_SRC)
-	@echo "🛡️  Installing Root Wrapper: $@"
 	@install -o root -g root -m 0755 $< $@
 
 run_as_root := $(INSTALL_SBIN_PATH)/run-as-root.sh
@@ -38,22 +37,18 @@ run_as_root := $(INSTALL_SBIN_PATH)/run-as-root.sh
 # 2. Singular V2 Engine
 # Avoid self-dependency: do NOT depend on $(INSTALL_FILE_IF_CHANGED) here
 $(INSTALL_PATH)/install_file_if_changed_v2.sh: $(IFC_V2_SINGLE_SRC)
-	@echo "🚀 Installing Singular V2 Engine: $@"
 	@$(call install_file,$<,$@,root,root,0755)
 
 # 3. Vectorized V2 Engine
 $(INSTALL_PATH)/install_files_if_changed_v2.sh: $(IFC_V2_PLURAL_SRC) $(INSTALL_FILE_IF_CHANGED)
-	@echo "🚀 Installing Vectorized V2 Engine: $@"
 	@$(call install_file,$<,$@,root,root,0755)
 
 # 4. Common library
 $(INSTALL_PATH)/common.sh: $(COMMON_SRC) $(INSTALL_FILE_IF_CHANGED)
-	@echo "📦 Installing Common Lib: $@"
 	@$(call install_file,$<,$@,root,root,0755)
 
 # 5. URL-based IFC Engine
 $(INSTALL_URL_FILE_IF_CHANGED): $(IFC_URL_SRC) $(INSTALL_FILE_IF_CHANGED)
-	@echo "🚀 Installing URL IFC Engine: $@"
 	@$(call install_file,$<,$@,root,root,0755)
 
 # ------------------------------------------------------------

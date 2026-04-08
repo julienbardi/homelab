@@ -51,7 +51,7 @@ prereqs-router-ssh:
 # Internal: Generate and deploy router apply script
 # ------------------------------------------------------------
 /tmp/router-apply-local.sh:
-	@$(call log,"🛠️  Generating router apply script")
+	@echo "🛠️  Generating router apply script"
 	@set -e; \
 	tmp=$$(mktemp /tmp/router-apply-XXXXXX.sh); \
 	printf '%s\n' \
@@ -86,14 +86,14 @@ prereqs-router-ssh:
 		> "$$tmp"; \
 	cp "$$tmp" /tmp/router-apply-local.sh; \
 	rm -f "$$tmp"
-	@$(call log,"📄  Router apply script deployed")
+	@echo "📄  Router apply script deployed"
 
 # ------------------------------------------------------------
 # Internal: Deploy certs + apply script + execute apply (BusyBox-safe single SSH session)
 # ------------------------------------------------------------
 /tmp/router-deploy.stamp: /tmp/router-apply-local.sh
 	@set -e; \
-	$(call log,"📁  Uploading router certs + apply script + executing apply"); \
+	echo "📁  Uploading router certs + apply script + executing apply"; \
 	tmp=/tmp/router-bundle-$$.tmp; \
 	{ \
 		echo "===FULLCHAIN==="; \
@@ -106,9 +106,9 @@ prereqs-router-ssh:
 	\
 	ssh -o BatchMode=no -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) ' \
 		mkdir -p /jffs/ssl && chmod 700 /jffs/ssl; \
-		> /jffs/scripts/apply-router-cert.sh; \
-		mode=""; \
-		while IFS= read -r line; do \
+		: > /jffs/scripts/apply-router-cert.sh; \
+		mode=none; \
+		while IFS='' read -r line; do \
 			case "$$line" in \
 				"===FULLCHAIN===") mode="fullchain"; continue ;; \
 				"===PRIVKEY===")   mode="privkey";   continue ;; \
@@ -127,31 +127,31 @@ prereqs-router-ssh:
 	' < "$$tmp" >/dev/null 2>&1; \
 	rm -f "$$tmp"; \
 	echo "ok" > /tmp/router-deploy.stamp; \
-	$(call log,"✨  Router certs uploaded + applied")
+	echo "✨  Router certs uploaded + applied"
 
 # ------------------------------------------------------------
 # Public: deploy-router
 # ------------------------------------------------------------
 deploy-router: $(ROUTER_CERT_CHECKSUM) /tmp/router-deploy.stamp
-	@$(call log,"🔁 Nothing to deploy — router certs unchanged")
+	@echo "🔁 Nothing to deploy — router certs unchanged"
 
 # ------------------------------------------------------------
 # Public: validate-router
 # ------------------------------------------------------------
 validate-router:
-	@$(call log,"Validating router certificate")
+	@echo "Validating router certificate"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		if [ ! -f /tmp/etc/cert.pem ]; then echo "❌ cert.pem missing"; exit 1; fi; \
 		if [ ! -f /tmp/etc/key.pem ]; then echo "❌ key.pem missing"; exit 1; fi; \
 		echo "🔍 Router cert/key present"; \
 	'
-	@$(call log,"✅ Router certificate validation OK")
+	@echo "✅ Router certificate validation OK"
 
 # ------------------------------------------------------------
 # Public: router-logs (live tail of router cert apply logs)
 # ------------------------------------------------------------
 router-logs:
-	@$(call log,"Tailing router certificate logs")
+	@echo "Tailing router certificate logs"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) "logread -f | grep -E 'router-cert-apply'"
 
 .PHONY: \

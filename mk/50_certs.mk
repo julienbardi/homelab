@@ -13,9 +13,20 @@
 # - Keeps all cert watchers passive until a cert actually changes
 # --------------------------------------------------------------------
 
+# Load homelab environment (DOMAIN, ACME_HOME, etc.)
+include config/homelab.env
+export DOMAIN
+export ACME_HOME
+
+ifeq ($(strip $(DOMAIN)),)
+$(error DOMAIN is empty — define it in config/homelab.env)
+endif
+
+
 # Installed certificate helpers (authoritative execution surface)
 CERTS_CREATE        := $(INSTALL_PATH)/certs-create.sh
-CERTS_DEPLOY        := $(INSTALL_PATH)/certs-deploy.sh
+#CERTS_DEPLOY        := $(INSTALL_PATH)/certs-deploy.sh
+CERTS_DEPLOY := $(INSTALL_PATH)/deploy_certificates.sh
 GEN_CLIENT_CERT     := $(INSTALL_PATH)/generate-client-cert.sh
 GEN_CLIENT_WRAPPER  := $(INSTALL_PATH)/gen-client-cert-wrapper.sh
 
@@ -28,8 +39,8 @@ CANON_CA          := $(SSL_CANONICAL_DIR)/ca.cer
 # Service deployment targets
 CADDY_DEPLOY_DIR ?= /etc/ssl/caddy
 
-$(CERTS_DEPLOY): $(MAKEFILE_DIR)scripts/certs-deploy.sh $(INSTALL_FILE_IF_CHANGED)
-	@$(call install_file,$<,$@,root,root,0755)
+#$(CERTS_DEPLOY): $(MAKEFILE_DIR)scripts/certs-deploy.sh $(INSTALL_FILE_IF_CHANGED)
+#	@$(call install_file,$<,$@,root,root,0755)
 
 # --------------------------------------------------------------------
 # Internal CA lifecycle (authoritative, idempotent)
@@ -126,16 +137,16 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 	# offer automatic reissue if helper exists
 	if [ -n "$$clients" ]; then \
 	  if [ ! -x "$(GEN_CLIENT_CERT)" ]; then \
-	    logger -t "$$TAG" -p user.err "generate-client-cert.sh not found or not executable; cannot reissue automatically"; \
-	    echo "generate-client-cert.sh missing or not executable; reissue manually"; \
+		logger -t "$$TAG" -p user.err "generate-client-cert.sh not found or not executable; cannot reissue automatically"; \
+		echo "generate-client-cert.sh missing or not executable; reissue manually"; \
 	  else \
-	    read -p "Reissue all listed clients now using new CA? Type YES to proceed: " r && [ "$$r" = "YES" ] || { logger -t "$$TAG" -p user.info "Skipping automatic reissue"; exit 0; }; \
-	    logger -t "$$TAG" -p user.info "Reissuing clients"; \
-	    for u in $$clients; do \
-	      logger -t "$$TAG" -p user.info "Reissuing $$u"; \
-	      $(run_as_root) $(GEN_CLIENT_CERT) "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; \
-	    done; \
-	    logger -t "$$TAG" -p user.info "Automatic reissue complete; admin must securely deliver new .p12 files to users"; \
+		read -p "Reissue all listed clients now using new CA? Type YES to proceed: " r && [ "$$r" = "YES" ] || { logger -t "$$TAG" -p user.info "Skipping automatic reissue"; exit 0; }; \
+		logger -t "$$TAG" -p user.info "Reissuing clients"; \
+		for u in $$clients; do \
+		  logger -t "$$TAG" -p user.info "Reissuing $$u"; \
+		  $(run_as_root) $(GEN_CLIENT_CERT) "$$u" --force || logger -t "$$TAG" -p user.err "Failed to reissue $$u"; \
+		done; \
+		logger -t "$$TAG" -p user.info "Automatic reissue complete; admin must securely deliver new .p12 files to users"; \
 	  fi; \
 	fi; \
 	# install expiry monitor (journal) using secure temp files under /root
@@ -177,8 +188,8 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 # - They depend on the internal CA being present
 # - They must never mutate CA material
 .PHONY: renew prepare \
-	deploy-caddy deploy-headscale deploy-dnsdist deploy-diskstation deploy-qnap \
-	validate-caddy validate-headscale validate-diskstation validate-qnap \
+	deploy-caddy deploy-headscale deploy-dnsdist deploy-diskstation deploy-qnap deploy-dsm \
+	validate-caddy validate-headscale validate-diskstation validate-qnap validate-dsm \
 	all-caddy all-headscale all-router all-diskstation all-qnap \
 	setup-cert-watch-% setup-cert-watch-all \
 	deploy-cert-watch-% deploy-cert-watch-all \
@@ -191,10 +202,11 @@ renew: ensure-run-as-root install-helpers
 	@$(run_as_root) $(CERTS_DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE)
 
 # New target to ensure scripts are synced
+# @$(run_as_root) install -m 0755 scripts/certs-deploy.sh /usr/local/bin/certs-deploy.sh
 install-helpers:
 	@$(run_as_root) install -m 0755 scripts/common.sh /usr/local/bin/common.sh
 	@$(run_as_root) install -m 0755 scripts/install_file_if_changed_v2.sh /usr/local/bin/install_file_if_changed_v2.sh
-	@$(run_as_root) install -m 0755 scripts/certs-deploy.sh /usr/local/bin/certs-deploy.sh
+	@$(run_as_root) install -m 0755 scripts/deploy_certificates.sh /usr/local/bin/deploy_certificates.sh
 
 prepare: ensure-run-as-root renew $(CERTS_DEPLOY)
 	@$(run_as_root) $(CERTS_DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
@@ -205,7 +217,7 @@ define deploy_with_status
 	@echo "🔄 Certificate deploy requested -> $(1)"
 endef
 
-deploy-caddy: prepare
+deploy-caddy: prepare router-install-scripts
 	$(call deploy_with_status,caddy)
 
 deploy-headscale: prepare
@@ -214,8 +226,8 @@ deploy-headscale: prepare
 deploy-dnsdist: prepare
 	$(call deploy_with_status,dnsdist)
 
-deploy-diskstation: prepare
-	$(call deploy_with_status,diskstation)
+deploy-diskstation: prepare deploy-dsm
+	@echo "🔄 DiskStation certificate deploy complete"
 
 deploy-qnap: prepare
 	$(call deploy_with_status,qnap)
@@ -226,10 +238,14 @@ define validate_with_status
 	@echo "🔁 $(1) validation OK"
 endef
 
-validate-caddy:       $(call validate_with_status,caddy)
-validate-headscale:   $(call validate_with_status,headscale)
-validate-diskstation: $(call validate_with_status,diskstation)
-validate-qnap:        $(call validate_with_status,qnap)
+validate-caddy:
+	$(call validate_with_status,caddy)
+validate-headscale:
+	$(call validate_with_status,headscale)
+validate-diskstation: validate-dsm
+	@echo "🔁 DiskStation validation OK"
+validate-qnap:
+	$(call validate_with_status,qnap)
 
 # All-in-one targets (pattern rule: renew + prepare + deploy + validate)
 all-caddy:       renew prepare deploy-caddy       validate-caddy
@@ -241,25 +257,22 @@ all-qnap:        renew prepare deploy-qnap        validate-qnap
 # Cert watch setup targets
 setup-cert-watch-%: ensure-run-as-root scripts/systemd/cert-reload@.service scripts/systemd/$*-cert.path
 	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service \
-	    /etc/systemd/system/cert-reload@.service && \
+		/etc/systemd/system/cert-reload@.service && \
 	if [ "$*" = "dnsdist" ]; then \
-	    $(run_as_root) install -d -m 0755 \
-	        /etc/systemd/system/cert-reload@dnsdist.service.d && \
-	    $(run_as_root) install -m 0644 \
-	        scripts/systemd/cert-reload@dnsdist.service.d/override.conf \
-	        /etc/systemd/system/cert-reload@dnsdist.service.d/override.conf ; \
+		$(run_as_root) install -d -m 0755 \
+			/etc/systemd/system/cert-reload@dnsdist.service.d && \
+		$(run_as_root) install -m 0644 \
+			scripts/systemd/cert-reload@dnsdist.service.d/override.conf \
+			/etc/systemd/system/cert-reload@dnsdist.service.d/override.conf ; \
 	fi && \
 	$(run_as_root) install -m 0644 \
-	    scripts/systemd/$*-cert.path \
-	    /etc/systemd/system/$*-cert.path && \
+		scripts/systemd/$*-cert.path \
+		/etc/systemd/system/$*-cert.path && \
 	$(run_as_root) systemctl daemon-reload && \
 	$(run_as_root) systemctl enable $*-cert.path
 
 # POLICY: only local services may have certificate watchers
-setup-cert-watch-all: \
-	setup-cert-watch-caddy \
-	setup-cert-watch-dnsdist \
-	setup-cert-watch-headscale
+setup-cert-watch-all: setup-cert-watch-caddy setup-cert-watch-dnsdist setup-cert-watch-headscale
 
 # Bootstrap combos
 define bootstrap_with_status
@@ -274,9 +287,7 @@ bootstrap-diskstation:   $(call bootstrap_with_status,diskstation)
 bootstrap-qnap:          $(call bootstrap_with_status,qnap)
 
 # FIX: bootstrap-all wires only LOCAL watchers; no remote hosts here
-bootstrap-all: \
-	setup-cert-watch-caddy all-caddy \
-	setup-cert-watch-headscale all-headscale
+bootstrap-all: setup-cert-watch-caddy all-caddy setup-cert-watch-headscale all-headscale
 
 # Cert watch deploy targets
 define deploy_cert_watch
@@ -299,3 +310,22 @@ deploy-cert-watch-all: \
 	deploy-cert-watch-caddy \
 	deploy-cert-watch-dnsdist \
 	deploy-cert-watch-headscale
+
+deploy-dsm:
+	@echo "🔐 [deploy][dsm] Deploying certificate to Synology DSM…"
+	$(ACME_HOME)/acme.sh --deploy -d $(DOMAIN) --deploy-hook synology_dsm
+	@echo "⚙️ [deploy][dsm] Deployment triggered — not waiting for DSM"
+	@echo "✅ [deploy][dsm] DSM deployment complete"
+
+validate-dsm:
+	@echo "🔍 [validate][dsm] Checking certificate on 10.89.12.2:5001"
+	@remote_fp=$$(openssl s_client \
+		-connect 10.89.12.2:5001 \
+		-servername $(DOMAIN) \
+		-tls1_2 -showcerts </dev/null 2>/dev/null \
+		| openssl x509 -noout -fingerprint -sha256 2>/dev/null); \
+	if [ -z "$$remote_fp" ]; then \
+		echo "❌ No certificate received from DSM"; \
+		exit 1; \
+	fi; \
+	echo "ℹ️ Remote Fingerprint: $$remote_fp"

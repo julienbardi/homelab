@@ -17,11 +17,11 @@ ROUTER_SCRIPTS_SRC_DIR := $(REPO_ROOT)router/jffs/scripts
 # Logic: Local Source -> Remote Router (9-argument signature)
 # 1: SRC_PATH, 2: DST_PATH
 define PUSH_ROUTER_SCRIPT
-	{ env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) \
-	"" "" $(1) \
-	$(ROUTER_HOST) $(ROUTER_SSH_PORT) $(2) \
-	$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE) \
-	|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; }
+	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) \
+		"" "" $(1) \
+		$(ROUTER_HOST) $(ROUTER_SSH_PORT) $(2) \
+		$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE) \
+		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ];
 endef
 
 .PHONY: ensure-default-gateway
@@ -87,7 +87,10 @@ ROUTER_SCRIPT_FILES := \
 	provision-ipv6-ula.sh \
 	wg-compile-alloc.sh \
 	wg-compile-domain.sh \
-	wg-compile-keys.sh
+	wg-compile-keys.sh \
+	firewall-start \
+	wg-policy-apply \
+	wg-transport-apply
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-run-as-root
