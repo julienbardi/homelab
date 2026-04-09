@@ -38,7 +38,7 @@ include $(MAKEFILE_DIR)mk/00_sanity.mk
 include $(MAKEFILE_DIR)mk/00_prereqs.mk
 include $(MAKEFILE_DIR)mk/01_common.mk
 include $(MAKEFILE_DIR)mk/05_bootstrap_acme.mk
-include $(MAKEFILE_DIR)mk/05_bootstrap_wireguard.mk
+#include $(MAKEFILE_DIR)mk/05_bootstrap_wireguard.mk
 include $(MAKEFILE_DIR)mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include $(MAKEFILE_DIR)mk/10_local-tools.mk
 include $(MAKEFILE_DIR)mk/15_local-python-env.mk
@@ -55,14 +55,14 @@ include $(MAKEFILE_DIR)mk/40_code-server.mk
 include $(MAKEFILE_DIR)mk/40_nas-caddy.mk
 include $(MAKEFILE_DIR)mk/40_router-control.mk
 include $(MAKEFILE_DIR)mk/40_router-caddy.mk
-include $(MAKEFILE_DIR)mk/40_router-wireguard.mk
-include $(MAKEFILE_DIR)mk/40_wireguard.mk
-include $(MAKEFILE_DIR)mk/40_wireguard_py.mk
-include $(MAKEFILE_DIR)mk/41_wireguard_clients.mk
-include $(MAKEFILE_DIR)mk/41_wireguard-status.mk
-include $(MAKEFILE_DIR)mk/42_wireguard-qr.mk
-include $(MAKEFILE_DIR)mk/42_wireguard_runtime.mk
-include $(MAKEFILE_DIR)mk/43_wireguard-runtime.mk
+#include $(MAKEFILE_DIR)mk/40_router-wireguard.mk
+#include $(MAKEFILE_DIR)mk/40_wireguard.mk
+#include $(MAKEFILE_DIR)mk/40_wireguard_py.mk
+#include $(MAKEFILE_DIR)mk/41_wireguard_clients.mk
+#include $(MAKEFILE_DIR)mk/41_wireguard-status.mk
+#include $(MAKEFILE_DIR)mk/42_wireguard-qr.mk
+#include $(MAKEFILE_DIR)mk/42_wireguard_runtime.mk
+#include $(MAKEFILE_DIR)mk/43_wireguard-runtime.mk
 include $(MAKEFILE_DIR)mk/50_certs.mk       # certificate handling (issue, renew, deploy)
 include $(MAKEFILE_DIR)mk/50_dnsmasq.mk
 include $(MAKEFILE_DIR)mk/55_router-certs.mk
