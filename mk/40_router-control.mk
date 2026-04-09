@@ -67,9 +67,9 @@ check-tools:
 
 include $(MAKEFILE_DIR)mk/router/05_ssh.mk
 include $(MAKEFILE_DIR)mk/router/10_bootstrap.mk
-include $(MAKEFILE_DIR)mk/router/20_firewall.mk
-include $(MAKEFILE_DIR)mk/router/20_wireguard.mk
-include $(MAKEFILE_DIR)mk/router/40_router-wireguard.mk
+#include $(MAKEFILE_DIR)mk/router/20_firewall.mk
+#include $(MAKEFILE_DIR)mk/router/20_wireguard.mk
+#include $(MAKEFILE_DIR)mk/router/40_router-wireguard.mk
 include $(MAKEFILE_DIR)mk/router/90_health.mk
 
 # ------------------------------------------------------------
