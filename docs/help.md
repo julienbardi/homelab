@@ -11,10 +11,6 @@
 - 📡 [Router certificate lifecycle](#-router-certificate-lifecycle)
 - 🌐 [DNS](#-dns)
 - 🌐 [Router DDNS](#-router-ddns)
-- 🔐 [WireGuard — lifecycle](#-wireguard--lifecycle)
-- 🔐 [WireGuard — client lifecycle](#-wireguard--client-lifecycle)
-- 🔍 [WireGuard — inspection (read-only)](#-wireguard--inspection-read-only)
-- 🔐 [Router WireGuard — control plane (layered)](#-router-wireguard--control-plane-layered)
 - 📦 [Infrastructure](#-infrastructure)
 - 💻 [Code‑server](#-codeserver)
 - 📝 [Notes](#-notes)
@@ -139,95 +135,6 @@ Targets:
 Secrets are validated structurally via `ddns-secret-ensure` before deployment.
 No cron jobs are installed; execution is event-driven by Asuswrt-Merlin.
 
-## 🔐 WireGuard — lifecycle
-
-No WireGuard configuration reaches runtime unless both intent and rendered artifacts validate successfully.
-
-- `make wg-install-scripts` — Install WireGuard operational scripts
-- `make wg` — Compile, deploy, apply, and verify WireGuard state
-- `make wg-compile` — Compile intent and keys
-- `make wg-apply` — Apply rendered configuration to runtime
-- `make wg-check` — Validate compiled WireGuard intent (`plan.tsv`)
-- `make wg-render` — Render configs **and validate rendered artifacts**
-- ⚠️ `make wg-rebuild-all` — Full destructive rebuild
-
-`wg-render` includes a mandatory post‑render validation step.
-Rendered client and server configs are checked against `plan.tsv`
-and the build fails if any artifact deviates from intent.
-
-Rendered WireGuard configurations are treated as authoritative artifacts.
-They are validated against `plan.tsv` before deployment.
-Any mismatch causes the build to fail and prevents runtime changes.
-
-## 🔐 WireGuard — client lifecycle
-
-- `make wg-rotate-client base=<base> iface=<iface>` — Rotate client key (revokes old key)
-- `make wg-remove-client base=<base> iface=<iface>` — Permanently remove client
-
-Note: These targets manage WireGuard intent and runtime state.
-Router forwarding and authorization are handled by the
-**Router WireGuard — control plane (layered)** targets.
-
-## 🔍 WireGuard — inspection (read-only)
-
-- `make wg-status` — Interface and peer summary
-- `make wg-runtime` — Kernel peer state
-- `make wg-dashboard` — Client ↔ interface mapping
-- `make wg-clients` — Client inventory
-- `make wg-intent` — Addressing and endpoint intent
-- `make wg-check-rendered` — Validate rendered WireGuard configs against plan intent
-
-## 🔐 Router WireGuard — control plane (layered)
-
-The router WireGuard control plane is explicitly layered and fail‑closed:
-
-- **Transport layer** — packet reachability only (DNAT / FORWARD)
-- **Policy layer** — per‑client authorization (LAN / WAN access)
-- **Composition layer** — deterministic ordering and auditing
-
-Firewall invariants and WireGuard policy are intentionally decoupled.
-
-### Transport & policy
-
-- `make router-wg-transport`
-  Deploy and apply WireGuard transport rules on the router.
-  This enables packet flow but does **not** grant access.
-
-- `make router-wg-policy`
-  Apply WireGuard authorization policy from `plan.tsv`.
-  This layer is **fail‑closed**: if the plan is missing or invalid,
-  WireGuard forwarding is blocked.
-
-### Canonical entrypoint
-
-Typical workflow:
-
-```sh
-make router-wg-converge
-make router-wg-audit
-```
-
-This applies transport and policy deterministically and verifies that no drift occurred.
-This does three things:
-
-- Makes the commands memorable
-- Prevents people from running transport/policy separately
-- Encodes your operational intent in documentation
-
-- `make router-wg-converge`
-  Apply WireGuard transport **then** policy in the correct order.
-  This is the **only recommended entrypoint** for router WireGuard changes.
-
-### Auditing & diagnostics (read‑only)
-
-- `make router-wg-audit`
-  Verify WireGuard policy chains, FORWARD hooks, and interface state.
-  Detects drift after reboot or firmware updates.
-
-- `make router-wg-reset`
-  Flush WireGuard policy chains only (transport untouched).
-  Intended for debugging and recovery.
-
 ## 📦 Infrastructure
 
 - `make install-all`
@@ -281,19 +188,6 @@ The router Caddy module manages the full lifecycle of the router‑side Caddy re
 - `make router-caddy-restart` — Restart Caddy
 
 
-### Router: WireGuard (control plane)
-
-These targets manage WireGuard intent compilation, rendered‑artifact validation,
-and runtime state on the router. They do not modify firewall or forwarding policy.
-
-- `make router-wg-deploy` — Deploy WireGuard compiler scripts to router
-- `make router-wg-check` — Compile and validate WireGuard intent
-- `make router-wg-dump` — Compile with WG_DUMP=1 for inspection
-- `make router-wg-preflight` — Validate router WireGuard environment
-
-Firewall transport and authorization are handled separately
-by the router WireGuard control‑plane targets.
-
 ### Router orchestration (aggregates)
 
 - `make router-all` — Converge router baseline (DDNS, dnsmasq cache, firewall started)
@@ -338,6 +232,79 @@ The local VS Code server is managed declaratively.
 - The install target tracks upstream automatically.
 - If deterministic version pinning is required, replace the installer script with a pinned release artifact.
 
+
+## 🔐 WireGuard — minimal lifecycle (new architecture)
+
+This section describes the new, clean WireGuard pipeline.
+It replaces the entire legacy WG system (transport, policy, plan, compilers, router scripts, iptables chains, etc.).
+
+The new pipeline is intentionally simple:
+
+- Generate configs from TSV
+- Install configs to router + NAS
+- Bring up router WG using wg + ip
+- Bring up NAS WG using wg-quick
+- No policy engine
+- No transport engine
+- No plan compiler
+- No router‑side scripts
+- No iptables WG chains
+- No legacy logic
+
+### 🔧 WireGuard — generation
+
+- `make wg-generate`
+  Generate all WireGuard configs from authoritative TSV input.
+  Produces:
+  - output/router/wgs1.conf
+  - output/server/wg*.conf
+  - output/clients/*.conf (optional)
+
+### 📦 WireGuard — deployment
+
+- `make wg-install-router`
+  Install the router WireGuard config using install_file_if_changed_v2.sh.
+  Copies:
+  - output/router/wgs1.conf → router:/jffs/etc/wireguard/wgs1.conf
+
+- `make wg-install-nas`
+  Install the NAS WireGuard config(s) using `install_file_if_changed_v2.sh`.
+  - Copies:
+    - `output/server/wg7.conf` → `/etc/wireguard/wg7.conf`
+    - Installs wg7-firewall.sh (generated by `generate-firewall.sh`)
+
+### 🚀 WireGuard — bring‑up
+
+- `make wg-up-router`
+  Bring up WireGuard on the router using native `wg` + `ip` commands.
+  Creates interface `wgs1`, loads config, assigns IPs, and sets link up.
+
+- `make wg-up-nas`
+  Bring up WireGuard on the NAS using `wg-quick` and the generated firewall script.
+
+### 🎯 WireGuard — full converge
+
+- `make wg-up`
+  Full WireGuard converge:
+
+  - `wg-generate`
+  - `wg-install-router`
+  - `wg-install-nas`
+  - `wg-up-router`
+  - `wg-up-nas`
+
+  This is the canonical entrypoint for WireGuard.
+
+### 🧭 Notes
+- All state is intent‑driven from TSV input.
+- No router‑side scripts are used.
+- No iptables WG chains are created.
+- No policy/transport layers exist.
+- The router is treated as a plain Linux host with wg but without wg-quick.
+- The NAS uses wg-quick normally.
+- All deployment is atomic via `install_file_if_changed_v2.sh`.
+
+
 ## 📝 Notes
 
 - Router targets are split into deploy vs execute where side effects exist.
@@ -346,8 +313,5 @@ The local VS Code server is managed declaratively.
 - Scripts are never executed from the repository.
 - Destructive targets are explicit and never run implicitly.
 - Runtime reconciliation is gated; use `FORCE=1` only after reviewing drift.
-- Router WireGuard forwarding is explicitly layered:
-  transport enables reachability, policy grants access.
-  Missing or invalid policy fails closed.
 - `make router-verify` asserts non‑negotiable router security invariants
   and must pass after firmware updates or reboots.

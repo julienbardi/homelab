@@ -45,7 +45,7 @@ include $(MAKEFILE_DIR)mk/15_local-python-env.mk
 include $(MAKEFILE_DIR)mk/20_deps.mk        # package dependencies (apt installs, base tools)
 include $(MAKEFILE_DIR)mk/20_gitignore.mk
 include $(MAKEFILE_DIR)mk/20_local-python.mk
-include $(MAKEFILE_DIR)mk/20_net-tunnel.mk
+#include $(MAKEFILE_DIR)mk/20_net-tunnel.mk
 include $(MAKEFILE_DIR)mk/20_sysctl.mk
 include $(MAKEFILE_DIR)mk/30_config_validation.mk
 include $(MAKEFILE_DIR)mk/30_firewall-nas.mk
