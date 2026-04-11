@@ -2,9 +2,9 @@
 # scripts/wg-firewall-router.sh
 set -euo pipefail
 
+SCRIPT_NAME="wg-firewall-router"
 # shellcheck disable=SC1091
 source /usr/local/bin/common.sh
-SCRIPT_NAME="wg-firewall-router"
 
 [ "${ROUTER_CONTROL_PLANE:-}" = "1" ] || {
     echo "❌ wg-firewall-router.sh must be executed via the router control plane"

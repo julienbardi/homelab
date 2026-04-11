@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/generate-configs.sh
+# scripts/wg-generate-configs.sh
 set -euo pipefail
 
 BASE_DIR="/volume1/homelab/wireguard"
@@ -19,7 +19,9 @@ mkdir -p "$OUT_SERVER" "$OUT_ROUTER" "$OUT_CLIENTS" "$KEY_DIR/servers" "$KEY_DIR
 
 declare -A IF_HOST IF_PORT IF_MTU IF_ADDR_V4 IF_ADDR_V6 IF_ENABLED
 
-log() { echo "[wg-generate] $*"; }
+SCRIPT_NAME="wg-generate-configs"
+# shellcheck disable=SC1091
+source /usr/local/bin/common.sh
 
 #
 # 🔐 SHA‑256–based host octet allocator
@@ -27,7 +29,6 @@ log() { echo "[wg-generate] $*"; }
 hash_to_host_octet() {
   local key="$1"
   local h dec
-  # SHA‑256 → first 6 hex chars → 0–240 → +10 → 10–250
   h=$(printf '%s' "$key" | sha256sum | cut -c1-6)
   dec=$(( 0x$h ))
   echo $(( (dec % 241) + 10 ))
@@ -47,7 +48,7 @@ alloc_client_ip_v4() {
 alloc_client_ip_v6() {
   local iface="$1" name="$2"
   local addr_v6="${IF_ADDR_V6[$iface]}"
-  local prefix="${addr_v6%%/*}"   # keep full prefix before /len
+  local prefix="${addr_v6%%/*}"
   local host_hex
   host_hex=$(printf '%x' "$(hash_to_host_octet "${iface}:${name}")")
   printf "%s%s\n" "${prefix%::*}::" "${host_hex}"
@@ -57,7 +58,7 @@ ensure_server_keys() {
   local iface="$1"
   local key_base="$KEY_DIR/servers/$iface"
   if [[ ! -f "$key_base.key" ]]; then
-    log "Generating server keypair for $iface"
+    log "Generating server keypair for ${iface}"
     umask 077
     wg genkey | tee "$key_base.key" | wg pubkey > "$key_base.pub"
   fi
@@ -67,7 +68,7 @@ ensure_client_keys() {
   local name="$1"
   local key_base="$KEY_DIR/clients/$name"
   if [[ ! -f "$key_base.key" ]]; then
-    log "Generating client keypair for $name"
+    log "Generating client keypair for ${name}"
     umask 077
     wg genkey | tee "$key_base.key" | wg pubkey > "$key_base.pub"
   fi
@@ -85,6 +86,15 @@ load_interfaces() {
   done < "$IFACES_TSV"
 }
 
+server_out_path() {
+  local iface="$1"
+  if [[ "${IF_HOST[$iface]}" == "nas" ]]; then
+    printf '%s/%s.conf\n' "$OUT_SERVER" "$iface"
+  else
+    printf '%s/%s.conf\n' "$OUT_ROUTER" "$iface"
+  fi
+}
+
 write_server_config() {
   local iface="$1"
   local host_id="${IF_HOST[$iface]}"
@@ -97,14 +107,9 @@ write_server_config() {
   local key_base="$KEY_DIR/servers/$iface"
   local privkey; privkey=$(<"$key_base.key")
 
-  local out
-  if [[ "$host_id" == "nas" ]]; then
-    out="$OUT_SERVER/$iface.conf"
-  else
-    out="$OUT_ROUTER/$iface.conf"
-  fi
+  local out; out=$(server_out_path "$iface")
 
-  log "Writing server config: $out"
+  log "Writing server config: ${out}"
 
   cat > "$out" <<EOF
 [Interface]
@@ -123,12 +128,7 @@ append_peer_to_server() {
   local key_base="$KEY_DIR/clients/$name"
   local pubkey; pubkey=$(<"$key_base.pub")
 
-  local out
-  if [[ "${IF_HOST[$iface]}" == "nas" ]]; then
-    out="$OUT_SERVER/$iface.conf"
-  else
-    out="$OUT_ROUTER/$iface.conf"
-  fi
+  local out; out=$(server_out_path "$iface")
 
   local allowed_ips=()
   if [[ "$v4" == "1" && -n "$ip_v4" ]]; then
@@ -138,29 +138,32 @@ append_peer_to_server() {
     allowed_ips+=("${ip_v6}/128")
   fi
   if [[ "$access" == "full" || "$access" == "internet-only" ]]; then
-    # keep your full-tunnel semantics
     allowed_ips+=("0.0.0.0/0" "::/0")
   fi
 
-  log "Appending peer $name to $out"
+  log "Appending peer ${name} to ${out}"
 
-  printf '%s\n' "[Peer]"               >> "$out"
-  printf '%s\n' "# $name"              >> "$out"
-  printf 'PublicKey = %s\n' "$pubkey"  >> "$out"
-  printf 'AllowedIPs = %s\n' "$(IFS=', '; echo "${allowed_ips[*]}")" >> "$out"
-  printf '\n' >> "$out"
+  {
+    printf '[Peer]\n'
+    printf '# %s\n' "$name"
+    printf 'PublicKey = %s\n' "$pubkey"
+    printf 'AllowedIPs = %s\n' "$(IFS=', '; echo "${allowed_ips[*]}")"
+    printf '\n'
+  } >> "$out"
 
   if [[ "$lan" == "0" ]]; then
-    printf '%s\n' "# Internet-only client: block LAN access" >> "$out"
-    if [[ "$v4" == "1" && -n "$ip_v4" ]]; then
-      printf 'PostUp = iptables -A FORWARD -i %s -s %s/32 -d 10.89.12.0/24 -j DROP\n' "$iface" "$ip_v4"   >> "$out"
-      printf 'PostDown = iptables -D FORWARD -i %s -s %s/32 -d 10.89.12.0/24 -j DROP\n' "$iface" "$ip_v4" >> "$out"
-    fi
-    if [[ "$v6" == "1" && -n "$ip_v6" ]]; then
-      printf 'PostUp = ip6tables -A FORWARD -i %s -s %s/128 -d fd89:7a3b:42c0::/64 -j DROP\n' "$iface" "$ip_v6" >> "$out"
-      printf 'PostDown = ip6tables -D FORWARD -i %s -s %s/128 -d fd89:7a3b:42c0::/64 -j DROP\n' "$iface" "$ip_v6" >> "$out"
-    fi
-    printf '\n' >> "$out"
+    {
+      printf '# Internet-only client: block LAN access\n'
+      if [[ "$v4" == "1" && -n "$ip_v4" ]]; then
+        printf 'PostUp = iptables -A FORWARD -i %s -s %s/32 -d 10.89.12.0/24 -j DROP\n' "$iface" "$ip_v4"
+        printf 'PostDown = iptables -D FORWARD -i %s -s %s/32 -d 10.89.12.0/24 -j DROP\n' "$iface" "$ip_v4"
+      fi
+      if [[ "$v6" == "1" && -n "$ip_v6" ]]; then
+        printf 'PostUp = ip6tables -A FORWARD -i %s -s %s/128 -d fd89:7a3b:42c0::/64 -j DROP\n' "$iface" "$ip_v6"
+        printf 'PostDown = ip6tables -D FORWARD -i %s -s %s/128 -d fd89:7a3b:42c0::/64 -j DROP\n' "$iface" "$ip_v6"
+      fi
+      printf '\n'
+    } >> "$out"
   fi
 }
 
@@ -188,7 +191,7 @@ write_client_config() {
   local endpoint="bardi.ch:${endpoint_port}"
 
   local out="$OUT_CLIENTS/$name.conf"
-  log "Writing client config: $out"
+  log "Writing client config: ${out}"
 
   {
     echo "[Interface]"
@@ -218,7 +221,6 @@ write_client_config() {
     echo "[Peer]"
     echo "PublicKey = ${server_pub}"
     echo "Endpoint = ${endpoint}"
-    # keep your full-tunnel semantics for now
     echo "AllowedIPs = 0.0.0.0/0, ::/0"
     echo "PersistentKeepalive = 25"
   } > "$out"
