@@ -213,10 +213,13 @@ The router Caddy module manages the full lifecycle of the router‑side Caddy re
 
 The local VS Code server is managed declaratively.
 
+- `make code-code-server-update`
+  Fetchs the latest version
+
 - `make code-server-install`
   Installs or upgrades code‑server using the upstream installer.
-  Always installs the latest stable release (e.g. v4.112.0).
-  Idempotent: safe to re‑run.
+  Always installs the latest stable release (e.g. v4.115.0).
+  Idempotent: safe to re‑run. When done, run `sudo systemctl enable --now code-server@$USER`
 
 - `make code-server-enable`
   Enables the systemd user service and ensures it starts on boot.
@@ -224,6 +227,8 @@ The local VS Code server is managed declaratively.
 - `make code-server-ensure-running`
   Ensures code‑server is running with the correct configuration and systemd override.
   Restarts automatically if configuration changed.
+
+
 
 ### Notes
 
