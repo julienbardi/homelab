@@ -33,7 +33,7 @@ EOF
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INPUT_DIR="${ROOT_DIR}/input"
 OUTPUT_SERVER="${ROOT_DIR}/output/server"
-OUTPUT_ROUTER="${ROOT_DIR}/output/router"
+OUTPUT_ROUTER="${ROOT_DIR}/output/router}"
 
 NAS_WG_DIR="/etc/wireguard"
 ROUTER_WG_DIR="/jffs/etc/wireguard"
@@ -79,6 +79,10 @@ select_ifaces() {
     )
 }
 
+# ---------------------------------------------------------------------------
+# INSTALL
+# ---------------------------------------------------------------------------
+
 do_install_nas() {
     local ifaces=("$@")
 
@@ -97,6 +101,13 @@ do_install_nas() {
         run_as_root install -m 600 "${src}" "${dst}"
         log "Installed NAS config ${iface}.conf → ${dst}"
     done
+
+    # Deploy NAS firewall script
+    local fw_src="${OUTPUT_SERVER}/firewall-nas.sh"
+    local fw_dst="${NAS_WG_DIR}/firewall-nas.sh"
+    require_file "${fw_src}"
+    run_as_root install -m 755 "${fw_src}" "${fw_dst}"
+    log "Installed NAS firewall script → ${fw_dst}"
 }
 
 do_install_router() {
@@ -127,7 +138,25 @@ do_install_router() {
     else
         log "⚪ Router WireGuard config(s) already up-to-date"
     fi
+
+    # Deploy router firewall script
+    local fw_src="${OUTPUT_ROUTER}/firewall-router.sh"
+    local fw_dst="/jffs/etc/wireguard/firewall-router.sh"
+    local fw_changed=0
+
+    install_files_if_changed_v2 fw_changed \
+        "" "" "${fw_src}" "${ROUTER_HOST}" "${ROUTER_SSH_PORT}" "${fw_dst}" "${OWNER}" "${GROUP}" "0755"
+
+    if [[ "$fw_changed" -eq 1 ]]; then
+        log "🚀 Router firewall script updated"
+    else
+        log "⚪ Router firewall script already up-to-date"
+    fi
 }
+
+# ---------------------------------------------------------------------------
+# NAS: UP / DOWN / STATUS
+# ---------------------------------------------------------------------------
 
 do_up_nas() {
     local ifaces=("$@")
@@ -162,6 +191,13 @@ do_up_nas() {
         run_as_root ip link set "${iface}" up
         log "   ${iface} is up"
     done
+
+    if [[ -x "${NAS_WG_DIR}/firewall-nas.sh" ]]; then
+        run_as_root "${NAS_WG_DIR}/firewall-nas.sh"
+        log "🔥 NAS firewall reconciled"
+    else
+        log "⚠️ NAS firewall script not found or not executable: ${NAS_WG_DIR}/firewall-nas.sh"
+    fi
 
     log "✅ NAS WireGuard interfaces are up"
 }
@@ -228,6 +264,10 @@ do_status_nas() {
     log "📡 NAS WireGuard status complete"
 }
 
+# ---------------------------------------------------------------------------
+# ROUTER: UP / DOWN / STATUS
+# ---------------------------------------------------------------------------
+
 do_up_router() {
     local ifaces=("$@")
 
@@ -268,6 +308,9 @@ for IFACE in ${ifaces[*]}; do
     echo "[router-wg-up] Interface \${IFACE} is up"
 done
 EOF
+
+    ssh -p "${ROUTER_SSH_PORT}" "${ROUTER_HOST}" "/jffs/etc/wireguard/firewall-router.sh" || \
+        log "⚠️ Router firewall script failed or missing"
 
     log "✅ Router WireGuard interfaces are up"
 }
@@ -340,6 +383,10 @@ EOF
 
     log "📡 Router WireGuard status complete"
 }
+
+# ---------------------------------------------------------------------------
+# MAIN DISPATCH
+# ---------------------------------------------------------------------------
 
 main() {
     case "$ROLE" in
