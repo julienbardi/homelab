@@ -18,6 +18,7 @@ OUT_CLIENTS="$OUTPUT_DIR/clients"
 mkdir -p "$OUT_SERVER" "$OUT_ROUTER" "$OUT_CLIENTS" "$KEY_DIR/servers" "$KEY_DIR/clients"
 
 declare -A IF_HOST IF_PORT IF_MTU IF_ADDR_V4 IF_ADDR_V6 IF_ENABLED
+declare -A IF_CLIENTS_V4 IF_CLIENTS_V6 IF_CLIENTS_LAN
 
 SCRIPT_NAME="wg-generate-configs"
 # shellcheck disable=SC1091
@@ -117,8 +118,6 @@ Address = ${addr_v4}, ${addr_v6}
 ListenPort = ${listen_port}
 PrivateKey = ${privkey}
 MTU = ${mtu}
-PostUp = iptables -A FORWARD -i ${iface} -j ACCEPT; iptables -A FORWARD -o ${iface} -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-PostDown = iptables -D FORWARD -i ${iface} -j ACCEPT; iptables -D FORWARD -o ${iface} -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
 
 EOF
 }
@@ -153,15 +152,7 @@ append_peer_to_server() {
 
   if [[ "$lan" == "0" ]]; then
     {
-      printf '# Internet-only client: block LAN access\n'
-      if [[ "$v4" == "1" && -n "$ip_v4" ]]; then
-        printf 'PostUp = iptables -A FORWARD -i %s -s %s/32 -d 10.89.12.0/24 -j DROP\n' "$iface" "$ip_v4"
-        printf 'PostDown = iptables -D FORWARD -i %s -s %s/32 -d 10.89.12.0/24 -j DROP\n' "$iface" "$ip_v4"
-      fi
-      if [[ "$v6" == "1" && -n "$ip_v6" ]]; then
-        printf 'PostUp = ip6tables -A FORWARD -i %s -s %s/128 -d fd89:7a3b:42c0::/64 -j DROP\n' "$iface" "$ip_v6"
-        printf 'PostDown = ip6tables -D FORWARD -i %s -s %s/128 -d fd89:7a3b:42c0::/64 -j DROP\n' "$iface" "$ip_v6"
-      fi
+      printf '# Internet-only client: LAN blocking handled by generated firewall script\n'
       printf '\n'
     } >> "$out"
   fi
@@ -210,6 +201,13 @@ write_client_config() {
     fi
     echo "Address = ${addr_line}"
 
+    if [[ -n "$ip_v4" ]]; then
+        IF_CLIENTS_V4["${iface}"]+="${name}:${ip_v4}:${lan} "
+    fi
+    if [[ -n "$ip_v6" ]]; then
+        IF_CLIENTS_V6["${iface}"]+="${name}:${ip_v6}:${lan} "
+    fi
+
     if [[ -n "$dns_v4" || -n "$dns_v6" ]]; then
       echo -n "DNS = "
       [[ -n "$dns_v4" ]] && echo -n "$dns_v4"
@@ -232,6 +230,122 @@ write_client_config() {
   fi
 }
 
+write_router_firewall_script() {
+  local out="$OUT_ROUTER/firewall-router.sh"
+  log "Writing router firewall script: ${out}"
+
+  {
+    echo '#!/bin/sh'
+    echo 'set -eu'
+    echo
+
+    for iface in "${!IF_ENABLED[@]}"; do
+      [[ "${IF_HOST[$iface]}" != "router" ]] && continue
+      [[ "${IF_ENABLED[$iface]}" != "1" ]] && continue
+
+      local chain="WG_${iface}"
+      local chain6="WG6_${iface}"
+
+      echo "# Interface ${iface}"
+      echo "iptables  -N ${chain} 2>/dev/null || true"
+      echo "iptables  -F ${chain}"
+      echo "ip6tables -N ${chain6} 2>/dev/null || true"
+      echo "ip6tables -F ${chain6}"
+      echo
+
+      # Base accept + NAT for this interface
+      echo "iptables  -A ${chain}  -i ${iface} -j ACCEPT"
+      echo "iptables  -A ${chain}  -o ${iface} -j ACCEPT"
+      echo "iptables  -t nat -A POSTROUTING -o eth0 -j MASQUERADE"
+      echo "ip6tables -A ${chain6} -i ${iface} -j ACCEPT"
+      echo "ip6tables -A ${chain6} -o ${iface} -j ACCEPT"
+      echo
+
+      # Per-client LAN blocking (internet-only)
+      for entry in ${IF_CLIENTS_V4[$iface]:-}; do
+        IFS=: read -r name ip lan <<<"$entry"
+        [[ "$lan" = "1" ]] && continue
+        echo "# ${name} IPv4 internet-only"
+        echo "iptables -A ${chain} -i ${iface} -s ${ip}/32 -d 10.89.12.0/24 -j DROP"
+      done
+
+      for entry in ${IF_CLIENTS_V6[$iface]:-}; do
+        IFS=: read -r name ip lan <<<"$entry"
+        [[ "$lan" = "1" ]] && continue
+        echo "# ${name} IPv6 internet-only"
+        echo "ip6tables -A ${chain6} -i ${iface} -s ${ip}/128 -d fd89:7a3b:42c0::/64 -j DROP"
+      done
+
+      echo
+      # Hook chains into FORWARD (idempotent per interface)
+      cat <<EOF_IF
+iptables  -C FORWARD -j ${chain}  2>/dev/null || iptables  -A FORWARD -j ${chain}
+ip6tables -C FORWARD -j ${chain6} 2>/dev/null || ip6tables -A FORWARD -j ${chain6}
+EOF_IF
+      echo
+    done
+  } >"$out"
+
+  chmod +x "$out"
+}
+
+write_nas_firewall_script() {
+  local out="$OUT_SERVER/firewall-nas.sh"
+  log "Writing NAS firewall script: ${out}"
+
+  {
+    echo '#!/bin/sh'
+    echo 'set -eu'
+    echo
+
+    for iface in "${!IF_ENABLED[@]}"; do
+      [[ "${IF_HOST[$iface]}" != "nas" ]] && continue
+      [[ "${IF_ENABLED[$iface]}" != "1" ]] && continue
+
+      local chain="WG_NAS_${iface}"
+      local chain6="WG6_NAS_${iface}"
+
+      echo "# Interface ${iface}"
+      echo "iptables  -N ${chain} 2>/dev/null || true"
+      echo "iptables  -F ${chain}"
+      echo "ip6tables -N ${chain6} 2>/dev/null || true"
+      echo "ip6tables -F ${chain6}"
+      echo
+
+      echo "iptables  -A ${chain}  -i ${iface} -j ACCEPT"
+      echo "iptables  -A ${chain}  -o ${iface} -j ACCEPT"
+      echo "ip6tables -A ${chain6} -i ${iface} -j ACCEPT"
+      echo "ip6tables -A ${chain6} -o ${iface} -j ACCEPT"
+      echo
+
+      # Per-client LAN blocking (internet-only)
+      for entry in ${IF_CLIENTS_V4[$iface]:-}; do
+        IFS=: read -r name ip lan <<<"$entry"
+        [[ "$lan" = "1" ]] && continue
+        echo "# ${name} IPv4 internet-only"
+        echo "iptables -A ${chain} -i ${iface} -s ${ip}/32 -d 10.89.12.0/24 -j DROP"
+      done
+
+      for entry in ${IF_CLIENTS_V6[$iface]:-}; do
+        IFS=: read -r name ip lan <<<"$entry"
+        [[ "$lan" = "1" ]] && continue
+        echo "# ${name} IPv6 internet-only"
+        echo "ip6tables -A ${chain6} -i ${iface} -s ${ip}/128 -d fd89:7a3b:42c0::/64 -j DROP"
+      done
+
+      echo
+      # Hook chains into FORWARD (idempotent per interface)
+      cat <<EOF_IF
+iptables  -C FORWARD -j ${chain}  2>/dev/null || iptables  -A FORWARD -j ${chain}
+ip6tables -C FORWARD -j ${chain6} 2>/dev/null || ip6tables -A FORWARD -j ${chain6}
+EOF_IF
+      echo
+    done
+  } >"$out"
+
+  chmod +x "$out"
+}
+
 main() {
   log "Loading interfaces"
   load_interfaces
@@ -250,6 +364,9 @@ main() {
     [[ -z "$name" ]] && continue
     write_client_config "$iface" "$name" "$device" "$os" "$access" "$tunnel_mode" "$lan" "$v4" "$v6" "$dns_v4" "$dns_v6"
   done
+
+  write_router_firewall_script
+  write_nas_firewall_script
 
   log "Generation complete"
 }
