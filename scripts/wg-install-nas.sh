@@ -8,11 +8,11 @@ OUTPUT_DIR="${ROOT_DIR}/output/server"
 
 NAS_WG_DIR="/etc/wireguard"
 
-# shellcheck disable=SC1091
-source /usr/local/bin/common.sh
-SCRIPT_NAME="wg-install-nas"
+log() {
+    printf '[wg-install-nas] %s\n' "$*" >&2
+}
 
-log "Installing NAS WireGuard configs (vectorized IFC_v2)"
+log "Installing NAS WireGuard configs"
 
 # --- Determine which interfaces belong to NAS -------------------------------
 
@@ -27,31 +27,21 @@ if [[ ${#NAS_IFACES[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# --- Install each NAS interface --------------------------------------------
+
 sudo mkdir -p "${NAS_WG_DIR}"
-
-# --- Build IFC_v2 argument vector -------------------------------------------
-
-args=()
 
 for iface in "${NAS_IFACES[@]}"; do
     SRC="${OUTPUT_DIR}/${iface}.conf"
     DST="${NAS_WG_DIR}/${iface}.conf"
 
-    require_file "${SRC}"
+    if [[ ! -f "${SRC}" ]]; then
+        log "ERROR: Missing generated config: ${SRC}"
+        exit 1
+    fi
 
-    # Append 9‑tuple for this file
-    args+=("" "" "${SRC}" "" "" "${DST}" "root" "root" "0600")
+    sudo install -m 600 "${SRC}" "${DST}"
+    log "Installed ${iface}.conf → ${DST}"
 done
-
-# --- Execute IFC_v2 once -----------------------------------------------------
-
-changed=0
-install_files_if_changed_v2 changed "${args[@]}"
-
-if [[ "$changed" -eq 1 ]]; then
-    log "🚀 NAS WireGuard configs updated"
-else
-    log "⚪ NAS WireGuard configs already up-to-date"
-fi
 
 log "NAS installation complete"
