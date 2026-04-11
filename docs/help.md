@@ -235,21 +235,20 @@ The local VS Code server is managed declaratively.
 
 ## 🔐 WireGuard — minimal lifecycle (new architecture)
 
-This section describes the new, clean WireGuard pipeline.
-It replaces the entire legacy WG system (transport, policy, plan, compilers, router scripts, iptables chains, etc.).
+This section describes the new WireGuard control plane.
 
-The new pipeline is intentionally simple:
+Full architecture diagram:
+  → docs/architecture.md
 
-- Generate configs from TSV
-- Install configs to router + NAS
-- Bring up router WG using wg + ip
-- Bring up NAS WG using wg-quick
-- No policy engine
-- No transport engine
-- No plan compiler
-- No router‑side scripts
-- No iptables WG chains
-- No legacy logic
+Key invariants:
+- NAS is the authoritative control plane (TSVs, keys, generation, deployment)
+- Router is a runtime-only node (wg + ip, no wg-quick, no scripts)
+- All interfaces marked enabled in wg-interfaces.tsv are generated
+- Only wgs1 (router) and wg7 (NAS) are deployed by default
+- No policy engine, no transport engine, no plan compiler
+- No router-side scripts, no iptables WG chains
+- All state is intent-driven from TSV input
+
 
 ### 🔧 WireGuard — generation
 
