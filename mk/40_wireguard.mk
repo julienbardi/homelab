@@ -24,8 +24,10 @@
 #
 # ------------------------------------------------------------
 
+WGCTL := ./scripts/wgctl.sh
+
 # ------------------------------------------------------------
-# WIREGUARD CONTROL PLANE
+# GENERATION
 # ------------------------------------------------------------
 
 .PHONY: wg-generate
@@ -38,11 +40,11 @@ wg-generate:
 
 .PHONY: wg-install-router
 wg-install-router:
-	@./scripts/wg-install-router.sh
+	@ROUTER_CONTROL_PLANE=1 $(WGCTL) router install
 
 .PHONY: wg-install-nas
 wg-install-nas:
-	@./scripts/wg-install-nas.sh
+	@NAS_CONTROL_PLANE=1 $(WGCTL) nas install
 
 # ------------------------------------------------------------
 # BRING-UP / TEARDOWN
@@ -50,19 +52,19 @@ wg-install-nas:
 
 .PHONY: wg-up-router
 wg-up-router:
-	@./scripts/wg-up-router.sh
+	@ROUTER_CONTROL_PLANE=1 $(WGCTL) router up
 
 .PHONY: wg-up-nas
 wg-up-nas:
-	@./scripts/wg-up-nas.sh
+	@NAS_CONTROL_PLANE=1 $(WGCTL) nas up
 
 .PHONY: wg-down-router
 wg-down-router:
-	@./scripts/wg-down-router.sh
+	@ROUTER_CONTROL_PLANE=1 $(WGCTL) router down
 
 .PHONY: wg-down-nas
 wg-down-nas:
-	@./scripts/wg-down-nas.sh
+	@NAS_CONTROL_PLANE=1 $(WGCTL) nas down
 
 # ------------------------------------------------------------
 # STATUS
@@ -70,8 +72,8 @@ wg-down-nas:
 
 .PHONY: wg-status
 wg-status:
-	@./scripts/wg-status-router.sh || true
-	@./scripts/wg-status-nas.sh || true
+	@ROUTER_CONTROL_PLANE=1 $(WGCTL) router status || true
+	@NAS_CONTROL_PLANE=1 $(WGCTL) nas status || true
 
 # ------------------------------------------------------------
 # FULL CONVERGENCE
