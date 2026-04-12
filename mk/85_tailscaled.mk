@@ -31,7 +31,7 @@ endef
 HS_USER_LAN := $(call headscale_user_id,lan)
 HS_USER_WAN := $(call headscale_user_id,wan)
 
-SYSTEMD_SRC_DIR := $(MAKEFILE_DIR)config/systemd
+SYSTEMD_SRC_DIR := $(REPO_ROOT)config/systemd
 
 .PHONY: tailscaled-check-deps \
 	tailscaled-lan tailscaled-wan \

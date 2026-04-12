@@ -8,7 +8,7 @@
 # - Configuration is owned by the repo and installed idempotently.
 # --------------------------------------------------------------------
 
-PROMETHEUS_CONFIG_SRC := $(MAKEFILE_DIR)config/prometheus/prometheus.yml
+PROMETHEUS_CONFIG_SRC := $(REPO_ROOT)config/prometheus/prometheus.yml
 PROMETHEUS_CONFIG_DST := /etc/prometheus/prometheus.yml
 
 PROMETHEUS_ADDR := $(NAS_LAN_IP):9090

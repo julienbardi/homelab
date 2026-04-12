@@ -4,7 +4,7 @@
 
 UNBOUND_RESTART_STAMP := $(STAMP_DIR)/unbound.restart
 
-SYSCTL_UNBOUND_SRC := $(MAKEFILE_DIR)config/sysctl/99-unbound-buffers.conf
+SYSCTL_UNBOUND_SRC := $(REPO_ROOT)config/sysctl/99-unbound-buffers.conf
 SYSCTL_UNBOUND_DST := /etc/sysctl.d/99-unbound-buffers.conf
 
 deploy-unbound-sysctl: ensure-run-as-root
@@ -92,10 +92,10 @@ remove-pkg-unbound:
 	$(call apt_remove,unbound)
 
 # --- Deployment ---
-UNBOUND_CONF_SRC := $(MAKEFILE_DIR)config/unbound/unbound.conf
+UNBOUND_CONF_SRC := $(REPO_ROOT)config/unbound/unbound.conf
 UNBOUND_CONF_DST := /etc/unbound/unbound.conf
 
-UNBOUND_CONTROL_CONF_SRC := $(MAKEFILE_DIR)config/unbound/unbound-control.conf
+UNBOUND_CONTROL_CONF_SRC := $(REPO_ROOT)config/unbound/unbound-control.conf
 UNBOUND_CONTROL_CONF_DST := /etc/unbound/unbound-control.conf
 
 assert-unbound-tools:
@@ -163,7 +163,7 @@ deploy-unbound-control-config: ensure-run-as-root
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
 	fi
 
-UNBOUND_SERVICE_SRC := $(MAKEFILE_DIR)config/systemd/unbound.service
+UNBOUND_SERVICE_SRC := $(REPO_ROOT)config/systemd/unbound.service
 UNBOUND_SERVICE_DST := /etc/systemd/system/unbound.service
 
 deploy-unbound-service: ensure-run-as-root
@@ -181,7 +181,7 @@ deploy-unbound-service: ensure-run-as-root
 		$(run_as_root) systemctl daemon-reload; \
 	fi
 
-UNBOUND_LOCAL_INTERNAL_SRC := $(MAKEFILE_DIR)config/unbound/local-internal.conf
+UNBOUND_LOCAL_INTERNAL_SRC := $(REPO_ROOT)config/unbound/local-internal.conf
 UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
 
 deploy-unbound-local-internal: ensure-run-as-root
@@ -200,7 +200,7 @@ deploy-unbound-local-internal: ensure-run-as-root
 	fi
 
 # --- Systemd drop-in for fixing /run/unbound.ctl ownership ---
-UNBOUND_DROPIN_SRC := $(MAKEFILE_DIR)config/systemd/unbound.service.d/99-fix-unbound-ctl.conf
+UNBOUND_DROPIN_SRC := $(REPO_ROOT)config/systemd/unbound.service.d/99-fix-unbound-ctl.conf
 UNBOUND_DROPIN_DST := /etc/systemd/system/unbound.service.d/99-fix-unbound-ctl.conf
 
 install-unbound-systemd-dropin: ensure-run-as-root

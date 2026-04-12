@@ -8,7 +8,7 @@
 
 CODE_SERVER_PORT = 8080
 
-CODE_SERVER_CONFIG_SRC = $(MAKEFILE_DIR)config/code-server/config.yaml
+CODE_SERVER_CONFIG_SRC = $(REPO_ROOT)config/code-server/config.yaml
 CODE_SERVER_CONFIG_DST = $(HOME)/.config/code-server/config.yaml
 
 CODE_SERVER_SYSTEMD_DIR = $(SYSTEMD_DIR)/code-server@.service.d

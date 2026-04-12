@@ -54,11 +54,11 @@ git-clean:
 # --------------------------------------------------------------------
 
 router-sync-scripts: prereqs-run-as-root $(ROUTER_SYNC_SCRIPT) install-router-ca router-ssh-ready git-clean
-	@ROUTER_HOST="$(ROUTER_HOST)" ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" HOMELAB_DIR="$(MAKEFILE_DIR)" $(ROUTER_SYNC_SCRIPT)
+	@ROUTER_HOST="$(ROUTER_HOST)" ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" HOMELAB_DIR="$(REPO_ROOT)" $(ROUTER_SYNC_SCRIPT)
 
 install-router-ca: ensure-run-as-root router-ssh-prereqs
 	@$(run_as_root) install -o root -g root -m 0755 \
-		$(MAKEFILE_DIR)scripts/router-install-ca.sh \
+		$(REPO_ROOT)scripts/router-install-ca.sh \
 		$(ROUTER_INSTALL_CA_SCRIPT)
 
 router-publish-ca: router-sync-scripts

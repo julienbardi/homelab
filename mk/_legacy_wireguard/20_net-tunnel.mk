@@ -13,7 +13,7 @@ ROUTER_LAN_GW    := $(ROUTER_LAN_IP)
 .PHONY: net-tunnel-persist net-tunnel-routing net-tunnel-status
 
 # 1. Persistent NIC Offload Logic ---
-UDEV_OFFLOAD_SRC := $(MAKEFILE_DIR)config/udev/99-udp-offloads.rules
+UDEV_OFFLOAD_SRC := $(REPO_ROOT)config/udev/99-udp-offloads.rules
 UDEV_OFFLOAD_DST := /etc/udev/rules.d/99-udp-offloads.rules
 
 net-tunnel-persist: ensure-run-as-root

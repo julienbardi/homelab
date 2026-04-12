@@ -119,7 +119,9 @@ fi
 if [ -z "$DST_HOST" ]; then
     # --- LOCAL INSTALL STRATEGY ---
     LOCK="${DST_PATH}.lock"
-    BUFFER="${TMPDIR}/.ifc_buf_${PID}"
+	# Create the buffer in the target's parent directory to ensure same-partition rename
+	DST_DIR=$(dirname "$DST_PATH")
+    BUFFER="${DST_DIR}/.ifc_tmp_${PID}"
 
     # Capture source data into a buffer julie can write to
     if [ -z "$SRC_HOST" ]; then
@@ -136,22 +138,34 @@ if [ -z "$DST_HOST" ]; then
         exit 1
     fi
 
-    # Escalated Atomicity: Lock, Move, Chown, Chmod
-    # We use a single sudo call with a simple command chain to ensure it works on UGOS
+    # Escalated Atomicity: Lock, Prepare, Swap
+    # We use a single sudo call. The buffer is already in DST_DIR.
     sudo sh -c "
-        mkdir '$LOCK' 2>/dev/null || { echo 'Lock exists' >&2; exit 1; }
-        mv -f '$BUFFER' '$DST_PATH'
-        chown '$OWNER:$GROUP' '$DST_PATH' 2>/dev/null || chown '$OWNER' '$DST_PATH'
-        chmod '$MODE' '$DST_PATH'
-        rm -rf '$LOCK'
-        sync
+        # 1. Attempt lock
+        if ! mkdir '$LOCK' 2>/dev/null; then
+            echo '❌ IFC: Lock held by another process: $LOCK' >&2
+            exit 1
+        fi
+
+        # 2. Finalize preparation (metadata) on the hidden buffer
+        # We do this before the swap to ensure 0ms of incorrect exposure
+        chown '$OWNER:$GROUP' '$BUFFER' 2>/dev/null || chown '$OWNER' '$BUFFER'
+        chmod '$MODE' '$BUFFER'
+
+        # 3. Atomic Rename + Verification
+        if mv -f '$BUFFER' '$DST_PATH'; then
+            rm -rf '$LOCK'
+            sync
+        else
+            echo '❌ IFC: Atomic move failed' >&2
+            rm -rf '$LOCK'
+            exit 1
+        fi
     " || {
-        echo "❌ IFC: Local installation failed" >&2
-        sudo rm -rf "$LOCK"
-        rm -f "$BUFFER"
+        # Outer failure catch: cleanup buffer if the move didn't happen
+        [ -f "$BUFFER" ] && rm -f "$BUFFER"
         exit 1
     }
-    rm -f "$BUFFER"
 
 else
     # --- REMOTE INSTALL STRATEGY (binary-safe, no router deps) ---

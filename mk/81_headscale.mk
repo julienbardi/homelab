@@ -20,7 +20,7 @@ HEADSCALE_METRICS_ADDR := $(NAS_LAN_IP):9091
 HEADSCALE_METRICS_URL := http://$(HEADSCALE_METRICS_ADDR)/metrics
 HEADSCALE_HEALTH_URL := http://127.0.0.1:8910/health
 
-HEADSCALE_CACHE := $(MAKEFILE_DIR).cache/headscale_0.28.0-beta.1_$(shell uname -m)
+HEADSCALE_CACHE := $(REPO_ROOT).cache/headscale_0.28.0-beta.1_$(shell uname -m)
 
 .NOTPARALLEL: headscale headscale-restart headscale-verify
 

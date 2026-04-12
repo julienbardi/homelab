@@ -11,28 +11,28 @@
 
 # Tools (allow override)
 SHELLCHECK ?= shellcheck
-SHELLCHECK_OPTS ?= -s bash -x --external-sources --source-path=$(MAKEFILE_DIR)
+SHELLCHECK_OPTS ?= -s bash -x --external-sources --source-path=$(REPO_ROOT)
 CODESPELL ?= codespell
 ASPELL ?= aspell
 CHECKMAKE ?= checkmake
 
 # Files to lint
 # Prefer git-tracked files; fallback to find for non-git contexts
-SH_FILES := $(shell git -C $(MAKEFILE_DIR) ls-files '*.sh' 2>/dev/null || true)
+SH_FILES := $(shell git -C $(REPO_ROOT) ls-files '*.sh' 2>/dev/null || true)
 ifeq ($(strip $(SH_FILES)),)
-SH_FILES := $(shell find $(MAKEFILE_DIR) -type f -name '*.sh' -print)
+SH_FILES := $(shell find $(REPO_ROOT) -type f -name '*.sh' -print)
 endif
 
 # Exclude archived scripts from linting
 SH_FILES := $(filter-out archive/%,$(SH_FILES))
 
 
-MK_FILES := $(shell git -C $(MAKEFILE_DIR) ls-files 'mk/*.mk' 2>/dev/null || true)
+MK_FILES := $(shell git -C $(REPO_ROOT) ls-files 'mk/*.mk' 2>/dev/null || true)
 ifeq ($(strip $(MK_FILES)),)
-MK_FILES := $(wildcard $(MAKEFILE_DIR)/mk/*.mk)
+MK_FILES := $(wildcard $(REPO_ROOT)/mk/*.mk)
 endif
 
-MAKEFILES := $(MAKEFILE_DIR)/Makefile $(MK_FILES)
+MAKEFILES := $(REPO_ROOT)/Makefile $(MK_FILES)
 
 define require_tool
 @if ! command -v $(1) >/dev/null 2>&1; then \
@@ -148,7 +148,7 @@ lint-spell:
 	@if command -v $(CODESPELL) >/dev/null 2>&1; then \
 	  echo "[codespell] scanning..."; \
 	  $(CODESPELL) --skip="archive/*,*.png,*.jpg,*.jpeg,*.gif,*.svg,.git" \
-		$(SH_FILES) $(MAKEFILE_DIR) || true; \
+		$(SH_FILES) $(REPO_ROOT) || true; \
 	else \
 	  echo "🔍 codespell not installed; skipping codespell"; \
 	fi
@@ -169,7 +169,7 @@ lint-spell-strict:
 	$(call require_tool,$(ASPELL))
 
 	@echo "[codespell] scanning..."
-	@$(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(MAKEFILE_DIR)
+	@$(CODESPELL) --skip="*.png,*.jpg,*.jpeg,*.gif,*.svg" $(REPO_ROOT)
 
 	@echo "[aspell] scanning comments (strict)"
 	@bad=$$( (for f in $(SH_FILES) $(MAKEFILES); do \
@@ -187,7 +187,7 @@ lint-makefile:
 	@echo "🔍 Linting Makefiles and mk/*.mk (permissive)..."
 	@echo "🔍 NOTE: checkmake warnings are advisory only"
 	@if command -v $(CHECKMAKE) >/dev/null 2>&1; then \
-	  for mf in $(MAKEFILE_DIR)Makefile $(MK_FILES); do \
+	  for mf in $(REPO_ROOT)Makefile $(MK_FILES); do \
 		[ -f "$$mf" ] || continue; \
 		echo "[checkmake] $$mf"; \
 		$(CHECKMAKE) "$$mf" 2>&1 \
@@ -206,7 +206,7 @@ lint-makefile:
 lint-makefile-strict:
 	@echo "🚨 Linting Makefiles and mk/*.mk (strict)..."
 	$(call require_tool,$(CHECKMAKE))
-	@for mf in $(MAKEFILE_DIR)Makefile $(MK_FILES); do \
+	@for mf in $(REPO_ROOT)Makefile $(MK_FILES); do \
 		[ -f "$$mf" ] || continue; \
 		echo "[checkmake] $$mf"; \
 		$(CHECKMAKE) "$$mf" || { echo "[checkmake] Issues in $$mf"; exit 1; }; \

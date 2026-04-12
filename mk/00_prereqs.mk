@@ -156,7 +156,7 @@ install-ssh-config: prereqs-operator-ssh-key
 	@echo "🔧 Ensuring SSH config is up to date"
 	@sudo install -d -m 700 $(OPERATOR_HOME)/.ssh
 	@sudo chown $(OPERATOR_USER):$(OPERATOR_GROUP) $(OPERATOR_HOME)/.ssh
-	@$(call install_file,$(MAKEFILE_DIR)config/ssh_config,$(OPERATOR_HOME)/.ssh/config,$(OPERATOR_USER),$(OPERATOR_GROUP),600)
+	@$(call install_file,$(REPO_ROOT)config/ssh_config,$(OPERATOR_HOME)/.ssh/config,$(OPERATOR_USER),$(OPERATOR_GROUP),600)
 
 # ------------------------------------------------------------
 # Extended Tooling (Rust, Python, Scripts)
@@ -197,5 +197,5 @@ prereqs-helper-scripts: ensure-run-as-root
 	@echo "📦 Ensuring helper scripts are installed"
 	@$(run_as_root) install -d -o root -g root -m 0755 $(INSTALL_PATH)
 	@$(run_as_root) install -o root -g root -m 0755 \
-		$(MAKEFILE_DIR)scripts/ensure_dir.sh \
+		$(REPO_ROOT)scripts/ensure_dir.sh \
 		$(INSTALL_PATH)/ensure_dir.sh
