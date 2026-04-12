@@ -6,9 +6,6 @@
 # - All recipes must call $(run_as_root) with argv tokens.
 # --------------------------------------------------------------------
 
-INSTALL_PATH      ?= /usr/local/bin
-INSTALL_SBIN_PATH ?= /usr/local/sbin
-
 # Global Engine Pointers (V2 ONLY)
 INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
 INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v2.sh
@@ -59,18 +56,14 @@ $(INSTALL_URL_FILE_IF_CHANGED): $(IFC_URL_SRC) $(INSTALL_FILE_IF_CHANGED)
 # 1: SRC_HOST, 2: SRC_PORT, 3: SRC_PATH, 4: DST_HOST, 5: DST_PORT, 6: DST_PATH
 # 7: OWNER, 8: GROUP, 9: MODE
 define install_file
-	{ $(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) -q \
+	( $(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) -q \
 		"" "" "$(1)" \
 		"" "" "$(2)" \
-		"$(3)" "$(4)" "$(5)" || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; }
+		"$(3)" "$(4)" "$(5)" || [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; )
 endef
 
 define install_script
 	$(call install_file,$(1),$(INSTALL_PATH)/$(2),$(OWNER),$(GROUP),$(MODE))
-endef
-
-define install_sbin_script
-	$(call install_file,$(1),$(INSTALL_SBIN_PATH)/$(2),$(OWNER),$(GROUP),$(MODE))
 endef
 
 # ------------------------------------------------------------
@@ -85,24 +78,12 @@ BOOTSTRAP_FILES := \
 	$(INSTALL_PATH)/common.sh \
 	$(HOMELAB_ENV_DST)
 
-
-# Prevent Make from generating install targets for router scripts
-$(INSTALL_PATH)/router-%.sh: ;
-
 # Install only non-router scripts
 $(INSTALL_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh | $(BOOTSTRAP_FILES)
-	@if echo "$(notdir $<)" | grep -q '^router-'; then \
-		echo "⏭️  Skipping router script $< (no target generated)"; \
-		exit 0; \
-	else \
-		$(call install_script,$<,$(notdir $<)); \
-	fi
-
-$(INSTALL_SBIN_PATH)/%.sh: $(MAKEFILE_DIR)scripts/%.sh | $(BOOTSTRAP_FILES)
-	@$(call install_sbin_script,$<,$(notdir $<))
+	@$(call install_script,$<,$(notdir $<))
 
 SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh
-ALL_SCRIPTS  := $(notdir $(wildcard $(MAKEFILE_DIR)scripts/*.sh))
+ALL_SCRIPTS := $(notdir $(wildcard $(MAKEFILE_DIR)scripts/*.sh))
 
 # Exclude bootstrap files and sbin files from the generic bin list
 EXCLUDE_LIST := $(SBIN_SCRIPTS) \
@@ -110,7 +91,7 @@ EXCLUDE_LIST := $(SBIN_SCRIPTS) \
 				install_files_if_changed_v2.sh \
 				common.sh \
 				install_file_if_changed.sh \
-				router-*.sh
+				$(filter router-%.sh,$(ALL_SCRIPTS))
 
 BIN_FILES        := $(addprefix $(INSTALL_PATH)/,$(filter-out $(EXCLUDE_LIST),$(ALL_SCRIPTS)))
 OTHER_SBIN_FILES := $(addprefix $(INSTALL_SBIN_PATH)/,$(filter-out run-as-root.sh,$(SBIN_SCRIPTS)))
@@ -123,10 +104,14 @@ MODE  ?= 0755
 # Main Targets
 # ------------------------------------------------------------
 
+check-%: %
+	@echo "🔍 Checking executability: $<"
+	@test -x "$<" || { echo "❌ Script not executable: $<"; exit 1; }
+
 .PHONY: install-all uninstall-all ensure-run-as-root assert-sanity
 
 install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES)
-	@echo "✅ System convergence complete."
+	@echo "📦 Homelab bootstrap complete — all scripts installed and up-to-date."
 
 uninstall-all:
 	@echo "🗑️  Uninstalling all homelab scripts..."
@@ -155,3 +140,45 @@ require-wg-plan-subnets:
 		echo "❌ Missing $(WG_PLAN_SUBNETS). Run 'sudo make install-all' first."; \
 		exit 1; \
 	}
+
+# Invariant:
+# - Make never executes scripts from the repo
+# - All executable tools must be installed under $(INSTALL_PATH)
+# - Targets depend on installed artifacts, not source files
+# ------------------------------------------------------------
+
+.PHONY: assert-sanity assert-no-repo-exec assert-scripts-layout
+assert-sanity: \
+	assert-no-repo-exec \
+	assert-scripts-layout
+
+# Prevents race conditions and ensures we don't accidentally execute
+# non-bootstrapped scripts from the working directory.
+assert-no-repo-exec:
+ifneq ($(filter -j%,$(MAKEFLAGS)),)
+	@grep -R 'scripts/.*\.sh' --include='*.mk' \
+		--exclude=00_sanity.mk \
+		--exclude=01_common.mk \
+		--exclude-dir=archive . >/dev/null && \
+	{ \
+		echo "🚫 Parallel execution (-j) is not supported."; \
+		echo "   Safety checks detected repo-local script references during graph expansion."; \
+		echo "   No scripts were executed."; \
+		echo "   Rerun without -j (or use -j1)."; \
+		exit 1; \
+	}
+endif
+
+# Ensures all scripts reside in approved functional subdirectories.
+assert-scripts-layout:
+	@bad=$$(find "$(MAKEFILE_DIR)scripts" \
+		-mindepth 2 -type f -name '*.sh' \
+		! -path '*/_legacy_wireguard/*' \
+		-print); \
+	if [ -n "$$bad" ]; then \
+		echo "❌ Layout Violation: Unexpected executable scripts found:"; \
+		echo "$$bad" | sed 's/^/   - /'; \
+		echo ""; \
+		echo "👉 Scripts must be organized into functional subdirectories."; \
+		exit 1; \
+	fi

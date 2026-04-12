@@ -114,7 +114,8 @@ write_server_config() {
 
   cat > "$out" <<EOF
 [Interface]
-Address = ${addr_v4}, ${addr_v6}
+Address = ${addr_v4}
+Address = ${addr_v6}
 ListenPort = ${listen_port}
 PrivateKey = ${privkey}
 MTU = ${mtu}
