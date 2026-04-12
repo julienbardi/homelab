@@ -34,7 +34,6 @@ INTERNAL_HOSTS := \
 # --- Includes (ordered by prefix) ---
 include $(MAKEFILE_DIR)mk/00_constants.mk
 include $(MAKEFILE_DIR)mk/00_icons.mk
-include $(MAKEFILE_DIR)mk/00_sanity.mk
 include $(MAKEFILE_DIR)mk/00_prereqs.mk
 include $(MAKEFILE_DIR)mk/01_common.mk
 include $(MAKEFILE_DIR)mk/05_bootstrap_acme.mk

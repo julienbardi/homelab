@@ -30,19 +30,22 @@ EOF
 
 [[ -z "$ROLE" || -z "$ACTION" ]] && usage
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INPUT_DIR="${ROOT_DIR}/input"
-OUTPUT_SERVER="${ROOT_DIR}/output/server"
-OUTPUT_ROUTER="${ROOT_DIR}/output/router}"
+# WireGuard control-plane base directory
+WG_BASE="/volume1/homelab/wireguard"
+
+INPUT_DIR="${WG_BASE}/input"
+OUTPUT_SERVER="${WG_BASE}/output/server"
+OUTPUT_ROUTER="${WG_BASE}/output/router"
 
 NAS_WG_DIR="/etc/wireguard"
+#NAS_WG_DIR="/rootfs/etc/wireguard"
 ROUTER_WG_DIR="/jffs/etc/wireguard"
 
 ROUTER_HOST="${ROUTER_HOST:-julie@10.89.12.1}"
 ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
 
-OWNER="root"
-GROUP="root"
+OWNER="0"
+GROUP="0"
 MODE="0600"
 
 require_nas_control_plane() {
@@ -169,7 +172,12 @@ do_up_nas() {
     for iface in "${ifaces[@]}"; do
         local wg_conf="${NAS_WG_DIR}/${iface}.conf"
 
-        require_file "${wg_conf}"
+        # /etc/wireguard is 0700 root:root, so non-root cannot stat files there.
+        # Check existence/size from the root view instead of the user view.
+        if ! run_as_root test -s "${wg_conf}"; then
+            log "❌ missing file (root view): ${wg_conf}"
+            exit 1
+        fi
 
         log "🔧 Bringing up NAS interface ${iface}"
 
@@ -179,16 +187,24 @@ do_up_nas() {
             run_as_root ip link del "${iface}" || true
         fi
 
-        run_as_root ip link add "${iface}" type wireguard
-        run_as_root wg setconf "${iface}" "${wg_conf}"
+        run_as_root /usr/bin/ip link add "${iface}" type wireguard
+
+        # wg setconf does NOT understand Address= (that’s wg-quick-only).
+        # Feed it a config with Address lines stripped, but still use them below for IP assignment.
+        tmp_conf="$(mktemp)"
+        grep -v '^Address' "${wg_conf}" > "${tmp_conf}"
+        run_as_root /usr/bin/wg setconf "${iface}" "${tmp_conf}"
+        rm -f "${tmp_conf}"
 
         local addr_line
-        addr_line=$(grep '^Address' "${wg_conf}" | cut -d'=' -f2 | tr -d ' ')
+        # Assign IP addresses from Address= lines (config is 0600 root:root)
+        addr_line=$(run_as_root grep '^Address' "${wg_conf}" | cut -d'=' -f2 | tr -d ' ')
         for addr in $addr_line; do
-            run_as_root ip address add "$addr" dev "${iface}"
+            run_as_root /usr/bin/ip address add "$addr" dev "${iface}"
         done
 
-        run_as_root ip link set "${iface}" up
+
+        run_as_root /usr/bin/ip link set "${iface}" up
         log "   ${iface} is up"
     done
 
@@ -214,8 +230,8 @@ do_down_nas() {
         log "🔻 Bringing down NAS interface ${iface}"
 
         if ip link show "${iface}" >/dev/null 2>&1; then
-            run_as_root ip link set "${iface}" down || true
-            run_as_root ip link del "${iface}" || true
+            run_as_root /usr/bin/ip link set "${iface}" down || true
+            run_as_root /usr/bin/ip link del "${iface}" || true
             log "   ${iface} torn down"
         else
             log "   ${iface} not present"
@@ -239,7 +255,7 @@ do_status_nas() {
         log ""
         log "=== NAS WireGuard Status (${iface}) ==="
 
-        if ip link show "${iface}" >/dev/null 2>&1; then
+        if /usr/bin/ip link show "${iface}" >/dev/null 2>&1; then
             log "Interface: PRESENT"
         else
             log "Interface: NOT PRESENT"
@@ -248,15 +264,15 @@ do_status_nas() {
 
         local state ipv4 ipv6
         state=$(ip link show "${iface}" | awk '/state/ {print $9}')
-        ipv4=$(ip -4 addr show "${iface}" | awk '/inet / {print $2}')
-        ipv6=$(ip -6 addr show "${iface}" | awk '/inet6 / {print $2}')
+        ipv4=$(/usr/bin/ip -4 addr show "${iface}" | awk '/inet / {print $2}')
+        ipv6=$(/usr/bin/ip -6 addr show "${iface}" | awk '/inet6 / {print $2}')
 
         log "State: ${state:-unknown}"
         log "IPv4: ${ipv4:-none}"
         log "IPv6: ${ipv6:-none}"
 
         log "--- wg show ---"
-        wg show "${iface}" || log "wg show failed"
+        /usr/bin/wg show "${iface}" || log "wg show failed"
 
         log "=== End (${iface}) ==="
     done

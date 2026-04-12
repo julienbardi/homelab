@@ -5,11 +5,12 @@
 .DEFAULT_GOAL := help
 
 # Root of the Git repository (directory containing the top-level Makefile), no trailing slash
-REPO_ROOT := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
+REPO_ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
 # Old name (kept temporarily for compatibility), no trailing slash
 MAKEFILE_DIR := $(REPO_ROOT)
 
-include $(MAKEFILE_DIR)mk/graph.mk
+include $(MAKEFILE_DIR)/mk/graph.mk
 
 print-makefile_dir:
 	@echo "MAKEFILE_DIR is: $(MAKEFILE_DIR)"
