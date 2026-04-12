@@ -43,11 +43,15 @@ wg-generate: $(INSTALL_PATH)/wg-generate-configs.sh
 	@$(INSTALL_PATH)/wg-generate-configs.sh
 
 wg-install-router: router-ensure-wg-module wg-router-preflight $(INSTALL_PATH)/wgctl.sh wg-generate
-	@ROUTER_CONTROL_PLANE=1 $(INSTALL_PATH)/wgctl.sh router install
+	@set -e; \
+	EC=0; \
+	ROUTER_CONTROL_PLANE=1 $(INSTALL_PATH)/wgctl.sh router install || EC=$$?; \
+	if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi
 	@if [ -f "$(OUTPUT_ROUTER)/wgs1.firewall.sh" ]; then \
 		echo "🛡️ [wg-install-router] Syncing firewall rules to router"; \
 		{ \
-			echo "iptables -S FORWARD | grep 'wgs1' | sed 's/-A/-D/' | while read line; do iptables \$$line; done"; \
+			echo "set -e;"; \
+			echo "iptables -S FORWARD | grep 'wgs1' | sed 's/-A/-D/' | while read line; do iptables \$$line 2>/dev/null || true; done"; \
 			cat "$(OUTPUT_ROUTER)/wgs1.firewall.sh"; \
 		} | $(run_as_root_router) "bash -s"; \
 	fi
