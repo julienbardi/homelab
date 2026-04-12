@@ -13,8 +13,9 @@ NAS_WG_CONF="/etc/wireguard"
 IFC_BIN="/usr/local/bin/install_file_if_changed_v2.sh"
 PEER_MAP="${WG_ROOT}/output/peer-map.tsv"
 
-MODE="${1:-status}"
-TARGET="${2:-}"
+# Swapped to match Makefile: wgctl.sh [TARGET] [MODE]
+TARGET="${1:-}"
+MODE="${2:-status}"
 
 log() { echo "[$TARGET] $1"; }
 
@@ -94,9 +95,6 @@ do_status() {
     while IFS=$'\t' read -r pubkey name iface ipv4 ipv6 access lan; do
         [[ "$pubkey" == "pubkey" ]] && continue # Skip header
 
-        # We only care about peers belonging to the current target's interfaces
-        # On Router, we look for peers on wgsN; on NAS, we look for peers on server ifaces.
-
         # Get latest handshake timestamp
         local handshake
         handshake=$($remote_cmd "$wg_bin" show "$iface" latest-handshakes 2>/dev/null | grep "$pubkey" | awk '{print $2}' || echo "0")
@@ -120,12 +118,12 @@ do_status() {
 }
 
 # --- Guard & Execute ---
-[[ -z "$TARGET" ]] && { echo "Usage: $0 {install|up|down|status} {nas|router}"; exit 1; }
+[[ -z "$TARGET" ]] && { echo "Usage: $0 {nas|router} {install|up|down|status}"; exit 1; }
 
 case "$MODE" in
     install) do_install ;;
     up)      do_up ;;
     down)    do_down ;;
     status)  do_status ;;
-    *)       echo "Unknown mode: $MODE"; exit 1 ;;
+    *)       echo "Unknown mode: $MODE for target: $TARGET"; exit 1 ;;
 esac
