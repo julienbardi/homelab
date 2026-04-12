@@ -9,8 +9,8 @@ help: help-docs-install help-render
 
 # Opportunistic doc install (conditional escalation)
 .PHONY: help-docs-install
-help-docs-install:
-	@$(ENSURE_DIR) root root 0755 $(DOCS_DIR)
+help-docs-install: install-all
+	$(ENSURE_DIR) root admin 0775 $(DOCS_DIR);
 	@env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 	$(INSTALL_FILE_IF_CHANGED) -q \
 		"" "" "$(REPO_ROOT)docs/help.md" \
@@ -34,3 +34,27 @@ help-render:
 	else \
 		cat $(DOCS_DIR)/help.md; \
 	fi
+
+.PHONY: bootstrap-acl
+bootstrap-acl:
+	@echo "🔧 Ensuring Ugreen‑safe ACLs for docs directory"
+	sudo chown root:admin $(DOCS_DIR)
+	sudo chmod 0775 $(DOCS_DIR)
+
+UGREEN_ACL_DIRS := $(HOMELAB_ROOT)/docs
+
+.PHONY: audit-acl
+audit-acl:
+	@echo "🔍 Auditing Ugreen‑ACL directories"
+	@for d in $(UGREEN_ACL_DIRS); do \
+		if [ ! -d $$d ]; then echo "❌ Missing: $$d"; continue; fi; \
+		owner=$$(stat -c "%U" $$d); \
+		group=$$(stat -c "%G" $$d); \
+		mode=$$(stat -c "%a" $$d); \
+		if [ "$$owner" = "root" ] && [ "$$group" = "admin" ] && [ "$$mode" = "775" ]; then \
+			echo "✔️ $$d root:admin 775"; \
+		else \
+			echo "❌ $$d $$owner:$$group $$mode"; \
+		fi; \
+	done
+
