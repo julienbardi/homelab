@@ -28,17 +28,14 @@ do_install() {
         # Deployment from NAS output -> Router JFFS
         for conf in "${WG_ROOT}/output/router"/*.conf; do
             [[ -e "$conf" ]] || continue
-            # IFC: SRC_HOST SRC_PORT SRC_PATH DST_HOST DST_PORT DST_PATH OWNER GROUP MODE
             "$IFC_BIN" "" "22" "$conf" \
                        "$ROUTER_HOST" "$ROUTER_SSH_PORT" "${ROUTER_WG_DIR}/$(basename "$conf")" \
                        "0" "0" "0600"
         done
     elif [[ "$TARGET" == "nas" ]]; then
         # Deployment from NAS output -> NAS /etc/wireguard
-        # Note: Must be run as root to write to /etc/wireguard/
         for conf in "${WG_ROOT}/output/server"/*.conf; do
             [[ -e "$conf" ]] || continue
-            # No internal sudo here; let the caller (Makefile) handle escalation
             "$IFC_BIN" "" "22" "$conf" \
                        "" "22" "${NAS_WG_CONF}/$(basename "$conf")" \
                        "0" "0" "0600"
@@ -91,6 +88,11 @@ do_status() {
 
     while IFS=$'\t' read -r pubkey name iface ipv4 ipv6 access lan; do
         [[ "$pubkey" == "pubkey" ]] && continue
+
+        # Filter: Skip interfaces that do not exist on the current target host
+        if ! $remote_cmd "$wg_bin" show "$iface" > /dev/null 2>&1; then
+            continue
+        fi
 
         local handshake
         handshake=$($remote_cmd "$wg_bin" show "$iface" latest-handshakes 2>/dev/null | grep "$pubkey" | awk '{print $2}' || echo "0")
