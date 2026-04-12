@@ -15,6 +15,24 @@ mkdir -p "$OUT_SERVER" "$OUT_ROUTER" "$OUT_CLIENTS" "$KEY_DIR/servers" "$KEY_DIR
 declare -A IF_HOST IF_PORT IF_ADDR_V4 IF_ADDR_V6 IF_ENABLED
 source /usr/local/bin/common.sh
 
+# Helper: Only write if content hash differs from disk
+write_if_changed() {
+    local target="$1"
+    local content
+    content=$(cat)
+
+    if [[ -f "$target" ]]; then
+        local old_hash new_hash
+        old_hash=$(md5sum "$target" | awk '{print $1}')
+        new_hash=$(echo "$content" | md5sum | awk '{print $1}')
+        if [[ "$old_hash" == "$new_hash" ]]; then
+            return 0
+        fi
+    fi
+    echo "$content" > "$target"
+    log "Updated: $target"
+}
+
 hash_to_host_octet() {
     local key="$1"
     local h=$(printf '%s' "$key" | sha256sum | cut -c1-6)
@@ -46,106 +64,90 @@ server_out_path() {
     [[ "${IF_HOST[$iface]:-nas}" == "nas" ]] && echo "$OUT_SERVER/$iface.conf" || echo "$OUT_ROUTER/$iface.conf"
 }
 
-write_server_config() {
-    local iface="$1"
-    local kb="$KEY_DIR/servers/$iface"
-    [[ ! -f "$kb.key" ]] && { umask 077; wg genkey | tee "$kb.key" | wg pubkey > "$kb.pub"; }
-    local out=$(server_out_path "$iface")
+generate_configs() {
+    declare -A SERVER_BUFFERS
 
-    local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
-    local v6_address="${v6_prefix}::1/64"
+    # 1. Initialize server buffers in current shell
+    for iface in "${!IF_ENABLED[@]}"; do
+        [[ "${IF_ENABLED[$iface]}" != "1" ]] && continue
 
-    log "Writing server config: $out"
-    cat > "$out" <<EOF
+        local kb="$KEY_DIR/servers/$iface"
+        [[ ! -f "$kb.key" ]] && { umask 077; wg genkey | tee "$kb.key" | wg pubkey > "$kb.pub"; }
+
+        local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
+        local v6_address="${v6_prefix}::1/64"
+
+        SERVER_BUFFERS[$iface]=$(cat <<EOF
 [Interface]
 Address = ${IF_ADDR_V4[$iface]}, ${v6_address}
 ListenPort = ${IF_PORT[$iface]}
 PrivateKey = $(<"$kb.key")
 EOF
-}
+)
+    done
 
-write_client_config() {
-    local iface="$1"
-    local name="$2"
-    local os="$3"
-    local access="$4"
-    local lan="$5"
+    # 2. Process Clients using Process Substitution to avoid subshell array loss
+    printf "pubkey\tname\tiface\tipv4\tipv6\taccess\tlan\n" > "$OUTPUT_DIR/peer-map.tsv.tmp"
 
-    local ck="$KEY_DIR/clients/$name"
-    [[ ! -f "$ck.key" ]] && { umask 077; wg genkey | tee "$ck.key" | wg pubkey > "$ck.pub"; }
+    while IFS=$'\t' read -r c_name c_dev c_os c_iface c_access c_mode c_lan rest; do
+        [[ -z "$c_name" ]] && continue
 
-    local out="$OUT_CLIENTS/$name.conf"
-    local ipv4=$(alloc_client_ip_v4 "$iface" "$name")
+        local ck="$KEY_DIR/clients/$c_name"
+        [[ ! -f "$ck.key" ]] && { umask 077; wg genkey | tee "$ck.key" | wg pubkey > "$ck.pub"; }
 
-    # --- CANONICAL IPv6 HEX ---
-    local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
-    local o3=$(echo "$ipv4" | cut -d. -f3)
-    local o4=$(echo "$ipv4" | cut -d. -f4)
-    local host_hex=$(printf '%04x' $(( (o3 << 8) + o4 )))
-    local ipv6="${v6_prefix}::${host_hex}/128"
+        local out="$OUT_CLIENTS/$c_name.conf"
+        local ipv4=$(alloc_client_ip_v4 "$c_iface" "$c_name")
+        local v6_prefix="${IF_ADDR_V6[$c_iface]%%::*}"
+        local o3=$(echo "$ipv4" | cut -d. -f3)
+        local o4=$(echo "$ipv4" | cut -d. -f4)
+        local host_hex=$(printf '%04x' $(( (o3 << 8) + o4 )))
+        local ipv6="${v6_prefix}::${host_hex}/128"
 
-    # CIDR logic for AllowedIPs
-    local if_v4_base="${IF_ADDR_V4[$iface]%%/*}"
-    local if_v4_mask="${IF_ADDR_V4[$iface]##*/}"
-    local v4_network="${if_v4_base%.*}.0/${if_v4_mask}"
-    local v6_network="${IF_ADDR_V6[$iface]}"
+        local if_v4_base="${IF_ADDR_V4[$c_iface]%%/*}"
+        local if_v4_mask="${IF_ADDR_V4[$c_iface]##*/}"
+        local v4_network="${if_v4_base%.*}.0/${if_v4_mask}"
+        local v6_network="${IF_ADDR_V6[$c_iface]}"
 
-    log "Writing client config: $out"
-
-    cat > "$out" <<EOF
+        # Write Client File
+        cat <<EOF | write_if_changed "$out"
 [Interface]
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}
 DNS = 10.89.12.4, fd89:7a3b:42c0::4
-EOF
-
-    [[ "$os" == "windows" ]] && echo "Table = off" >> "$out"
-
-    cat >> "$out" <<EOF
+$( [[ "$c_os" == "windows" ]] && echo "Table = off" )
 
 [Peer]
-PublicKey = $(<"$KEY_DIR/servers/$iface.pub")
-Endpoint = vpn.bardi.ch:${IF_PORT[$iface]}
+PublicKey = $(<"$KEY_DIR/servers/$c_iface.pub")
+Endpoint = vpn.bardi.ch:${IF_PORT[$c_iface]}
 AllowedIPs = ${v4_network}, ${v6_network}, 10.89.12.0/24, fd89:7a3b:42c0::/64
 PersistentKeepalive = 25
 EOF
 
-    # Update Server Peer List
-    local s_path=$(server_out_path "$iface")
-    printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s/32, %s\n" "$name" "$(<"$ck.pub")" "$ipv4" "$ipv6" >> "$s_path"
+        # Add to Peer Map
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+            "$(<"$ck.pub")" "$c_name" "$c_iface" "$ipv4" "$ipv6" "$c_access" "$c_lan" >> "$OUTPUT_DIR/peer-map.tsv.tmp"
 
-    # --- ENRICHED PEER MAP ---
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-        "$(<"$ck.pub")" "$name" "$iface" "$ipv4" "$ipv6" "$access" "$lan" >> "$OUTPUT_DIR/peer-map.tsv"
+        # Append Peer to Server Buffer (Now persists!)
+        SERVER_BUFFERS[$c_iface]+=$(printf "\n\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s/32, %s" "$c_name" "$(<"$ck.pub")" "$ipv4" "$ipv6")
 
-    # Generate firewall rules (logic only)
-    if [[ "${IF_HOST[$iface]:-nas}" != "nas" ]]; then
-        local fw_out="$OUT_ROUTER/${iface}.firewall.sh"
-        echo "iptables -I FORWARD 1 -i $iface -s $ipv4 -o br0 -j ACCEPT" >> "$fw_out"
-        echo "iptables -I FORWARD 1 -i $iface -s $ipv4 -o eth0 -j ACCEPT" >> "$fw_out"
-        echo "iptables -t nat -I POSTROUTING 1 -s $ipv4 -o eth0 -j MASQUERADE" >> "$fw_out"
-    fi
+        # QR Check
+        if [[ -x $(command -v qrencode) ]]; then
+            local qr_out="${out%.conf}.qr.txt"
+            [[ ! -f "$qr_out" || "$out" -nt "$qr_out" ]] && qrencode -t ansiutf8 < "$out" > "$qr_out"
+        fi
+    done < <(grep -vE '^(#|name)' "$CLIENTS_TSV")
 
-    [[ -x $(command -v qrencode) ]] && qrencode -t ansiutf8 < "$out" > "${out%.conf}.qr.txt"
+    # 3. Flush Server Buffers
+    for iface in "${!SERVER_BUFFERS[@]}"; do
+        local s_out=$(server_out_path "$iface")
+        echo "${SERVER_BUFFERS[$iface]}" | write_if_changed "$s_out"
+    done
 }
 
 main() {
     load_interfaces
-
-    # Clean artifacts
-    rm -f "$OUT_SERVER"/*.conf "$OUT_ROUTER"/*.conf "$OUT_CLIENTS"/*.conf "$OUT_CLIENTS"/*.qr.txt "$OUT_ROUTER"/*.firewall.sh || true
-
-    # Initialize enriched peer map
-    printf "pubkey\tname\tiface\tipv4\tipv6\taccess\tlan\n" > "$OUTPUT_DIR/peer-map.tsv"
-
-    for i in "${!IF_ENABLED[@]}"; do
-        [[ "${IF_ENABLED[$i]}" == "1" ]] && write_server_config "$i"
-    done
-
-    # Parse clients.tsv and pass access/lan columns to config generator
-    grep -vE '^(#|name)' "$CLIENTS_TSV" | while IFS=$'\t' read -r c_name c_dev c_os c_iface c_access c_mode c_lan rest; do
-        [[ -n "$c_name" ]] && write_client_config "$c_iface" "$c_name" "$c_os" "$c_access" "$c_lan"
-    done
+    generate_configs
+    mv "$OUTPUT_DIR/peer-map.tsv.tmp" "$OUTPUT_DIR/peer-map.tsv"
 }
 
 main "$@"
