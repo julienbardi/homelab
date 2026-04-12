@@ -55,12 +55,13 @@ wg-install-router: router-ensure-wg-module wg-router-preflight $(INSTALL_PATH)/w
 # NAS WireGuard Installation (Privileged)
 wg-install-nas: router-require-run-as-root | $(STAMP_DIR)
 	@echo "📦 Installing WireGuard configs on NAS"
-	@$(run_as_root) \
+	@$(run_as_root) sh -c '\
 		ROUTER_HOST="$(ROUTER_HOST)" \
 		ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
 		ROUTER_WG_DIR="$(ROUTER_WG_DIR)" \
 		WG_ROOT="$(WG_ROOT)" \
-		$(INSTALL_PATH)/wgctl.sh nas install
+		$(INSTALL_PATH)/wgctl.sh nas install \
+	'
 
 wg-up-router: wg-install-router
 	@ROUTER_CONTROL_PLANE=1 $(INSTALL_PATH)/wgctl.sh router up
