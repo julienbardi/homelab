@@ -8,7 +8,7 @@
 # - No secrets written to disk.
 # --------------------------------------------------------------------
 
-ACL_SRC ?= $(MAKEFILE_DIR)config/headscale/acl.json
+ACL_SRC ?= $(REPO_ROOT)config/headscale/acl.json
 ACL_DST ?= /etc/headscale/acl.json
 
 .PHONY: headscale-acls

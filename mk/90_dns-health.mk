@@ -10,7 +10,7 @@ RESOLVER_PORT := 5335
 .PHONY: install-dns-health
 install-dns-health: $(DNS_CHECK)
 
-$(DNS_CHECK): $(MAKEFILE_DIR)scripts/dns-health-check.sh
+$(DNS_CHECK): $(REPO_ROOT)scripts/dns-health-check.sh
 	@echo "📦 Installing dns-health-check"
 	@$(run_as_root) install -o root -g root -m 0755 \
 		"$<" "$@"

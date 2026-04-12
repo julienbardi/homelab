@@ -7,7 +7,7 @@ DEPLOY_CERTS := $(INSTALL_PATH)/deploy_certificates.sh
 DNSDIST_BIN        := /usr/bin/dnsdist
 DNSDIST_UNIT       := dnsdist.service
 
-DNSDIST_CONF_SRC   := $(MAKEFILE_DIR)config/dnsdist/dnsdist.conf
+DNSDIST_CONF_SRC   := $(REPO_ROOT)config/dnsdist/dnsdist.conf
 DNSDIST_CONF_DST   := /etc/dnsdist/dnsdist.conf
 
 DNSDIST_CERT_DIR := /etc/dnsdist/certs
@@ -141,7 +141,7 @@ dnsdist-systemd-dropin: ensure-run-as-root
 	rc=0; \
 	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 		/usr/local/bin/install_file_if_changed_v2.sh -q \
-		"" "" "$(MAKEFILE_DIR)scripts/systemd/dnsdist.service.d/10-no-port53.conf" \
+		"" "" "$(REPO_ROOT)scripts/systemd/dnsdist.service.d/10-no-port53.conf" \
 		"" "" "/etc/systemd/system/dnsdist.service.d/10-no-port53.conf" \
 		"root" "root" "0644" || rc=$$?; \
 	$(run_as_root) systemctl daemon-reload || true; \

@@ -37,6 +37,19 @@ OPERATOR_USER := $(shell id -un)
 OPERATOR_GROUP := $(shell id -gn)
 OPERATOR_HOME := $(shell getent passwd $(OPERATOR_USER) | cut -d: -f6)
 
+# ------------------------------------------------------------
+# Canonical ownership for installed artifacts
+# ------------------------------------------------------------
+ROOT_UID := 0
+ROOT_GID := 0
+
+# ------------------------------------------------------------
+# Canonical install paths (tools, scripts, engines)
+# ------------------------------------------------------------
+INSTALL_PATH        := /usr/local/bin
+INSTALL_SBIN_PATH   := /usr/local/sbin
+ENSURE_DIR          := $(INSTALL_PATH)/ensure_dir.sh
+
 # ---------------------------------------------------------------------------
 # Router component constants (Caddy, certs, common.sh)
 # ---------------------------------------------------------------------------
@@ -65,6 +78,13 @@ SRC_SCRIPTS := $(REPO_ROOT)router/jffs/scripts
 # WireGuard plan artifact metadata
 ROUTER_WG_PLAN_MODE  := 0644
 ROUTER_WG_PLAN_SRC := /volume1/homelab/wireguard/compiled/plan.tsv
+
+# ------------------------------------------------------------
+# Homelab environment file (canonical paths)
+# ------------------------------------------------------------
+
+HOMELAB_ENV_SRC := $(REPO_ROOT)config/homelab.env
+HOMELAB_ENV_DST := /volume1/homelab/homelab.env
 
 # ------------------------------------------------------------
 # Installed helpers (overrideable for testing or alternate platforms)
@@ -102,8 +122,6 @@ ROUTER_LAN_IP := 10.89.12.1
 
 PUBLIC_DNS := 1.1.1.1
 SYSTEMD_DIR := /etc/systemd/system
-INSTALL_PATH := /usr/local/bin
-INSTALL_SBIN_PATH := /usr/local/sbin
 STAMP_DIR := /var/lib/homelab
 
 # Host responsibility (router | service | client)
@@ -126,9 +144,6 @@ VERBOSE ?= 0
 # Local tooling root (host-only, disposable, never touches router state)
 # ---------------------------------------------------------------------------
 TOOLS_DIR ?= $(REPO_ROOT).tools
-
-# Local helper scripts (authoritative paths only)
-ENSURE_DIR := $(INSTALL_PATH)/ensure_dir.sh
 
 # ---------------------------------------------------------------------------
 # WireGuard subnet derivation (authoritative from wg-interfaces.tsv)

@@ -9,7 +9,7 @@ PANGOLIN_SELF_SECRET      := $(PANGOLIN_SELF_DIR)/site-secret
 PANGOLIN_SELF_BIN         := $(INSTALL_PATH)/pangolin-site-agent
 PANGOLIN_SELF_SERVICE     := /etc/systemd/system/pangolin-site-agent-selfhost.service
 PANGOLIN_SELF_URL         := https://pangolin.bardi.ch/api/agent/site/download
-PANGOLIN_SELF_SERVICE_SRC := $(MAKEFILE_DIR)config/systemd/pangolin-site-agent-selfhost.service
+PANGOLIN_SELF_SERVICE_SRC := $(REPO_ROOT)config/systemd/pangolin-site-agent-selfhost.service
 
 .PHONY: pangolin-selfhost-install pangolin-selfhost-enable pangolin-selfhost-status pangolin-selfhost-health
 

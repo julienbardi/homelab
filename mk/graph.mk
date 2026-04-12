@@ -32,57 +32,57 @@ INTERNAL_HOSTS := \
 	apt.bardi.ch
 
 # --- Includes (ordered by prefix) ---
-include $(MAKEFILE_DIR)mk/00_constants.mk
-include $(MAKEFILE_DIR)mk/00_icons.mk
-include $(MAKEFILE_DIR)mk/00_prereqs.mk
-include $(MAKEFILE_DIR)mk/01_common.mk
-include $(MAKEFILE_DIR)mk/05_bootstrap_acme.mk
-#include $(MAKEFILE_DIR)mk/05_bootstrap_wireguard.mk
-include $(MAKEFILE_DIR)mk/10_groups.mk      # group membership enforcement (security bootstrap)
-include $(MAKEFILE_DIR)mk/10_local-tools.mk
-include $(MAKEFILE_DIR)mk/15_local-python-env.mk
-include $(MAKEFILE_DIR)mk/20_deps.mk        # package dependencies (apt installs, base tools)
-include $(MAKEFILE_DIR)mk/20_gitignore.mk
-include $(MAKEFILE_DIR)mk/20_local-python.mk
-#include $(MAKEFILE_DIR)mk/20_net-tunnel.mk
-include $(MAKEFILE_DIR)mk/20_sysctl.mk
-include $(MAKEFILE_DIR)mk/30_config_validation.mk
-include $(MAKEFILE_DIR)mk/30_firewall-nas.mk
-include $(MAKEFILE_DIR)mk/30_secrets.mk
-include $(MAKEFILE_DIR)mk/40_acme.mk
-include $(MAKEFILE_DIR)mk/40_code-server.mk
-include $(MAKEFILE_DIR)mk/40_nas-caddy.mk
-include $(MAKEFILE_DIR)mk/40_router-control.mk
-include $(MAKEFILE_DIR)mk/40_router-caddy.mk
-include $(MAKEFILE_DIR)mk/40_wireguard.mk
-#include $(MAKEFILE_DIR)mk/40_router-wireguard.mk
-#include $(MAKEFILE_DIR)mk/40_wireguard.mk
-#include $(MAKEFILE_DIR)mk/40_wireguard_py.mk
-#include $(MAKEFILE_DIR)mk/41_wireguard_clients.mk
-#include $(MAKEFILE_DIR)mk/41_wireguard-status.mk
-#include $(MAKEFILE_DIR)mk/42_wireguard-qr.mk
-#include $(MAKEFILE_DIR)mk/42_wireguard_runtime.mk
-#include $(MAKEFILE_DIR)mk/43_wireguard-runtime.mk
-include $(MAKEFILE_DIR)mk/50_certs.mk       # certificate handling (issue, renew, deploy)
-include $(MAKEFILE_DIR)mk/50_dnsmasq.mk
-include $(MAKEFILE_DIR)mk/55_router-certs.mk
-include $(MAKEFILE_DIR)mk/56_router-certs.mk
-include $(MAKEFILE_DIR)mk/60_unbound.mk     # Unbound DNS resolver setup
-include $(MAKEFILE_DIR)mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
-include $(MAKEFILE_DIR)mk/70_dnsdist.mk     #
-include $(MAKEFILE_DIR)mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
-include $(MAKEFILE_DIR)mk/70_apt_proxy_auto.mk
-include $(MAKEFILE_DIR)mk/80_tailnet.mk     # Tailscale/Headscale orchestration
-include $(MAKEFILE_DIR)mk/81_headscale.mk              # Headscale service + binary + systemd
-include $(MAKEFILE_DIR)mk/83_headscale-users.mk        # Users (future)
-include $(MAKEFILE_DIR)mk/84_headscale-acls.mk         # ACLs (future)
-include $(MAKEFILE_DIR)mk/85_monitoring.mk
-include $(MAKEFILE_DIR)mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
-include $(MAKEFILE_DIR)mk/90_dns-health.mk  # DNS health checks and monitoring
-include $(MAKEFILE_DIR)mk/90_help.mk
-include $(MAKEFILE_DIR)mk/90_converge.mk
-include $(MAKEFILE_DIR)mk/95_status.mk
-include $(MAKEFILE_DIR)mk/99_lint.mk        # lint and safety checks (always last)
+include $(REPO_ROOT)mk/00_constants.mk
+include $(REPO_ROOT)mk/00_icons.mk
+include $(REPO_ROOT)mk/00_prereqs.mk
+include $(REPO_ROOT)mk/01_common.mk
+include $(REPO_ROOT)mk/05_bootstrap_acme.mk
+#include $(REPO_ROOT)mk/05_bootstrap_wireguard.mk
+include $(REPO_ROOT)mk/10_groups.mk      # group membership enforcement (security bootstrap)
+include $(REPO_ROOT)mk/10_local-tools.mk
+include $(REPO_ROOT)mk/15_local-python-env.mk
+include $(REPO_ROOT)mk/20_deps.mk        # package dependencies (apt installs, base tools)
+include $(REPO_ROOT)mk/20_gitignore.mk
+include $(REPO_ROOT)mk/20_local-python.mk
+#include $(REPO_ROOT)mk/20_net-tunnel.mk
+include $(REPO_ROOT)mk/20_sysctl.mk
+include $(REPO_ROOT)mk/30_config_validation.mk
+include $(REPO_ROOT)mk/30_firewall-nas.mk
+include $(REPO_ROOT)mk/30_secrets.mk
+include $(REPO_ROOT)mk/40_acme.mk
+include $(REPO_ROOT)mk/40_code-server.mk
+include $(REPO_ROOT)mk/40_nas-caddy.mk
+include $(REPO_ROOT)mk/40_router-control.mk
+include $(REPO_ROOT)mk/40_router-caddy.mk
+include $(REPO_ROOT)mk/40_wireguard.mk
+#include $(REPO_ROOT)mk/40_router-wireguard.mk
+#include $(REPO_ROOT)mk/40_wireguard.mk
+#include $(REPO_ROOT)mk/40_wireguard_py.mk
+#include $(REPO_ROOT)mk/41_wireguard_clients.mk
+#include $(REPO_ROOT)mk/41_wireguard-status.mk
+#include $(REPO_ROOT)mk/42_wireguard-qr.mk
+#include $(REPO_ROOT)mk/42_wireguard_runtime.mk
+#include $(REPO_ROOT)mk/43_wireguard-runtime.mk
+include $(REPO_ROOT)mk/50_certs.mk       # certificate handling (issue, renew, deploy)
+include $(REPO_ROOT)mk/50_dnsmasq.mk
+include $(REPO_ROOT)mk/55_router-certs.mk
+include $(REPO_ROOT)mk/56_router-certs.mk
+include $(REPO_ROOT)mk/60_unbound.mk     # Unbound DNS resolver setup
+include $(REPO_ROOT)mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
+include $(REPO_ROOT)mk/70_dnsdist.mk     #
+include $(REPO_ROOT)mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
+include $(REPO_ROOT)mk/70_apt_proxy_auto.mk
+include $(REPO_ROOT)mk/80_tailnet.mk     # Tailscale/Headscale orchestration
+include $(REPO_ROOT)mk/81_headscale.mk              # Headscale service + binary + systemd
+include $(REPO_ROOT)mk/83_headscale-users.mk        # Users (future)
+include $(REPO_ROOT)mk/84_headscale-acls.mk         # ACLs (future)
+include $(REPO_ROOT)mk/85_monitoring.mk
+include $(REPO_ROOT)mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
+include $(REPO_ROOT)mk/90_dns-health.mk  # DNS health checks and monitoring
+include $(REPO_ROOT)mk/90_help.mk
+include $(REPO_ROOT)mk/90_converge.mk
+include $(REPO_ROOT)mk/95_status.mk
+include $(REPO_ROOT)mk/99_lint.mk        # lint and safety checks (always last)
 
 
 # ============================================================
@@ -92,8 +92,8 @@ include $(MAKEFILE_DIR)mk/99_lint.mk        # lint and safety checks (always las
 # --------------------------------------------------------------------
 
 # Path to the interactive known_hosts installer
-KNOWN_HOSTS_FILE := $(MAKEFILE_DIR)known_hosts_to_check.txt
-KNOWN_HOSTS_SCRIPT := $(MAKEFILE_DIR)scripts/verify_and_install_known_hosts.sh
+KNOWN_HOSTS_FILE := $(REPO_ROOT)known_hosts_to_check.txt
+KNOWN_HOSTS_SCRIPT := $(REPO_ROOT)scripts/verify_and_install_known_hosts.sh
 
 # Allow skipping in CI or when explicitly requested
 SKIP_KNOWN_HOSTS ?= 0
@@ -110,19 +110,19 @@ ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
 
 .PHONY: gitcheck update
 gitcheck:
-	@if [ ! -d $(MAKEFILE_DIR)/.git ]; then \
+	@if [ ! -d $(REPO_ROOT)/.git ]; then \
 		echo "📦 Cloning homelab repo"; \
-		mkdir -p $(dir $(MAKEFILE_DIR)); \
-		git clone $(HOMELAB_REPO) $(MAKEFILE_DIR); \
+		mkdir -p $(dir $(REPO_ROOT)); \
+		git clone $(HOMELAB_REPO) $(REPO_ROOT); \
 	else \
-		echo "📍 homelab repo already present at $(MAKEFILE_DIR)"; \
-		git -C $(MAKEFILE_DIR) rev-parse --short HEAD; \
+		echo "📍 homelab repo already present at $(REPO_ROOT)"; \
+		git -C $(REPO_ROOT) rev-parse --short HEAD; \
 	fi
 
 update: gitcheck
 	@echo "⬆️ Updating homelab repo"
-	@git -C $(MAKEFILE_DIR) pull --rebase || true
-	@echo "🧬 Repo now at commit $$(git -C $(MAKEFILE_DIR) rev-parse --short HEAD)"
+	@git -C $(REPO_ROOT) pull --rebase || true
+	@echo "🧬 Repo now at commit $$(git -C $(REPO_ROOT) rev-parse --short HEAD)"
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake
 .PHONY: test logs clean-soft
@@ -177,7 +177,7 @@ tailscaled: \
 	enable-tailscaled \
 	start-tailscaled \
 	tailscaled-status
-	@COMMIT_HASH=$$(git -C $(MAKEFILE_DIR) rev-parse --short HEAD); \
+	@COMMIT_HASH=$$(git -C $(REPO_ROOT) rev-parse --short HEAD); \
 		echo "🧬 Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
 SYSTEMD_DIR = /etc/systemd/system
@@ -188,18 +188,18 @@ REPO_SYSTEMD = config/systemd
 # Install systemd units and reload systemd (idempotent)
 install-systemd: ensure-run-as-root
 	@echo "🧩 Installing systemd units"
-	@if [ ! -d "$(MAKEFILE_DIR)$(REPO_SYSTEMD)" ]; then \
-		echo "ERROR: $(MAKEFILE_DIR)$(REPO_SYSTEMD) not found"; exit 1; \
+	@if [ ! -d "$(REPO_ROOT)$(REPO_SYSTEMD)" ]; then \
+		echo "ERROR: $(REPO_ROOT)$(REPO_SYSTEMD) not found"; exit 1; \
 	fi
 	# ensure target dirs
 	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
 	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)/unbound-ctl-fix.service.d
 	@$(run_as_root) mkdir -p /etc/systemd/system/unbound.service.d
 	# install unit files with safe perms (path+oneshot helper kept as fallback)
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf
+	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service
+	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path
+	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf
+	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf
 	@$(run_as_root) systemctl daemon-reload
 
 enable-systemd: install-systemd ensure-run-as-root
@@ -234,11 +234,11 @@ uninstall-systemd: ensure-run-as-root
 .NOTPARALLEL: nft-confirm nft-apply
 
 install-nft-apply: ensure-run-as-root
-	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
+	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
 
 nft-sync: ensure-run-as-root
 	@echo "🔄 Syncing homelab.nft ruleset"
-	@$(call install_file,$(MAKEFILE_DIR)scripts/homelab.nft,$(HOMELAB_NFT_RULESET),root,root,0644)
+	@$(call install_file,$(REPO_ROOT)scripts/homelab.nft,$(HOMELAB_NFT_RULESET),root,root,0644)
 
 nft-apply: install-nft-apply nft-sync ensure-run-as-root
 	$(run_as_root) $(INSTALL_PATH)/homelab-nft-apply.sh
@@ -250,11 +250,11 @@ nft-confirm: ensure-run-as-root
 
 nft-install: install-nft-apply ensure-run-as-root
 	@echo "🛡️ Installing homelab nftables firewall"
-	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh
-	@$(run_as_root) install -o root -g root -m 0755 $(MAKEFILE_DIR)scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
+	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh
+	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh
+	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service
+	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
+	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft.service homelab-nft-rollback.timer
 	@echo "✅ Firewall units installed (not yet applied)"
@@ -268,8 +268,8 @@ nft-status: ensure-run-as-root
 
 nft-install-rollback: ensure-run-as-root
 	@echo "⏪ Installing homelab nft rollback units"
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
-	@$(run_as_root) install -o root -g root -m 0644 $(MAKEFILE_DIR)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
+	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
+	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft-rollback.timer
 

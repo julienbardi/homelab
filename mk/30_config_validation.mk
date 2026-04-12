@@ -9,7 +9,7 @@
 # - Public DNS must never expose private IPs
 # - dns-preflight enforces these invariants
 
-CADDY_INTERNAL_HOSTS_SRC := $(MAKEFILE_DIR)config/caddy/internal-hosts.txt
+CADDY_INTERNAL_HOSTS_SRC := $(REPO_ROOT)config/caddy/internal-hosts.txt
 
 .PHONY: dns-preflight assert-tailnet check-public-dns check-caddy-internal-hosts
 

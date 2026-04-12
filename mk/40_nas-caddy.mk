@@ -4,7 +4,7 @@ NAS_CADDY_BACKUP := /usr/bin/caddy.orig
 NAS_STAMP_CADDY  := $(STAMP_DIR)/caddy.installed
 
 NAS_CADDYFILE     := /etc/caddy/Caddyfile
-SRC_NAS_CADDYFILE := $(MAKEFILE_DIR)config/caddy/Caddyfile
+SRC_NAS_CADDYFILE := $(REPO_ROOT)config/caddy/Caddyfile
 
 # Define the Admin API address to bypass UGOS loopback issues
 NAS_CADDY_ADMIN_ADDR := 10.89.12.4:2019
