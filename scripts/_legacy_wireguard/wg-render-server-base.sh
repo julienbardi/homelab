@@ -20,7 +20,7 @@ INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed_v2.sh"
     exit 1
 }
 
-echo "🧱 Rendering server base configs"
+echo "🛠️ Rendering server base configs"
 echo "  📄 plan:   ${PLAN}"
 echo "  🔑 pubs:   ${PUBDIR}"
 echo "  📦 output: ${OUTDIR}"

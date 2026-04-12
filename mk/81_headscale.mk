@@ -93,7 +93,7 @@ headscale: \
 
 .PHONY: headscale-restart
 headscale-restart: ensure-run-as-root
-	@echo "🔁 Restarting Headscale"
+	@echo "🔄 Restarting Headscale"
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl restart headscale
 	@$(run_as_root) systemctl is-active --quiet headscale \
@@ -163,7 +163,7 @@ headscale-verify: \
 
 .PHONY: headscale-wait-ready
 headscale-wait-ready: ensure-run-as-root
-	@echo "⏳ Waiting for Headscale API"
+	@echo "ℹ️ Waiting for Headscale API"
 	@$(run_as_root) sh -c '\
 		for i in 1 2 3 4 5 6 7 8 9 10; do \
 			if curl -fsS "$(HEADSCALE_HEALTH_URL)" >/dev/null; then \

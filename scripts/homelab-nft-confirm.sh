@@ -25,7 +25,7 @@ if [ -f "$HOMELAB_NFT_ROLLBACK_FLAG" ]; then
     rm -f "$HOMELAB_NFT_ROLLBACK_FLAG"
     systemctl stop --no-block homelab-nft-rollback.timer
 
-    log "🟢 Firewall confirmed and hash recorded."
+    log "📦 Firewall confirmed and hash recorded."
 else
     log "ℹ️ No pending firewall change to confirm."
 fi

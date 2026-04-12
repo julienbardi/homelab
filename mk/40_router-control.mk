@@ -43,20 +43,20 @@ check-tools:
 
 	@command -v ssh >/dev/null 2>&1 \
 		&& echo "✅ CAP_REMOTE_EXEC:        enabled (ssh)" \
-		|| echo "❌ CAP_REMOTE_EXEC:        unavailable → no remote recipes possible"
+		|| echo "❌ CAP_REMOTE_EXEC:        unavailable -> no remote recipes possible"
 
 	@command -v scp >/dev/null 2>&1 \
 		&& echo "✅ CAP_FILE_DEPLOY:        enabled (scp)" \
-		|| echo "❌ CAP_FILE_DEPLOY:        unavailable → file deployment not possible"
+		|| echo "❌ CAP_FILE_DEPLOY:        unavailable -> file deployment not possible"
 
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
 		'command -v sha256sum >/dev/null 2>&1 || echo test | busybox sha256sum >/dev/null 2>&1' \
 		&& echo "✅ CAP_CONTENT_ADDRESSING: enabled (sha256sum or busybox sha256sum)" \
-		|| echo "⚠️  CAP_CONTENT_ADDRESSING: sha256sum unavailable → content-addressed deployment degraded"
+		|| echo "⚠️  CAP_CONTENT_ADDRESSING: sha256sum unavailable -> content-addressed deployment degraded"
 
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '[ -x /jffs/scripts/firewall-start ]' >/dev/null 2>&1 \
 		&& echo "✅ CAP_FIREWALL:           enabled (firewall-start hook)" \
-		|| echo "⚠️  CAP_FIREWALL:           degraded → no firewall-start hook"
+		|| echo "⚠️  CAP_FIREWALL:           degraded -> no firewall-start hook"
 
 	@echo
 	@echo "ℹ️  Informational only — no enforcement performed"

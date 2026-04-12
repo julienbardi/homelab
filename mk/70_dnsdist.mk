@@ -66,7 +66,7 @@ dnsdist: \
 # --------------------------------------------------------------------
 dnsdist-install:
 	@if command -v $(DNSDIST_BIN) >/dev/null; then \
-		echo "🔁 dnsdist binary already present"; \
+		echo "🔄 dnsdist binary already present"; \
 	else \
 		echo "Installing dnsdist"; \
 		$(call apt_update_if_needed) \
@@ -104,7 +104,7 @@ dnsdist-config:
 		"root" "root" "0644" || rc=$$?; \
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsdist.conf updated"; \
-		echo "🔁 restarting dnsdist.service"; \
+		echo "🔄 restarting dnsdist.service"; \
 		$(DNSDIST_RESTART_CMD); \
 	elif [ "$$rc" -ne 0 ]; then \
 		exit "$$rc"; \
@@ -147,7 +147,7 @@ dnsdist-systemd-dropin: ensure-run-as-root
 	$(run_as_root) systemctl daemon-reload || true; \
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsdist drop-in updated"; \
-		echo "🔁 restarting dnsdist.service"; \
+		echo "🔄 restarting dnsdist.service"; \
 		$(DNSDIST_RESTART_CMD); \
 	elif [ "$$rc" -ne 0 ]; then \
 		exit "$$rc"; \

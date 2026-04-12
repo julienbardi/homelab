@@ -27,7 +27,7 @@ RUN_ROOT_SRC      := $(REPO_ROOT)scripts/run-as-root.sh
 
 # 1. Root wrapper must be installed first using standard host install
 $(INSTALL_SBIN_PATH)/run-as-root.sh: $(RUN_ROOT_SRC)
-	@install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 $< $@
+	@$(call install_file,$<,$@,$(ROOT_UID),$(ROOT_GID),0755)
 
 run_as_root := $(INSTALL_SBIN_PATH)/run-as-root.sh
 

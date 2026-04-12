@@ -99,7 +99,7 @@ log "ℹ️ Starting fix-ssh-perms script (dry-run=${DRY_RUN}, min_uid=${MIN_UID
 # Iterate users with UID >= MIN_UID
 getent passwd | awk -F: -v min="$MIN_UID" '$3 >= min { print $1 ":" $6 }' | \
 while IFS=: read -r USER HOME; do
-    log "🔎 User: $USER"
+    log "🔍 User: $USER"
 
     if [ ! -d "$HOME" ]; then
         log "� ️ Home not found: $HOME"
@@ -122,7 +122,7 @@ while IFS=: read -r USER HOME; do
             log "ℹ️ Group '$USER' exists"
         else
             if [ "$DRY_RUN" -eq 1 ]; then
-                log "🧪 Would create group: groupadd -- \"$USER\""
+                log "🧩 Would create group: groupadd -- \"$USER\""
             else
                 if groupadd -- "$USER" >/dev/null 2>&1; then
                     log "✅ Created group '$USER'"
@@ -133,7 +133,7 @@ while IFS=: read -r USER HOME; do
         fi
 
         if [ "$DRY_RUN" -eq 1 ]; then
-            log "🧪 Would chown -R $USER:$USER $SSH_DIR"
+            log "🧩 Would chown -R $USER:$USER $SSH_DIR"
         else
             if chown -R -- "$USER":"$USER" "$SSH_DIR" >/dev/null 2>&1; then
                 log "✅ chown -R $USER:$USER $SSH_DIR"
@@ -147,8 +147,8 @@ while IFS=: read -r USER HOME; do
 
     # Set safe perms for .ssh and home
     if [ "$DRY_RUN" -eq 1 ]; then
-        log "🧪 Would chmod 700 $SSH_DIR"
-        log "🧪 Would chmod 755 $HOME"
+        log "🧩 Would chmod 700 $SSH_DIR"
+        log "🧩 Would chmod 755 $HOME"
     else
         if chmod 700 -- "$SSH_DIR" >/dev/null 2>&1; then
             log "✅ chmod 700 $SSH_DIR"
@@ -174,7 +174,7 @@ while IFS=: read -r USER HOME; do
         esac
 
         if [ "$DRY_RUN" -eq 1 ]; then
-            log "🧪 Would chmod $mode $f"
+            log "🧩 Would chmod $mode $f"
         else
             if chmod "$mode" -- "$f" >/dev/null 2>&1; then
                 log "✅ chmod $mode $f"
@@ -191,7 +191,7 @@ while IFS=: read -r USER HOME; do
         if [ -d "$p" ]; then
             if find "$p" -maxdepth 0 -perm /022 >/dev/null 2>&1; then
                 if [ "$DRY_RUN" -eq 1 ]; then
-                    log "🧪 Would chmod go-w $p"
+                    log "🧩 Would chmod go-w $p"
                 else
                     if chmod go-w -- "$p" >/dev/null 2>&1; then
                         log "✅ chmod go-w $p"

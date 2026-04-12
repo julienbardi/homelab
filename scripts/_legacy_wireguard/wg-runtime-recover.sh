@@ -139,7 +139,7 @@ for dev in "${IFACE_ARR[@]}"; do
   up_ok=0
   attempt=1
   while [ "$attempt" -le "$TRIES" ]; do
-    info "⏫ Attempt $attempt/$TRIES: wg-quick up $dev"
+    info "⬆️ Attempt $attempt/$TRIES: wg-quick up $dev"
     if run "$WG_QUICK" up "$dev" >"$LOGDIR/${dev}-up-${attempt}.out" 2>&1; then
       info "✅ $dev up (attempt $attempt)"
       up_ok=1
@@ -155,7 +155,7 @@ for dev in "${IFACE_ARR[@]}"; do
     fi
 
     sleep_time=$(( SLEEP_BASE * (2 ** (attempt - 1)) ))
-    info "⤴ sleeping ${sleep_time}s before retry"
+    info "🚀 sleeping ${sleep_time}s before retry"
     run sleep "$sleep_time"
     attempt=$((attempt + 1))
   done

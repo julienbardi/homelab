@@ -248,7 +248,7 @@ fi
 # ------------------------------------------------------------
 # Output
 # ------------------------------------------------------------
-log "🩺 DNS health check against resolver ${RESOLVER}"
+log "📊 DNS health check against resolver ${RESOLVER}"
 log "$([[ "$rec_ok" == true ]] && echo ✅ || echo ❌) Recursion (status=${rec_status}, flags=${rec_flags})"
 log "$([[ "$pos_ok" == true ]] && echo ✅ || echo ❌) DNSSEC positive (sigok: status=${pos_status}, AD=${pos_has_ad})"
 log "$([[ "$neg_ok" == true ]] && echo ✅ || echo ❌) DNSSEC negative (sigfail: status=${neg_status})"

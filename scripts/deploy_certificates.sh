@@ -37,7 +37,7 @@ ACME="$ACME_HOME/acme.sh"
 
 # Intended SAN contract — authoritative list
 # ACME DNS-01 can only solve challenges for zones we control (Infomaniak).
-# synology.me is NOT our zone → jam9.synology.me cannot be included.
+# synology.me is NOT our zone -> jam9.synology.me cannot be included.
 INTENDED_SANS=(
 	"DNS:$DOMAIN"
 	"DNS:*.$DOMAIN"
@@ -47,8 +47,8 @@ usage() {
 	echo "Usage: $0 {issue|renew|prepare|deploy <service>|validate <service>|all <service>}"
 	echo "Services: caddy headscale dnsdist router qnap"
 	echo "Note: DiskStation deployment is now Makefile-native:"
-	echo "      → use: make deploy-dsm   or   make all-diskstation"
-	echo "      → validation: make validate-dsm   or   make validate-diskstation"
+	echo "      -> use: make deploy-dsm   or   make all-diskstation"
+	echo "      -> validation: make validate-dsm   or   make validate-diskstation"
 	exit 1
 }
 
@@ -106,15 +106,15 @@ validate_sans() {
 detect_rate_limit() {
 	local log_output="$1"
 
-	# ACME rate‑limit: too many failed authorizations
+	# ACME rate-limit: too many failed authorizations
 	if echo "$log_output" | grep -q "urn:ietf:params:acme:error:rateLimited"; then
 		local retry
 		retry="$(echo "$log_output" | grep -o 'retry after[^"]*' | sed 's/retry after //')"
 
-		log "⛔ ACME rate limit hit — too many failed authorizations"
+		log "❌ ACME rate limit hit — too many failed authorizations"
 		log "   Let’s Encrypt requires a cooldown before retrying."
 		log "   Retry allowed after: $retry"
-		log "   (This happens when a domain repeatedly fails DNS‑01 validation.)"
+		log "   (This happens when a domain repeatedly fails DNS-01 validation.)"
 		return 1
 	fi
 
@@ -164,7 +164,7 @@ issue() {
 renew() {
 	[[ -f "$ACME_HOME/.last_renew" ]] && \
 	(( $(date +%s) - $(stat -c %Y "$ACME_HOME/.last_renew") < 86400 )) && \
-	{ log "⏳ Renewal skipped — last attempt <24h"; return; }
+	{ log "ℹ️ Renewal skipped — last attempt <24h"; return; }
 
 	local acme_force="${ACME_FORCE:-0}"
 
@@ -180,13 +180,13 @@ renew() {
 	local ecc_days; ecc_days="$(days_left "$ecc_check")"
 
 	if (( ecc_days > RENEW_THRESHOLD_DAYS )); then
-		log "🔁 ECC certificate valid ${ecc_days}d — skipping renewal"
+		log "🔄 ECC certificate valid ${ecc_days}d — skipping renewal"
 	else
-		log "⏳ ECC certificate within ${ecc_days}d — attempting renewal"
+		log "ℹ️ ECC certificate within ${ecc_days}d — attempting renewal"
 		if "$ACME" --renew -d "$DOMAIN" --ecc; then
 			log "🔐 ECC certificate renewed"
 		else
-			log "🔁 ECC renewal not required"
+			log "🔄 ECC renewal not required"
 		fi
 	fi
 
@@ -195,13 +195,13 @@ renew() {
 	local rsa_days; rsa_days="$(days_left "$rsa_check")"
 
 	if (( rsa_days > RENEW_THRESHOLD_DAYS )); then
-		log "🔁 RSA certificate valid ${rsa_days}d — skipping renewal"
+		log "🔄 RSA certificate valid ${rsa_days}d — skipping renewal"
 	else
-		log "⏳ RSA certificate within ${rsa_days}d — attempting renewal"
+		log "ℹ️ RSA certificate within ${rsa_days}d — attempting renewal"
 		if "$ACME" --renew -d "$DOMAIN"; then
 			log "🔐 RSA certificate renewed"
 		else
-			log "🔁 RSA renewal not required"
+			log "🔄 RSA renewal not required"
 		fi
 	fi
 	touch "$ACME_HOME/.last_renew"
@@ -241,7 +241,7 @@ deploy_caddy() {
 	sudo mkdir -p "$SSL_DEPLOY_DIR_CADDY"
 
 	if ! service_exists caddy; then
-		log "⏭️ caddy not installed — skipping TLS deployment"
+		log "📍 caddy not installed — skipping TLS deployment"
 		return 0
 	fi
 
@@ -253,7 +253,7 @@ deploy_caddy() {
 	if [ "$changed" -eq 1 ]; then
 		reload_service caddy /etc/caddy/Caddyfile
 	else
-		log "🔁 caddy unchanged (no reload)"
+		log "🔄 caddy unchanged (no reload)"
 	fi
 }
 
@@ -262,7 +262,7 @@ deploy_headscale() {
 	sudo mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
 
 	if ! service_exists headscale; then
-		log "⏭️ headscale not installed — skipping TLS deployment"
+		log "📍 headscale not installed — skipping TLS deployment"
 		return 0
 	fi
 
@@ -274,7 +274,7 @@ deploy_headscale() {
 	if [ "$changed" -eq 1 ]; then
 		reload_service headscale /etc/headscale/config.yaml
 	else
-		log "🔁 headscale unchanged (no reload)"
+		log "🔄 headscale unchanged (no reload)"
 	fi
 }
 
@@ -301,7 +301,7 @@ deploy_dnsdist() {
 		log "🔄 Restarting dnsdist (TLS material updated)"
 		systemctl restart dnsdist
 	else
-		log "🔁 dnsdist unchanged (no restart)"
+		log "🔄 dnsdist unchanged (no restart)"
 	fi
 }
 
@@ -321,7 +321,7 @@ deploy_router() {
 	if [ "$changed" -eq 1 ]; then
 		log "🔐 Router ECC certificate updated"
 	else
-		log "🔁 router ECC cert unchanged"
+		log "🔄 router ECC cert unchanged"
 	fi
 }
 

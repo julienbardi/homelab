@@ -84,7 +84,6 @@ include $(REPO_ROOT)mk/90_converge.mk
 include $(REPO_ROOT)mk/95_status.mk
 include $(REPO_ROOT)mk/99_lint.mk        # lint and safety checks (always last)
 
-
 # ============================================================
 # Makefile — homelab certificate orchestration
 # ============================================================
@@ -102,7 +101,7 @@ SKIP_KNOWN_HOSTS ?= 0
 ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
 	@echo "🔐 Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE) (SKIP_KNOWN_HOSTS=$(SKIP_KNOWN_HOSTS))"
 	@if [ "$(SKIP_KNOWN_HOSTS)" = "1" ]; then \
-		echo "⏭️ Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
+		echo "📍 Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
 	else \
 		# best-effort: interactive / non-fatal
 		$(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
@@ -143,10 +142,10 @@ reload: ensure-run-as-root
 .PHONY: restart
 restart: ensure-run-as-root
 	@$(run_as_root) systemctl restart tailscaled tailscaled-lan.service
-	@echo "🔁 Restarted tailscaled + family + guest services"
+	@echo "🔄 Restarted tailscaled + family + guest services"
 
 test: logs ensure-run-as-root
-	@echo "🧪 Running run_as_root harness"
+	@echo "🧩 Running run_as_root harness"
 	@$(run_as_root) bash $(INSTALL_PATH)/test_run_as_root.sh
 
 # all:
@@ -203,7 +202,7 @@ install-systemd: ensure-run-as-root
 	@$(run_as_root) systemctl daemon-reload
 
 enable-systemd: install-systemd ensure-run-as-root
-	@echo "▶️ Enabling and starting path watcher and ensuring unbound drop-in is active"
+	@echo "🚀 Enabling and starting path watcher and ensuring unbound drop-in is active"
 	@$(run_as_root) systemctl enable --now unbound-ctl-fix.path || true
 	@$(run_as_root) systemctl reset-failed unbound-ctl-fix.service unbound-ctl-fix.path || true
 	@$(run_as_root) systemctl start unbound-ctl-fix.service || true
@@ -242,7 +241,7 @@ nft-sync: ensure-run-as-root
 
 nft-apply: install-nft-apply nft-sync ensure-run-as-root
 	$(run_as_root) $(INSTALL_PATH)/homelab-nft-apply.sh
-	@echo "🧾 Recording applied nftables ruleset hash"
+	@echo "📄 Recording applied nftables ruleset hash"
 	$(run_as_root) sh -c 'sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"'
 
 nft-confirm: ensure-run-as-root
@@ -275,5 +274,5 @@ nft-install-rollback: ensure-run-as-root
 
 .PHONY: regen-clients
 regen-clients: ensure-run-as-root wg-apply
-	@echo "🔁 Regenerating all WireGuard clients from authoritative input"
+	@echo "🔄 Regenerating all WireGuard clients from authoritative input"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" $(INSTALL_PATH)/wg-compile-clients.sh

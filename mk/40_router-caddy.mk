@@ -76,7 +76,7 @@ router-caddy-config: router-firewall-started | router-require-arm64 router-ssh-c
 
 
 # ------------------------------------------------------------
-# High‑level deploy
+# High-level deploy
 # ------------------------------------------------------------
 
 .PHONY: router-caddy

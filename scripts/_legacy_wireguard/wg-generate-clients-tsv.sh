@@ -34,7 +34,7 @@ mkdir -p "$DIR"
 
 } > "$TMP"
 
-# If unchanged → delete temp and exit cleanly
+# If unchanged -> delete temp and exit cleanly
 if [ -f "$OUT" ] && cmp -s "$TMP" "$OUT"; then
 	rm -f "$TMP"
 	echo "🔐 Unchanged $OUT"

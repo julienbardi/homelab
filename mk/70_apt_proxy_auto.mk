@@ -57,18 +57,18 @@ apt-proxy-auto-enable: apt-cacher-ng-enable-https $(APT_PROXY_AUTO) apt-proxy-au
 	    ( echo "❌ apt-proxy-auto.timer not enabled"; exit 1 )
 	@$(run_as_root) systemctl is-active --quiet apt-proxy-auto.timer || \
 	    ( echo "❌ apt-proxy-auto.timer not active"; exit 1 )
-	@echo "▶️  Running apt-proxy-auto once (immediate sync)"
+	@echo "🚀  Running apt-proxy-auto once (immediate sync)"
 	@$(run_as_root) $(APT_PROXY_AUTO)
 	@echo "✅ apt-proxy-auto enabled"
 
 apt-proxy-auto-disable:
-	@echo "🛑 Disabling apt-proxy-auto timer and removing proxy file"
+	@echo "❌ Disabling apt-proxy-auto timer and removing proxy file"
 	@$(run_as_root) systemctl disable --now apt-proxy-auto.timer || true
 	@$(run_as_root) rm -f /etc/apt/apt.conf.d/01proxy
 	@echo "✅ apt-proxy-auto disabled"
 
 apt-proxy-auto-status:
-	@echo "🔎 apt-proxy-auto status"
+	@echo "🔍 apt-proxy-auto status"
 	@$(run_as_root) systemctl is-active --quiet apt-proxy-auto.timer || \
 	    ( echo "❌ apt-proxy-auto.timer not active"; exit 1 )
 	@echo "📄 Current APT proxy config (/etc/apt/apt.conf.d/01proxy):"

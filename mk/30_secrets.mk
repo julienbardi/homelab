@@ -33,7 +33,7 @@ ddns-secret-ensure:
 		echo "❌ Missing DDNS secret file:"; \
 		echo "   $(DDNS_SECRET_FILE)"; \
 		echo ""; \
-		echo "➡️  Create it with:"; \
+		echo "📍  Create it with:"; \
 		echo "   sudoedit $(DDNS_SECRET_FILE)"; \
 		echo ""; \
 		echo "   Required variables:"; \
@@ -47,7 +47,7 @@ ddns-secret-ensure:
 	@sudo stat -c '%U:%G:%a' "$(DDNS_SECRET_FILE)" | grep -qx 'root:admin:640' || \
 		{ sudo chown root:admin "$(DDNS_SECRET_FILE)"; sudo chmod 0640 "$(DDNS_SECRET_FILE)"; }
 
-	@echo "🧪 Validating DDNS secret structure"
+	@echo "🧩 Validating DDNS secret structure"
 	@missing=0; \
 	for var in DNS_TOPDOMAIN_NAME DDNSUSERNAME DDNSPASSWORD; do \
 		if ! grep -Eq "^[[:space:]]*$$var=['\"][^'\"]+['\"]" "$(DDNS_SECRET_FILE)"; then \
@@ -57,7 +57,7 @@ ddns-secret-ensure:
 	done; \
 	if [ $$missing -ne 0 ]; then \
 		echo ""; \
-		echo "➡️  Edit the file:"; \
+		echo "📍  Edit the file:"; \
 		echo "   sudoedit $(DDNS_SECRET_FILE)"; \
 		exit 1; \
 	fi

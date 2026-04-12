@@ -39,7 +39,7 @@ for iface in "${NAS_IFACES[@]}"; do
 
     require_file "${SRC}"
 
-    # Append 9‑tuple for this file
+    # Append 9-tuple for this file
     args+=("" "" "${SRC}" "" "" "${DST}" "root" "root" "0600")
 done
 
@@ -51,7 +51,7 @@ install_files_if_changed_v2 changed "${args[@]}"
 if [[ "$changed" -eq 1 ]]; then
     log "🚀 NAS WireGuard configs updated"
 else
-    log "⚪ NAS WireGuard configs already up-to-date"
+    log "ℹ️ NAS WireGuard configs already up-to-date"
 fi
 
 log "NAS installation complete"

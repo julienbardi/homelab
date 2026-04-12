@@ -144,5 +144,5 @@ mv -f "$OUT_STAGE" "$OUT_ROOT"
 rm -rf "${OUT_ROOT}.prev"
 
 if [ "$changed" -eq 0 ]; then
-    echo "⚪ no client config changes"
+    echo "ℹ️ no client config changes"
 fi

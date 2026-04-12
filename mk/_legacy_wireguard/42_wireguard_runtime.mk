@@ -106,7 +106,7 @@ wg-apply: wg-install-scripts wg-deployed
 		PLAN_READER="$(INSTALL_PATH)/wg-plan-read.sh" \
 		$(WG_EXPORT_SCRIPT)
 
-	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔁 Reconciling WireGuard kernel state"; fi
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔄 Reconciling WireGuard kernel state"; fi
 
 	@$(run_as_root) bash -euo pipefail -c '\
 		: "$${WG_ROOT:?WG_ROOT not set}"; \

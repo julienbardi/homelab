@@ -6,7 +6,7 @@ WG_ENSURE_SERVER_KEYS := $(INSTALL_PATH)/wg-ensure-server-keys.sh
 
 # Installation rule for the helper script
 $(WG_ENSURE_SERVER_KEYS): $(REPO_ROOT)scripts/wg-ensure-server-keys.sh | $(BOOTSTRAP_FILES)
-	@echo "➕ Installing WireGuard key utility"
+	@echo "📍 Installing WireGuard key utility"
 	@$(call install_script,$<,$(notdir $@))
 
 wg-bootstrap: ensure-run-as-root $(WG_ENSURE_SERVER_KEYS)

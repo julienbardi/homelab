@@ -18,4 +18,4 @@ nft flush table ip homelab_nat
 
 rm -f "$HOMELAB_NFT_ROLLBACK_FLAG"
 
-log "🟢 Minimal firewall restored and rollback flag cleared."
+log "📦 Minimal firewall restored and rollback flag cleared."

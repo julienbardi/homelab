@@ -39,7 +39,7 @@ fi
 
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-echo "🧾 Recording compromised WireGuard keys"
+echo "📄 Recording compromised WireGuard keys"
 
 for pub in "$WG_DIR"/wg*.pub; do
     [ -e "$pub" ] || continue
@@ -63,8 +63,8 @@ done
 
 echo "Compromised keys recorded in $REGISTRY"
 
-echo "☢️ IRREVERSIBLE OPERATION — system will be offline"
-echo "🛑 Stopping deployed WireGuard interfaces"
+echo "❌ IRREVERSIBLE OPERATION — system will be offline"
+echo "❌ Stopping deployed WireGuard interfaces"
 for conf in "$WG_DIR"/*.conf; do
     [ -f "$conf" ] || continue
     iface="$(basename "$conf" .conf)"
@@ -80,4 +80,4 @@ rm -rf \
     "$WG_DIR"/*.pub \
     "$WG_ROOT/compiled/server-pubkeys"
 
-echo "💥 WireGuard state fully nuked"
+echo "🔥 WireGuard state fully nuked"

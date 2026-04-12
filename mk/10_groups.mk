@@ -55,18 +55,18 @@ enforce-groups: ensure-authorized-admin ensure-run-as-root _enforce-groups
 
 _enforce-groups:
 	@for g in $(ADMIN_GROUPS) $(SERVICE_GROUPS); do \
-		getent group $$g >/dev/null 2>&1 || { echo "➕ Creating group $$g"; $(run_as_root) groupadd --system $$g; }; \
+		getent group $$g >/dev/null 2>&1 || { echo "📍 Creating group $$g"; $(run_as_root) groupadd --system $$g; }; \
 	done
 	@for u in $(AUTHORIZED_ADMINS); do \
 		id -u $$u >/dev/null 2>&1 || { echo "⚠️ Admin $$u not found"; continue; }; \
 		for g in $(ADMIN_GROUPS); do \
-			id -nG $$u | grep -qw $$g || { echo "➕ Adding $$u to $$g"; $(run_as_root) usermod -aG $$g $$u; }; \
+			id -nG $$u | grep -qw $$g || { echo "📍 Adding $$u to $$g"; $(run_as_root) usermod -aG $$g $$u; }; \
 		done; \
 	done
 	@for pair in $(SERVICE_MAP); do \
 		u=$${pair%%:*}; g=$${pair#*:}; \
 		id -u $$u >/dev/null 2>&1 || { \
-			echo "➕ Creating service user $$u ($$g)"; \
+			echo "📍 Creating service user $$u ($$g)"; \
 			$(run_as_root) useradd --system --gid $$g --shell /usr/sbin/nologin --home /nonexistent $$u; \
 		}; \
 	done

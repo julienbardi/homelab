@@ -43,7 +43,7 @@ router-require-run-as-root: | router-ssh-check
 		( \
 			echo "❌ run-as-root missing"; \
 			echo "ℹ️  Router helpers not installed (likely after reset)"; \
-			echo "➡️  Recovery: make router-bootstrap"; \
+			echo "📍  Recovery: make router-bootstrap"; \
 			exit 1; \
 		) \
 	'

@@ -25,9 +25,9 @@ code-server-version-check:
 	@echo "Installed: $(CODE_SERVER_INSTALLED_VERSION)"
 	@echo "Latest:    $(CODE_SERVER_LATEST_VERSION)"
 	@if [ "$(CODE_SERVER_INSTALLED_VERSION)" = "$(CODE_SERVER_LATEST_VERSION)" ]; then \
-		echo "✔️ code-server is up to date"; \
+		echo "📝 code-server is up to date"; \
 	else \
-		echo "⬆️ Update available: $(CODE_SERVER_INSTALLED_VERSION) → $(CODE_SERVER_LATEST_VERSION)"; \
+		echo "⬆️ Update available: $(CODE_SERVER_INSTALLED_VERSION) -> $(CODE_SERVER_LATEST_VERSION)"; \
 	fi
 
 $(CODE_SERVER_CONFIG_DST): $(CODE_SERVER_CONFIG_SRC)
@@ -53,7 +53,7 @@ $(CODE_SERVER_SYSTEMD_OVERRIDE): \
 		rc=$$?; \
 		rm -f "$(CODE_SERVER_SYSTEMD_OVERRIDE).new"; \
 		if [ $$rc -eq 0 ]; then \
-			echo "✔️ systemd override unchanged"; \
+			echo "📝 systemd override unchanged"; \
 		elif [ $$rc -eq 3 ]; then \
 			echo "🛠️ Updating systemd override"; \
 			systemctl daemon-reload; \
@@ -72,14 +72,14 @@ code-server-install:
 
 code-server-update:
 	@if [ "$(CODE_SERVER_INSTALLED_VERSION)" = "$(CODE_SERVER_LATEST_VERSION)" ]; then \
-		echo "✔️ code-server already at latest version ($(CODE_SERVER_INSTALLED_VERSION))"; \
+		echo "📝 code-server already at latest version ($(CODE_SERVER_INSTALLED_VERSION))"; \
 	else \
 		echo "⬆️ Updating code-server to $(CODE_SERVER_LATEST_VERSION)"; \
 		curl -fsSL https://code-server.dev/install.sh | sh; \
-		echo "🔁 Restarting code-server service"; \
+		echo "🔄 Restarting code-server service"; \
 		$(run_as_root) systemctl daemon-reload; \
 		$(run_as_root) systemctl restart code-server@$(USER); \
-		echo "✔️ Update complete"; \
+		echo "📝 Update complete"; \
 	fi
 
 code-server-ensure-running: \
@@ -87,10 +87,10 @@ code-server-ensure-running: \
 	$(CODE_SERVER_SYSTEMD_OVERRIDE)
 	@$(run_as_root) sh -c '\
 		if systemctl is-active --quiet code-server@$(USER); then \
-			echo "🔁 Restarting code-server (wait 20 seconds before running this again)"; \
+			echo "🔄 Restarting code-server (wait 20 seconds before running this again)"; \
 			systemctl restart code-server@$(USER); \
 		else \
-			echo "▶️ Starting code-server (wait 20 seconds before running this again)"; \
+			echo "🚀 Starting code-server (wait 20 seconds before running this again)"; \
 			systemctl start code-server@$(USER); \
 		fi'
 

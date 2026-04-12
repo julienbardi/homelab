@@ -128,7 +128,7 @@ install-homelab-sysctl: ensure-run-as-root sysctl-preflight set-ipv6-token
 	echo "🔄 Syncing functional sysctl configuration..."; \
 	$(run_as_root) install -o root -g root -m 0644 "$(SYSCTL_SRC)" "$(SYSCTL_DST)"; \
 	$(run_as_root) $(SYSCTL_BIN) -p "$(SYSCTL_DST)" >/dev/null; \
-	echo "💎 Convergence verified: NAS is locked to suffix $(NAS_IID_TOKEN)"
+	echo "✨ Convergence verified: NAS is locked to suffix $(NAS_IID_TOKEN)"
 
 rotate-ipv6-secrets: ensure-run-as-root sysctl-preflight
 	@echo "🔄 Scrambling IPv6 identity (RFC 7217)..."

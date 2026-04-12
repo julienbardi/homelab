@@ -26,7 +26,7 @@ $(ROUTER_CERT_CHECKSUM):
 		echo "$$newsum" > "$(ROUTER_CERT_CHECKSUM)"; \
 		echo "🔐  Router cert checksum updated"; \
 	else \
-		echo "🔁  Router certs unchanged"; \
+		echo "🔄  Router certs unchanged"; \
 	fi
 
 # ------------------------------------------------------------
@@ -37,7 +37,7 @@ prereqs-router-ssh:
 	@ssh -o BatchMode=yes -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) true 2>/dev/null || { \
 		echo "❌ SSH key authentication to router failed (BatchMode refused)"; \
 		echo "👉 Your key *is probably already installed*, but the router is rejecting non-interactive key auth."; \
-		echo "👉 Fix this in the router UI: Administration → System → SSH Daemon:"; \
+		echo "👉 Fix this in the router UI: Administration -> System -> SSH Daemon:"; \
 		echo "       • Enable SSH"; \
 		echo "       • SSH Port: $(ROUTER_SSH_PORT)"; \
 		echo "       • Allow SSH key authentication: ON"; \
@@ -133,7 +133,7 @@ prereqs-router-ssh:
 # Public: deploy-router
 # ------------------------------------------------------------
 deploy-router: $(ROUTER_CERT_CHECKSUM) /tmp/router-deploy.stamp
-	@echo "🔁 Nothing to deploy — router certs unchanged"
+	@echo "🔄 Nothing to deploy — router certs unchanged"
 
 # ------------------------------------------------------------
 # Public: validate-router

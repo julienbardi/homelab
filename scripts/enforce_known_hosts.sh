@@ -33,7 +33,7 @@ for hostport in "${HOSTS[@]}"; do
   current_fp=$(echo "$current_key_line" | ssh-keygen -lf -)
 
   if [[ -z "$stored_fp" ]]; then
-    echo "➕ Adding new host key for [$host]:$port: $current_fp"
+    echo "📍 Adding new host key for [$host]:$port: $current_fp"
     echo "$current_key_line" >> "$KNOWN_HOSTS_FILE"
   elif [[ "$stored_fp" != "$current_fp" ]]; then
     echo "⚠️ Host key changed for [$host]:$port"
@@ -43,6 +43,6 @@ for hostport in "${HOSTS[@]}"; do
     ssh-keygen -R "[$host]:$port" -f "$KNOWN_HOSTS_FILE"
     echo "$current_key_line" >> "$KNOWN_HOSTS_FILE"
   else
-    echo "✔️ Host key for [$host]:$port unchanged and trusted."
+    echo "📝 Host key for [$host]:$port unchanged and trusted."
   fi
 done

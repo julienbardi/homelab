@@ -59,6 +59,7 @@ ROUTER_ADDR     ?= 10.89.12.1
 ROUTER_USER     ?= julie
 ROUTER_SSH_PORT ?= 2222
 ROUTER_SCRIPTS  ?= /jffs/scripts
+ROUTER_WG_DIR   ?= /jffs/etc/wireguard
 
 # must recompute if user overrides the above
 ROUTER_HOST     := $(ROUTER_USER)@$(ROUTER_ADDR)
@@ -159,7 +160,9 @@ WG_ROUTER_SUBNET_V6 :=
 export WG_ROOT
 export SECURITY_DIR
 export HOMELAB_ROOT
+export ROUTER_ADDR
 export ROUTER_HOST
 export ROUTER_SSH_PORT
 export ROUTER_USER
 export ROUTER_SCRIPTS
+export ROUTER_WG_DIR
