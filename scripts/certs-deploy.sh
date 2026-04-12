@@ -60,5 +60,5 @@ if [[ "$ANY_CHANGED" -eq 1 ]]; then
         systemctl reload caddy
     fi
 else
-    log "⚪ All certificates already up-to-date"
+    log "ℹ️ All certificates already up-to-date"
 fi

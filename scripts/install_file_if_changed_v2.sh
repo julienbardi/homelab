@@ -1,5 +1,5 @@
 #!/bin/sh
-# install_file_if_changed_v2.sh — idempotent, atomic file installer (local → remote, remote → remote, or local → local)
+# install_file_if_changed_v2.sh — idempotent, atomic file installer (local -> remote, remote -> remote, or local -> local)
 # Hardened for Asus Merlin (RT-AX86U) + Ugreen (UGOS); BusyBox-friendly.
 #
 # Usage:
@@ -22,7 +22,7 @@
 #
 # Guarantees:
 # - Installs only when content differs (sha256 compare; early exit on match)
-# - Destination update is atomic: stream → temp file → verify hash on disk → chmod/chown → mv into place
+# - Destination update is atomic: stream -> temp file -> verify hash on disk -> chmod/chown -> mv into place
 # - Race-condition safe: Uses directory-based locking on the destination path
 # - No partial writes become active; temp file and locks are cleaned on failure
 # - Locale-neutral hashing/parsing (LC_ALL=C) and hardened remote PATH
@@ -107,7 +107,7 @@ else
 fi
 
 if [ "$SRC_HASH" = "$DST_HASH" ]; then
-    [ "$quiet" -eq 0 ] && log "⚪ $DST_PATH up-to-date"
+    [ "$quiet" -eq 0 ] && log "ℹ️ $DST_PATH up-to-date"
     exit 0
 fi
 

@@ -25,7 +25,7 @@ fi
 #log "🛡️ Checking CA private key + public cert existence..."
 
 if [[ -f "$CA_KEY" ]] && [[ -f "$CA_PUB" ]]; then
-    log "⚪ CA already exists: $CA_PUB"
+    log "ℹ️ CA already exists: $CA_PUB"
 else
     log "⚙️ Initializing CA directory structure..."
     mkdir -p /etc/ssl/private/ca

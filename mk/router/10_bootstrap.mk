@@ -40,7 +40,7 @@ router-ddns-deploy: router-bootstrap-run-as-root prereqs-helper-scripts \
 	$(INSTALL_FILE_IF_CHANGED) \
 	$(INSTALL_FILES_IF_CHANGED) \
 	ddns-secret-ensure
-	@echo "🔁 Syncing DDNS runtime surface to router"
+	@echo "🔄 Syncing DDNS runtime surface to router"
 	@DDNS_CHANGED=0; export DDNS_CHANGED; \
 		{ $(INSTALL_FILES_IF_CHANGED) DDNS_CHANGED \
 		"" "" "$(ROUTER_SCRIPTS_SRC_DIR)/ddns-start" \
@@ -119,7 +119,7 @@ PROVISION_ULA_VAL := $(shell echo "$(NAS_LAN_IP6)" | sed 's/::[0-9a-fA-F]*$$/::\
 
 .PHONY: router-ensure-ipv6-ula
 router-ensure-ipv6-ula: ensure-default-gateway router-install-provision-ipv6-ula.sh
-	@echo "📡 Syncing Router ULA to: $(PROVISION_ULA_VAL)"
+	@echo "📊 Syncing Router ULA to: $(PROVISION_ULA_VAL)"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
 		'DESIRED_ULA_PREFIX="$(PROVISION_ULA_VAL)" $(ROUTER_SCRIPTS)/provision-ipv6-ula.sh'
 

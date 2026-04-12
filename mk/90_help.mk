@@ -1,6 +1,6 @@
 # mk/90_help.mk
 # ------------------------------------------------------------
-# Help system (pure, dependency‑free)
+# Help system (pure, dependency-free)
 # ------------------------------------------------------------
 
 # Public entrypoint (no forced escalation)
@@ -37,7 +37,7 @@ help-render:
 
 .PHONY: bootstrap-acl
 bootstrap-acl:
-	@echo "🔧 Ensuring Ugreen‑safe ACLs for docs directory"
+	@echo "🔧 Ensuring Ugreen-safe ACLs for docs directory"
 	sudo chown root:admin $(DOCS_DIR)
 	sudo chmod 0775 $(DOCS_DIR)
 
@@ -45,16 +45,15 @@ UGREEN_ACL_DIRS := $(HOMELAB_ROOT)/docs
 
 .PHONY: audit-acl
 audit-acl:
-	@echo "🔍 Auditing Ugreen‑ACL directories"
+	@echo "🔍 Auditing Ugreen-ACL directories"
 	@for d in $(UGREEN_ACL_DIRS); do \
 		if [ ! -d $$d ]; then echo "❌ Missing: $$d"; continue; fi; \
 		owner=$$(stat -c "%U" $$d); \
 		group=$$(stat -c "%G" $$d); \
 		mode=$$(stat -c "%a" $$d); \
 		if [ "$$owner" = "root" ] && [ "$$group" = "admin" ] && [ "$$mode" = "775" ]; then \
-			echo "✔️ $$d root:admin 775"; \
+			echo "📝 $$d root:admin 775"; \
 		else \
 			echo "❌ $$d $$owner:$$group $$mode"; \
 		fi; \
 	done
-

@@ -69,7 +69,7 @@ router-wg-preflight:
 		[ -x "$(ROUTER_SCRIPTS)/wg-compile-domain.sh" ] || die "wg-compile-domain.sh missing or not executable"; \
 		[ -x "$(ROUTER_SCRIPTS)/wg-compile-alloc.sh" ] || die "wg-compile-alloc.sh missing or not executable"; \
 		[ -x "$(ROUTER_SCRIPTS)/wg-compile-keys.sh" ] || die "wg-compile-keys.sh missing or not executable"; \
-		echo "✓ wg-preflight OK"; \
+		echo "📝 wg-preflight OK"; \
 	'
 
 # ------------------------------------------------------------

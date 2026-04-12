@@ -120,7 +120,7 @@ timeout 10 /usr/local/bin/install_file_if_changed_v2.sh -q \
 if [ "$rc" -eq 3 ]; then
     log "✅ Domain list updated: $(wc -l < "$DOMAINS_FILE") entries"
 elif [ "$rc" -eq 0 ]; then
-    log "⚪ Domain list unchanged: $(wc -l < "$DOMAINS_FILE") entries"
+    log "ℹ️ Domain list unchanged: $(wc -l < "$DOMAINS_FILE") entries"
 else
     log "❌ Update failed with exit code $rc"
     exit "$rc"

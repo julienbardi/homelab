@@ -119,19 +119,19 @@ for dev in "${ACTIVE_IFACES[@]}"; do
 done
 
 if [ "$DRY_RUN" = "1" ] && [ ! -d "$WG_DIR" ]; then
-    echo "🧪 DRY-RUN: /etc/wireguard does not exist yet; showing proposed tree only"
+    echo "🧩 DRY-RUN: /etc/wireguard does not exist yet; showing proposed tree only"
     find "$NEW" -maxdepth 2 -type f | sort
     exit 0
 fi
 
 if [ "$DRY_RUN" = "1" ]; then
-    echo "🧪 DRY-RUN mode enabled — no changes will be applied"
+    echo "🧩 DRY-RUN mode enabled — no changes will be applied"
 fi
 
 if [ "$DRY_RUN" != "1" ]; then
     echo "🚀 deploying WireGuard configs atomically"
 else
-    echo "🧪 DRY-RUN: build + diff only"
+    echo "🧩 DRY-RUN: build + diff only"
 fi
 
 if [ "$DRY_RUN" != "1" ]; then
@@ -146,11 +146,11 @@ if [ "$DRY_RUN" != "1" ]; then
     swapped=1
     echo "✅ deployed WireGuard config files (kernel apply handled by wg-apply)"
 else
-    echo "🧪 DRY-RUN: skipping /etc/wireguard swap"
+    echo "🧩 DRY-RUN: skipping /etc/wireguard swap"
 fi
 
 if [ "$DRY_RUN" = "1" ] && [ -d "$WG_DIR" ]; then
-    echo "🧪 DRY-RUN: diff vs existing /etc/wireguard"
+    echo "🧩 DRY-RUN: diff vs existing /etc/wireguard"
     diff -ruN "$WG_DIR" "$NEW" || true
 fi
 

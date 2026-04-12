@@ -62,7 +62,7 @@ enable-unbound: ensure-default-gateway ensure-run-as-root \
 	else \
 		echo "ℹ️ Unbound configuration unchanged — no restart needed"; \
 	fi
-	@echo "⏳ Waiting for Unbound to become active..."; \
+	@echo "ℹ️ Waiting for Unbound to become active..."; \
 	for i in 1 2 3 4 5; do \
 		if $(run_as_root) systemctl is-active --quiet unbound; then \
 			echo "✅ Unbound enabled and running"; \
@@ -80,7 +80,7 @@ enable-unbound: ensure-default-gateway ensure-run-as-root \
 # ------------------------------------------------------------
 install-pkg-unbound:
 	@if command -v unbound >/dev/null; then \
-		echo "🔁 unbound already installed"; \
+		echo "🔄 unbound already installed"; \
 	else \
 		echo "📦 Installing unbound"; \
 		$(call apt_install,unbound,unbound) \

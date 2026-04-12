@@ -3,7 +3,7 @@
 # install_url_file_if_changed.sh
 #
 # CONTRACT:
-#   This helper performs a content‑addressed, idempotent install of a file
+#   This helper performs a content-addressed, idempotent install of a file
 #   fetched from a URL. A replacement occurs only when the *effective source
 #   content* changes.
 #
@@ -12,18 +12,18 @@
 #       sha256( URL + sha256(downloaded_file) )
 #
 #   This means:
-#     - If the URL changes → the hash changes → the file is reinstalled.
-#     - If the downloaded content changes → the hash changes → the file is reinstalled.
-#     - If both URL and content are unchanged → no action is taken.
+#     - If the URL changes -> the hash changes -> the file is reinstalled.
+#     - If the downloaded content changes -> the hash changes -> the file is reinstalled.
+#     - If both URL and content are unchanged -> no action is taken.
 #
 #   This contract prevents stale or incorrect cached downloads from being
-#   treated as “up‑to‑date” when the source URL changes, and ensures that
-#   operator‑driven URL changes always trigger a fresh materialization.
+#   treated as “up-to-date” when the source URL changes, and ensures that
+#   operator-driven URL changes always trigger a fresh materialization.
 #
 #   Exit codes:
-#     0 → no change (destination already matches effective source content)
-#     3 → file replaced successfully
-#     non‑zero → error
+#     0 -> no change (destination already matches effective source content)
+#     3 -> file replaced successfully
+#     non-zero -> error
 #
 #   Atomicity:
 #     The destination file is replaced atomically via mv(1).

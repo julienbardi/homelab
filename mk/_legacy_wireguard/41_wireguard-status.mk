@@ -63,7 +63,7 @@ endef
 # ------------------------------------------------------------
 
 wg-intent:
-	@echo "📋 WireGuard client addressing (make wg-intent)"
+	@echo "📄 WireGuard client addressing (make wg-intent)"
 	@printf "%-14s %-6s %-7s %-18s %s\n" \
 		"BASE" "IFACE" "HOSTID" "ADDRESS" "ENDPOINT"
 	@printf "%-14s %-6s %-7s %-18s %s\n" \
@@ -73,7 +73,7 @@ wg-intent:
 	}'
 
 wg-clients: wg-compile
-	@echo "📋 WireGuard client summary (make wg-clients)"
+	@echo "📄 WireGuard client summary (make wg-clients)"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '\
 		{ \
 			base=$$1; iface=$$2; \
@@ -151,12 +151,12 @@ wg-deployed-view: ensure-run-as-root
 
 wg-runtime: ensure-run-as-root
 	@echo
-	@echo "📋 WireGuard peer state (make wg-runtime)"
+	@echo "📄 WireGuard peer state (make wg-runtime)"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" "$(WG_RUNTIME)"
 
 wg-status: ensure-run-as-root
 	@echo
-	@echo "📋 WireGuard runtime interface status (make wg-status)"
+	@echo "📄 WireGuard runtime interface status (make wg-status)"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "IFACE" "LINK" "PORT" "PEERS"
 	@printf "%-6s %-12s %-18s %-8s %-s\n" "------" "------------" "------------------" "--------"
 	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" sh -c '\
@@ -182,7 +182,7 @@ wg-status: ensure-run-as-root
 
 wg-dashboard:
 	@echo
-	@echo "📋 WireGuard interface assignment (make wg-dashboard)"
+	@echo "📄 WireGuard interface assignment (make wg-dashboard)"
 	@printf "%-24s %s\n" "BASE" "IFACES"
 	@printf "%-24s %s\n" "------------------------" "------------------------------"
 	@$(WG_PLAN_ROWS) | awk -F'\t' '\
@@ -197,7 +197,7 @@ wg-check-ports: $(WG_PLAN_IFACES)
 		if [ -z "$$port" ]; then \
 			printf "� ️ %-5s UDP (unknown) : INTERFACE NOT FOUND \n" "$$iface"; \
 		elif [ "$$port" = "0" ]; then \
-			printf "🔕 %-5s UDP 0         : NOT LISTENING (outbound-only)\n" "$$iface"; \
+			printf "ℹ️ %-5s UDP 0         : NOT LISTENING (outbound-only)\n" "$$iface"; \
 		else \
 			printf "✅  %-5s UDP %-5s : LISTENING \n" "$$iface" "$$port"; \
 			if [ "$$port" -lt 51420 ] || [ "$$port" -gt 51451 ]; then \

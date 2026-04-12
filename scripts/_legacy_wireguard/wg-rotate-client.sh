@@ -91,7 +91,7 @@ rm -f "$CLIENT_KEYS_DIR/${key}.pub" 2>/dev/null || true
 rm -f "$OUT_CLIENT/${key}.conf" 2>/dev/null || true
 rm -f "$OUT_SERVER/$iface/$base.conf" 2>/dev/null || true
 
-echo "🔁 Rotated WireGuard client: $base $iface"
+echo "🔄 Rotated WireGuard client: $base $iface"
 echo "   - Old key added to compromised ledger"
 echo "   - keys.tsv entry removed"
 echo "   - keypair files removed"

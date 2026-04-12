@@ -123,10 +123,10 @@ check-forwarding:
 	@echo "♻️ Kernel forwarding already enabled"
 
 network-status:
-	@echo "🔎 Kernel forwarding"
+	@echo "🔍 Kernel forwarding"
 	@$(run_as_root) sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
 	@echo
-	@echo "🔎 nftables ruleset"
+	@echo "🔍 nftables ruleset"
 	@{ \
 		if $(run_as_root) nft list tables | grep -q 'inet homelab_filter'; then \
 			$(run_as_root) nft list table inet homelab_filter; \

@@ -27,7 +27,7 @@ run_as_root nft -c -f "$HOMELAB_NFT_RULESET"
 log "🚀 Applying nft ruleset atomically..."
 run_as_root nft -f "$HOMELAB_NFT_RULESET"
 
-log "⏳ Arming rollback timer..."
+log "ℹ️ Arming rollback timer..."
 run_as_root touch "$HOMELAB_NFT_ROLLBACK_FLAG"
 run_as_root systemctl start homelab-nft-rollback.timer
 

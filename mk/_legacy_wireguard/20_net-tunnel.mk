@@ -24,11 +24,11 @@ net-tunnel-persist: ensure-run-as-root
 
 # 2. Assert current runtime state (The "No Lie" check)
 net-tunnel-preflight: ensure-run-as-root net-tunnel-routing
-	@echo "🔎 Verifying UDP GRO offloads on $(PRIMARY_IFACE)"
+	@echo "🔍 Verifying UDP GRO offloads on $(PRIMARY_IFACE)"
 	@$(run_as_root) ethtool -k $(PRIMARY_IFACE) | grep -q 'rx-udp-gro-forwarding: on' || \
 		{ echo "⚠️ Offloads not active. Running fix..."; $(run_as_root) ethtool -K $(PRIMARY_IFACE) rx-udp-gro-forwarding on rx-gro-list off; }
 
 # 3. Routing Invariants
 net-tunnel-routing: ensure-run-as-root
-	@echo "🛣️  Ensuring return route for $(ROUTER_WG_SUBNET)"
+	@echo "📍  Ensuring return route for $(ROUTER_WG_SUBNET)"
 	@$(run_as_root) ip route replace $(ROUTER_WG_SUBNET) via $(ROUTER_LAN_GW)

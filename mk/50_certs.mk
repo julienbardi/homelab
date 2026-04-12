@@ -66,7 +66,7 @@ certs-deploy: ensure-run-as-root certs-create $(CERTS_DEPLOY)
 
 # Ensure CA exists and is deployed (used by other Makefiles)
 certs-ensure: ensure-run-as-root certs-deploy
-	@echo "🔁 certificates ensured"
+	@echo "🔄 certificates ensured"
 
 # Status: list CA and client certs
 certs-status:
@@ -84,7 +84,7 @@ certs-expiry: ensure-run-as-root
 	  expiry=$$($(run_as_root) openssl x509 -in "$(CA_PUB)" -noout -enddate | cut -d= -f2); \
 	  expiry_ts=$$(date -d "$$expiry" +%s); now_ts=$$(date +%s); \
 	  days_left=$$(( (expiry_ts - now_ts) / 86400 )); \
-	  echo "⏳ days until CA expiry: $$days_left"; \
+	  echo "ℹ️ days until CA expiry: $$days_left"; \
 	else \
 	  echo "❌ CA public cert missing: $(CA_PUB)"; exit 2; \
 	fi
@@ -235,7 +235,7 @@ deploy-qnap: prepare
 # Validate targets
 define validate_with_status
 	@$(run_as_root) $(CERTS_DEPLOY) validate $(1)
-	@echo "🔁 $(1) validation OK"
+	@echo "🔄 $(1) validation OK"
 endef
 
 validate-caddy:
@@ -243,7 +243,7 @@ validate-caddy:
 validate-headscale:
 	$(call validate_with_status,headscale)
 validate-diskstation: validate-dsm
-	@echo "🔁 DiskStation validation OK"
+	@echo "🔄 DiskStation validation OK"
 validate-qnap:
 	$(call validate_with_status,qnap)
 

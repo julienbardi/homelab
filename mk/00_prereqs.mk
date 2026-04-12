@@ -33,7 +33,7 @@ prereqs-network-verify:
 ifeq ($(ROLE),router)
 	@command -v ethtool >/dev/null || { \
 		echo "❌ ethtool missing (required for ROLE=router)"; exit 1; }
-	@sysctl net.ipv4.ip_forward >/dev/null || \
+			echo "⚠️  Cannot read net.ipv4.ip_forward (sysctl unavailable?)"
 		echo "⚠️  Cannot read net.ipv4.ip_forward (sysctl unavailable?)"
 else
 	@command -v ethtool >/dev/null || \
@@ -130,7 +130,7 @@ prereqs-root-ssh-key:
 	else \
 		host=$$(hostname -s); \
 		comment="$$host-root-$$(date +%F)"; \
-		echo "➕ Generating root SSH key ($$comment)"; \
+		echo "📍 Generating root SSH key ($$comment)"; \
 		sudo mkdir -p -m 700 /root/.ssh; \
 		sudo ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment" </dev/null; \
 		sudo chmod 600 $$key; \
@@ -145,7 +145,7 @@ prereqs-operator-ssh-key:
 		host=$$(hostname -s); \
 		user=$$(id -un); \
 		comment="$$host-operator-$$user-$$(date +%F)"; \
-		echo "➕ Generating operator SSH key ($$comment)"; \
+		echo "📍 Generating operator SSH key ($$comment)"; \
 		mkdir -p -m 700 $$HOME/.ssh; \
 		ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment"; \
 		chmod 600 $$key; \
@@ -162,7 +162,7 @@ install-ssh-config: prereqs-operator-ssh-key
 # Extended Tooling (Rust, Python, Scripts)
 # ------------------------------------------------------------
 
-rust-system: ensure-run-as-root
+	@echo "⚠️  Fixing Tailscale APT repository (signed-by hygiene)"
 	@command -v cargo >/dev/null 2>&1 || { \
 		echo "📦 Installing Rust system-wide"; \
 		$(run_as_root) sh -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path'; \
@@ -173,19 +173,19 @@ rust-system: ensure-run-as-root
 prereqs-python-venv-verify:
 	@python3 -c 'import venv' >/dev/null 2>&1 || { \
 		echo "❌ python3-venv missing"; \
-		echo "➡️  Fix with: make prereqs-python-venv"; \
+		echo "📍  Fix with: make prereqs-python-venv"; \
 		exit 1; \
 	}
 
 prereqs-python-venv: ensure-run-as-root prereqs-python-venv-verify
-	@echo "➕ Ensuring python3-venv is installed"
+	@echo "📍 Ensuring python3-venv is installed"
 	@$(call apt_update_if_needed)
 	@$(run_as_root) apt-get install -y --no-install-recommends python3-venv
 
 prereqs-dns-health-check-verify: ensure-run-as-root
 	@$(run_as_root) $(INSTALL_PATH)/dns-health-check.sh --check-only || { \
 		echo "❌ DNS health check script drift detected"; \
-		echo "➡️  Remediate with: sudo make install-all"; \
+		echo "📍  Remediate with: sudo make install-all"; \
 		exit 1; \
 	}
 

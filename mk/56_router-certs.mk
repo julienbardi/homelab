@@ -19,7 +19,7 @@ define validate_with_status
 endef
 
 # ------------------------------------------------------------
-# Router‑side namespaced targets
+# Router-side namespaced targets
 # ------------------------------------------------------------
 
 .PHONY: router-certs-prereqs-ssh

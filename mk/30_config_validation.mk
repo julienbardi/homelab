@@ -77,7 +77,7 @@ dns-postflight: \
 	check-dnsdist-doh-local
 
 check-unbound-internal-resolution:
-	@echo "🧪 Verifying Unbound resolves internal hosts to private IPs"
+	@echo "🧩 Verifying Unbound resolves internal hosts to private IPs"
 	@command -v dig >/dev/null || \
 	    ( echo "❌ dig not available"; exit 1 )
 	@test -f $(CADDY_INTERNAL_HOSTS_SRC) || \

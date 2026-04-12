@@ -63,17 +63,17 @@ prometheus-enable: ensure-run-as-root
 		echo "⚙️ Enabling Prometheus service"; \
 		$(run_as_root) systemctl enable $(PROMETHEUS_SERVICE); \
 	else \
-		echo "💎 Prometheus service already enabled"; \
+		echo "✨ Prometheus service already enabled"; \
 	fi
 	@if ! $(run_as_root) systemctl is-active --quiet $(PROMETHEUS_SERVICE); then \
-		echo "▶️ Starting Prometheus service"; \
+		echo "🚀 Starting Prometheus service"; \
 		$(run_as_root) systemctl start $(PROMETHEUS_SERVICE); \
 	else \
-		echo "💎 Prometheus service already running"; \
+		echo "✨ Prometheus service already running"; \
 	fi
 
 prometheus-restart: ensure-run-as-root
-	@echo "🔁 Restarting Prometheus"
+	@echo "🔄 Restarting Prometheus"
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl restart $(PROMETHEUS_SERVICE)
 

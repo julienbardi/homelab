@@ -61,7 +61,7 @@ remove-pkg-tailscale: ensure-run-as-root
 	@echo "✅ Tailscale removed"
 
 verify-pkg-tailscale: ensure-run-as-root
-	@echo "🔎 Verifying Tailscale installation"
+	@echo "🔍 Verifying Tailscale installation"
 	@bash -c 'set -e; \
 	    CLI_VER=$$(tailscale version | head -n1); \
 	    DS_VER=$$($(run_as_root) tailscaled --version | head -n1); \
@@ -76,7 +76,7 @@ verify-pkg-tailscale: ensure-run-as-root
 # Go (Debian package)
 # ------------------------------------------------------------
 install-pkg-go: ensure-run-as-root
-	@echo "🐹 Installing Go toolchain"
+	@echo "⚠️ Installing Go toolchain"
 	$(call apt_install,go,golang-go)
 	@command -v go >/dev/null || { \
 	    echo "❌ go missing after install"; exit 1; }

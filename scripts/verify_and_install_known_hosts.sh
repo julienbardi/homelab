@@ -319,7 +319,7 @@ for entry in "${HOST_META[@]}"; do
   IFS='|' read -r display_name alias_name public_name internal_ip port outfile <<< "$entry"
 
   echo
-  echo "🔎 ${display_name}  (public=${public_name:--} internal=${internal_ip:--} port=${port})"
+  echo "🔍 ${display_name}  (public=${public_name:--} internal=${internal_ip:--} port=${port})"
 
   # Load scan result
   # shellcheck disable=SC1090
@@ -332,7 +332,7 @@ for entry in "${HOST_META[@]}"; do
   # Print per-token scan + fingerprints based on TOKEN_FPS
   for token in "${TOKENS[@]}"; do
 	echo
-	echo "⤴ Scanning $token:$port ..."
+	echo "🚀 Scanning $token:$port ..."
 	hosttok_norm="$(normalize_host_token "$token" "$port")"
 	if [ -n "${TOKEN_FPS[$hosttok_norm]:-}" ]; then
 	  printf "%s\n" "${TOKEN_FPS[$hosttok_norm]}" || true
@@ -411,7 +411,7 @@ for entry in "${HOST_META[@]}"; do
   fi
 
   echo
-  echo "🔁 Replacing entries for ${display_name} (atomic)"
+  echo "🔄 Replacing entries for ${display_name} (atomic)"
 
   # Build TOKEN_FPS keys list for this host
   tokens_for_host=()
@@ -623,7 +623,7 @@ if [ "${#CHANGED_SUMMARY[@]}" -eq 0 ]; then
   echo "✅ No changes detected for any hosts."
   logger -t verify_known_hosts "No changes detected in run"
 else
-  echo "🔔 Changes detected for the following hosts:"
+  echo "ℹ️ Changes detected for the following hosts:"
   for entry in "${CHANGED_SUMMARY[@]}"; do
 	echo "  - $entry"
   done
