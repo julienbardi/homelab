@@ -78,8 +78,12 @@ do_status() {
         remote_cmd="sudo"
     fi
 
-    if ! $remote_cmd "$wg_bin" show > /dev/null 2>&1; then
-        echo "❌ Status: WireGuard service is DOWN on $TARGET"
+    # 1. Get active interfaces once to avoid SSH-in-loop overhead
+    local active_ifaces
+    active_ifaces=$($remote_cmd "$wg_bin" show interfaces 2>/dev/null || echo "")
+
+    if [[ -z "$active_ifaces" ]]; then
+        echo "❌ Status: No active WireGuard interfaces found on $TARGET"
         return
     fi
 
@@ -89,10 +93,8 @@ do_status() {
     while IFS=$'\t' read -r pubkey name iface ipv4 ipv6 access lan; do
         [[ "$pubkey" == "pubkey" ]] && continue
 
-        # Filter: Skip interfaces that do not exist on the current target host
-        if ! $remote_cmd "$wg_bin" show "$iface" > /dev/null 2>&1; then
-            continue
-        fi
+        # Filter: Check if this peer's interface is in the active list
+        [[ " $active_ifaces " =~ " $iface " ]] || continue
 
         local handshake
         handshake=$($remote_cmd "$wg_bin" show "$iface" latest-handshakes 2>/dev/null | grep "$pubkey" | awk '{print $2}' || echo "0")
