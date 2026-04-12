@@ -17,10 +17,13 @@ group="$2"
 mode="$3"
 path="$4"
 
-if [ -d "$path" ]; then
+# Fast path: directory exists, is readable/traversable, and matches owner/group/mode
+if [ -d "$path" ] && [ -r "$path" ] && [ -x "$path" ]; then
     current="$(stat -c '%U:%G:%a' "$path" 2>/dev/null || true)"
     expected="$owner:$group:$mode"
-    [ "$current" = "$expected" ] && exit 0
+    if [ "$current" = "$expected" ]; then
+        exit 0
+    fi
 fi
 
 # Try without escalation first
