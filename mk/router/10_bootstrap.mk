@@ -89,6 +89,7 @@ ROUTER_SCRIPT_FILES := \
 	wg-compile-domain.sh \
 	wg-compile-keys.sh \
 	firewall-start \
+	wg-firewall.sh \
 	wg-policy-apply \
 	wg-transport-apply
 
@@ -97,6 +98,14 @@ router-install-%: | router-bootstrap-run-as-root
 	@$(call PUSH_ROUTER_SCRIPT, \
 		$(ROUTER_SCRIPTS_SRC_DIR)/$*, \
 		$(ROUTER_SCRIPTS)/$*)
+
+# Specific override for the generated WireGuard firewall
+WG_GEN_DIR := /volume1/homelab/wireguard/output/router
+
+router-install-wg-firewall.sh: | router-bootstrap-run-as-root
+	@$(call PUSH_ROUTER_SCRIPT, \
+		$(WG_GEN_DIR)/wg-firewall.sh, \
+		$(ROUTER_SCRIPTS)/wg-firewall.sh)
 
 ROUTER_INSTALL_TARGETS := $(addprefix router-install-,$(ROUTER_SCRIPT_FILES))
 
