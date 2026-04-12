@@ -55,14 +55,14 @@ ENSURE_DIR          := $(INSTALL_PATH)/ensure_dir.sh
 # ---------------------------------------------------------------------------
 
 # Router connection (single source of truth for deployment)
-ROUTER_ADDR     ?= 10.89.12.1
-ROUTER_USER     ?= julie
-ROUTER_SSH_PORT ?= 2222
-ROUTER_SCRIPTS  ?= /jffs/scripts
-ROUTER_WG_DIR   ?= /jffs/etc/wireguard
+export ROUTER_ADDR     ?= 10.89.12.1
+export ROUTER_USER     ?= julie
+export ROUTER_SSH_PORT ?= 2222
+export ROUTER_SCRIPTS  ?= /jffs/scripts
+export ROUTER_WG_DIR   ?= /jffs/etc/wireguard
 
 # must recompute if user overrides the above
-ROUTER_HOST     := $(ROUTER_USER)@$(ROUTER_ADDR)
+export ROUTER_HOST     := $(ROUTER_USER)@$(ROUTER_ADDR)
 
 ROUTER_CADDYFILE_SRC := $(REPO_ROOT)router/caddy/Caddyfile
 ROUTER_CADDYFILE_DST := /jffs/caddy/Caddyfile
@@ -75,10 +75,6 @@ ROUTER_SCRIPTS_MODE  := 0755
 
 # Local source directory for router scripts
 SRC_SCRIPTS := $(REPO_ROOT)router/jffs/scripts
-
-# WireGuard plan artifact metadata
-ROUTER_WG_PLAN_MODE  := 0644
-ROUTER_WG_PLAN_SRC := /volume1/homelab/wireguard/compiled/plan.tsv
 
 # ------------------------------------------------------------
 # Homelab environment file (canonical paths)
@@ -113,13 +109,13 @@ DDNS_SECRET_FILE := $(DDNS_SECRET_DIR)/ddns.conf
 # ---------------------------------------------------------------------------
 # Network identities (do not alias; roles are distinct by contract)
 # ---------------------------------------------------------------------------
-NAS_LAN_IP := 10.89.12.4
-NAS_LAN_IP6 := fd89:7a3b:42c0::4
+export NAS_LAN_IP := 10.89.12.4
+export NAS_LAN_IP6 := fd89:7a3b:42c0::4
 
-GATEWAY_IP  := 10.89.12.1
-LAN_IFACE   := eth0
+export GATEWAY_IP  := 10.89.12.1
+export LAN_IFACE   := eth0
 
-ROUTER_LAN_IP := 10.89.12.1
+export ROUTER_LAN_IP := 10.89.12.1
 
 PUBLIC_DNS := 1.1.1.1
 SYSTEMD_DIR := /etc/systemd/system
@@ -131,10 +127,10 @@ $(if $(filter $(ROLE),router service client),,$(error Invalid ROLE=$(ROLE)))
 
 APT_CNAME_EXPECTED := bardi.ch
 
-HOMELAB_ROOT := /volume1/homelab
-WG_ROOT := $(HOMELAB_ROOT)/wireguard
+export HOMELAB_ROOT := /volume1/homelab
+export WG_ROOT := $(HOMELAB_ROOT)/wireguard
 DOCS_DIR := $(HOMELAB_ROOT)/docs
-SECURITY_DIR := $(HOMELAB_ROOT)/security
+export SECURITY_DIR := $(HOMELAB_ROOT)/security
 
 # Define the worker pool: N-1 if N > 1, else 1 (leaves 1 core for the system/kernel)
 N_WORKERS := $(shell nproc | awk '{print ($$1 > 1 ? $$1 - 1 : 1)}')
@@ -155,14 +151,3 @@ WG_PLAN_SUBNETS := $(INSTALL_PATH)/wg-plan-subnets.sh
 # WireGuard router subnets (derived at runtime; declared here for visibility only)
 WG_ROUTER_SUBNET_V4 :=
 WG_ROUTER_SUBNET_V6 :=
-
-# Export global paths for all scripts
-export WG_ROOT
-export SECURITY_DIR
-export HOMELAB_ROOT
-export ROUTER_ADDR
-export ROUTER_HOST
-export ROUTER_SSH_PORT
-export ROUTER_USER
-export ROUTER_SCRIPTS
-export ROUTER_WG_DIR

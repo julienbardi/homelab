@@ -40,20 +40,31 @@ wg-clean-out: wg-down-router wg-down-nas ensure-run-as-root
 # --- DAG ---
 
 wg-generate: $(INSTALL_PATH)/wg-generate-configs.sh
-	@$(INSTALL_PATH)/wg-generate-configs.sh
+	@NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) WG_ROOT=$(WG_ROOT) \
+	$(INSTALL_PATH)/wg-generate-configs.sh
+
+# Ensure these are correctly derived if not already absolute
+WG_OUTPUT_ROUTER := $(WG_ROOT)/output/router
 
 wg-install-router: router-ensure-wg-module wg-router-preflight $(INSTALL_PATH)/wgctl.sh wg-generate
 	@set -e; \
+	ROUTER_HOST="$(ROUTER_HOST)" \
+	ROUTER_ADDR="$(ROUTER_ADDR)" \
+	ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
+	ROUTER_WG_DIR="$(ROUTER_WG_DIR)" \
+	WG_ROOT="$(WG_ROOT)" \
 	EC=0; \
 	ROUTER_CONTROL_PLANE=1 $(INSTALL_PATH)/wgctl.sh router install || EC=$$?; \
 	if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi
-	@if [ -f "$(OUTPUT_ROUTER)/wgs1.firewall.sh" ]; then \
-		echo "🛡️ [wg-install-router] Syncing firewall rules to router"; \
-		{ \
-			echo "set -e;"; \
-			echo "iptables -S FORWARD | grep 'wgs1' | sed 's/-A/-D/' | while read line; do iptables \$$line 2>/dev/null || true; done"; \
-			cat "$(OUTPUT_ROUTER)/wgs1.firewall.sh"; \
-		} | $(run_as_root_router) "bash -s"; \
+	@if [ -f "$(WG_OUTPUT_ROUTER)/wg-firewall.sh" ]; then \
+		echo "🛡️ [wg-install-router] Installing firewall..."; \
+		FEC=0; \
+		$(REPO_ROOT)scripts/install_file_if_changed_v2.sh \
+			"" "" "$(WG_OUTPUT_ROUTER)/wg-firewall.sh" \
+			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
+			"0" "0" "0755" || FEC=$$?; \
+		if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi; \
+		$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
 	fi
 
 # NAS WireGuard Installation (Privileged)
