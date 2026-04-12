@@ -68,49 +68,50 @@ do_down() {
 }
 
 do_status() {
-    log "--- WireGuard Status Matrix ---"
-
     local wg_bin="wg"
     local remote_cmd
+
     if [[ "$TARGET" == "router" ]]; then
         remote_cmd="ssh -p $ROUTER_SSH_PORT $ROUTER_HOST"
+        local header_name="• PEER NAME [router]"
     else
         remote_cmd="sudo"
+        local header_name="• PEER NAME [nas]"
     fi
 
-    # 1. Get active interfaces once to avoid SSH-in-loop overhead
+    if [[ ! -f "$PEER_MAP" ]]; then
+        PEER_MAP="/volume1/homelab/wireguard/output/peer-map.tsv"
+    fi
+
     local active_ifaces
     active_ifaces=$($remote_cmd "$wg_bin" show interfaces 2>/dev/null || echo "")
 
-    if [[ -z "$active_ifaces" ]]; then
-        echo "❌ Status: No active WireGuard interfaces found on $TARGET"
-        return
-    fi
+    # Alignment: 23 | 5 | 15 | 26 | 14 | 3
+    # Header uses a 22-width + space to compensate for the single-byte bullet
+    local fmt_h="%-22s  %-5s %-15s %-26s %-14s %-3s\n"
+    local fmt_d="%-23s %-5s %-15s %-26s %-14s %-3s\n"
 
-    printf "%-18s %-10s %-18s %-12s %-10s\n" "PEER NAME" "IFACE" "VPN IPv4" "STATUS" "ACCESS"
-    echo "--------------------------------------------------------------------------------"
+    printf "$fmt_h" "$header_name" "IF" "VPN IPv4" "VPN IPv6" "ACCESS" "LAN"
+    echo "----------------------------------------------------------------------------------------------------------------"
 
-    while IFS=$'\t' read -r pubkey name iface ipv4 ipv6 access lan; do
-        [[ "$pubkey" == "pubkey" ]] && continue
-
-        # Filter: Check if this peer's interface is in the active list
+    while IFS=$'\t' read -r pk nm iface v4 v6 acc lan || [[ -n "$pk" ]]; do
+        [[ "$pk" == "pubkey" || "$pk" == "#"* || -z "$pk" ]] && continue
         [[ " $active_ifaces " =~ " $iface " ]] || continue
 
         local handshake
-        handshake=$($remote_cmd "$wg_bin" show "$iface" latest-handshakes 2>/dev/null | grep "$pubkey" | awk '{print $2}' || echo "0")
+        handshake=$($remote_cmd "$wg_bin" show "$iface" latest-handshakes 2>/dev/null | grep "$pk" | awk '{print $2}' || echo "0")
 
-        local status="Offline"
+        # Professional status icons
+        local icon="○" # Disconnected
         if [[ "$handshake" -gt 0 ]]; then
             local now=$(date +%s)
-            local diff=$((now - handshake))
-            if [[ "$diff" -lt 120 ]]; then
-                status="Active"
-            else
-                status="Idle"
-            fi
+            [[ $((now - handshake)) -lt 120 ]] && icon="●" || icon="◌" # Connected vs Stale
         fi
 
-        printf "%-18s %-10s %-18s %-12s %-10s\n" "$name" "$iface" "$ipv4" "$status" "$access"
+        local disp_v4="${v4%/*}"
+        local disp_v6="${v6%/*}"
+
+        printf "$fmt_d" "$icon $nm" "$iface" "$disp_v4" "$disp_v6" "$acc" "$lan"
     done < "$PEER_MAP"
 }
 

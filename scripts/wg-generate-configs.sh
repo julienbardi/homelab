@@ -68,10 +68,8 @@ write_client_config() {
     local iface="$1"
     local name="$2"
     local os="$3"
-    # Note: access and lan variables should be passed or parsed from your TSV.
-    # Defaulting here to 'internet' and 'true' for logic safety.
-    local access="internet"
-    local lan="true"
+    local access="$4"
+    local lan="$5"
 
     local ck="$KEY_DIR/clients/$name"
     [[ ! -f "$ck.key" ]] && { umask 077; wg genkey | tee "$ck.key" | wg pubkey > "$ck.pub"; }
@@ -79,14 +77,14 @@ write_client_config() {
     local out="$OUT_CLIENTS/$name.conf"
     local ipv4=$(alloc_client_ip_v4 "$iface" "$name")
 
-    # --- FIX 2: CANONICAL IPv6 HEX ---
+    # --- CANONICAL IPv6 HEX ---
     local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
     local o3=$(echo "$ipv4" | cut -d. -f3)
     local o4=$(echo "$ipv4" | cut -d. -f4)
     local host_hex=$(printf '%04x' $(( (o3 << 8) + o4 )))
     local ipv6="${v6_prefix}::${host_hex}/128"
 
-    # CIDR logic for AllowedIPs (Android/S22 fix)
+    # CIDR logic for AllowedIPs
     local if_v4_base="${IF_ADDR_V4[$iface]%%/*}"
     local if_v4_mask="${IF_ADDR_V4[$iface]##*/}"
     local v4_network="${if_v4_base%.*}.0/${if_v4_mask}"
@@ -116,7 +114,7 @@ EOF
     local s_path=$(server_out_path "$iface")
     printf "\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s/32, %s\n" "$name" "$(<"$ck.pub")" "$ipv4" "$ipv6" >> "$s_path"
 
-    # --- FIX 3: ENRICHED PEER MAP ---
+    # --- ENRICHED PEER MAP ---
     printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
         "$(<"$ck.pub")" "$name" "$iface" "$ipv4" "$ipv6" "$access" "$lan" >> "$OUTPUT_DIR/peer-map.tsv"
 
@@ -144,8 +142,9 @@ main() {
         [[ "${IF_ENABLED[$i]}" == "1" ]] && write_server_config "$i"
     done
 
-    grep -vE '^(#|name)' "$CLIENTS_TSV" | while IFS=$'\t' read -r c_name c_dev c_os c_iface others; do
-        [[ -n "$c_name" ]] && write_client_config "$c_iface" "$c_name" "$c_os"
+    # Parse clients.tsv and pass access/lan columns to config generator
+    grep -vE '^(#|name)' "$CLIENTS_TSV" | while IFS=$'\t' read -r c_name c_dev c_os c_iface c_access c_mode c_lan rest; do
+        [[ -n "$c_name" ]] && write_client_config "$c_iface" "$c_name" "$c_os" "$c_access" "$c_lan"
     done
 }
 
