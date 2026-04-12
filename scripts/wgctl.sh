@@ -30,13 +30,15 @@ do_install() {
             [[ -e "$conf" ]] || continue
             # IFC: SRC_HOST SRC_PORT SRC_PATH DST_HOST DST_PORT DST_PATH OWNER GROUP MODE
             "$IFC_BIN" "" "22" "$conf" \
-                       "$ROUTER_ADDR" "$ROUTER_SSH_PORT" "${ROUTER_WG_DIR}/$(basename "$conf")" \
+                       "$ROUTER_HOST" "$ROUTER_SSH_PORT" "${ROUTER_WG_DIR}/$(basename "$conf")" \
                        "0" "0" "0600"
         done
     elif [[ "$TARGET" == "nas" ]]; then
         # Deployment from NAS output -> NAS /etc/wireguard
+        # Note: Must be run as root to write to /etc/wireguard/
         for conf in "${WG_ROOT}/output/server"/*.conf; do
             [[ -e "$conf" ]] || continue
+            # No internal sudo here; let the caller (Makefile) handle escalation
             "$IFC_BIN" "" "22" "$conf" \
                        "" "22" "${NAS_WG_CONF}/$(basename "$conf")" \
                        "0" "0" "0600"
@@ -47,7 +49,6 @@ do_install() {
 do_up() {
     log "Bringing up interfaces..."
     if [[ "$TARGET" == "router" ]]; then
-        # Merlin uses wg-quick via Entware or custom shell wrapper
         ssh -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" \
             "for f in ${ROUTER_WG_DIR}/*.conf; do wg-quick up \"\$f\" 2>/dev/null || true; done"
     else
@@ -80,30 +81,22 @@ do_status() {
         remote_cmd="sudo"
     fi
 
-    # 1. Check if the interface is actually active in the kernel
     if ! $remote_cmd "$wg_bin" show > /dev/null 2>&1; then
         echo "❌ Status: WireGuard service is DOWN on $TARGET"
         return
     fi
 
-    # 2. Print Header
     printf "%-18s %-10s %-18s %-12s %-10s\n" "PEER NAME" "IFACE" "VPN IPv4" "STATUS" "ACCESS"
     echo "--------------------------------------------------------------------------------"
 
-    # 3. Parse enriched peer-map.tsv
-    # pubkey name iface ipv4 ipv6 access lan
     while IFS=$'\t' read -r pubkey name iface ipv4 ipv6 access lan; do
-        [[ "$pubkey" == "pubkey" ]] && continue # Skip header
+        [[ "$pubkey" == "pubkey" ]] && continue
 
-        # Get latest handshake timestamp
         local handshake
         handshake=$($remote_cmd "$wg_bin" show "$iface" latest-handshakes 2>/dev/null | grep "$pubkey" | awk '{print $2}' || echo "0")
 
-        local status
-        if [[ "$handshake" -eq 0 ]]; then
-            status="Offline"
-        else
-            # Calculate human-readable 'Last Seen' or simply 'Active'
+        local status="Offline"
+        if [[ "$handshake" -gt 0 ]]; then
             local now=$(date +%s)
             local diff=$((now - handshake))
             if [[ "$diff" -lt 120 ]]; then
