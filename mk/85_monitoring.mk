@@ -51,9 +51,10 @@ prometheus-install: ensure-run-as-root
 # Install Prometheus configuration (repo-owned)
 # --------------------------------------------------------------------
 prometheus-config: ensure-run-as-root $(PROMETHEUS_CONFIG_SRC)
+	@echo "🔍 Validating Prometheus configuration"
+	@promtool check config $(PROMETHEUS_CONFIG_SRC)
 	@echo "📦 Installing Prometheus configuration"
-	@$(call install_file,$(PROMETHEUS_CONFIG_SRC),$(PROMETHEUS_CONFIG_DST),root,root,0644) \
-		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+	@$(call install_file,$(PROMETHEUS_CONFIG_SRC),$(PROMETHEUS_CONFIG_DST),root,root,0644)
 
 # --------------------------------------------------------------------
 # Restart Prometheus explicitly

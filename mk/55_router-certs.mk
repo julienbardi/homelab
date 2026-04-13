@@ -12,21 +12,15 @@ endif
 
 ROUTER_CERT_CHECKSUM := /tmp/router-cert-checksum.txt
 
-# Content-only checksum guard
+# Better checksum logic to prevent unnecessary re-runs
 $(ROUTER_CERT_CHECKSUM):
-	@newsum=$$( \
-		HOME=/home/julie $(run_as_root) sha256sum \
-			"$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" \
-			"$(SSL_CANONICAL_DIR)/privkey_ecc.pem" \
-		| sha256sum | cut -d' ' -f1 \
-	); \
-	oldsum=""; \
-	[ -f "$(ROUTER_CERT_CHECKSUM)" ] && oldsum=$$(cat "$(ROUTER_CERT_CHECKSUM)"); \
+	@mkdir -p /tmp
+	@newsum=$$(HOME=/home/julie $(run_as_root) sha256sum "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" "$(SSL_CANONICAL_DIR)/privkey_ecc.pem" | sha256sum | cut -d' ' -f1); \
+	oldsum=$$(cat $@ 2>/dev/null || echo ""); \
 	if [ "$$newsum" != "$$oldsum" ]; then \
-		echo "$$newsum" > "$(ROUTER_CERT_CHECKSUM)"; \
-		echo "🔐  Router cert checksum updated"; \
-	else \
-		echo "🔄  Router certs unchanged"; \
+		echo "$$newsum" > $@; \
+		echo "🔐 Router cert checksum updated"; \
+		rm -f /tmp/router-deploy.stamp; \
 	fi
 
 # ------------------------------------------------------------

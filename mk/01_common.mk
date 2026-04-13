@@ -6,21 +6,6 @@
 # - All recipes must call $(run_as_root) with argv tokens.
 # --------------------------------------------------------------------
 
-# Global Engine Pointers (V2 ONLY)
-export INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
-INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v2.sh
-INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_changed.sh
-
-# Default exit code used to signal "changed"; defined with ?= to allow upstream or environment overrides.
-INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
-
-# Source Paths
-IFC_V2_SINGLE_SRC := $(REPO_ROOT)scripts/install_file_if_changed_v2.sh
-IFC_V2_PLURAL_SRC := $(REPO_ROOT)scripts/install_files_if_changed_v2.sh
-IFC_URL_SRC       := $(REPO_ROOT)scripts/install_url_file_if_changed.sh
-COMMON_SRC        := $(REPO_ROOT)scripts/common.sh
-RUN_ROOT_SRC      := $(REPO_ROOT)scripts/run-as-root.sh
-
 # ------------------------------------------------------------
 # Tools Installation (The Bootstrap Core)
 # ------------------------------------------------------------
@@ -112,7 +97,7 @@ OTHER_SBIN_FILES := $(addprefix $(INSTALL_SBIN_PATH)/,$(filter-out run-as-root.s
 .PHONY: install-all uninstall-all ensure-run-as-root assert-sanity
 
 install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES)
-	@echo "📦 Homelab bootstrap complete — all scripts installed and up-to-date."
+	@echo "📦 [$(ROLE)] Homelab bootstrap complete."
 
 uninstall-all:
 	@echo "🗑️  Uninstalling all homelab scripts..."
@@ -176,3 +161,33 @@ assert-scripts-layout:
 		echo "👉 Scripts must be organized into functional subdirectories."; \
 		exit 1; \
 	fi
+
+# ------------------------------------------------------------
+# Package Management Macros
+# ------------------------------------------------------------
+
+# Arguments for apt_install:
+# 1: PROBE_COMMAND (the binary to check if installed, e.g., 'dnsmasq')
+# 2: PACKAGE_NAME (the apt package name, e.g., 'dnsmasq')
+define apt_install
+	@if ! command -v $(1) >/dev/null 2>&1; then \
+		echo "apt 📦 Installing $(2)..."; \
+		$(run_as_root) env DEBIAN_FRONTEND=noninteractive \
+			apt-get update -qq && \
+		$(run_as_root) env DEBIAN_FRONTEND=noninteractive \
+			apt-get install -y -qq \
+			-o Dpkg::Options::="--force-confold" \
+			-o Dpkg::Options::="--force-confdef" $(2); \
+	fi
+endef
+
+# Arguments for apt_remove:
+# 1: PACKAGE_NAME
+define apt_remove
+	@if dpkg -l | grep -qw $(1); then \
+		echo "apt 🗑️ Removing $(1)..."; \
+		$(run_as_root) env DEBIAN_FRONTEND=noninteractive \
+			apt-get purge -y -qq $(1); \
+		$(run_as_root) apt-get autoremove -y -qq; \
+	fi
+endef

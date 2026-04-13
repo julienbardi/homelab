@@ -1,6 +1,4 @@
-# ============================================================
 # mk/60_unbound.mk — Unbound orchestration
-# ============================================================
 
 UNBOUND_RESTART_STAMP := $(STAMP_DIR)/unbound.restart
 
@@ -74,24 +72,18 @@ enable-unbound: ensure-default-gateway ensure-run-as-root \
 	echo "ℹ️  Run: make unbound-status"; \
 	exit 1
 
-
 # ------------------------------------------------------------
-# Unbound
+# Unbound Installation
 # ------------------------------------------------------------
 install-pkg-unbound:
-	@if command -v unbound >/dev/null; then \
-		echo "🔄 unbound already installed"; \
-	else \
-		echo "📦 Installing unbound"; \
-		$(call apt_install,unbound,unbound) \
-	fi
+	@echo "📦 Installing unbound"
+	@$(call apt_install,unbound,unbound)
 	@$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true
-	@echo "✅ Unbound installed and enabled"
 
 remove-pkg-unbound:
 	$(call apt_remove,unbound)
 
-# --- Deployment ---
+# --- Deployment Paths ---
 UNBOUND_CONF_SRC := $(REPO_ROOT)config/unbound/unbound.conf
 UNBOUND_CONF_DST := /etc/unbound/unbound.conf
 
@@ -135,6 +127,8 @@ ensure-dnssec-trust-anchor: ensure-run-as-root
 
 deploy-unbound-config: ensure-run-as-root update-root-hints ensure-dnssec-trust-anchor rotate
 	@$(run_as_root) install -d -m 0755 /etc/unbound
+	@echo "🔍 Validating Unbound configuration before deployment"
+	@$(run_as_root) unbound-checkconf $(UNBOUND_CONF_SRC) || { echo "❌ Source config $(UNBOUND_CONF_SRC) is invalid"; exit 1; }
 	@changed=0; \
 	rc=0; \
 	$(call install_file,$(UNBOUND_CONF_SRC),$(UNBOUND_CONF_DST),root,root,0644) || rc=$$?; \
@@ -143,7 +137,6 @@ deploy-unbound-config: ensure-run-as-root update-root-hints ensure-dnssec-trust-
 		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
 		*) exit "$$rc" ;; \
 	esac; \
-	$(run_as_root) su -s /bin/sh unbound -c "cd /tmp && unbound-checkconf $(UNBOUND_CONF_DST)" || { echo "❌ invalid config"; exit 1; }; \
 	if [ $$changed -eq 1 ]; then \
 		echo "🔄 unbound.conf updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
@@ -193,7 +186,6 @@ deploy-unbound-local-internal: ensure-run-as-root
 		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
 		*) exit "$$rc" ;; \
 	esac; \
-	$(run_as_root) su -s /bin/sh unbound -c "cd /tmp && unbound-checkconf $(UNBOUND_CONF_DST)" || { echo "❌ invalid config"; exit 1; }; \
 	if [ $$changed -eq 1 ]; then \
 		echo "🔄 local-internal.conf updated"; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
@@ -220,13 +212,13 @@ install-unbound-systemd-dropin: ensure-run-as-root
 	fi
 
 deploy-unbound:
-	dns-preflight \
-	install-pkg-unbound \
-	deploy-unbound-sysctl \
-	deploy-unbound-config \
-	deploy-unbound-local-internal \
-	deploy-unbound-service \
-	deploy-unbound-control-config
+	$(MAKE) dns-preflight
+	$(MAKE) install-pkg-unbound
+	$(MAKE) deploy-unbound-sysctl
+	$(MAKE) deploy-unbound-config
+	$(MAKE) deploy-unbound-local-internal
+	$(MAKE) deploy-unbound-service
+	$(MAKE) deploy-unbound-control-config
 	@echo "ℹ️ Unbound deployed (restart handled by enable-unbound)"
 
 # --- Remote control ---
@@ -242,7 +234,7 @@ reset-unbound-control: ensure-run-as-root
 	@$(run_as_root) unbound-control-setup
 	@$(run_as_root) install -m 0640 -o root -g unbound /etc/unbound/unbound_{server,control}.{key,pem} /etc/unbound/
 
-dns-runtime-check: assert-unbound-running
+dns-runtime-check:
 	@dig @127.0.0.1 -p 5335 . NS +short >/dev/null || \
 		( echo "❌ Unbound not resolving root NS"; exit 1 )
 
@@ -279,7 +271,6 @@ dns-bench:
 	rm -f "$$tmp"; \
 	echo "✅ DNS benchmark complete"
 
-
 dns-runtime: \
 	enable-systemd \
 	install-unbound-systemd-dropin \
@@ -295,14 +286,12 @@ dns-reset-clean: ensure-run-as-root
 	@$(run_as_root) systemctl stop unbound || true
 	@$(run_as_root) rm -rf /run/unbound /var/lib/unbound/* || true
 
-dns-reset: FORCE := $(FORCE)
-dns-reset: CONF_FORCE := $(CONF_FORCE)
-dns-reset: \
-	assert-unbound-tools \
-	dns-reset-clean \
-	deploy-unbound \
-	setup-unbound-control \
-	dns
+dns-reset:
+	$(MAKE) assert-unbound-tools
+	$(MAKE) dns-reset-clean
+	$(MAKE) deploy-unbound
+	$(MAKE) setup-unbound-control
+	$(MAKE) dns
 	@echo "✅ DNS reset + bootstrap complete"
 
 assert-unbound-control:
@@ -312,7 +301,6 @@ assert-unbound-control:
 		-c /etc/unbound/unbound-control.conf \
 		status >/dev/null 2>/dev/null || \
 		( echo "❌ unbound-control not responding"; exit 1 )
-
 
 # --- Live log watch ---
 dns-watch:

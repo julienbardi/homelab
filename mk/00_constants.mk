@@ -48,7 +48,6 @@ ROOT_GID := 0
 # ------------------------------------------------------------
 INSTALL_PATH        := /usr/local/bin
 INSTALL_SBIN_PATH   := /usr/local/sbin
-ENSURE_DIR          := $(INSTALL_PATH)/ensure_dir.sh
 
 # ---------------------------------------------------------------------------
 # Router component constants (Caddy, certs, common.sh)
@@ -83,13 +82,12 @@ SRC_SCRIPTS := $(REPO_ROOT)router/jffs/scripts
 HOMELAB_ENV_SRC := $(REPO_ROOT)config/homelab.env
 HOMELAB_ENV_DST := /volume1/homelab/homelab.env
 
-# ------------------------------------------------------------
-# Installed helpers (overrideable for testing or alternate platforms)
-# ------------------------------------------------------------
-CERTS_CREATE ?= /jffs/scripts/certs-create.sh
-CERTS_DEPLOY ?= /jffs/scripts/certs-deploy.sh
-GEN_CLIENT_CERT    ?= /jffs/scripts/generate-client-cert.sh
-GEN_CLIENT_WRAPPER ?= /jffs/scripts/gen-client-cert-wrapper.sh
+# Installed helpers (authoritative)
+
+CERTS_CREATE        ?= $(ROUTER_SCRIPTS)/certs-create.sh
+CERTS_DEPLOY        ?= $(ROUTER_SCRIPTS)/deploy_certificates.sh  # <--- FIX: Correct filename
+GEN_CLIENT_CERT     ?= $(ROUTER_SCRIPTS)/generate-client-cert.sh
+GEN_CLIENT_WRAPPER  ?= $(ROUTER_SCRIPTS)/gen-client-cert-wrapper.sh
 
 # ------------------------------------------------------------
 # Shell platform contract
@@ -151,3 +149,33 @@ WG_PLAN_SUBNETS := $(INSTALL_PATH)/wg-plan-subnets.sh
 # WireGuard router subnets (derived at runtime; declared here for visibility only)
 WG_ROUTER_SUBNET_V4 :=
 WG_ROUTER_SUBNET_V6 :=
+
+# --- Global Engine Pointers (V2 ONLY) ---
+export INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
+INSTALL_FILES_IF_CHANGED           := $(INSTALL_PATH)/install_files_if_changed_v2.sh
+INSTALL_URL_FILE_IF_CHANGED        := $(INSTALL_PATH)/install_url_file_if_changed.sh
+ENSURE_DIR                         := $(INSTALL_PATH)/ensure_dir.sh
+
+# --- Source Paths (Mappings from Repo to Intent) ---
+IFC_V2_SINGLE_SRC := $(REPO_ROOT)scripts/install_file_if_changed_v2.sh
+IFC_V2_PLURAL_SRC := $(REPO_ROOT)scripts/install_files_if_changed_v2.sh
+IFC_URL_SRC       := $(REPO_ROOT)scripts/install_url_file_if_changed.sh
+COMMON_SRC        := $(REPO_ROOT)scripts/common.sh
+RUN_ROOT_SRC      := $(REPO_ROOT)scripts/run-as-root.sh
+
+# --- Engine Configuration ---
+INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
+
+# --- Bridge to Homelab Environment ---
+# -include allows bootstrapping even if the file doesn't exist yet
+-include $(REPO_ROOT)config/homelab.env
+
+# Export key variables to all sub-shells/scripts triggered by Make
+export DOMAIN
+export ACME_HOME
+export ROLE
+
+# Keep the safety guard here so the error happens immediately on any 'make' command
+ifeq ($(strip $(DOMAIN)),)
+$(error DOMAIN is empty — please define it in config/homelab.env)
+endif

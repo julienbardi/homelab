@@ -7,7 +7,7 @@
 
 BIN_DIR ?= /usr/local/bin
 
-TAILNET_BIN      := $(BIN_DIR)/tailnet.sh 
+TAILNET_BIN      := $(BIN_DIR)/tailnet.sh
 TAILNET_MENU_BIN := $(BIN_DIR)/tailnet-menu.sh
 
 # Default device name: system hostname (override with DEVICE_NAME=foo)
@@ -25,3 +25,8 @@ tailnet: $(TAILNET_BIN)
 
 tailnet-menu-deploy: $(TAILNET_MENU_BIN)
 	@echo "tailnet-menu installed. Run 'tailnet-menu' from anywhere."
+
+.PHONY: tailnet-status
+tailnet-status:
+	@echo "🌐 Current Tailnet Nodes:"
+	@tailscale status || echo "⚠️ tailscaled not running or not authenticated"

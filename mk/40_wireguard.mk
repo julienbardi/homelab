@@ -4,9 +4,9 @@
 # Contract: No $(MAKE) calls, 'make -j' safe, no remote timestamp reliance.
 
 .PHONY: \
-	wg-clean-out wg-generate wg-install-router wg-install-nas \
-	wg-up-router wg-up-nas wg-down-router wg-down-nas \
-	wg-status wg-up wg-down router-ensure-wg-module wg-router-preflight
+    wg-clean-out wg-generate wg-install-router wg-install-nas \
+    wg-up-router wg-up-nas wg-down-router wg-down-nas \
+    wg-status wg-up wg-down router-ensure-wg-module wg-router-preflight
 
 # Authoritative SSH command using 00_constants.mk
 run_as_root_router := ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST)
@@ -21,7 +21,7 @@ wg-router-preflight:
 	@$(run_as_root_router) modprobe wireguard || true
 
 define PUSH_WG_SCRIPT
-	$(call install_script,$(1),$(notdir $(2)))
+    $(call install_script,$(1),$(notdir $(2)))
 endef
 
 # --- Edges (Repo -> Bin) ---
@@ -46,7 +46,7 @@ wg-generate: $(INSTALL_PATH)/wg-generate-configs.sh
 # Ensure these are correctly derived if not already absolute
 WG_OUTPUT_ROUTER := $(WG_ROOT)/output/router
 
-wg-install-router: router-ensure-wg-module wg-router-preflight $(INSTALL_PATH)/wgctl.sh wg-generate
+wg-install-router: router-ensure-wg-module wg-router-preflight $(INSTALL_PATH)/wgctl.sh wg-generate $(INSTALL_FILE_IF_CHANGED)
 	@set -e; \
 	ROUTER_HOST="$(ROUTER_HOST)" \
 	ROUTER_ADDR="$(ROUTER_ADDR)" \
@@ -59,7 +59,7 @@ wg-install-router: router-ensure-wg-module wg-router-preflight $(INSTALL_PATH)/w
 	@if [ -f "$(WG_OUTPUT_ROUTER)/wg-firewall.sh" ]; then \
 		echo "🛡️ [wg-install-router] Installing firewall..."; \
 		FEC=0; \
-		$(REPO_ROOT)scripts/install_file_if_changed_v2.sh \
+		$(INSTALL_FILE_IF_CHANGED) \
 			"" "" "$(WG_OUTPUT_ROUTER)/wg-firewall.sh" \
 			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
 			"0" "0" "0755" || FEC=$$?; \
@@ -68,15 +68,16 @@ wg-install-router: router-ensure-wg-module wg-router-preflight $(INSTALL_PATH)/w
 	fi
 
 # NAS WireGuard Installation (Privileged)
-wg-install-nas: router-require-run-as-root | $(STAMP_DIR)
+wg-install-nas: ensure-run-as-root $(INSTALL_PATH)/wgctl.sh $(INSTALL_FILE_IF_CHANGED) | $(STAMP_DIR)
 	@echo "📦 Installing WireGuard configs on NAS"
-	@$(run_as_root) sh -c '\
-		ROUTER_HOST="$(ROUTER_HOST)" \
-		ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
-		ROUTER_WG_DIR="$(ROUTER_WG_DIR)" \
-		WG_ROOT="$(WG_ROOT)" \
-		$(INSTALL_PATH)/wgctl.sh nas install \
-	'
+	@set -e; EC=0; \
+	ROUTER_HOST="$(ROUTER_HOST)" \
+	ROUTER_ADDR="$(ROUTER_ADDR)" \
+	ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
+	ROUTER_WG_DIR="$(ROUTER_WG_DIR)" \
+	WG_ROOT="$(WG_ROOT)" \
+	$(INSTALL_PATH)/wgctl.sh nas install || EC=$$?; \
+	if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi
 
 wg-up-router: wg-install-router
 	@ROUTER_CONTROL_PLANE=1 $(INSTALL_PATH)/wgctl.sh router up
