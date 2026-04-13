@@ -20,3 +20,20 @@ $(DNS_CHECK): $(REPO_ROOT)scripts/dns-health-check.sh
 check-dns: prereqs-dns-health-check-verify ensure-run-as-root #| install-all
 	@echo "📊 Running DNS health check on $(RESOLVER_ADDR):$(RESOLVER_PORT)..."
 	@$(run_as_root) $(DNS_CHECK) "$(RESOLVER_ADDR)" -p "$(RESOLVER_PORT)" || echo "⚠️ DNS health check reported issues (likely cold cache)"
+
+# Example variable check if you wanted to be extra precise
+ifndef NAS_LAN_IP
+$(error NAS_LAN_IP is not defined. Check your common mk files.)
+endif
+
+.PHONY: check-dns-lan
+check-dns-lan: ensure-run-as-root
+	@echo "📊 Running DNS health check on LAN IP $(NAS_LAN_IP):$(RESOLVER_PORT)..."
+	@$(run_as_root) $(DNS_CHECK) "$(NAS_LAN_IP)" -p "$(RESOLVER_PORT)"
+
+status-dns: ensure-run-as-root
+	@if $(run_as_root) systemctl is-active --quiet unbound; then \
+		echo "✅ Unbound active"; \
+	else \
+		echo "❌ Unbound inactive"; exit 1; \
+	fi

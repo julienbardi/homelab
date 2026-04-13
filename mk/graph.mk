@@ -64,7 +64,7 @@ include $(REPO_ROOT)mk/40_wireguard.mk
 #include $(REPO_ROOT)mk/42_wireguard_runtime.mk
 #include $(REPO_ROOT)mk/43_wireguard-runtime.mk
 include $(REPO_ROOT)mk/50_certs.mk       # certificate handling (issue, renew, deploy)
-include $(REPO_ROOT)mk/50_dnsmasq.mk
+#include $(REPO_ROOT)mk/50_dnsmasq.mk
 include $(REPO_ROOT)mk/55_router-certs.mk
 include $(REPO_ROOT)mk/56_router-certs.mk
 include $(REPO_ROOT)mk/60_unbound.mk     # Unbound DNS resolver setup

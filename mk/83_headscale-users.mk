@@ -23,3 +23,8 @@ headscale-users:
 		echo "[headscale] Ensuring user $$user"; \
 		$(run_as_root) "$(HS_BIN)" users create "$$user" >/dev/null 2>&1 || true; \
 	done
+
+.PHONY: headscale-users-list
+headscale-users-list:
+	@echo "👥 Active Headscale Users:"
+	@$(run_as_root) "$(HS_BIN)" users list

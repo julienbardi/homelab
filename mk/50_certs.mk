@@ -13,16 +13,6 @@
 # - Keeps all cert watchers passive until a cert actually changes
 # --------------------------------------------------------------------
 
-# Load homelab environment (DOMAIN, ACME_HOME, etc.)
-include config/homelab.env
-export DOMAIN
-export ACME_HOME
-
-ifeq ($(strip $(DOMAIN)),)
-$(error DOMAIN is empty — define it in config/homelab.env)
-endif
-
-
 # Installed certificate helpers (authoritative execution surface)
 CERTS_CREATE        := $(INSTALL_PATH)/certs-create.sh
 #CERTS_DEPLOY        := $(INSTALL_PATH)/certs-deploy.sh
@@ -201,12 +191,13 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 renew: ensure-run-as-root install-helpers
 	@$(run_as_root) $(CERTS_DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE)
 
-# New target to ensure scripts are synced
-# @$(run_as_root) install -m 0755 scripts/certs-deploy.sh /usr/local/bin/certs-deploy.sh
-install-helpers:
-	@$(run_as_root) install -m 0755 scripts/common.sh /usr/local/bin/common.sh
-	@$(run_as_root) install -m 0755 scripts/install_file_if_changed_v2.sh /usr/local/bin/install_file_if_changed_v2.sh
-	@$(run_as_root) install -m 0755 scripts/deploy_certificates.sh /usr/local/bin/deploy_certificates.sh
+# Cleaner: Let the dependency graph do the work
+install-helpers: $(INSTALL_PATH)/common.sh $(INSTALL_FILE_IF_CHANGED) $(INSTALL_PATH)/deploy_certificates.sh
+	@echo "🛠️ Helpers verified and synced"
+
+# Ensure the pointer is explicitly linked to the source if not handled in common.mk
+$(INSTALL_PATH)/deploy_certificates.sh: $(REPO_ROOT)scripts/deploy_certificates.sh | $(BOOTSTRAP_FILES)
+	$(call install_script,$<,$(notdir $@))
 
 prepare: ensure-run-as-root renew $(CERTS_DEPLOY)
 	@$(run_as_root) $(CERTS_DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }

@@ -164,8 +164,15 @@ check-dnsdist-doh-listener:
 		&& echo "✅ dnsdist DoH listener active on port 8053" \
 		|| ( echo "❌ dnsdist DoH listener NOT active on port 8053"; exit 1 )
 
+check-dnsdist-doh-local:
+	@echo "🧪 Testing local DoH resolution via kdig..."
+	@kdig @127.0.0.1 +https +tls-ca=$(DNSDIST_CERT) -p 8053 google.com > /dev/null || \
+		( echo "❌ DoH resolution failed via kdig"; exit 1 )
+	@echo "✅ DoH resolution successful"
+
 dnsdist-verify: \
 	dnsdist-validate \
 	assert-dnsdist-running \
-	check-dnsdist-doh-listener
+	check-dnsdist-doh-listener \
+	check-dnsdist-doh-local
 	@echo "🎉 dnsdist verification complete"
