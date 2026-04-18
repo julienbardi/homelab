@@ -19,13 +19,20 @@ TIMER_PATH     ?= $(SYSTEMD_DIR)/$(TIMER)
 
 DNS_WARM_USER  := dnswarm
 DNS_WARM_GROUP := $(DNS_WARM_USER)
-RESOLVER       ?= 127.0.0.1
+# 127.0.0.1
+RESOLVER       ?= $(NAS_LAN_IP)
+# ::1 is reacheable but to $(NAS_LAN_IP6)
+RESOLVER_IP6   ?=
 PER_RUN        ?= 2000
 
 DNS_WARM_POLICY_SRC := $(REPO_ROOT)scripts/dns-warm-update-domains.sh
 DNS_WARM_POLICY_DST := $(INSTALL_PATH)/dns-warm-update-domains
 
-.PHONY: install-dns-warm-policy update-dns-warm-domains prereqs-dns-warm-verify
+.PHONY: install-dns-warm-policy update-dns-warm-domains prereqs-dns-warm-verify \
+	dns-warm-install dns-warm-enable dns-warm-disable \
+	dns-warm-uninstall dns-warm-start dns-warm-stop dns-warm-status \
+	dns-warm-create-user dns-warm-dirs dns-warm-install-script \
+	dns-warm-install-systemd dns-warm-async dns-warm-health dns-warm-now
 
 install-dns-warm-policy: ensure-run-as-root
 	@echo "📦 Deploying DNS warm policy script..."
@@ -45,12 +52,6 @@ prereqs-dns-warm-verify:
 		echo "👉 Run: make prereqs"; \
 		exit 1; \
 	}
-
-.PHONY: \
-	dns-warm-install dns-warm-enable dns-warm-disable \
-	dns-warm-uninstall dns-warm-start dns-warm-stop dns-warm-status \
-	dns-warm-create-user dns-warm-dirs dns-warm-install-script \
-	dns-warm-install-systemd
 
 # -------------------------------------------------
 # Public targets
@@ -116,7 +117,7 @@ dns-warm-install-script: dns-warm-async-install ensure-run-as-root
 # Fix parallel ordering
 # mk/71_dns-warm.mk (Update the printf block)
 
-dns-warm-install-systemd: dns-warm-install-script
+dns-warm-install-systemd: dns-warm-install-script ensure-run-as-root
 	@echo "📦 Installing systemd service and timer..."
 	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
 	@$(run_as_root) printf "[Unit]\n\
@@ -157,63 +158,59 @@ WantedBy=timers.target\n" | $(run_as_root) tee $(TIMER_PATH) > /dev/null
 
 DNS_WARM_ASYNC_SRC := $(REPO_ROOT)scripts/dns-warm-async.c
 
-.PHONY: dns-warm-async
 dns-warm-async: $(DNS_WARM_ASYNC_SRC) prereqs
 	@$(CC) -O2 -Wall -Wextra -o $@ $< -lcares
 
 dns-warm-async-install: dns-warm-async ensure-run-as-root
 	@$(call install_file,dns-warm-async,$(INSTALL_PATH)/dns-warm-async,root,root,0755)
 
-.PHONY: dns-warm-health
 dns-warm-health: ensure-run-as-root
 	@echo "🔍 DNS-warm health check"
-	@echo "⏱️  Timer status"
 	@if $(run_as_root) systemctl is-active --quiet $(TIMER); then \
-		echo "   ✅ Timer active"; \
+		echo "✅ Timer active"; \
 	else \
-		echo "   ❌ Timer inactive"; \
+		echo "❌ Timer inactive"; \
 	fi
-	@echo "🛠️  Service status"
 	@if $(run_as_root) systemctl is-active --quiet $(SERVICE); then \
-		echo "   ✅ Service healthy (oneshot)"; \
+		echo "✅ Service healthy (oneshot, currently running)"; \
 	else \
-		echo "   ⚠️ Service not running (oneshot expected)"; \
+		echo "✅ Service healthy (oneshot, currently not running)"; \
 	fi
-	@echo "📁 Domain list"
 	@if [ -s $(DOMAINS_FILE) ]; then \
 		age=$$(( $$(date +%s) - $$(stat -c %Y $(DOMAINS_FILE)) )); \
 		count=$$(wc -l < $(DOMAINS_FILE)); \
-		echo "   ✅ Present"; \
-		echo "   • Entries: $$count"; \
-		echo "   • Age: $$age seconds"; \
+		echo "✅ Domain list present: Entries: $$count, Age: $$age seconds"; \
 	else \
-		echo "   ❌ Missing or empty"; \
+		echo "❌ Domain list missing or empty"; \
 	fi
-	@echo "📄 State file"
+
 	@if $(run_as_root) test -f $(STATE_FILE); then \
-		echo "   ✅ Present : $(STATE_FILE)"; \
+		echo "✅ State file present : $(STATE_FILE)"; \
 		$(run_as_root) stat -c '   • Size: %s bytes' $(STATE_FILE); \
 		$(run_as_root) stat -c '   • Updated: %y' $(STATE_FILE); \
 	else \
-		echo "   ⚠️ Missing (rotate job may not have run yet)"; \
+		echo "⚠️ State file missing (rotate job may not have run yet)"; \
 	fi
-	@if $(run_as_root) dig +time=1 +tries=1 @$(RESOLVER) example.com >/dev/null 2>&1; then \
-			echo "✅ Resolver IPv4 (%s): $(RESOLVER) reachable"; \
+	@if $(run_as_root) dig +time=1 +tries=1 @$(RESOLVER) $(DOMAIN) >/dev/null 2>&1; then \
+			echo "✅ Resolver IPv4: $(RESOLVER) reachable"; \
 	else \
-			echo "❌ Resolver IPv4 (%s): $(RESOLVER) unreachable"; \
+			echo "❌ Resolver IPv4: $(RESOLVER) unreachable"; \
 	fi
 
-	@if $(run_as_root) dig +time=1 +tries=1 @::1 example.com >/dev/null 2>&1; then \
-			echo "✅ Resolver IPv6 (::1) reachable"; \
+	@if [ -n "$(RESOLVER_IP6)" ]; then \
+		$(run_as_root) sh -c 'err=$$(dig +time=1 +tries=1 @$(RESOLVER_IP6) $(DOMAIN) 2>&1 >/dev/null || true); \
+		if [ -z "$$err" ]; then \
+			echo "✅ Resolver IPv6 ($(RESOLVER_IP6)): $(RESOLVER_IP6) reachable"; \
+		else \
+			echo "❌ Resolver IPv6 ($(RESOLVER_IP6)): $(RESOLVER_IP6) unreachable"; \
+			test -z "$(VERBOSE)" || echo "$$err"; \
+		fi'; \
 	else \
-			echo "❌ Resolver IPv6 (::1) unreachable"; \
+		test -z "$(VERBOSE)" || echo "ℹ️ Resolver IPv6 not configured; skipping"; \
 	fi
 	@echo "✅ DNS-warm health check complete"
 
-.PHONY: dns-warm-now
 dns-warm-now: update-dns-warm-domains dns-warm-start dns-warm-health
-	@echo ""
-	@echo "📜 Last warm run"
-	@$(run_as_root) journalctl -u $(SERVICE) -n 1 --no-pager || true
-	@echo ""
+	@echo "📜 Last warm run:"
+	@journalctl -u $(SERVICE) -n 1 --no-pager || true
 	@echo "✅ dns-warm-now complete"
