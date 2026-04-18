@@ -117,4 +117,4 @@ __pycache__/
 .venv/
 venv/
 gen2/site/node_modules/
-gen2/site/dist/
+gen2/site/dist/.cache
