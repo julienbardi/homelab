@@ -1,210 +1,120 @@
 # ============================================================
 # Homelab Project .gitignore
-# ------------------------------------------------------------
-# This file defines what should NOT be tracked in Git.
+# ============================================================
 # RULES:
 #   1. Never commit secrets or environment files.
 #   2. Only commit source templates, not generated configs.
-#   3. Logs, runtime artifacts, and OS/IDE junk must be ignored.
-#   4. Update this file whenever new tooling introduces artifacts.
+#   3. This repo is designed to live in ~/src/homelab.
+#   4. Identities and massive data live on /volume1/ (Physical Firewall).
 # ============================================================
 
-# === Logs & runtime output ===
-# Ignore log files and runtime artifacts that should never be versioned
-# Source: https://git-scm.com/docs/gitignore
+# === Logs, OS & IDE Junk ===
 *.log
 *.tmp
 *.bak
 *.swp
 *.pid
+*~
+.nfs*
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.idea/
+*.iml
 
-# === Secrets & environment ===
-# Secrets must be managed outside Git (password manager, systemd env, etc.)
-# Source: https://12factor.net/config
-.env
-*.env
-secrets/
-config/*.generated
-*.bak.conf
-/volume1/homelab/secrets/
-/**/secrets/
-
-# === FreeFileSync databases & temp files ===
-# FreeFileSync creates sync databases (.ffs_db), temp files (.ffs_tmp), and lock files (.ffs_lock)
-# Source: https://freefilesync.org/manual.php?topic=hidden-settings#ignore
+# === FreeFileSync Databases ===
 *.ffs_db
 *.ffs_tmp
 *.ffs_lock
 
-# === Systemd units (deployed copies, not source templates) ===
-# We generate/manage .service files dynamically on the host, so don’t track them here
-# Source: https://www.freedesktop.org/software/systemd/man/systemd.unit.html
-*.service.deployed
-
-# === OS-specific junk ===
-# macOS Finder metadata
-# Source: https://developer.apple.com/library/archive/technotes/tn1150/_index.html
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Windows Explorer metadata
-# Source: https://learn.microsoft.com/en-us/windows/win32/shell/metadata
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# Linux temp files
-# Source: https://man7.org/linux/man-pages/man5/nfs.5.html
-*~
-.nfs*
-
-# === IDE / Editor artifacts ===
-# Ignore project settings from common IDEs
-# Source: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
-.idea/
-*.iml
-
-# === NAS quirks (QNAP, Synology, Ugreen) ===
-# Synology and QNAP create hidden directories for indexing and sync
-# Source: https://kb.synology.com/en-global/DSM/tutorial/What_is_the_EA_Dir_folder
-@eaDir/
-.SynologyWorkingDirectory/
-*.qpkg
-*.qsync
-*.tmp.*
-
-# === Archive files (optional) ===
-# Ignore compressed archives if you don’t want to track them
-# Source: https://www.gnu.org/software/tar/manual/html_node/Standard.html
-*.tar
-*.gz
-*.zip
-*.7z
-*.rar
-
-# === Node/Python (future-proofing) ===
-# Ignore common dependency caches
-# Source: https://github.com/github/gitignore
-node_modules/
-__pycache__/
-*.pyc
-
-# === Android build artifacts ===
-# Ignore Android package and build outputs
-# Source: https://developer.android.com/studio/build
-*.apk
-*.ap_
-*.dex
-*.obb
-
-# === Homelab-specific artifacts ===
-# Runtime secrets and generated artifacts (never commit)
-
-# WireGuard private material
-**/wireguard/*.key
-**/wireguard/*.conf
-**/wireguard/qr/*.qr
-
-# Headscale runtime state
-**/headscale/*.key
-**/headscale/db.sqlite
-
-# Unbound runtime trust anchors
-**/unbound/root.key
-
-# Systemd runtime overrides (not source templates)
-*.service.d/
-
-# Future site/dashboard build artifacts
-gen2/site/node_modules/
-gen2/site/dist/
-
-# Wireguard runtime artifacts (secrets)
-/out/
-
-# Build outputs
+# === Build State & Local Tooling ===
+.stamps/
+.tools/
+.cache/
+.state/
 /build/
 /dist/
-
-# Compiled binaries (never commit)
 *.o
 *.a
 *.so
 *.exe
-dns-warm-async
 
-# === Router runtime artifacts (ASUSWRT-Merlin) ===
-# These patterns prevent accidental commits of router runtime state,
-# secrets, addon caches, and ephemeral files from ASUSWRT-Merlin.
-# Router scripts under router/ are source of truth.
-# Everything else under that path is runtime noise and must be ignored.
+# === Go Toolchain ===
+/tmp/age-build/
+go.work
+go.work.sum
 
-# Directories (broadest)
+# === Secrets & Environment (The "No-Go" Zone) ===
+.env
+*.env
+secrets/
+/**/secrets/
+config/*.generated
+*.bak.conf
+
+# PHYSICAL FIREWALL: The patterns below reference paths that live
+# OUTSIDE this git repository on the NAS storage pool. They are
+# included here as a safety measure in case of cross-mounting.
+/volume1/homelab/secrets/
+/volume1/homelab/wireguard/
+
+# === SOPS / Encryption Safety ===
+# Prevent accidentally committing decrypted buffers
+*.decrypted.*
+*.tmp.json
+*.tmp.yaml
+
+# === Infrastructure & Deployment State ===
+terraform.tfstate*
+.terraform/
+*.service.deployed
+*.service.d/
+
+# === Component Specific: Router (ASUSWRT-Merlin) ===
 router/archive/
 router/addons/
 router/cron/
 router/wireguard/
 router/openvpn/
 router/backup/
-
-# Logs and temp files
 router/*.log
 router/*.tmp
-router/*.swp
-router/*.bak
-router/*.old
-router/*.orig
-router/*~
 router/*.cache
-
-# Runtime state files
 router/*.state
 router/*.pid
 router/*.lock
 router/*.json
-
-# Secrets (broad patterns)
 router/*secret*
 router/*token*
 router/*key*
-
-# Cloudflare DDNS artifacts
 router/cloudflare_ddns*
 router/.cloudflare
 router/.ddns_confidential
 
-# Build / runtime state
-.state/
-
-# Python virtual environments (generated, non-reproducible)
-__pycache__/
-pip-wheel-metadata/
-*.pyc
-*.pyo
-*.pyd
-.venv/
-venv/
-
-# Secrets (never committed)
-ddns/.ddns_confidential
-caddy/env
-
-# WireGuard private keys and runtime files
-wireguard/*.key
-wireguard/*.runtime
-
-# Caddy ACME storage
+# === Component Specific: Network & Backup ===
+**/wireguard/*.key
+**/wireguard/*.conf
+**/wireguard/*.runtime
+**/wireguard/qr/
+**/headscale/*.key
+**/headscale/db.sqlite
+**/unbound/root.key
 caddy/data/
-
-# Generated WireGuard control-plane dumps
+caddy/env
+ddns/.ddns_confidential
 plan.tsv
 alloc.tsv
 keys.tsv
 
-# Local tooling
-.tools/
-
-# Local cache and binaries
-.cache/
+# === Future Proofing (Python/Web) ===
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+gen2/site/node_modules/
+gen2/site/dist/
