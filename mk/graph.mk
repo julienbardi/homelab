@@ -37,6 +37,8 @@ include $(REPO_ROOT)mk/00_icons.mk
 include $(REPO_ROOT)mk/00_prereqs.mk
 include $(REPO_ROOT)mk/01_common.mk
 include $(REPO_ROOT)mk/05_bootstrap_acme.mk
+include $(REPO_ROOT)mk/06_acme_timer.mk
+include $(REPO_ROOT)mk/10_bootstrap_security.mk
 #include $(REPO_ROOT)mk/05_bootstrap_wireguard.mk
 include $(REPO_ROOT)mk/10_groups.mk      # group membership enforcement (security bootstrap)
 include $(REPO_ROOT)mk/10_local-tools.mk
@@ -85,6 +87,22 @@ include $(REPO_ROOT)mk/95_status.mk
 include $(REPO_ROOT)mk/99_lint.mk        # lint and safety checks (always last)
 
 # ============================================================
+# ORCHESTRATION: The Bootstrap Flow
+# ============================================================
+# This target converges the "Zero State" to a "Functional Identity"
+# 1. guard-config: Validate homelab.env
+# 2. security-bootstrap: Generate age.key identity
+# 3. acme-bootstrap: Set up directory structures and acme.sh
+# 4. ensure-known-hosts: Verify SSH trust for repo/router
+# ============================================================
+.PHONY: bootstrap
+bootstrap: guard-config security-bootstrap acme-bootstrap ensure-known-hosts
+	@echo "------------------------------------------------------------"
+	@echo "✅ GLOBAL BOOTSTRAP COMPLETE"
+	@echo "📍 Next Step: make all"
+	@echo "------------------------------------------------------------"
+
+# ============================================================
 # Makefile — homelab certificate orchestration
 # ============================================================
 
@@ -103,7 +121,6 @@ ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
 	@if [ "$(SKIP_KNOWN_HOSTS)" = "1" ]; then \
 		echo "📍 Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
 	else \
-		# best-effort: interactive / non-fatal
 		$(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
 	fi
 
