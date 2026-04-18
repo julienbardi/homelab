@@ -5,7 +5,7 @@ PANGOLIN_SECRET      := $(PANGOLIN_DIR)/site-secret
 PANGOLIN_BIN         := $(INSTALL_PATH)/pangolin-site-agent
 PANGOLIN_SERVICE     := /etc/systemd/system/pangolin-site-agent.service
 PANGOLIN_URL         := https://install.pangolin.dev/site-agent/latest/pangolin-site-agent-linux-amd64
-PANGOLIN_SERVICE_SRC := $(REPO_ROOT)config/systemd/pangolin-site-agent.service
+PANGOLIN_SERVICE_SRC := $(REPO_ROOT)/config/systemd/pangolin-site-agent.service
 
 .PHONY: pangolin-install pangolin-enable pangolin-status pangolin-health pangolin-node-check
 
