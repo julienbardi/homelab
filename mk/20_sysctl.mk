@@ -42,39 +42,31 @@ endef
 
 define inspect_ipv6_identity
 { \
-	echo "🔍 Current IPv6 Identity Mapping (Global & ULA):"; \
+	echo "🔍 Current IPv6 Identity Mapping:"; \
 	echo "--------------------------------------------------------------------------------"; \
-	ip -6 -oneline addr show scope global | grep -v "tentative" | while read -r line; do \
-		iface=$$(echo "$$line" | awk '{print $$2}'); \
-		full_addr=$$(echo "$$line" | awk '{print $$4}' | cut -d/ -f1); \
-		expanded=$$(python3 -c "import ipaddress; print(ipaddress.IPv6Address('$$full_addr').exploded)" 2>/dev/null || echo "$$full_addr"); \
-		prefix=$$(echo "$$expanded" | cut -d: -f1-4); \
-		iid=$$(echo "$$expanded" | cut -d: -f5-8); \
-		is_match=$$(python3 -c "import ipaddress; a=ipaddress.IPv6Address('::' + '$$iid'); b=ipaddress.IPv6Address('$(NAS_IID_TOKEN)'); print('YES' if a==b else 'NO')"); \
-		status="✅"; \
-		if [ "$$is_match" = "NO" ]; then status="⚠️  MISMATCH"; fi; \
-		printf "%-11s | Interface: %-6s | Prefix: %-22s | IID: %s\n" "$$status" "$$iface" "$$prefix" "$$iid"; \
-	done | sort -u; \
+	ip -6 -oneline addr show scope global | grep -v "tentative" | awk -v target="$(NAS_IID_TOKEN)" ' \
+	{ \
+		split($$4, a, "/"); addr=a[1]; \
+		n=split(addr, groups, ":"); \
+		iid=groups[n-3]":"groups[n-2]":"groups[n-1]":"groups[n]; \
+		status = (addr ~ target"$$") ? "✅" : "⚠️  MISMATCH"; \
+		printf "%-11s | Interface: %-6s | Addr: %s\n", status, $$2, addr; \
+	}' | sort -u; \
 	echo "--------------------------------------------------------------------------------"; \
 }
 endef
 
 define set_ipv6_token
 { \
-	echo "📍 Checking IPv6 Token convergence ($(NAS_IID_TOKEN))..."; \
+	echo "📍 Checking IPv6 Token convergence..."; \
 	for iface in eth0 eth1; do \
-		if [ -d "/sys/class/net/$$iface" ]; then \
-			current_token=$$(ip token list dev $$iface | awk '{print $$1}'); \
-			if [ "$$current_token" = "$(NAS_IID_TOKEN)" ]; then \
-				echo "✅ $$iface: Token already matches. Skipping cycle."; \
-			else \
-				echo "🔄 $$iface: Token mismatch. Applying $(NAS_IID_TOKEN)..."; \
-				$(run_as_root) ip token set $(NAS_IID_TOKEN) dev $$iface; \
-				$(run_as_root) ip link set dev $$iface down; \
-				$(run_as_root) ip link set dev $$iface up; \
-				echo "✨ $$iface: Token applied and link cycled."; \
-			fi; \
-		fi; \
+		[ ! -d "/sys/class/net/$$iface" ] && continue; \
+		current=$$(ip token list dev $$iface | awk '{print $$1}'); \
+		[ "$$current" = "$(NAS_IID_TOKEN)" ] && { echo "✅ $$iface: Matches."; continue; }; \
+		echo "🔄 $$iface: Updating to $(NAS_IID_TOKEN)..."; \
+		$(run_as_root) ip token set $(NAS_IID_TOKEN) dev $$iface; \
+		$(run_as_root) ip link set dev $$iface down; \
+		$(run_as_root) ip link set dev $$iface up; \
 	done; \
 }
 endef
@@ -101,14 +93,15 @@ endef
 
 define inject_ipv6_secrets
 { \
-	echo "🔐 Generating NEW hardware-linked IPv6 secret (Rotation)..."; \
-	for iface in eth0 eth1; do \
-		if [ -d "/sys/class/net/$$iface" ]; then \
-			secret=$$(openssl rand -hex 16 | sed 's/\(..\)/\1:/g; s/:$$//'); \
-			printf "\n# --- Homelab IPv6 Stable Secrets ---\nnet.ipv6.conf.%s.stable_secret = %s\n" "$$iface" "$$secret" | \
-			$(run_as_root) tee -a "$(SYSCTL_DST)" >/dev/null; \
-		fi; \
-	done; \
+	echo "🔐 Generating hardware-linked IPv6 secrets..."; \
+	pool=$$(openssl rand -hex 32); \
+	s1=$$(echo $$pool | cut -c1-32 | sed "s/\(..\)/\1:/g; s/:$$//"); \
+	s2=$$(echo $$pool | cut -c33-64 | sed "s/\(..\)/\1:/g; s/:$$//"); \
+	{ \
+		printf "\n# --- Homelab IPv6 Stable Secrets ---\n"; \
+		[ -d /sys/class/net/eth0 ] && printf "net.ipv6.conf.eth0.stable_secret = %s\n" "$$s1"; \
+		[ -d /sys/class/net/eth1 ] && printf "net.ipv6.conf.eth1.stable_secret = %s\n" "$$s2"; \
+	} | $(run_as_root) tee -a "$(SYSCTL_DST)" >/dev/null; \
 }
 endef
 

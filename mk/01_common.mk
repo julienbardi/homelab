@@ -10,28 +10,22 @@
 # Tools Installation (The Bootstrap Core)
 # ------------------------------------------------------------
 
-# 1. Root wrapper must be installed first using standard host install
-$(INSTALL_SBIN_PATH)/run-as-root.sh: $(RUN_ROOT_SRC)
-	@$(call install_file,$<,$@,$(ROOT_UID),$(ROOT_GID),0755)
-
-run_as_root := $(INSTALL_SBIN_PATH)/run-as-root.sh
+# 1. Root wrapper
+$(run_as_root): $(RUN_ROOT_SRC)
+	@echo "🚀 Bootstrapping run-as-root..."
+	@sudo mkdir -p $(INSTALL_SBIN_PATH)
+	@sudo install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 "$<" "$@"
 
 # 2. Singular V2 Engine
-# Avoid self-dependency: do NOT depend on $(INSTALL_FILE_IF_CHANGED) here
-$(INSTALL_PATH)/install_file_if_changed_v2.sh: $(IFC_V2_SINGLE_SRC)
-	@$(call install_file,$<,$@,$(ROOT_UID),$(ROOT_GID),0755)
+$(INSTALL_FILE_IF_CHANGED): $(IFC_V2_SINGLE_SRC) | $(run_as_root)
+	@echo "🚀 Bootstrapping IFC Engine..."
+	@sudo mkdir -p $(INSTALL_PATH)
+	@sudo install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 "$<" "$@"
 
 # 3. Vectorized V2 Engine
-$(INSTALL_PATH)/install_files_if_changed_v2.sh: $(IFC_V2_PLURAL_SRC) $(INSTALL_FILE_IF_CHANGED)
-	@$(call install_file,$<,$@,$(ROOT_UID),$(ROOT_GID),0755)
-
-# 4. Common library
-$(INSTALL_PATH)/common.sh: $(COMMON_SRC) $(INSTALL_FILE_IF_CHANGED)
-	@$(call install_file,$<,$@,$(ROOT_UID),$(ROOT_GID),0755)
-
-# 5. URL-based IFC Engine
-$(INSTALL_URL_FILE_IF_CHANGED): $(IFC_URL_SRC) $(INSTALL_FILE_IF_CHANGED)
-	@$(call install_file,$<,$@,$(ROOT_UID),$(ROOT_GID),0755)
+$(INSTALL_FILES_IF_CHANGED): $(IFC_V2_PLURAL_SRC) | $(INSTALL_FILE_IF_CHANGED)
+	@echo "🚀 Bootstrapping Vector Engine..."
+	@sudo install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 "$<" "$@"
 
 # ------------------------------------------------------------
 # Macros
@@ -40,34 +34,52 @@ $(INSTALL_URL_FILE_IF_CHANGED): $(IFC_URL_SRC) $(INSTALL_FILE_IF_CHANGED)
 # Arguments for install_file_if_changed_v2.sh:
 # 1: SRC_HOST, 2: SRC_PORT, 3: SRC_PATH, 4: DST_HOST, 5: DST_PORT, 6: DST_PATH
 # 7: OWNER, 8: GROUP, 9: MODE
+# ------------------------------------------------------------
+# Macros (Fixed for Shell Compatibility)
+# ------------------------------------------------------------
+
+# Arguments for install_file_if_changed_v2.sh:
+# 1: SRC_PATH, 2: DST_PATH, 3: OWNER, 4: GROUP, 5: MODE
 define install_file
-	@status=0; \
+	test -n "$(INSTALL_PATH)" || { echo "❌ Error: INSTALL_PATH is empty. Sync homelab.env first." >&2; exit 1; }; \
+	status=0; \
 	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) -q \
 		"" "" "$(1)" \
 		"" "" "$(2)" \
 		"$(3)" "$(4)" "$(5)" || status=$$?; \
-	if [ $$status -ne 0 ] && [ $$status -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+	{ [ $$status -eq 0 ] || [ $$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; } || { \
 		echo "❌ IFC: Fatal error (exit $$status) installing $(2)" >&2; \
 		exit $$status; \
-	fi; \
-	if [ $$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-			echo "📝 Updated: $(2)"; \
-	fi
+	}; \
+	[ $$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ] && echo "📝 Updated: $(2)" || true
 endef
 
 # All installed scripts are root-owned executables; repo scripts may be non-executable.
 define install_script
-	$(call install_file,$(1),$(INSTALL_PATH)/$(2),$(ROOT_UID),$(ROOT_GID),0755)
+	@$(call install_file,$(1),$(INSTALL_PATH)/$(2),$(ROOT_UID),$(ROOT_GID),0755)
 endef
 
 # ------------------------------------------------------------
 # Script Discovery & Classification
 # ------------------------------------------------------------
 
-BOOTSTRAP_FILES := \
+# Minimal set required for the install_file macro to function
+BOOTSTRAP_CORE := \
 	$(run_as_root) \
 	$(INSTALL_FILE_IF_CHANGED) \
-	$(INSTALL_FILES_IF_CHANGED) \
+	$(INSTALL_FILES_IF_CHANGED)
+
+# 4. Common library (Uses Macro)
+$(INSTALL_PATH)/common.sh: $(COMMON_SRC) | $(BOOTSTRAP_CORE)
+	@$(call install_file,$<,$@,$(ROOT_UID),$(ROOT_GID),0755)
+
+# 5. URL-based IFC Engine (Uses Macro)
+$(INSTALL_URL_FILE_IF_CHANGED): $(IFC_URL_SRC) | $(BOOTSTRAP_CORE)
+	@$(call install_file,$<,$@,$(ROOT_UID),$(ROOT_GID),0755)
+
+# Full set of dependencies for general scripts
+BOOTSTRAP_FILES := \
+	$(BOOTSTRAP_CORE) \
 	$(INSTALL_URL_FILE_IF_CHANGED) \
 	$(INSTALL_PATH)/common.sh \
 	$(HOMELAB_ENV_DST)
@@ -83,8 +95,9 @@ ALL_SCRIPTS := $(notdir $(wildcard $(REPO_ROOT)scripts/*.sh))
 EXCLUDE_LIST := $(SBIN_SCRIPTS) \
 				install_file_if_changed_v2.sh \
 				install_files_if_changed_v2.sh \
-				common.sh \
+				install_url_file_if_changed.sh \
 				install_file_if_changed.sh \
+				common.sh \
 				$(filter router-%.sh,$(ALL_SCRIPTS))
 
 BIN_FILES        := $(addprefix $(INSTALL_PATH)/,$(filter-out $(EXCLUDE_LIST),$(ALL_SCRIPTS)))
@@ -102,13 +115,6 @@ install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES)
 uninstall-all:
 	@echo "🗑️  Uninstalling all homelab scripts..."
 	@$(run_as_root) rm -f $(BIN_FILES) $(OTHER_SBIN_FILES) $(BOOTSTRAP_FILES)
-
-# ------------------------------------------------------------
-# Environment
-# ------------------------------------------------------------
-$(HOMELAB_ENV_DST): $(HOMELAB_ENV_SRC) | $(INSTALL_FILE_IF_CHANGED)
-	@$(ENSURE_DIR) $(ROOT_UID) $(ROOT_GID) 0755 $(dir $@)
-	@$(call install_file,$(HOMELAB_ENV_SRC),$@,$(ROOT_UID),$(ROOT_GID),0600)
 
 ensure-run-as-root:
 	@test -f "$(run_as_root)" || { echo "❌ Error: run-as-root.sh not found. Run 'sudo make install-all' first."; exit 1; }
@@ -163,31 +169,34 @@ assert-scripts-layout:
 	fi
 
 # ------------------------------------------------------------
-# Package Management Macros
+# Package Management Macros (Perfected for Shell Nesting)
 # ------------------------------------------------------------
 
 # Arguments for apt_install:
-# 1: PROBE_COMMAND (the binary to check if installed, e.g., 'dnsmasq')
-# 2: PACKAGE_NAME (the apt package name, e.g., 'dnsmasq')
+# 1: PROBE_COMMAND (binary name), 2: PACKAGE_NAME
 define apt_install
-	@if ! command -v $(1) >/dev/null 2>&1; then \
+	@command -v $(1) >/dev/null 2>&1 || { \
 		echo "apt 📦 Installing $(2)..."; \
-		$(run_as_root) env DEBIAN_FRONTEND=noninteractive \
-			apt-get update -qq && \
-		$(run_as_root) env DEBIAN_FRONTEND=noninteractive \
-			apt-get install -y -qq \
+		$(run_as_root) sh -c 'test -x /usr/local/sbin/apt-proxy-auto.sh && /usr/local/sbin/apt-proxy-auto.sh || true'; \
+		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get update -qq; \
+		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
 			-o Dpkg::Options::="--force-confold" \
 			-o Dpkg::Options::="--force-confdef" $(2); \
-	fi
+	}
 endef
+
 
 # Arguments for apt_remove:
 # 1: PACKAGE_NAME
 define apt_remove
-	@if dpkg -l | grep -qw $(1); then \
+	@! dpkg -l $(1) >/dev/null 2>&1 || { \
 		echo "apt 🗑️ Removing $(1)..."; \
-		$(run_as_root) env DEBIAN_FRONTEND=noninteractive \
-			apt-get purge -y -qq $(1); \
+		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq $(1); \
 		$(run_as_root) apt-get autoremove -y -qq; \
-	fi
+	}
+endef
+
+# Updates apt cache only if it hasn't been updated in the last hour.
+define apt_update_if_needed
+	$(run_as_root) sh -c 'test $$(find /var/lib/apt/lists -mmin -60 | grep -q .) || apt-get update -qq'
 endef

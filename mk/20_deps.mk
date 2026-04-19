@@ -5,6 +5,8 @@ GO_MODERN_VERSION := 1.25.5
 GO_MODERN_PREFIX  := /usr/local/go
 GO_MODERN_BIN     := $(GO_MODERN_PREFIX)/bin/go
 STAMP_GO_MODERN   := $(STAMP_DIR)/go-modern.installed
+GO_ARCH           := amd64
+GO_DIST_URL       := https://go.dev/dl/go$(GO_MODERN_VERSION).linux-$(GO_ARCH).tar.gz
 
 .PHONY: deps install-pkg-go remove-pkg-go \
 	install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc \
@@ -12,6 +14,9 @@ STAMP_GO_MODERN   := $(STAMP_DIR)/go-modern.installed
 	install-pkg-strace remove-pkg-strace \
 	install-pkg-vnstat remove-pkg-vnstat \
 	install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale \
+	install-pkg-age remove-pkg-age \
+	install-pkg-rclone remove-pkg-rclone \
+	install-pkg-kopia remove-pkg-kopia \
 	headscale-build \
 	remove-pkg-dnsmasq
 
@@ -19,7 +24,10 @@ STAMP_GO_MODERN   := $(STAMP_DIR)/go-modern.installed
 # Aggregate deps target
 # ------------------------------------------------------------
 deps: prereqs \
-	install-pkg-go install-pkg-pandoc install-pkg-checkmake install-pkg-strace install-pkg-vnstat
+	install-pkg-go install-pkg-pandoc install-pkg-checkmake \
+	install-pkg-strace install-pkg-vnstat \
+	install-pkg-age install-pkg-rclone install-pkg-kopia \
+	install-pkg-sops
 
 # ------------------------------------------------------------
 # Tailscale repository
@@ -73,16 +81,34 @@ verify-pkg-tailscale: ensure-run-as-root
 	'
 
 # ------------------------------------------------------------
-# Go (Debian package)
+# Go (Modern Binary Distribution)
+# ------------------------------------------------------------
+# ------------------------------------------------------------
+# Go (Modern Binary Distribution)
 # ------------------------------------------------------------
 install-pkg-go: ensure-run-as-root
-	@echo "⚠️ Installing Go toolchain"
-	$(call apt_install,go,golang-go)
-	@command -v go >/dev/null || { \
-	    echo "❌ go missing after install"; exit 1; }
+	@if [ -x "$(GO_MODERN_BIN)" ]; then \
+		CURRENT_VER=$$($(GO_MODERN_BIN) version | awk '{print $$3}' | sed 's/go//'); \
+		if [ "$$CURRENT_VER" = "$(GO_MODERN_VERSION)" ]; then \
+			echo "✅ Go $(GO_MODERN_VERSION) already installed at $(GO_MODERN_PREFIX)"; \
+			exit 0; \
+		fi; \
+	fi; \
+	if dpkg -l golang-go >/dev/null 2>&1; then \
+		echo "🗑️ Removing legacy apt Go version..."; \
+		$(run_as_root) apt-get purge -y golang-go golang-1.19-go >/dev/null 2>&1; \
+		$(run_as_root) apt-get autoremove -y >/dev/null 2>&1; \
+	fi; \
+	echo "📦 Downloading and installing Go $(GO_MODERN_VERSION)..."; \
+	$(run_as_root) rm -rf $(GO_MODERN_PREFIX); \
+	curl -sSL $(GO_DIST_URL) | $(run_as_root) tar -C /usr/local -xz; \
+	$(run_as_root) ln -sf $(GO_MODERN_BIN) /usr/local/bin/go; \
+	echo "✅ $$(go version) is now installed"
 
-remove-pkg-go:
-	$(call apt_remove,golang-go)
+remove-pkg-go: ensure-run-as-root
+	@echo "🗑️ Removing Go from $(GO_MODERN_PREFIX)"
+	$(run_as_root) rm -rf $(GO_MODERN_PREFIX)
+	$(run_as_root) rm -f /usr/local/bin/go
 
 # ------------------------------------------------------------
 # vnstat
@@ -135,6 +161,83 @@ remove-pkg-caddy:
 	$(call apt_remove,caddy)
 
 # ------------------------------------------------------------
+# Age (Source build via Go)
+# ------------------------------------------------------------
+AGE_BIN        := /usr/local/bin/age
+AGE_KEYGEN_BIN := /usr/local/bin/age-keygen
+AGE_VERSION    := v1.2.1
+
+install-pkg-age: install-pkg-go
+	@if [ -x "$(AGE_BIN)" ] && $(AGE_BIN) --version 2>&1 | grep -q "$(AGE_VERSION)"; then \
+		echo "✅ age $(AGE_VERSION) already installed at $(AGE_BIN)"; \
+	else \
+		echo "📦 Building age $(AGE_VERSION) from source..."; \
+		mkdir -p /tmp/age-build; \
+		GOBIN=/tmp/age-build $(GO_MODERN_BIN) install filippo.io/age/cmd/...@$(AGE_VERSION); \
+		echo "🚚 Moving binaries to /usr/local/bin (requires root)"; \
+		$(run_as_root) install -m 0755 /tmp/age-build/age $(AGE_BIN); \
+		$(run_as_root) install -m 0755 /tmp/age-build/age-keygen $(AGE_KEYGEN_BIN); \
+		rm -rf /tmp/age-build; \
+		echo "✅ age $(AGE_VERSION) installed"; \
+	fi
+
+remove-pkg-age:
+	@echo "🗑️ Removing age binaries"
+	@$(run_as_root) rm -f $(AGE_BIN) $(AGE_KEYGEN_BIN)
+
+# ------------------------------------------------------------
+# SOPS (Secrets Operations - Source build via Go)
+# ------------------------------------------------------------
+SOPS_VERSION := v3.9.4
+
+.PHONY: install-pkg-sops remove-pkg-sops
+
+install-pkg-sops: install-pkg-go
+	@if command -v sops >/dev/null 2>&1; then \
+		echo "✅ SOPS already installed: $$(sops --version | head -n1)"; \
+	else \
+		echo "📦 Building SOPS $(SOPS_VERSION) from source..."; \
+		mkdir -p /tmp/sops-build; \
+		GOBIN=/tmp/sops-build $(GO_MODERN_BIN) install github.com/getsops/sops/v3/cmd/sops@$(SOPS_VERSION); \
+		echo "🚚 Moving SOPS to $(INSTALL_PATH)"; \
+		$(run_as_root) install -m 0755 /tmp/sops-build/sops $(INSTALL_PATH)/sops; \
+		rm -rf /tmp/sops-build; \
+		echo "✅ SOPS $(SOPS_VERSION) installed"; \
+	fi
+
+remove-pkg-sops:
+	@echo "🗑️ Removing SOPS binary"
+	@$(run_as_root) rm -f $(INSTALL_PATH)/sops
+
+# ------------------------------------------------------------
+# Rclone (The Swiss Army Knife for Cloud Storage)
+# ------------------------------------------------------------
+install-pkg-rclone: ensure-run-as-root
+	@echo "📦 Installing rclone"
+	$(call apt_install,rclone,rclone)
+
+remove-pkg-rclone:
+	$(call apt_remove,rclone)
+
+# ------------------------------------------------------------
+# Kopia (Fast, Encrypted, Deduplicated Backups)
+# ------------------------------------------------------------
+# We install from their official repo to get the latest version
+install-pkg-kopia: ensure-run-as-root
+	@echo "📦 Installing Kopia (Backup Engine)"
+	@if ! command -v kopia >/dev/null 2>&1; then \
+		curl -s https://kopia.io/signing.key | $(run_as_root) gpg --dearmor -o /usr/share/keyrings/kopia-keyring.gpg; \
+		echo "deb [signed-by=/usr/share/keyrings/kopia-keyring.gpg] http://packages.kopia.io/debian/ stable main" \
+			| $(run_as_root) tee /etc/apt/sources.list.d/kopia.list; \
+		$(call apt_update_if_needed); \
+		$(call apt_install,kopia,kopia); \
+	fi
+	@echo "✅ Kopia installed"
+
+remove-pkg-kopia:
+	@$(run_as_root) rm -f /etc/apt/sources.list.d/kopia.list
+	$(call apt_remove,kopia)
+# ------------------------------------------------------------
 # ndppd
 # ------------------------------------------------------------
 enable-ndppd: ensure-run-as-root prereqs
@@ -150,7 +253,7 @@ CHECKMAKE_BIN := /usr/local/bin/checkmake
 STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
 
 install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go
-	@echo "� ️ Installing checkmake (v$(CHECKMAKE_VERSION))"
+	@echo "📦 Installing checkmake (v$(CHECKMAKE_VERSION))"
 	@if [ -f "$(STAMP_CHECKMAKE)" ]; then \
 	    INST_VER=$$(grep '^version=' "$(STAMP_CHECKMAKE)" | cut -d= -f2); \
 	    if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \

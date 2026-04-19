@@ -10,6 +10,21 @@ set -euo pipefail
 [[ -n "${_HOMELAB_COMMON_SH_LOADED:-}" ]] && return
 readonly _HOMELAB_COMMON_SH_LOADED=1
 
+# --- 1. Environment Loading (INSERT HERE) ---
+# Load authoritative homelab environment variables
+HOMELAB_ENV="/volume1/homelab/homelab.env"
+if [[ -f "$HOMELAB_ENV" ]]; then
+    # We use 'set -a' to automatically export all variables found in the file
+    set -a
+    # shellcheck disable=SC1090
+    source "$HOMELAB_ENV"
+    set +a
+fi
+
+# Set derived router connection string if not already set
+: "${ROUTER_SSH:=ssh -p${ROUTER_SSH_PORT:-2222} ${ROUTER_USER:-julie}@${ROUTER_ADDR:-10.89.12.1}}"
+export ROUTER_SSH
+
 # Only set a default if SCRIPT_NAME is completely unset.
 # If it is set to "" (empty), we respect that for minimalist logging.
 if [ "${SCRIPT_NAME+set}" != "set" ]; then

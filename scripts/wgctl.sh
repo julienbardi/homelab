@@ -2,7 +2,6 @@
 set -euo pipefail
 
 # --- Authoritative Context ---
-# These are provided by export in mk/00_constants.mk
 : "${ROUTER_HOST:?Missing ROUTER_HOST}"
 : "${ROUTER_SSH_PORT:?Missing ROUTER_SSH_PORT}"
 : "${ROUTER_WG_DIR:?Missing ROUTER_WG_DIR}"
@@ -10,25 +9,40 @@ set -euo pipefail
 
 # Local paths for NAS/Server execution
 NAS_WG_CONF="/etc/wireguard"
-IFC_BIN="/usr/local/bin/install_file_if_changed_v2.sh"
+INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed_v2.sh"
 PEER_MAP="${WG_ROOT}/output/peer-map.tsv"
 
 # Swapped to match Makefile: wgctl.sh [TARGET] [MODE]
 TARGET="${1:-}"
 MODE="${2:-status}"
 
-log() { echo "[$TARGET] $1"; }
+# Improved Log function with fixed-width device tags and icons
+log() {
+    local icon="⚙️"
+    case "$MODE" in
+        install) icon="📦" ;;
+        up)      icon="🚀" ;;
+        down)    icon="🛑" ;;
+        status)  icon="📊" ;;
+    esac
+
+    # Aligns [nas   ] and [router] perfectly
+    local tag
+    [[ "$TARGET" == "nas" ]] && tag="nas   " || tag="router"
+
+    echo "$icon [$tag] $1"
+}
 
 # --- Actions ---
 
 do_install() {
-    log "Initiating atomic IFC installation..."
+    #log "Initiating atomic IFC installation..."
 
     if [[ "$TARGET" == "router" ]]; then
         # Deployment from NAS output -> Router JFFS
         for conf in "${WG_ROOT}/output/router"/*.conf; do
             [[ -e "$conf" ]] || continue
-            "$IFC_BIN" "" "22" "$conf" \
+            "$INSTALL_FILE_IF_CHANGED" -q "" "22" "$conf" \
                        "$ROUTER_HOST" "$ROUTER_SSH_PORT" "${ROUTER_WG_DIR}/$(basename "$conf")" \
                        "0" "0" "0600"
         done
@@ -36,7 +50,7 @@ do_install() {
         # Deployment from NAS output -> NAS /etc/wireguard
         for conf in "${WG_ROOT}/output/server"/*.conf; do
             [[ -e "$conf" ]] || continue
-            "$IFC_BIN" "" "22" "$conf" \
+            "$INSTALL_FILE_IF_CHANGED" -q "" "22" "$conf" \
                        "" "22" "${NAS_WG_CONF}/$(basename "$conf")" \
                        "0" "0" "0600"
         done
@@ -70,6 +84,7 @@ do_down() {
 do_status() {
     local wg_bin="wg"
     local remote_cmd
+    local now=$(date +%s)
 
     if [[ "$TARGET" == "router" ]]; then
         remote_cmd="ssh -p $ROUTER_SSH_PORT $ROUTER_HOST"
@@ -79,15 +94,16 @@ do_status() {
         local header_name="• PEER NAME [nas]"
     fi
 
-    if [[ ! -f "$PEER_MAP" ]]; then
-        PEER_MAP="/volume1/homelab/wireguard/output/peer-map.tsv"
-    fi
+    [[ ! -f "$PEER_MAP" ]] && PEER_MAP="/volume1/homelab/wireguard/output/peer-map.tsv"
 
+    # --- PLATINUM OPTIMIZATION: ONE-SHOT DATA GATHERING ---
+    # Get all handshakes and all interfaces in just two remote calls
+    local all_handshakes
+    all_handshakes=$($remote_cmd "$wg_bin" show all latest-handshakes 2>/dev/null || echo "")
     local active_ifaces
     active_ifaces=$($remote_cmd "$wg_bin" show interfaces 2>/dev/null || echo "")
+    # ------------------------------------------------------
 
-    # Alignment: 23 | 5 | 15 | 26 | 14 | 3
-    # Header uses a 22-width + space to compensate for the single-byte bullet
     local fmt_h="%-22s  %-5s %-15s %-26s %-14s %-3s\n"
     local fmt_d="%-23s %-5s %-15s %-26s %-14s %-3s\n"
 
@@ -98,14 +114,14 @@ do_status() {
         [[ "$pk" == "pubkey" || "$pk" == "#"* || -z "$pk" ]] && continue
         [[ " $active_ifaces " =~ " $iface " ]] || continue
 
+        # Extract handshake from the one-shot variable instead of forking SSH
         local handshake
-        handshake=$($remote_cmd "$wg_bin" show "$iface" latest-handshakes 2>/dev/null | grep "$pk" | awk '{print $2}' || echo "0")
+        handshake=$(echo "$all_handshakes" | grep "$pk" | awk '{print $3}' || echo "0")
+        [[ -z "$handshake" ]] && handshake=0
 
-        # Professional status icons
-        local icon="○" # Disconnected
+        local icon="○"
         if [[ "$handshake" -gt 0 ]]; then
-            local now=$(date +%s)
-            [[ $((now - handshake)) -lt 120 ]] && icon="●" || icon="◌" # Connected vs Stale
+            [[ $((now - handshake)) -lt 150 ]] && icon="●" || icon="◌"
         fi
 
         local disp_v4="${v4%/*}"

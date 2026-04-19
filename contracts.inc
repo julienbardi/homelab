@@ -31,6 +31,7 @@ Document law & scope:
   - Scope & applicability
   - Document structure & formatting
   - Contract index completeness
+  - Mandatory File Header
 
 Enforcement & evolution:
   - Contract enforcement & failure semantics
@@ -476,6 +477,34 @@ Rationale:
 -------------------------------------------------------------------------------
 
 
+
+-------------------------------------------------------------------------------
+CONTRACT: Mandatory File Header
+-------------------------------------------------------------------------------
+
+All source files in the repository MUST declare their identity and purpose.
+
+Rules:
+
+  - The first line of every file MUST be a comment containing the relative path
+    from the repository root (e.g., # mk/10_security.mk).
+  - The second line MUST be a separator line (e.g., # -------------------).
+  - The header MUST include a brief, one-sentence description of the file's
+    primary responsibility.
+  - For Makefiles, the comment character '#' MUST be used.
+  - For other file types, the appropriate language-specific comment syntax
+    MAY be used, but the structural requirement remains.
+
+Rationale:
+
+  - Enables rapid navigation and context-switching for operators.
+  - Ensures file identity is preserved during raw buffer viewing or printing.
+  - Prevents "orphan" scripts by explicitly declaring their location.
+
+Enforcement status:
+  enforceable but not yet enforced
+-------------------------------------------------------------------------------
+
 -------------------------------------------------------------------------------
 CONTRACT: Contract enforcement & failure semantics
 -------------------------------------------------------------------------------
@@ -825,7 +854,8 @@ CONTRACT: Canonical storage & disaster recovery
 All canonical intent MUST reside on persistent router storage under /jffs/scripts/.
 
 Canonical files:
-  - domain.yaml      (domain definitions only)
+  - homelab.env      (Canonical Network Environment)
+  - secrets.enc.yaml (Encrypted Topology & Credentials)
   - contracts.inc    (this file)
   - Makefile         (orchestration only)
 
