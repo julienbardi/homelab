@@ -23,14 +23,10 @@ source /usr/local/bin/common.sh
 install_content() {
     local target="$1"
     local mode="$2"
-    # No variable assignment here!
-
     local target_base
     target_base=$(basename "$target")
     local tmp_src="/tmp/${target_base}.new"
 
-    # Use cat to stream directly from stdin to the file.
-    # This preserves every single character, including trailing newlines.
     cat > "$tmp_src"
 
     set +e
@@ -42,7 +38,6 @@ install_content() {
     set -e
 
     rm -f "$tmp_src"
-
     [[ $rc -eq 0 || $rc -eq 3 ]] && return 0
     return $rc
 }
@@ -104,22 +99,46 @@ server_out_path() {
 
 generate_configs() {
     declare -A SERVER_BUFFERS
-
-    # Use a sorted list of keys to avoid unbound variable issues during iteration
     local active_ifaces
     active_ifaces=$(for k in "${!IF_ENABLED[@]}"; do echo "$k"; done | sort)
 
     for iface in $active_ifaces; do
         [[ "${IF_ENABLED[$iface]:-0}" != "1" ]] && continue
+
+        local host="${IF_HOST[$iface]:-nas}"
+        local privkey=""
+        local pubkey=""
         local kb="$KEY_DIR/servers/$iface"
-        [[ ! -f "$kb.key" ]] && { umask 077; wg genkey | tee "$kb.key" | wg pubkey > "$kb.pub"; }
+
+        if [[ "$host" == "router" ]]; then
+            # Attempt to fetch keys from the Asus Router
+            echo "--> Fetching keys for $iface from Router (10.89.12.1)..."
+            privkey=$($ROUTER_SSH 'nvram get wgs1_priv' 2>/dev/null)
+            pubkey=$($ROUTER_SSH 'nvram get wgs1_pub' 2>/dev/null)
+
+            # Validation: If keys are missing, stop and notify operator
+            if [[ -z "$privkey" || -z "$pubkey" ]]; then
+                echo "ERROR: Could not retrieve WireGuard keys from Asus Merlin ($iface)."
+                echo "Please ensure WireGuard is enabled in the Asus Merlin WebUI and configured as 'Server 1'."
+                exit 1
+            fi
+
+            # Sync to local key directory for consistency with client generation
+            echo "$privkey" > "$kb.key"
+            echo "$pubkey" > "$kb.pub"
+            chmod 600 "$kb.key"
+        else
+            # Standard NAS logic: Generate keys if they don't exist
+            [[ ! -f "$kb.key" ]] && { umask 077; wg genkey | tee "$kb.key" | wg pubkey > "$kb.pub"; }
+            privkey=$(<"$kb.key")
+        fi
 
         local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
         SERVER_BUFFERS[$iface]=$(cat <<EOF
 [Interface]
 Address = ${IF_ADDR_V4[$iface]}, ${v6_prefix}::1/64
 ListenPort = ${IF_PORT[$iface]}
-PrivateKey = $(<"$kb.key")
+PrivateKey = $privkey
 EOF
 )
     done
@@ -149,7 +168,7 @@ $( [[ "$c_os" == "windows" ]] && echo "Table = off" )
 [Peer]
 PublicKey = $(<"$KEY_DIR/servers/$c_iface.pub")
 Endpoint = vpn.bardi.ch:${IF_PORT[$c_iface]}
-AllowedIPs = $(ipv4_network "${IF_ADDR_V4[$c_iface]}"), ${IF_ADDR_V6[$c_iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64
+AllowedIPs = $( [[ "$c_access" == "full" ]] && echo "0.0.0.0/0, ::/0" || echo "$(ipv4_network "${IF_ADDR_V4[$c_iface]}"), ${IF_ADDR_V6[$c_iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64" )
 PersistentKeepalive = 25
 EOF
 
@@ -169,11 +188,12 @@ generate_router_firewall() {
     local fw_out="$OUT_ROUTER/wg-firewall.sh"
     local dns_v4="${NAS_LAN_IP:-10.89.12.4}"
     local dns_v6="${NAS_LAN_IP6:-fd89:7a3b:42c0::4}"
+    local lan_v4="10.89.12.0/24"
+    local lan_v6="fd89:7a3b:42c0::/64"
     local peer_map_local="/tmp/peer-map-fw.tmp"
 
     run_as_root cat "$OUTPUT_DIR/peer-map.tsv" > "$peer_map_local"
 
-    # Initialize buffer with the header
     local buffer
     buffer=$(cat <<EOF
 #!/bin/sh
@@ -195,8 +215,6 @@ EOF
 
         if [[ "$host" == "router" ]]; then
             local port="${IF_PORT[$iface]}"
-
-            # Use here-docs to append to the buffer to preserve newlines perfectly
             buffer="${buffer}
 # --- ${iface} (Port ${port}) ---
 iptables -C INPUT -p udp --dport ${port} -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport ${port} -j ACCEPT
@@ -204,20 +222,30 @@ ip6tables -C INPUT -p udp --dport ${port} -j ACCEPT 2>/dev/null || ip6tables -I 
 
             while IFS=$'\t' read -r pub name ifc v4 v6 acc lan; do
                 [[ "$ifc" != "$iface" ]] && continue
+
+                # Rule 1: LAN Access (if lan == 1)
                 if [[ "$lan" == "1" ]]; then
                     buffer="${buffer}
 iptables -C FORWARD -i ${iface} -s ${v4}/32 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i ${iface} -s ${v4}/32 -o br0 -j ACCEPT
 ip6tables -C FORWARD -i ${iface} -s ${v6}/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i ${iface} -s ${v6}/128 -o br0 -j ACCEPT"
                 else
+                    # Restricted: Only DNS/Router access
                     buffer="${buffer}
 iptables -C FORWARD -i ${iface} -s ${v4}/32 -d ${dns_v4}/32 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i ${iface} -s ${v4}/32 -d ${dns_v4}/32 -o br0 -j ACCEPT
 ip6tables -C FORWARD -i ${iface} -s ${v6}/128 -d ${dns_v6}/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i ${iface} -s ${v6}/128 -d ${dns_v6}/128 -o br0 -j ACCEPT"
+                fi
+
+                # Rule 2: Internet Access (if acc == full)
+                if [[ "$acc" == "full" ]]; then
+                    buffer="${buffer}
+iptables -t nat -C POSTROUTING -s ${v4}/32 -j MASQUERADE 2>/dev/null || iptables -t nat -I POSTROUTING -s ${v4}/32 -j MASQUERADE
+iptables -C FORWARD -i ${iface} -s ${v4}/32 ! -d ${lan_v4} -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i ${iface} -s ${v4}/32 ! -d ${lan_v4} -j ACCEPT
+ip6tables -C FORWARD -i ${iface} -s ${v6}/128 ! -d ${lan_v6} -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i ${iface} -s ${v6}/128 ! -d ${lan_v6} -j ACCEPT"
                 fi
             done < <(grep -vE '^(#|pubkey)' "$peer_map_local")
         fi
     done
 
-    # Ensure the buffer ends with a newline before piping
     printf "%s\n" "${buffer}" | install_content "$fw_out" "0755"
     rm -f "$peer_map_local"
 }

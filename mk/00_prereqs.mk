@@ -11,13 +11,14 @@
 # ROLE gates prerequisites by responsibility: routers must manage NICs; services must not.
 # ------------------------------------------------------------
 
-.PHONY: prereqs prereqs-network prereqs-network-verify \
-	prereqs-docs-verify prereqs-public-dns-verify \
-	prereqs-root-ssh-key prereqs-operator-ssh-key \
-	install-ssh-config fix-tailscale-repo \
-	rust-system prereqs-python-venv prereqs-python-venv-verify \
-	prereqs-dns-health-check-verify prereqs-tailscale-repo-verify \
-	prereqs-helper-scripts
+.PHONY: all help \
+		prereqs prereqs-network prereqs-network-verify \
+		prereqs-docs-verify prereqs-public-dns-verify \
+		prereqs-root-ssh-key prereqs-operator-ssh-key \
+		install-ssh-config fix-tailscale-repo \
+		prereqs-python-venv prereqs-python-venv-verify \
+		prereqs-dns-health-check-verify prereqs-tailscale-repo-verify \
+		prereqs-helper-scripts
 
 PREREQ_PKGS := build-essential curl jq git nftables iptables shellcheck \
 			   pup codespell aspell aspell-en ndppd knot-dnsutils \
@@ -155,13 +156,6 @@ fix-tailscale-repo: ensure-run-as-root
 	@test -f "$(TAILSCALE_KEYRING)" || echo "🔐 Note: keyring $(TAILSCALE_KEYRING) not found; run 'make prereqs' to install it"
 
 
-rust-system: ensure-run-as-root
-	@command -v cargo >/dev/null 2>&1 || { \
-		echo "📦 Installing Rust system-wide"; \
-		$(run_as_root) sh -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path'; \
-		$(run_as_root) ln -sf /root/.cargo/bin/cargo "$(INSTALL_PATH)/cargo"; \
-		$(run_as_root) ln -sf /root/.cargo/bin/rustc "$(INSTALL_PATH)/rustc"; \
-	}
 
 # ------------------------------------------------------------
 # SSH & Identity
@@ -170,11 +164,13 @@ rust-system: ensure-run-as-root
 prereqs-root-ssh-key:
 	@key=/root/.ssh/id_ed25519; \
 	if sudo test -f $$key; then \
-		echo "ℹ️  Root SSH key already present"; \
+		if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+			echo "ℹ️  Root SSH key already present"; \
+		fi; \
 	else \
 		host=$$(hostname -s); \
 		comment="$$host-root-$$(date +%F)"; \
-		echo "📍 Generating root SSH key ($$comment)"; \
+		echo "🔐 Generating root SSH key ($$comment)"; \
 		sudo mkdir -p -m 700 /root/.ssh; \
 		sudo ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment" </dev/null; \
 		sudo chmod 600 $$key; \
@@ -184,12 +180,14 @@ prereqs-root-ssh-key:
 prereqs-operator-ssh-key:
 	@key=$$HOME/.ssh/id_ed25519; \
 	if [ -f $$key ]; then \
-		echo "ℹ️  Operator SSH key already present"; \
+		if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+			echo "ℹ️  Operator SSH key already present"; \
+		fi; \
 	else \
 		host=$$(hostname -s); \
 		user=$$(id -un); \
 		comment="$$host-operator-$$user-$$(date +%F)"; \
-		echo "📍 Generating operator SSH key ($$comment)"; \
+		echo "🔐 Generating operator SSH key ($$comment)"; \
 		mkdir -p -m 700 $$HOME/.ssh; \
 		ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment"; \
 		chmod 600 $$key; \
@@ -197,27 +195,39 @@ prereqs-operator-ssh-key:
 	fi
 
 install-ssh-config: prereqs-operator-ssh-key
-	@echo "🔧 Ensuring SSH config is up to date"
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "🔧 Ensuring SSH config is up to date"; \
+	fi;
 	@sudo install -d -m 700 $(OPERATOR_HOME)/.ssh
 	@sudo chown $(OPERATOR_USER):$(OPERATOR_GROUP) $(OPERATOR_HOME)/.ssh
 	@$(call install_file,$(REPO_ROOT)config/ssh_config,$(OPERATOR_HOME)/.ssh/config,$(OPERATOR_USER),$(OPERATOR_GROUP),600)
 
 prereqs-python-venv-verify:
 	@python3 -c 'import venv' >/dev/null 2>&1 || { \
-		echo "❌ python3-venv missing"; \
-		echo "📍  Fix with: make prereqs-python-venv"; \
+		echo "❌ python3-venv missing. Fix with: make prereqs-python-venv"; \
 		exit 1; \
 	}
 
-prereqs-python-venv: ensure-run-as-root prereqs-python-venv-verify
-	@echo "📍 Ensuring python3-venv is installed"
-	@$(call apt_update_if_needed)
-	@$(run_as_root) apt-get install -y --no-install-recommends python3-venv
+PYTHON_MIN ?= 3.11.2
+
+prereqs-python-venv: ensure-run-as-root
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "📍 Ensuring python3-venv is installed (need >= $(PYTHON_MIN))"; fi
+	@# If python3 >= $(PYTHON_MIN) and venv importable, do nothing; otherwise install.
+	@python3 -c 'import sys,importlib,pkgutil; min_ver=tuple(int(p) for p in "$(PYTHON_MIN)".split(".")); ver=tuple(sys.version_info[:len(min_ver)]); has_venv=(hasattr(importlib,"util") and importlib.util.find_spec("venv") is not None) or (pkgutil.find_loader("venv") is not None); sys.exit(0 if ver>=min_ver and has_venv else 1)' >/dev/null 2>&1 || { \
+	$(call apt_update_if_needed); \
+	if [ -z "$(VERBOSE)" ] || [ "$(VERBOSE)" = "0" ]; then \
+		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3-venv >/dev/null 2>&1; \
+	else \
+		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-venv; \
+	fi; \
+	dpkg -s python3-venv >/dev/null 2>&1 || { echo "❌ python3-venv not installed"; exit 1; }; \
+	}; \
+	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "ℹ️  python3 >= $(PYTHON_MIN) and venv available: $$(python3 -V 2>&1)"; fi
+
 
 prereqs-dns-health-check-verify: ensure-run-as-root
 	@$(run_as_root) $(INSTALL_PATH)/dns-health-check.sh --check-only || { \
-		echo "❌ DNS health check script drift detected"; \
-		echo "📍  Remediate with: sudo make install-all"; \
+		echo "❌ DNS health check script drift detected. Remediate with: sudo make install-all."; \
 		exit 1; \
 	}
 
@@ -226,8 +236,9 @@ prereqs-dns-health-check-verify: ensure-run-as-root
 # ------------------------------------------------------------
 
 prereqs-helper-scripts: ensure-run-as-root
-	@echo "📦 Ensuring helper scripts are installed"
-	@$(run_as_root) install -d -o root -g root -m 0755 $(INSTALL_PATH)
-	@$(run_as_root) install -o root -g root -m 0755 \
-		$(REPO_ROOT)scripts/ensure_dir.sh \
-		$(INSTALL_PATH)/ensure_dir.sh
+	@$(run_as_root) sh -c '\
+		VERBOSE="$(VERBOSE)"; \
+		if [ -n "$$VERBOSE" ] && [ "$$VERBOSE" != "0" ]; then echo "📦 Ensuring helper scripts are installed"; fi; \
+		install -d -o root -g root -m 0755 "$(INSTALL_PATH)"; \
+		install -o root -g root -m 0755 "$(REPO_ROOT)scripts/ensure_dir.sh" "$(INSTALL_PATH)/ensure_dir.sh"; \
+	'

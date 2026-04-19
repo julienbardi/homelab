@@ -29,10 +29,10 @@ SH_FILES := $(filter-out archive/%,$(SH_FILES))
 
 MK_FILES := $(shell git -C $(REPO_ROOT) ls-files 'mk/*.mk' 2>/dev/null || true)
 ifeq ($(strip $(MK_FILES)),)
-MK_FILES := $(wildcard $(REPO_ROOT)/mk/*.mk)
+MK_FILES := $(wildcard $(REPO_ROOT)mk/*.mk)
 endif
 
-MAKEFILES := $(REPO_ROOT)/Makefile $(MK_FILES)
+MAKEFILES := $(REPO_ROOT)Makefile $(MK_FILES)
 
 define require_tool
 @if ! command -v $(1) >/dev/null 2>&1; then \

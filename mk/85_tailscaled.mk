@@ -43,7 +43,7 @@ SYSTEMD_SRC_DIR := $(REPO_ROOT)config/systemd
 # --------------------------------------------------------------------
 tailscaled-check-deps:
 	@for c in jq xargs $(TS_BIN) $(HS_BIN); do \
-	    command -v $$c >/dev/null 2>&1 || { echo "❌ $$c not found"; exit 1; }; \
+		command -v $$c >/dev/null 2>&1 || { echo "❌ $$c not found"; exit 1; }; \
 	done
 
 .NOTPARALLEL: tailscaled-lan tailscaled-wan
@@ -55,14 +55,14 @@ tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 	$(call warn_if_no_net_tunnel_preflight)
 	@echo "🔑 Enrolling LAN client (bardi-lan / lan)"
 	@$(run_as_root) $(TS_BIN) up --reset \
-	    --login-server=https://vpn.bardi.ch \
-	    --authkey=$$($(run_as_root) $(HS_BIN) preauthkeys create \
-	        --user $(HS_USER_LAN) \
-	        --output json | jq -r '.key') \
-	    --advertise-exit-node \
-	    --advertise-routes=10.89.12.0/24 \
-	    --accept-dns=false \
-	    --accept-routes=true
+		--login-server=https://vpn.bardi.ch \
+		--authkey=$$($(run_as_root) $(HS_BIN) preauthkeys create \
+			--user $(HS_USER_LAN) \
+			--output json | jq -r '.key') \
+		--advertise-exit-node \
+		--advertise-routes=10.89.12.0/24 \
+		--accept-dns=false \
+		--accept-routes=true
 	@echo "📊 LAN exit-node + subnet route advertised"
 	@$(run_as_root) $(TS_BIN) status --json | jq '.Self.CapMap'
 	@echo "✅ LAN client configured"
@@ -74,12 +74,12 @@ tailscaled-wan: tailscaled-check-deps
 	$(call warn_if_no_net_tunnel_preflight)
 	@echo "🔑 Enrolling WAN client (bardi-wan / wan)"
 	@$(run_as_root) $(TS_BIN) up --reset \
-	    --login-server=https://vpn.bardi.ch \
-	    --authkey=$$($(run_as_root) $(HS_BIN) preauthkeys create \
-	        --user $(HS_USER_WAN) \
-	        --ephemeral=true \
-	        --output json | jq -r '.key') \
-	    --accept-dns=false
+		--login-server=https://vpn.bardi.ch \
+		--authkey=$$($(run_as_root) $(HS_BIN) preauthkeys create \
+			--user $(HS_USER_WAN) \
+			--ephemeral=true \
+			--output json | jq -r '.key') \
+		--accept-dns=false
 	@echo "✅ WAN client configured (internet-only)"
 
 # --------------------------------------------------------------------
@@ -88,8 +88,8 @@ tailscaled-wan: tailscaled-check-deps
 enable-tailscaled:
 	@echo "🧩 Installing systemd role units"
 	@$(run_as_root) install -o root -g root -m 644 \
-	    $(SYSTEMD_SRC_DIR)/tailscaled-lan.service \
-	    $(SYSTEMD_DIR)/tailscaled-lan.service
+		$(SYSTEMD_SRC_DIR)/tailscaled-lan.service \
+		$(SYSTEMD_DIR)/tailscaled-lan.service
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable tailscaled tailscaled-lan.service
 	@echo "🚀 Enabled at boot: tailscaled + role service"
@@ -115,8 +115,8 @@ tailscaled-status: install-pkg-vnstat
 	@echo "📊 connected nodes:"; $(run_as_root) $(TS_BIN) status | awk '{print $$1, $$2, $$3}'
 	@echo "📊 monthly traffic:"; vnstat -i tailscale0 -m || true
 	@echo "⚡ connection events (1h):"; \
-	    $(run_as_root) journalctl -u tailscaled --since "1 hour ago" \
-	    | grep -i connection | wc -l | xargs echo "events"
+		$(run_as_root) journalctl -u tailscaled --since "1 hour ago" \
+		| grep -i connection | wc -l | xargs echo "events"
 	@echo "📄 versions:"
 	@echo "    CLI:"; $(TS_BIN) version || true
 	@echo "    Daemon:"; $(run_as_root) tailscaled --version || true
@@ -129,3 +129,40 @@ tailscale-check:
 	@echo "🔍 Checking Tailscale versions"
 	@echo "CLI:"; $(TS_BIN) version || true
 	@echo "Daemon:"; $(run_as_root) tailscaled --version || true
+
+# optional tailscaled preflight
+# Set USE_TAILSCALED=1 to enable tailscaled installation/start/wait behavior.
+USE_TAILSCALED ?= 0
+
+.PHONY: net-tunnel-preflight
+
+ifeq ($(USE_TAILSCALED),1)
+
+net-tunnel-preflight:
+	@set -euo pipefail; \
+	if ! command -v tailscaled >/dev/null 2>&1; then \
+	  echo "ℹ️ tailscaled not found — attempting to install 'tailscale' package"; \
+	  $(run_as_root) sh -c 'test -x /usr/local/sbin/apt-proxy-auto.sh && /usr/local/sbin/apt-proxy-auto.sh || true'; \
+	  $(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get update -qq; \
+	  $(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tailscale || { echo "❌ apt install tailscale failed"; exit 1; }; \
+	fi; \
+	if ! systemctl is-active --quiet tailscaled; then \
+	  echo "ℹ️ Starting tailscaled service"; \
+	  $(run_as_root) systemctl start tailscaled || true; \
+	fi; \
+	timeout=30; \
+	while ! ss -ltnp 2>/dev/null | grep -q ':41641'; do \
+	  timeout=$$((timeout-1)); \
+	  if [ $$timeout -le 0 ]; then \
+		echo "❌ tailscaled not listening on control port :41641"; exit 1; \
+	  fi; \
+	  sleep 1; \
+	done; \
+	echo "✅ net-tunnel preflight OK (tailscaled enabled)"
+
+else
+
+net-tunnel-preflight:
+	@echo "ℹ️ net-tunnel-preflight: tailscaled disabled (USE_TAILSCALED=$(USE_TAILSCALED)); skipping tailscaled checks"
+
+endif

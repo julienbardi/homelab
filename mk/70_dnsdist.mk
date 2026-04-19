@@ -11,9 +11,9 @@ DNSDIST_UNIT         := dnsdist.service
 KDIG                 ?= kdig
 
 # Configuration (Ensuring trailing slash safety)
-DNSDIST_CONF_SRC     := $(REPO_ROOT)/config/dnsdist/dnsdist.conf
+DNSDIST_CONF_SRC     := $(REPO_ROOT)config/dnsdist/dnsdist.conf
 DNSDIST_CONF_DST     := /etc/dnsdist/dnsdist.conf
-DNSDIST_DROPIN_SRC   := $(REPO_ROOT)/scripts/systemd/dnsdist.service.d/10-no-port53.conf
+DNSDIST_DROPIN_SRC   := $(REPO_ROOT)scripts/systemd/dnsdist.service.d/10-no-port53.conf
 DNSDIST_DROPIN_DST   := /etc/systemd/system/dnsdist.service.d/10-no-port53.conf
 
 # TLS Material
@@ -122,7 +122,7 @@ $(CANONICAL_SUM): $(DEPLOY_CERTS)
 	  echo "🔁 canonical store unchanged; skipping deploy"; \
 	else \
 	  echo "📦 Deploying certificates to dnsdist"; \
-	  $(run_as_root) $(DEPLOY_CERTS) deploy dnsdist; \
+	  $(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(DEPLOY_CERTS) deploy dnsdist"; \
 	  tmp=$$(mktemp); printf "%s\n" "$$sum" > "$$tmp"; $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
 	  echo "✅ deploy-dnsdist-certs complete"; \
 	fi

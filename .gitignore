@@ -118,3 +118,4 @@ __pycache__/
 venv/
 gen2/site/node_modules/
 gen2/site/dist/.cache
+.cache

@@ -24,7 +24,6 @@ HEADSCALE_CACHE := $(REPO_ROOT).cache/headscale_0.28.0-beta.1_$(shell uname -m)
 
 .NOTPARALLEL: headscale headscale-restart headscale-verify
 
-
 .PHONY: headscale-config
 headscale-config: ensure-run-as-root $(HEADSCALE_CONFIG_SRC)
 	@$(call install_file,$(HEADSCALE_CONFIG_SRC),$(HEADSCALE_CONFIG_DST),headscale,headscale,0640)

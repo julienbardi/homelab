@@ -20,6 +20,8 @@
 - `make prereqs` — Install and verify core system prerequisites
 - `make deps` — Install common build and runtime dependencies
 - `make apt-update` — Force refresh apt cache (normally cached)
+- `make rust-system` — Install or show Rust system-wide (uses root rustup; symlinks /root/.cargo/bin/{cargo,rustc} into $(INSTALL_PATH)). Use `FORCE=1` to force reinstall.
+- `make rust-system-uninstall` — Reversible uninstall: moves system rustup/cargo/rustc aside for rollback.
 
 ## 🔐 Security / access control
 
