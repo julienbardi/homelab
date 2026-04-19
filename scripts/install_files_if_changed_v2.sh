@@ -1,57 +1,39 @@
-#!/usr/bin/env bash
-# scripts/wg-install-nas.sh
-set -euo pipefail
+#!/bin/bash
+# --------------------------------------------------------------------
+# scripts/install_files_if_changed_v2.sh
+# --------------------------------------------------------------------
+# Standalone wrapper for the vectorized IFC engine.
+# Usage:
+#   install_files_if_changed_v2.sh <var_name> <ifc_args...>
+# Arguments are passed in groups of 9, matching install_file_if_changed_v2.sh:
+#   "" "" SRC HOST PORT DST OWNER GROUP MODE
+# --------------------------------------------------------------------
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INPUT_DIR="${ROOT_DIR}/input"
-OUTPUT_DIR="${ROOT_DIR}/output/server"
-
-NAS_WG_DIR="/etc/wireguard"
-
-# shellcheck disable=SC1091
-source /usr/local/bin/common.sh
-SCRIPT_NAME="wg-install-nas"
-
-log "Installing NAS WireGuard configs (vectorized IFC_v2)"
-
-# --- Determine which interfaces belong to NAS -------------------------------
-
-mapfile -t NAS_IFACES < <(
-    awk -F'\t' '
-        $1 !~ /^#/ && $1 != "iface" && $2 == "nas" && $7 == "1" { print $1 }
-    ' "${INPUT_DIR}/wg-interfaces.tsv"
-)
-
-if [[ ${#NAS_IFACES[@]} -eq 0 ]]; then
-    log "No NAS interfaces found in wg-interfaces.tsv"
-    exit 0
-fi
-
-sudo mkdir -p "${NAS_WG_DIR}"
-
-# --- Build IFC_v2 argument vector -------------------------------------------
-
-args=()
-
-for iface in "${NAS_IFACES[@]}"; do
-    SRC="${OUTPUT_DIR}/${iface}.conf"
-    DST="${NAS_WG_DIR}/${iface}.conf"
-
-    require_file "${SRC}"
-
-    # Append 9-tuple for this file
-    args+=("" "" "${SRC}" "" "" "${DST}" "root" "root" "0600")
-done
-
-# --- Execute IFC_v2 once -----------------------------------------------------
-
-changed=0
-install_files_if_changed_v2 changed "${args[@]}"
-
-if [[ "$changed" -eq 1 ]]; then
-    log "🚀 NAS WireGuard configs updated"
+# 1. Locate and source common.sh
+if [ -f "/usr/local/bin/common.sh" ]; then
+    # shellcheck disable=SC1091
+    source "/usr/local/bin/common.sh"
+elif [ -f "$(dirname "$0")/common.sh" ]; then
+    # shellcheck disable=SC1091
+    source "$(dirname "$0")/common.sh"
 else
-    log "ℹ️ NAS WireGuard configs already up-to-date"
+    echo "❌ Error: common.sh not found." >&2
+    exit 1
 fi
 
-log "NAS installation complete"
+# 2. Verify the function exists in common.sh
+if ! declare -f install_files_if_changed_v2 >/dev/null; then
+    echo "❌ Error: Function install_files_if_changed_v2 not defined in common.sh" >&2
+    exit 1
+fi
+
+# 3. Execution
+VAR_NAME=$1
+install_files_if_changed_v2 "$@"
+
+# Check if the variable was set to 1 inside the function
+if [ "${!VAR_NAME}" -eq 1 ]; then
+    exit 3  # Match INSTALL_IF_CHANGED_EXIT_CHANGED
+fi
+
+exit 0
