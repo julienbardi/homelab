@@ -34,19 +34,19 @@ INTERNAL_HOSTS := \
 # --- Includes (ordered by prefix) ---
 include $(REPO_ROOT)mk/00_constants.mk
 include $(REPO_ROOT)mk/00_icons.mk
+include $(REPO_ROOT)mk/00_prereqs-rust.mk
 include $(REPO_ROOT)mk/00_prereqs.mk
 include $(REPO_ROOT)mk/01_common.mk
 include $(REPO_ROOT)mk/05_bootstrap_acme.mk
 include $(REPO_ROOT)mk/06_acme_timer.mk
+include $(REPO_ROOT)mk/07_secrets.mk
 include $(REPO_ROOT)mk/10_bootstrap_security.mk
-#include $(REPO_ROOT)mk/05_bootstrap_wireguard.mk
-include $(REPO_ROOT)mk/10_groups.mk      # group membership enforcement (security bootstrap)
+include $(REPO_ROOT)mk/10_groups.mk
 include $(REPO_ROOT)mk/10_local-tools.mk
 include $(REPO_ROOT)mk/15_local-python-env.mk
-include $(REPO_ROOT)mk/20_deps.mk        # package dependencies (apt installs, base tools)
+include $(REPO_ROOT)mk/20_deps.mk
 include $(REPO_ROOT)mk/20_gitignore.mk
 include $(REPO_ROOT)mk/20_local-python.mk
-#include $(REPO_ROOT)mk/20_net-tunnel.mk
 include $(REPO_ROOT)mk/20_sysctl.mk
 include $(REPO_ROOT)mk/30_config_validation.mk
 include $(REPO_ROOT)mk/30_firewall-nas.mk
@@ -57,34 +57,25 @@ include $(REPO_ROOT)mk/40_nas-caddy.mk
 include $(REPO_ROOT)mk/40_router-control.mk
 include $(REPO_ROOT)mk/40_router-caddy.mk
 include $(REPO_ROOT)mk/40_wireguard.mk
-#include $(REPO_ROOT)mk/40_router-wireguard.mk
-#include $(REPO_ROOT)mk/40_wireguard.mk
-#include $(REPO_ROOT)mk/40_wireguard_py.mk
-#include $(REPO_ROOT)mk/41_wireguard_clients.mk
-#include $(REPO_ROOT)mk/41_wireguard-status.mk
-#include $(REPO_ROOT)mk/42_wireguard-qr.mk
-#include $(REPO_ROOT)mk/42_wireguard_runtime.mk
-#include $(REPO_ROOT)mk/43_wireguard-runtime.mk
-include $(REPO_ROOT)mk/50_certs.mk       # certificate handling (issue, renew, deploy)
-#include $(REPO_ROOT)mk/50_dnsmasq.mk
+include $(REPO_ROOT)mk/50_certs.mk
 include $(REPO_ROOT)mk/55_router-certs.mk
 include $(REPO_ROOT)mk/56_router-certs.mk
-include $(REPO_ROOT)mk/60_unbound.mk     # Unbound DNS resolver setup
-include $(REPO_ROOT)mk/65_dnsmasq.mk     # DNS forwarding requests to Unbound
-include $(REPO_ROOT)mk/70_dnsdist.mk     #
-include $(REPO_ROOT)mk/71_dns-warm.mk    # DNS cache warming (systemd timer)
+include $(REPO_ROOT)mk/60_unbound.mk
+include $(REPO_ROOT)mk/65_dnsmasq.mk
+include $(REPO_ROOT)mk/70_dnsdist.mk
+include $(REPO_ROOT)mk/71_dns-warm.mk
 include $(REPO_ROOT)mk/70_apt_proxy_auto.mk
-include $(REPO_ROOT)mk/80_tailnet.mk     # Tailscale/Headscale orchestration
-include $(REPO_ROOT)mk/81_headscale.mk              # Headscale service + binary + systemd
-include $(REPO_ROOT)mk/83_headscale-users.mk        # Users (future)
-include $(REPO_ROOT)mk/84_headscale-acls.mk         # ACLs (future)
+include $(REPO_ROOT)mk/80_tailnet.mk
+include $(REPO_ROOT)mk/81_headscale.mk
+include $(REPO_ROOT)mk/83_headscale-users.mk
+include $(REPO_ROOT)mk/84_headscale-acls.mk
 include $(REPO_ROOT)mk/85_monitoring.mk
-include $(REPO_ROOT)mk/85_tailscaled.mk  # tailscaled client management (ACLs, ephemeral keys, systemd units, status/logs)
-include $(REPO_ROOT)mk/90_dns-health.mk  # DNS health checks and monitoring
+include $(REPO_ROOT)mk/85_tailscaled.mk
+include $(REPO_ROOT)mk/90_dns-health.mk
 include $(REPO_ROOT)mk/90_help.mk
 include $(REPO_ROOT)mk/90_converge.mk
 include $(REPO_ROOT)mk/95_status.mk
-include $(REPO_ROOT)mk/99_lint.mk        # lint and safety checks (always last)
+include $(REPO_ROOT)mk/99_lint.mk
 
 # ============================================================
 # ORCHESTRATION: The Bootstrap Flow
@@ -96,7 +87,7 @@ include $(REPO_ROOT)mk/99_lint.mk        # lint and safety checks (always last)
 # 4. ensure-known-hosts: Verify SSH trust for repo/router
 # ============================================================
 .PHONY: bootstrap
-bootstrap: guard-config security-bootstrap acme-bootstrap ensure-known-hosts
+bootstrap: guard-config security-bootstrap acme-bootstrap install-pkg-sops ensure-known-hosts check-secrets-src
 	@echo "------------------------------------------------------------"
 	@echo "✅ GLOBAL BOOTSTRAP COMPLETE"
 	@echo "📍 Next Step: make all"
@@ -117,16 +108,14 @@ SKIP_KNOWN_HOSTS ?= 0
 
 .PHONY: ensure-known-hosts
 ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
-	@echo "🔐 Ensuring known_hosts entries from $(KNOWN_HOSTS_FILE) (SKIP_KNOWN_HOSTS=$(SKIP_KNOWN_HOSTS))"
-	@if [ "$(SKIP_KNOWN_HOSTS)" = "1" ]; then \
-		echo "📍 Skipping known_hosts check (SKIP_KNOWN_HOSTS=1)"; \
-	else \
-		$(run_as_root) bash "$(INSTALL_PATH)/verify_and_install_known_hosts.sh" "$(KNOWN_HOSTS_FILE)" || true; \
+	@echo "🔐 Ensuring known_hosts entries..."
+	@if [ "$(SKIP_KNOWN_HOSTS)" != "1" ]; then \
+		timeout 1.5 bash "$(KNOWN_HOSTS_SCRIPT)" "$(KNOWN_HOSTS_FILE)" || true; \
 	fi
 
 .PHONY: gitcheck update
 gitcheck:
-	@if [ ! -d $(REPO_ROOT)/.git ]; then \
+	@if [ ! -d $(REPO_ROOT).git ]; then \
 		echo "📦 Cloning homelab repo"; \
 		mkdir -p $(dir $(REPO_ROOT)); \
 		git clone $(HOMELAB_REPO) $(REPO_ROOT); \
@@ -288,8 +277,3 @@ nft-install-rollback: ensure-run-as-root
 	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
 	@$(run_as_root) systemctl daemon-reload
 	@$(run_as_root) systemctl enable homelab-nft-rollback.timer
-
-.PHONY: regen-clients
-regen-clients: ensure-run-as-root wg-apply
-	@echo "🔄 Regenerating all WireGuard clients from authoritative input"
-	@$(run_as_root) env WG_ROOT="$(WG_ROOT)" $(INSTALL_PATH)/wg-compile-clients.sh
