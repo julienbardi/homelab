@@ -11,7 +11,7 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c
 
-HOMELAB_REPO := git@github.com:Jambo15/homelab.git
+HOMELAB_REPO := git@github.com:julienbardi/homelab.git
 
 BUILDER_NAME := $(shell git config --get user.name)
 BUILDER_EMAIL := $(shell git config --get user.email)
