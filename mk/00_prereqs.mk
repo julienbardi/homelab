@@ -83,7 +83,8 @@ prereqs: \
 	prereqs-dns-warm-verify \
 	prereqs-docs-verify \
 	prereqs-helper-scripts \
-	install-ssh-config
+	install-ssh-config \
+	rust-system
 	# APT trust bootstrap for third-party repositories
 	@echo "🔐 Ensuring Tailscale APT signing key"
 	@curl -fsSL $(TAILSCALE_KEY_URL) -o /tmp/tailscale.key
@@ -114,10 +115,53 @@ prereqs-network: ensure-run-as-root prereqs-network-verify
 		wireguard wireguard-tools netfilter-persistent iptables-persistent ethtool tcpdump
 
 fix-tailscale-repo: ensure-run-as-root
-	@echo "⚠️  Fixing Tailscale APT repository (signed-by hygiene)"
-	@test -f $(TAILSCALE_REPO_FILE) || { echo "❌ $(TAILSCALE_REPO_FILE) not found"; exit 1; }
-	@$(run_as_root) sed -i 's|^deb .*pkgs.tailscale.com.*|$(TAILSCALE_REPO_LINE)|' $(TAILSCALE_REPO_FILE)
-	@echo "✅ Tailscale repo updated with signed-by=$(TAILSCALE_KEYRING)"
+	@# If TAILSCALE_REPO_FILE is unset or the file is missing, print where the variable is defined
+	@set -e; \
+	if [ -z "$(TAILSCALE_REPO_FILE)" ] || [ ! -f "$(TAILSCALE_REPO_FILE)" ]; then \
+		echo "TAILSCALE_REPO_FILE = '$(TAILSCALE_REPO_FILE)'"; \
+		grep -nH -E '^[[:space:]]*TAILSCALE_REPO_FILE[[:space:]]*[:?+]?=' $(MAKEFILE_LIST) 2>/dev/null || echo "no definition found in parsed Makefiles ($(MAKEFILE_LIST))"; \
+	fi
+	@test -n "$(TAILSCALE_REPO_FILE)" || { echo "❌ TAILSCALE_REPO_FILE not set"; exit 1; }
+	@# Ensure the repo file exists; create it if missing (idempotent)
+	@sh -c '\
+		if [ ! -f "$(TAILSCALE_REPO_FILE)" ]; then \
+			echo "ℹ️  $(TAILSCALE_REPO_FILE) missing — creating with canonical line"; \
+			printf "%s\n" "$(TAILSCALE_REPO_LINE)" | sudo tee "$(TAILSCALE_REPO_FILE)" >/dev/null; \
+		fi; \
+		# If already correct, do nothing and exit the same shell (prevents duplicate messages) \
+		if grep -q -F "signed-by=$(TAILSCALE_KEYRING)" "$(TAILSCALE_REPO_FILE)"; then \
+			echo "✅ Tailscale repo already uses signed-by=$(TAILSCALE_KEYRING)"; \
+			exit 0; \
+		fi; \
+		# Prepare desired line and atomically update the file as root; prefer run-as-root helper, fall back to sudo \
+		tmp=$$(mktemp); printf "%s\n" "$(TAILSCALE_REPO_LINE)" > $$tmp; \
+		if grep -q -E "^deb .*pkgs.tailscale.com" "$(TAILSCALE_REPO_FILE)"; then \
+			if [ -x /usr/local/sbin/run-as-root.sh ]; then \
+				/usr/local/sbin/run-as-root.sh sh -c "sed -E '\''s|^deb .*pkgs.tailscale.com.*|$$(cat $$tmp)|'\'' '$(TAILSCALE_REPO_FILE)' > '$(TAILSCALE_REPO_FILE)'.new && mv -f '$(TAILSCALE_REPO_FILE)'.new '$(TAILSCALE_REPO_FILE)'"; \
+			else \
+				sudo sh -c "sed -E '\''s|^deb .*pkgs.tailscale.com.*|$$(cat $$tmp)|'\'' '$(TAILSCALE_REPO_FILE)' > '$(TAILSCALE_REPO_FILE)'.new && mv -f '$(TAILSCALE_REPO_FILE)'.new '$(TAILSCALE_REPO_FILE)'"; \
+			fi; \
+		else \
+			if [ -x /usr/local/sbin/run-as-root.sh ]; then \
+				/usr/local/sbin/run-as-root.sh sh -c "cat $$tmp >> '$(TAILSCALE_REPO_FILE)'"; \
+			else \
+				sudo sh -c "cat $$tmp >> '$(TAILSCALE_REPO_FILE)'"; \
+			fi; \
+		fi; \
+		rm -f $$tmp; \
+		echo "✅ Tailscale repo updated with signed-by=$(TAILSCALE_KEYRING)"; \
+	'
+	@# Inform about keyring if missing (non-fatal)
+	@test -f "$(TAILSCALE_KEYRING)" || echo "🔐 Note: keyring $(TAILSCALE_KEYRING) not found; run 'make prereqs' to install it"
+
+
+rust-system: ensure-run-as-root
+	@command -v cargo >/dev/null 2>&1 || { \
+		echo "📦 Installing Rust system-wide"; \
+		$(run_as_root) sh -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path'; \
+		$(run_as_root) ln -sf /root/.cargo/bin/cargo "$(INSTALL_PATH)/cargo"; \
+		$(run_as_root) ln -sf /root/.cargo/bin/rustc "$(INSTALL_PATH)/rustc"; \
+	}
 
 # ------------------------------------------------------------
 # SSH & Identity
@@ -157,18 +201,6 @@ install-ssh-config: prereqs-operator-ssh-key
 	@sudo install -d -m 700 $(OPERATOR_HOME)/.ssh
 	@sudo chown $(OPERATOR_USER):$(OPERATOR_GROUP) $(OPERATOR_HOME)/.ssh
 	@$(call install_file,$(REPO_ROOT)config/ssh_config,$(OPERATOR_HOME)/.ssh/config,$(OPERATOR_USER),$(OPERATOR_GROUP),600)
-
-# ------------------------------------------------------------
-# Extended Tooling (Rust, Python, Scripts)
-# ------------------------------------------------------------
-
-	@echo "⚠️  Fixing Tailscale APT repository (signed-by hygiene)"
-	@command -v cargo >/dev/null 2>&1 || { \
-		echo "📦 Installing Rust system-wide"; \
-		$(run_as_root) sh -c 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path'; \
-		$(run_as_root) ln -sf /root/.cargo/bin/cargo "$(INSTALL_PATH)/cargo"; \
-		$(run_as_root) ln -sf /root/.cargo/bin/rustc "$(INSTALL_PATH)/rustc"; \
-	}
 
 prereqs-python-venv-verify:
 	@python3 -c 'import venv' >/dev/null 2>&1 || { \
