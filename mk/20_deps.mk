@@ -254,7 +254,7 @@ install-pkg-kopia: ensure-run-as-root fetch-kopia
 	if command -v kopia >/dev/null 2>&1; then \
 		INSTALLED_VER=$$(kopia --version | awk '{print $$1}'); \
 		if [ "$$INSTALLED_VER" = "$$VERSION" ]; then \
-			echo "ℹ️ kopia $$VERSION already installed"; \
+			if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "ℹ️ kopia $$VERSION already installed"; fi; \
 			exit 0; \
 		fi; \
 	fi; \
