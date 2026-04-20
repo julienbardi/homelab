@@ -222,21 +222,65 @@ remove-pkg-rclone:
 # ------------------------------------------------------------
 # Kopia (Fast, Encrypted, Deduplicated Backups)
 # ------------------------------------------------------------
-# We install from their official repo to get the latest version
-install-pkg-kopia: ensure-run-as-root
-	@echo "📦 Installing Kopia (Backup Engine)"
-	@if ! command -v kopia >/dev/null 2>&1; then \
-		curl -s https://kopia.io/signing.key | $(run_as_root) gpg --dearmor -o /usr/share/keyrings/kopia-keyring.gpg; \
-		echo "deb [signed-by=/usr/share/keyrings/kopia-keyring.gpg] http://packages.kopia.io/debian/ stable main" \
-			| $(run_as_root) tee /etc/apt/sources.list.d/kopia.list; \
-		$(call apt_update_if_needed); \
-		$(call apt_install,kopia,kopia); \
-	fi
-	@echo "✅ Kopia installed"
+KOPIA_VERSION := 0.16.0
+KOPIA_TARBALL_URL := https://github.com/kopia/kopia/releases/download/v$(KOPIA_VERSION)/kopia-$(KOPIA_VERSION)-linux-x64.tar.gz
+KOPIA_TARBALL := /tmp/kopia-$(KOPIA_VERSION)-linux-x64.tar.gz
 
-remove-pkg-kopia:
-	@$(run_as_root) rm -f /etc/apt/sources.list.d/kopia.list
-	$(call apt_remove,kopia)
+# SHA256 for kopia-0.16.0-linux-x64.tar.gz
+KOPIA_SHA256 := a29f2cc1a49f985d1bfe09340eda0f7ed7b3c98037704da249b47034f1be1a18
+# (Replace with the real SHA256 — run: curl -fsSL $URL | sha256sum)
+# curl -fsSL https://github.com/kopia/kopia/releases/download/v0.16.0/kopia-0.16.0-linux-x64.tar.gz | sha256sum
+
+.PHONY: fetch-kopia
+fetch-kopia: $(INSTALL_URL_FILE_IF_CHANGED)
+	@$(INSTALL_URL_FILE_IF_CHANGED) -q \
+		"$(KOPIA_TARBALL_URL)" \
+		"$(KOPIA_TARBALL)" \
+		"$(OPERATOR_USER)" \
+		"$(OPERATOR_GROUP)" \
+		"0644" \
+		"$(KOPIA_SHA256)" || true
+
+STAMP_KOPIA := $(STAMP_DIR_ROOT)/kopia.installed
+
+.PHONY: install-pkg-kopia
+install-pkg-kopia: ensure-run-as-root fetch-kopia
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "📦 Installing Kopia $(KOPIA_VERSION)"; fi; \
+	set -euo pipefail; \
+	TARBALL="$(KOPIA_TARBALL)"; \
+	STAMP="$(STAMP_KOPIA)"; \
+	VERSION="$(KOPIA_VERSION)"; \
+	\
+	if command -v kopia >/dev/null 2>&1; then \
+		INSTALLED_VER=$$(kopia --version | awk '{print $$1}'); \
+		if [ "$$INSTALLED_VER" = "$$VERSION" ]; then \
+			echo "ℹ️ kopia $$VERSION already installed"; \
+			exit 0; \
+		fi; \
+	fi; \
+	\
+	WORKDIR=$$(mktemp -d /tmp/kopia.XXXXXX); \
+	tar -xzf "$$TARBALL" -C "$$WORKDIR"; \
+
+	EXTRACT_DIR="$$(find "$$WORKDIR" -maxdepth 1 -type d -name 'kopia-*' | head -n1)"; \
+
+	$(run_as_root) install -m 0755 "$$EXTRACT_DIR/kopia" /usr/local/bin/kopia; \
+	rm -rf "$$WORKDIR"; \
+	$(run_as_root) rm -f "$(KOPIA_TARBALL)"; \
+	\
+	tmp_stamp="/tmp/kopia.installed.$$RANDOM"; \
+	echo "version=$$VERSION installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$$tmp_stamp"; \
+	$(run_as_root) install -m 0644 "$$tmp_stamp" "$$STAMP"; \
+	rm -f "$$tmp_stamp"; \
+	\
+	echo "✅ kopia $$VERSION installed"
+
+.PHONY: remove-pkg-kopia
+remove-pkg-kopia: ensure-run-as-root
+	@echo "🗑️ Removing Kopia"
+	@$(run_as_root) sh -c 'rm -f /usr/local/bin/kopia "$(STAMP_KOPIA)"'
+	@echo "✅ Kopia removed"
+
 # ------------------------------------------------------------
 # ndppd
 # ------------------------------------------------------------
@@ -305,44 +349,74 @@ headscale-build: install-pkg-go
 # ------------------------------------------------------------
 # Pandoc (pinned .deb)
 # ------------------------------------------------------------
-PANDOC_VERSION := 3.8.2.1
-PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.8.2.1/pandoc-3.8.2.1-1-amd64.deb
-PANDOC_SHA256 := 5d4ecbf9c616360a9046e14685389ff2898088847e5fb260eedecd023453995a
+#PANDOC_VERSION := 3.8.2.1
+#PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.8.2.1/pandoc-3.8.2.1-1-amd64.deb
+#PANDOC_SHA256 := 5d4ecbf9c616360a9046e14685389ff2898088847e5fb260eedecd023453995a
+
+PANDOC_VERSION := 3.9.0.2
+PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.9.0.2/pandoc-3.9.0.2-1-amd64.deb
+PANDOC_SHA256  := ce4ac48f48aa7eadc1f5dbdf3449a1739f188ecb8c5421c5adc070fe7479e567
+
+
 PANDOC_DEB := /tmp/pandoc-$(PANDOC_VERSION)-amd64.deb
-STAMP_PANDOC := $(STAMP_DIR)/pandoc.installed
+STAMP_PANDOC := $(STAMP_DIR_ROOT)/pandoc.installed
 
 .PHONY: fetch-pandoc
-fetch-pandoc:
-	$(call attic_fetch_window,$(PANDOC_DEB_URL),$(PANDOC_DEB),3600)
+fetch-pandoc: $(INSTALL_URL_FILE_IF_CHANGED)
+	@$(INSTALL_URL_FILE_IF_CHANGED) \
+		"$(PANDOC_DEB_URL)" \
+		"$(PANDOC_DEB)" \
+		"$(OPERATOR_USER)" \
+		"$(OPERATOR_GROUP)" \
+		"0644" \
+		"$(PANDOC_SHA256)" || true
 
 .SILENT: install-pkg-pandoc
 
-install-pkg-pandoc: ensure-run-as-root fetch-pandoc
-	@$(ENSURE_DIR) root root 0755 $(STAMP_DIR); \
+.PHONY: install-pkg-pandoc
+install-pkg-pandoc: fetch-pandoc
+	@echo "📦 install-pkg-pandoc"
+	@# Ensure system-wide stamp directory exists
+	@$(run_as_root) install -d -m 0755 "$(STAMP_DIR_ROOT)"
+
+	@set -euo pipefail; \
+	DEB="$(PANDOC_DEB)"; \
+	SHA="$(PANDOC_SHA256)"; \
+	VERSION="$(PANDOC_VERSION)"; \
+	STAMP="$(STAMP_PANDOC)"; \
+	\
 	installed_bin=$$(command -v pandoc 2>/dev/null || true); \
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
 	installed_version_base=$${installed_version%%-*}; \
-	if [ -n "$$installed_bin" ] && [ -f "$(PANDOC_DEB)" ] && \
-	   [ "$$(sha256sum "$(PANDOC_DEB)" | cut -d' ' -f1)" = "$(PANDOC_SHA256)" ] && \
-	   [ "$$installed_version_base" = "$(PANDOC_VERSION)" ]; then \
-	    echo "ℹ️ pandoc $(PANDOC_VERSION) already installed"; \
-	    exit 0; \
+	\
+	if [ -n "$$installed_bin" ] && \
+	[ -f "$$DEB" ] && \
+	[ "$$(sha256sum "$$DEB" | cut -d" " -f1)" = "$$SHA" ] && \
+	[ "$$installed_version_base" = "$$VERSION" ]; then \
+		echo "ℹ️ pandoc $$VERSION already installed"; \
+		exit 0; \
 	fi; \
-	set -euo pipefail; \
-	trap 'rm -f "$(PANDOC_DEB)";' EXIT; \
-	echo "$(PANDOC_SHA256)  $(PANDOC_DEB)" | sha256sum -c - >/dev/null; \
-	DEBIAN_FRONTEND=noninteractive $(run_as_root) dpkg -i "$(PANDOC_DEB)" >/dev/null 2>&1 || true; \
+	\
+	echo "$$SHA  $$DEB" | sha256sum -c - >/dev/null; \
+	\
+	DEBIAN_FRONTEND=noninteractive $(run_as_root) dpkg -i "$$DEB" >/dev/null 2>&1 || true; \
 	$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get -y -f install --no-install-recommends >/dev/null; \
 	$(run_as_root) apt-mark hold pandoc >/dev/null; \
+	\
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
 	installed_version_base=$${installed_version%%-*}; \
-	if [ "$$installed_version_base" != "$(PANDOC_VERSION)" ]; then \
-	  echo "ERROR: pandoc wrong version (installed=$$installed_version)"; rm -f "$(PANDOC_DEB)"; trap - EXIT; exit 1; \
+	if [ "$$installed_version_base" != "$$VERSION" ]; then \
+		echo "❌ ERROR: pandoc wrong version (installed=$$installed_version)"; \
+		exit 1; \
 	fi; \
-	echo "version=$$installed_version sha256=$(PANDOC_SHA256) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-	    | $(run_as_root) tee "$(STAMP_PANDOC)" >/dev/null; \
-	trap - EXIT; \
-	echo "✅ pandoc $(PANDOC_VERSION) installed"
+	\
+	tmp_stamp="/tmp/pandoc.installed.$$RANDOM"; \
+	echo "version=$$installed_version sha256=$$SHA installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$$tmp_stamp"; \
+	$(run_as_root) install -m 0644 "$$tmp_stamp" "$$STAMP"; \
+	rm -f "$$tmp_stamp"; \
+	\
+	echo "✅ pandoc $$VERSION installed"
+
 
 upgrade-pkg-pandoc: ensure-run-as-root $(STAMP_PANDOC)
 	@echo "⬆️ Upgrading pandoc..."
@@ -350,12 +424,12 @@ upgrade-pkg-pandoc: ensure-run-as-root $(STAMP_PANDOC)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
 	@tmp=$$(mktemp); dpkg-query -W -f='${Version}\n' pandoc > "$$tmp" 2>/dev/null || echo "unknown" > "$$tmp"; \
 	echo "version=$$(cat $$tmp) upgraded_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-	    | $(run_as_root) tee $(STAMP_PANDOC) >/dev/null; \
+		| $(run_as_root) tee $(STAMP_PANDOC) >/dev/null; \
 	rm -f "$$tmp"
 	@echo "✅ pandoc upgrade complete"
 
 remove-pkg-pandoc: ensure-run-as-root
-	@echo "🗑️ Removing pandoc..."
 	@if dpkg -s pandoc >/dev/null 2>&1; then \
-	    $(run_as_root) apt-get remove -y pandoc; \
+		echo "🗑️ Removing pandoc (takes about 4 seconds)..."
+		$(run_as_root) apt-get remove -y --allow-change-held-packages pandoc >/dev/null 2>&1; \
 	fi
