@@ -119,3 +119,7 @@ venv/
 gen2/site/node_modules/
 gen2/site/dist/.cache
 .cache
+
+# the KYEID used by sign.sh
+# Never commit: contains personal signing workflow, not project tooling.
+gpg-keyid
