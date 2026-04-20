@@ -10,8 +10,16 @@ OPERATOR_USER  := $(shell id -un)
 OPERATOR_GROUP := $(shell id -gn)
 OPERATOR_HOME  := $(shell getent passwd $(OPERATOR_USER) | cut -d: -f6)
 
-ROOT_UID := 0
-ROOT_GID := 0
+# Defaults for root ownership (overrideable)
+ROOT_UID := $(shell id -u root 2>/dev/null || echo 0)
+ROOT_GID := $(shell id -g root 2>/dev/null || echo 0)
+ROOT_HOME := $(shell getent passwd root | cut -d: -f6)
+
+# State/stamp directory configuration (overrideable)
+# Default to per-user $(HOME)/.local/state/homelab; allow SYSTEM_WIDE=1 to use /var/lib/homelab
+XDG_STATE_HOME := $(HOME)/.local/state
+STAMP_DIR_USER := $(XDG_STATE_HOME)/homelab
+STAMP_DIR_ROOT := /var/lib/homelab
 
 # 2. Ingest the Data Source
 HOMELAB_ENV_SRC := $(REPO_ROOT)config/homelab.env
@@ -66,9 +74,21 @@ COMMON_SRC        := $(REPO_ROOT)scripts/common.sh
 # B. THE ARTIFACTS (System locations - safe to be empty during early parse)
 # Note: Use deferred assignment (=) or ensure these are only used in recipes
 # after BOOTSTRAP logic has had a chance to run or INSTALL_PATH is set.
-export run_as_root              := $(INSTALL_SBIN_PATH)/run-as-root.sh
-export INSTALL_FILE_IF_CHANGED  := $(INSTALL_PATH)/install_file_if_changed_v2.sh
-export INSTALL_FILES_IF_CHANGED := $(INSTALL_PATH)/install_files_if_changed_v2.sh
+export run_as_root                 := $(INSTALL_SBIN_PATH)/run-as-root.sh
+export INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
+export INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v2.sh
+export INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_changed.sh
+
+# no dependency on ensure-run-as-root as this gets executed by unprivileged users also
+.PHONY: ensure-stamp-dir
+ensure-stamp-dir:
+	@mkdir -p "$(STAMP_DIR)"
+	@if [ "$(STAMP_DIR)" = "$(STAMP_DIR_ROOT)" ]; then \
+		$(run_as_root) install -d -m 0755 "$(STAMP_DIR)"; \
+		$(run_as_root) chown root:root "$(STAMP_DIR)" || true; \
+	else \
+		install -d -m 0755 "$(STAMP_DIR)"; \
+	fi
 
 # --- 6. The Sync Logic (SHA256 & Install) ---
 $(HOMELAB_ENV_DST): $(HOMELAB_ENV_SRC)
