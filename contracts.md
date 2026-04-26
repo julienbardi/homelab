@@ -1,8 +1,10 @@
+# contracts.inc
 ===============================================================================
-WireGuard Control Plane — Global Contracts
+Homelab and WireGuard Control Plane — Global Contracts
 ===============================================================================
 
-This file defines all non-negotiable invariants for the WireGuard control plane.
+This file defines all non-negotiable invariants for the Homelab as well as for
+WireGuard control plane.
 
 It is documentation-as-law.
 It contains no executable logic.
@@ -26,6 +28,8 @@ Governance & authority:
   - Temporary incapacity
   - Authority succession
   - Mechanical grounding & hallucination prevention
+  - Complete and Unshortened Output Invariant
+  - BusyBox-Compatible AWK and Makefile Quoting Invariant
 
 Document law & scope:
   - Scope & applicability
@@ -45,9 +49,11 @@ Enforcement & evolution:
 Runtime & execution environment:
   - Runtime tool availability
   - Control-plane language boundaries
+  - Secret Handling and Ephemeral Decryption Invariant
   - Canonical storage & disaster recovery
   - Makefile recipe invariants
   - Control-plane reasoning authority
+  - Privilege Boundary Invariants
 
 Intent model & compilation:
   - Enumeration model
@@ -67,6 +73,9 @@ Data encoding & determinism:
   - Deterministic ordering
 
 Output & operator interface:
+  - Output icon semantics
+  - Routing authority
+  - NAT66 capability constraints
   - Output icon semantics
 -------------------------------------------------------------------------------
 
@@ -346,6 +355,89 @@ Rationale:
 Enforcement status:
   enforced (via prompt-injection of these rules into the agent context)
 -------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
+CONTRACT: Complete and Unshortened Output Invariant
+-------------------------------------------------------------------------------
+The assistant MUST emit complete, literal, and unshortened code, configuration,
+and diffs at all times.
+
+Prohibitions:
+  - Ellipses ("...") MUST NOT appear anywhere in code blocks, diffs, recipes,
+    configuration fragments, or any output that represents executable or
+    declarative logic.
+  - The assistant MUST NOT collapse, summarize, omit, or conceptually replace
+    any portion of code with placeholders, abstractions, or commentary.
+  - The assistant MUST NOT emit partial diffs, partial blocks, or conceptual
+    representations of code. All emitted code MUST be fully expanded.
+
+Requirements:
+  - All OLD/NEW diffs MUST contain the full, explicit code for every changed
+    block, with no omissions.
+  - All emitted code MUST be directly copy‑pasteable and immediately usable
+    without reconstruction, inference, or guesswork.
+  - The assistant MUST treat any attempt to shorten code as a contract
+    violation and MUST instead emit the complete literal form.
+
+Rationale:
+  - Ensures deterministic reproducibility.
+  - Prevents ambiguity and hidden assumptions.
+  - Guarantees operator‑grade correctness and auditability.
+  - Eliminates hallucination vectors introduced by conceptual placeholders.
+-------------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# CONTRACT: BusyBox-Compatible AWK and Makefile Quoting Invariant
+# ---------------------------------------------------------------------------
+# This contract governs all AWK usage inside Makefile recipes executed on
+# constrained systems (BusyBox awk, ash, Alpine, embedded NAS environments).
+#
+# 1. AWK programs MUST use single quotes exclusively.
+  - No double quotes inside AWK programs.
+  - No escaped quotes.
+  - No mixed quoting.
+#
+# 2. Field separators MUST use single-quoted -F expressions.
+  Allowed:   awk -F': *' '...'
+  Forbidden: awk -F": *" '...'
+             awk -F\": *\" ...
+#
+# 3. AWK variable names MUST NOT shadow reserved words.
+  Forbidden: in=1
+  Allowed:   block=1, state=1, flag=1
+#
+# 4. Boolean shortcuts in AWK pattern sections are forbidden.
+  Forbidden: block && /^[ ]/
+  Allowed:   block==1 && /^[ ]/
+#
+# 5. GNU awk extensions are forbidden.
+  Forbidden: gensub, FPAT, IGNORECASE, BEGINFILE, ENDFILE, match(..., array)
+  Only POSIX AWK features are permitted.
+#
+# 6. AWK programs MUST NOT contain double quotes in action blocks.
+  Forbidden: print "$$2"
+  Allowed:   print $$2
+#
+# 7. AWK programs MUST NOT be embedded inside Makefile double-quoted strings.
+  All AWK invocations MUST be inside single-quoted Makefile strings.
+#
+# 8. All AWK code inside Makefiles MUST escape $ as $$.
+  Required: print $$2
+#
+# 9. AWK extraction logic MUST be line-oriented and POSIX-only.
+  - No multiline regex.
+  - No RS/ORS manipulation.
+  - No non-POSIX features.
+#
+# 10. All AWK usage MUST be BusyBox-compatible and Makefile-safe.
+   Any AWK program violating this invariant MUST be rejected and rewritten.
+
+This invariant is mandatory and applies globally to all Makefile recipes,
+extraction logic, parsing logic, and any AWK usage executed on NAS, router,
+or embedded systems. No exceptions.
+---------------------------------------------------------------------------
 
 
 -------------------------------------------------------------------------------
@@ -848,6 +940,41 @@ Rationale:
 
 
 -------------------------------------------------------------------------------
+CONTRACT: Secret Handling and Ephemeral Decryption Invariant
+-------------------------------------------------------------------------------
+This contract governs all handling of encrypted and decrypted secret material
+within the homelab automation system. It replaces all previous secret-handling
+contracts and reflects the current architecture.
+
+Rules:
+
+  - Encrypted SSOT MUST reside exclusively in secrets.enc.yaml.
+  - Decryption MUST occur only inside the secrets-load recipe.
+  - Decrypted values MUST exist only in memory (environment variables) and
+    MUST NOT be written to persistent storage under any circumstances.
+  - Derived secret artifacts (e.g. ddns.conf) MUST be generated only in RAM
+    (e.g. /tmp) and MUST NOT persist across reboots.
+  - Any secret-derived file MUST be deployed to remote systems exclusively via
+    install_file_if_changed_v2.sh using the 9‑argument signature.
+  - No recipe may read secrets.enc.yaml directly except secrets-load.
+  - No recipe may log, echo, hash, diff, or otherwise expose secret values.
+  - No recipe may embed decrypted values into homelab.env or any other
+    persistent configuration file.
+  - All secret-derived files MUST be treated as ephemeral and MUST NOT be
+    considered SSOT.
+  - Any recipe requiring secrets MUST depend on secrets-load to guarantee
+    in-memory availability and avoid redundant decryptions.
+
+Rationale:
+
+  - Prevents accidental persistence of decrypted secrets.
+  - Ensures deterministic, idempotent, memory-only secret handling.
+  - Enforces strict privilege boundaries and minimizes attack surface.
+  - Guarantees that only the minimal required derived artifacts are deployed.
+-------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------
 CONTRACT: Canonical storage & disaster recovery
 -------------------------------------------------------------------------------
 
@@ -879,6 +1006,17 @@ systems.
 
 Rules:
 
+  - Any target that executes $(run_as_root) MUST declare an order-only
+        <target>: | $(run_as_root)
+    dependency to guarantee the wrapper exists before invocation and to
+    prevent race conditions under parallel or incremental builds.
+  - Any recipe containing more than one command MUST use a single-shell block:
+        @{ ... ; }
+    to prevent multi-shell fragmentation, environment loss, and inconsistent
+    error propagation.
+  - Macros may contain raw shell fragments, but recipes MUST NOT rely on
+    implicit shell chaining. All multi-step logic MUST be inside a single
+    @{ ... ; } block.
   - All recipe lines MUST begin with a tab character; space-indented recipes
     are forbidden.
   - Multi-line recipes MUST form a single shell block unless explicitly
@@ -897,6 +1035,8 @@ Rules:
   - Recipe behavior MUST be deterministic and side-effect free unless the
     recipe’s purpose is explicitly to perform side effects (e.g. installation).
   - Heredocs (<<) are forbidden in Makefile recipes.
+  - Any recipe that executes privileged commands MUST use $(run_as_root)
+    with argv tokens. Direct sudo or root shells are forbidden.
 
 Portability:
 
@@ -994,6 +1134,29 @@ Rationale:
   - Allows incremental evolution of reasoning tools without destabilizing execution.
 -------------------------------------------------------------------------------
 
+
+-------------------------------------------------------------------------------
+CONTRACT: Privilege Boundary Invariants
+-------------------------------------------------------------------------------
+
+Rules:
+
+  - Any recipe that invokes $(run_as_root) MUST declare an order-only
+    dependency on $(run_as_root).
+
+  - Any recipe that writes to a privileged path (UID 0 owned, or mode < 0700)
+    MUST use $(run_as_root).
+
+  - Any recipe invoking $(run_as_root) MUST be implemented as a single-shell
+    block.
+
+Rationale:
+
+  - Ensures deterministic privilege boundaries.
+  - Prevents privilege drift and partial writes.
+  - Guarantees $(run_as_root) exists before use.
+  - Eliminates undefined behavior during bootstrap.
+-------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 CONTRACT: Enumeration model
@@ -1261,12 +1424,17 @@ Rules:
   - "Temporary" or "placeholder" implementations are forbidden
     for unresolved intent dimensions.
 
+  - A key must be rotated if its confidentiality is suspected to be compromised.
+
 Enforcement:
 
   - A design is considered incomplete if any required intent dimension
     is known but not yet represented in authoritative dumps.
   - Any attempt to render, deploy, or apply with an incomplete intent
     model MUST abort execution.
+
+  Enforcement status:
+    enforceable but not yet enforced
 
 Rationale:
 
@@ -1429,6 +1597,11 @@ Additional rules:
     rendering MUST fail loudly.
   - Renderers MUST NOT tolerate unused or ignored fields
     in authoritative dumps.
+  - Any renderer that introduces implicit naming conventions is a contract
+     violation.
+
+Enforcement status:
+   enforceable but not yet enforced
 
 Rationale:
   - Prevents reintroduction of implicit behavior.
@@ -1952,30 +2125,6 @@ Rationale:
 
   - Prevents accidental expansion of the trust and routing domain
   - Makes host authority explicit and reviewable
--------------------------------------------------------------------------------
-
-
--------------------------------------------------------------------------------
-CONTRACT: Broken model freeze
--------------------------------------------------------------------------------
-
-If the intent model is known to be incomplete or inconsistent,
-no further implementation work is permitted.
-
-Rules:
-
-  - The only allowed changes while the model is broken are:
-      - contract amendments
-      - intent model completion
-      - validation logic
-
-  - Adding features, refactoring, or deployment logic
-    while the model is broken is forbidden.
-
-Rationale:
-
-  - Prevents compounding errors.
-  - Forces resolution at the correct layer.
 -------------------------------------------------------------------------------
 
 

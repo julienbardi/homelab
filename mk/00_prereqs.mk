@@ -41,13 +41,35 @@ else
 		echo "ℹ️  ethtool not required for ROLE=$(ROLE)"
 endif
 
-prereqs-public-dns-verify:
+prereqs-public-dns-verify: | ensure-default-gateway
 	@echo "🔍 Verifying public DNS CNAME for apt.bardi.ch"
-	@cname=$$(dig +short @$(PUBLIC_DNS) apt.bardi.ch CNAME | sed 's/\.$$//'); \
+	@out=$$(dig +short @$(PUBLIC_DNS) apt.bardi.ch CNAME 2>&1); \
+	case "$$out" in \
+		*"network unreachable"*) \
+			echo "❌ Network unreachable: NAS has no default route"; \
+			echo "   The NAS cannot reach $(PUBLIC_DNS) over IPv4."; \
+			echo "👉 Fix: ip route add default via $(ROUTER_ADDR) dev eth0"; \
+			exit 1;; \
+		*"no servers could be reached"*) \
+			echo "❌ Cannot reach DNS server $(PUBLIC_DNS)"; \
+			echo "   The NAS has IPv4 but DNS egress is blocked."; \
+			echo "👉 Check nftables, firewall, or WAN connectivity"; \
+			exit 1;; \
+		*"connection timed out"*) \
+			echo "❌ DNS query to $(PUBLIC_DNS) timed out"; \
+			echo "👉 Check upstream connectivity or firewall rules"; \
+			exit 1;; \
+	esac; \
+	cname=$$(printf "%s" "$$out" | sed 's/\.$$//'); \
+	if [ -z "$$cname" ]; then \
+		echo "❌ ERROR: No CNAME returned for apt.bardi.ch"; \
+		echo "👉 This may be a DNS issue or stale cache."; \
+		exit 1; \
+	fi; \
 	if [ "$$cname" != "$(APT_CNAME_EXPECTED)" ]; then \
 		echo "❌ ERROR: Public DNS misconfiguration detected"; \
 		echo "   Expected: apt.bardi.ch -> CNAME $(APT_CNAME_EXPECTED)."; \
-		echo "   Found:    apt.bardi.ch -> '$${cname:-<none>}'"; \
+		echo "   Found:    apt.bardi.ch -> '$$cname'"; \
 		echo ""; \
 		echo "👉 Fix this in Infomaniak DNS before continuing:"; \
 		echo "   apt 21600 IN CNAME $(APT_CNAME_EXPECTED)."; \
@@ -55,7 +77,8 @@ prereqs-public-dns-verify:
 	fi
 	@echo "✅ Public DNS CNAME is correct"
 
-prereqs-tailscale-repo-verify:
+
+prereqs-tailscale-repo-verify: | ensure-default-gateway
 	@echo "🔍 Verifying Tailscale repo hygiene"
 	@if [ -f $(TAILSCALE_REPO_FILE) ]; then \
 		bad=$$(grep -Rl "pkgs.tailscale.com" /etc/apt/sources.list.d \
@@ -77,6 +100,7 @@ prereqs-tailscale-repo-verify:
 
 prereqs: \
 	ensure-run-as-root \
+	ensure-default-gateway \
 	prereqs-public-dns-verify \
 	prereqs-tailscale-repo-verify \
 	prereqs-network \
@@ -85,17 +109,14 @@ prereqs: \
 	prereqs-docs-verify \
 	prereqs-helper-scripts \
 	install-ssh-config \
-	rust-system
-	# APT trust bootstrap for third-party repositories
+	rust-system | ensure-default-gateway
 	@echo "🔐 Ensuring Tailscale APT signing key"
 	@curl -fsSL $(TAILSCALE_KEY_URL) -o /tmp/tailscale.key
 	@$(call install_file,/tmp/tailscale.key,$(TAILSCALE_KEYRING),root,root,644)
 	@rm -f /tmp/tailscale.key
 
 	@echo "📦 Ensuring installation of prerequisite tools"
-	@$(call apt_update_if_needed)
-	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-		$(PREREQ_PKGS)
+	@$(call apt_install_group,$(APT_CORE_PACKAGES))
 
 	@for bin in curl jq git iperf3 qrencode funzip; do \
 		command -v $$bin >/dev/null || { \
@@ -105,15 +126,13 @@ prereqs: \
 		echo "❌ nft binary missing at /usr/sbin/nft"; exit 1; }
 	@echo "✅ Base prerequisites installed"
 
+
 # ------------------------------------------------------------
 # Network & Infrastructure Mutators
 # ------------------------------------------------------------
 
-prereqs-network: ensure-run-as-root prereqs-network-verify
-	@echo "📦 Installing base networking prerequisites"
-	@$(call apt_update_if_needed)
-	@$(run_as_root) apt-get install -y --no-install-recommends \
-		wireguard wireguard-tools netfilter-persistent iptables-persistent ethtool tcpdump
+prereqs-network: ensure-run-as-root prereqs-network-verify install-pkg-core-apt | ensure-default-gateway
+	@echo "📦 Networking prerequisites already ensured"
 
 fix-tailscale-repo: ensure-run-as-root
 	@# If TAILSCALE_REPO_FILE is unset or the file is missing, print where the variable is defined
@@ -210,7 +229,7 @@ prereqs-python-venv-verify:
 
 PYTHON_MIN ?= 3.11.2
 
-prereqs-python-venv: ensure-run-as-root
+prereqs-python-venv: ensure-run-as-root | ensure-default-gateway
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "📍 Ensuring python3-venv is installed (need >= $(PYTHON_MIN))"; fi
 	@# If python3 >= $(PYTHON_MIN) and venv importable, do nothing; otherwise install.
 	@python3 -c 'import sys,importlib,pkgutil; min_ver=tuple(int(p) for p in "$(PYTHON_MIN)".split(".")); ver=tuple(sys.version_info[:len(min_ver)]); has_venv=(hasattr(importlib,"util") and importlib.util.find_spec("venv") is not None) or (pkgutil.find_loader("venv") is not None); sys.exit(0 if ver>=min_ver and has_venv else 1)' >/dev/null 2>&1 || { \

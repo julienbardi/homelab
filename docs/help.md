@@ -134,7 +134,6 @@ Targets:
   Convenience target that performs both deployment and execution.
   This is the default and recommended entry point.
 
-Secrets are validated structurally via `ddns-secret-ensure` before deployment.
 No cron jobs are installed; execution is event-driven by Asuswrt-Merlin.
 
 ## 📦 Infrastructure
