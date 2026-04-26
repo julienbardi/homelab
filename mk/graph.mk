@@ -115,14 +115,8 @@ ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
 
 .PHONY: gitcheck update
 gitcheck:
-	@if [ ! -d $(REPO_ROOT).git ]; then \
-		echo "📦 Cloning homelab repo"; \
-		mkdir -p $(dir $(REPO_ROOT)); \
-		git clone $(HOMELAB_REPO) $(REPO_ROOT); \
-	else \
-		echo "📍 homelab repo already present at $(REPO_ROOT)"; \
-		git -C $(REPO_ROOT) rev-parse --short HEAD; \
-	fi
+	$(call git_clone_or_fetch,$(REPO_ROOT),$(HOMELAB_REPO),main)
+	@echo "📍 homelab repo at commit $$(git -C $(REPO_ROOT) rev-parse --short HEAD)"
 
 update: gitcheck
 	@echo "⬆️ Updating homelab repo"
@@ -134,21 +128,31 @@ update: gitcheck
 
 .PHONY: clean
 clean: ensure-run-as-root
-	@echo "Removing tailscaled role units"
-	@$(run_as_root) systemctl disable tailscaled-lan.service tailscaled || true
-	@$(run_as_root) rm -f /etc/systemd/system/tailscaled-lan.service || true
-	@$(run_as_root) systemctl daemon-reload
-	@echo "✅ Cleaned tailscaled units and disabled services"
+	@$(run_as_root) sh -c '\
+		echo "🧹 Removing tailscaled role units"; \
+		systemctl disable tailscaled-lan.service >/dev/null 2>&1 || true; \
+		rm -f /etc/systemd/system/tailscaled-lan.service || true; \
+		systemctl daemon-reload >/dev/null 2>&1; \
+		echo "✅ Cleaned tailscaled units and disabled services"; \
+	'
 
 .PHONY: reload
 reload: ensure-run-as-root
-	@$(run_as_root) systemctl daemon-reload
-	@echo "🔄 systemd reloaded"
+	@$(run_as_root) sh -c '\
+		echo "🔄 Reloading systemd units"; \
+		systemctl daemon-reload; \
+		echo "✅ systemd reloaded"; \
+	'
 
 .PHONY: restart
 restart: ensure-run-as-root
-	@$(run_as_root) systemctl restart tailscaled tailscaled-lan.service
-	@echo "🔄 Restarted tailscaled + family + guest services"
+	@$(run_as_root) sh -c '\
+		echo "🔄 Restarting tailscaled services"; \
+		systemctl restart tailscaled >/dev/null 2>&1 || true; \
+		systemctl restart tailscaled-lan.service >/dev/null 2>&1 || true; \
+		echo "✅ tailscaled services restarted"; \
+	'
+
 
 test: logs ensure-run-as-root
 	@echo "🧩 Running run_as_root harness"
@@ -196,25 +200,26 @@ install-systemd: ensure-run-as-root
 	@if [ ! -d "$(REPO_ROOT)$(REPO_SYSTEMD)" ]; then \
 		echo "ERROR: $(REPO_ROOT)$(REPO_SYSTEMD) not found"; exit 1; \
 	fi
-	# ensure target dirs
-	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
-	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)/unbound-ctl-fix.service.d
-	@$(run_as_root) mkdir -p /etc/systemd/system/unbound.service.d
-	# install unit files with safe perms (path+oneshot helper kept as fallback)
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf
-	@$(run_as_root) systemctl daemon-reload
+	@$(run_as_root) sh -c '\
+		mkdir -p $(SYSTEMD_DIR); \
+		mkdir -p $(SYSTEMD_DIR)/unbound-ctl-fix.service.d; \
+		mkdir -p /etc/systemd/system/unbound.service.d; \
+		install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service; \
+		install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path; \
+		install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf; \
+		install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf; \
+		systemctl daemon-reload; \
+	'
 
 enable-systemd: install-systemd ensure-run-as-root
-	@echo "🚀 Enabling and starting path watcher and ensuring unbound drop-in is active"
-	@$(run_as_root) systemctl enable --now unbound-ctl-fix.path || true
-	@$(run_as_root) systemctl reset-failed unbound-ctl-fix.service unbound-ctl-fix.path || true
-	@$(run_as_root) systemctl start unbound-ctl-fix.service || true
-	# restart unbound so ExecStartPost runs and sets socket ownership in same context
-	@$(run_as_root) systemctl restart unbound || true
-	@$(run_as_root) systemctl status unbound --no-pager || true
+	@$(run_as_root) sh -c '\
+		echo "🚀 Enabling unbound fix units"; \
+		systemctl enable --now unbound-ctl-fix.path || true; \
+		systemctl reset-failed unbound-ctl-fix.service unbound-ctl-fix.path || true; \
+		systemctl start unbound-ctl-fix.service || true; \
+		systemctl restart unbound || true; \
+		systemctl status unbound --no-pager || true; \
+	'
 
 verify-systemd: ensure-run-as-root
 	@echo "🔍 Status and socket ownership:"
@@ -224,16 +229,19 @@ verify-systemd: ensure-run-as-root
 	@$(run_as_root) -u unbound sh -c 'unbound-control status' || true
 
 uninstall-systemd: ensure-run-as-root
-	@echo "🧹 Removing systemd units"
-	@$(run_as_root) systemctl stop --now unbound-ctl-fix.path unbound-ctl-fix.service || true
-	@$(run_as_root) systemctl disable unbound-ctl-fix.path || true
-	@$(run_as_root) rm -f $(SYSTEMD_DIR)/unbound-ctl-fix.path \
-			  $(SYSTEMD_DIR)/unbound-ctl-fix.service \
-			  $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf \
-			  $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf || true
-	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound-ctl-fix.service.d || true
-	@$(run_as_root) rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound.service.d || true
-	@$(run_as_root) systemctl daemon-reload
+	@$(run_as_root) sh -c '\
+		echo "🧹 Removing systemd units"; \
+		systemctl stop --now unbound-ctl-fix.path unbound-ctl-fix.service >/dev/null 2>&1 || true; \
+		systemctl disable unbound-ctl-fix.path >/dev/null 2>&1 || true; \
+		rm -f $(SYSTEMD_DIR)/unbound-ctl-fix.path \
+			$(SYSTEMD_DIR)/unbound-ctl-fix.service \
+			$(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf \
+			$(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf || true; \
+		rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound-ctl-fix.service.d >/dev/null 2>&1 || true; \
+		rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound.service.d >/dev/null 2>&1 || true; \
+		systemctl daemon-reload >/dev/null 2>&1; \
+		echo "✅ systemd units removed"; \
+	'
 
 .PHONY: install-nft-apply nft-apply nft-confirm nft-install nft-status nft-install nft-verify nft-install-rollback
 .NOTPARALLEL: nft-confirm nft-apply
@@ -246,34 +254,39 @@ nft-sync: ensure-run-as-root
 	@$(call install_file,$(REPO_ROOT)scripts/homelab.nft,$(HOMELAB_NFT_RULESET),root,root,0644)
 
 nft-apply: install-nft-apply nft-sync ensure-run-as-root
-	$(run_as_root) $(INSTALL_PATH)/homelab-nft-apply.sh
-	@echo "📄 Recording applied nftables ruleset hash"
-	$(run_as_root) sh -c 'sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"'
+	@$(run_as_root) sh -c '\
+		echo "🔧 Applying nftables ruleset"; \
+		$(INSTALL_PATH)/homelab-nft-apply.sh >/dev/null 2>&1 || true; \
+		sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"; \
+		echo "📄 Recorded nftables ruleset hash"; \
+	'
 
 nft-confirm: ensure-run-as-root
 	@$(run_as_root) $(INSTALL_PATH)/homelab-nft-confirm.sh
 
 nft-install: install-nft-apply ensure-run-as-root
-	@echo "🛡️ Installing homelab nftables firewall"
-	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh
-	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
-	@$(run_as_root) systemctl daemon-reload
-	@$(run_as_root) systemctl enable homelab-nft.service homelab-nft-rollback.timer
-	@echo "✅ Firewall units installed (not yet applied)"
-	@echo "Next steps:"
-	@echo " make nft-apply    # Apply firewall rules (arms rollback timer)"
-	@echo " make nft-confirm  # Confirm rules (disarms rollback)"
-	@echo " (If not confirmed, rollback runs automatically)"
+	@$(run_as_root) sh -c '\
+		echo "🛡️ Installing homelab nftables firewall"; \
+		install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh; \
+		install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh; \
+		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service; \
+		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
+		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
+		systemctl daemon-reload >/dev/null 2>&1; \
+		systemctl enable homelab-nft.service homelab-nft-rollback.timer >/dev/null 2>&1 || true; \
+		echo "✅ Firewall units installed (not yet applied)"; \
+	'
+
 
 nft-status: ensure-run-as-root
 	@$(run_as_root) nft list table inet homelab_filter
 
 nft-install-rollback: ensure-run-as-root
-	@echo "⏪ Installing homelab nft rollback units"
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer
-	@$(run_as_root) systemctl daemon-reload
-	@$(run_as_root) systemctl enable homelab-nft-rollback.timer
+	@$(run_as_root) sh -c '\
+		echo "⏪ Installing homelab nft rollback units"; \
+		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
+		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
+		systemctl daemon-reload >/dev/null 2>&1; \
+		systemctl enable homelab-nft-rollback.timer >/dev/null 2>&1 || true; \
+		echo "✅ nft rollback units installed"; \
+	'

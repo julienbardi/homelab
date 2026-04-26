@@ -1,0 +1,3 @@
+# hosts.add intentionally left empty.
+# Do NOT add static hostnames here until DHCP static leases are enforced via NVRAM.
+# Otherwise entries may become wrong if devices get new IPs.

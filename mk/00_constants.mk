@@ -22,7 +22,6 @@ STAMP_DIR_USER := $(XDG_STATE_HOME)/homelab
 STAMP_DIR_ROOT := /var/lib/homelab
 
 # 2. Ingest the Data Source
-HOMELAB_ENV_SRC := $(REPO_ROOT)config/homelab.env
 HOMELAB_ENV_DST := /volume1/homelab/homelab.env
 
 # --- 3. The Self-Healing Include ---
@@ -39,7 +38,7 @@ DOCS_DIR = $(INSTALL_PATH)/docs
 
 # If the include worked and we have a DOMAIN, we are NO LONGER bootstrapping.
 ifneq ($(strip $(DOMAIN)),)
-    BOOTSTRAP :=
+	BOOTSTRAP :=
 endif
 
 export BOOTSTRAP
@@ -90,33 +89,24 @@ ensure-stamp-dir:
 		install -d -m 0755 "$(STAMP_DIR)"; \
 	fi
 
-# --- 6. The Sync Logic (SHA256 & Install) ---
-$(HOMELAB_ENV_DST): $(HOMELAB_ENV_SRC)
-	@echo "Checking synchronization: $(HOMELAB_ENV_SRC) -> $@"
-	@SRC_HASH=$$(sha256sum $(HOMELAB_ENV_SRC) | cut -d' ' -f1); \
-	DST_HASH=$$(sha256sum $@ 2>/dev/null | cut -d' ' -f1 || echo "none"); \
-	if [ "$$SRC_HASH" != "$$DST_HASH" ]; then \
-		echo "📝 SHA256 mismatch. Installing..."; \
-		sudo mkdir -p $$(dirname $@); \
-		sudo cp $(HOMELAB_ENV_SRC) $@; \
-		sudo chmod 0644 $@; \
-		sudo chown root:root $@; \
-	else \
-		echo "✅ Content identical. Updating timestamp."; \
-		sudo touch $@; \
-	fi
+# --- 6. Enforcing permissions ---
+$(HOMELAB_ENV_DST):
+	@echo "Enforcing permissions: $@"
+	sudo chmod 0644 $@; \
+	sudo chown root:root $@; \
+	sudo touch $@;
 
 # --- 7. Safety Guards ---
 ifeq ($(strip $(BOOTSTRAP)),)
   ifeq ($(strip $(DOMAIN)),)
-    CONFIG_ERROR := "DOMAIN is empty — Ensure $(HOMELAB_ENV_DST) is valid."
+	CONFIG_ERROR := "DOMAIN is empty — Ensure $(HOMELAB_ENV_DST) is valid."
   endif
   ifeq ($(strip $(UNBOUND_PORT)),)
-    CONFIG_ERROR := "UNBOUND_PORT is not defined in $(HOMELAB_ENV_DST)."
+	CONFIG_ERROR := "UNBOUND_PORT is not defined in $(HOMELAB_ENV_DST)."
   endif
   # Added for LAN health check safety
   ifeq ($(strip $(NAS_LAN_IP)),)
-    CONFIG_ERROR := "NAS_LAN_IP is not defined in $(HOMELAB_ENV_DST)."
+	CONFIG_ERROR := "NAS_LAN_IP is not defined in $(HOMELAB_ENV_DST)."
   endif
 endif
 
@@ -154,9 +144,6 @@ GEN_CLIENT_WRAPPER := $(ROUTER_SCRIPTS)/gen-client-cert-wrapper.sh
 
 # Security & Identity
 SOPS_AGE_PUBKEY := age1rzyyxnn2ejkchp4jewdpw92av689wdtj2kgrv3ys4p3chn862vjqc3fs5n
-
-# Generated Artifacts
-DDNS_TARGET     := $(HOMELAB_DIR)/secrets/ddns.conf
 
 # SSH Configuration for Router
 # We use -o StrictHostKeyChecking=accept-new to handle re-installs gracefully

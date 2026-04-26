@@ -41,7 +41,7 @@ prometheus: \
 	@echo "📊 Targets page shows both jobs UP at: http://$(PROMETHEUS_ADDR)/targets"
 	@echo "🚀 Prometheus observability ready"
 
-prometheus-install: ensure-run-as-root
+prometheus-install: ensure-run-as-root | ensure-default-gateway
 	@echo "📦 Installing Prometheus"
 	@$(call apt_update_if_needed)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \

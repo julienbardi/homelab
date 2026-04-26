@@ -4,7 +4,32 @@
 # CONTRACT:
 # - Defines run_as_root := /usr/local/sbin/run-as-root.sh
 # - All recipes must call $(run_as_root) with argv tokens.
+# - Any target that executes $(run_as_root) MUST declare:
+#       <target>: | $(run_as_root)
+#   to ensure the wrapper exists before invocation.
 # --------------------------------------------------------------------
+
+# Deterministic PATH for all recipes
+PATH := /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+APT_CORE_PACKAGES := \
+	build-essential curl jq git nftables iptables shellcheck pup codespell \
+	aspell aspell-en ndppd knot-dnsutils unbound unbound-anchor dnsutils \
+	dnsperf iperf3 qrencode ripgrep htop libc-ares-dev apt-cacher-ng unzip \
+	git-filter-repo python3-venv \
+	wireguard wireguard-tools netfilter-persistent iptables-persistent \
+	ethtool tcpdump \
+	rclone
+
+install-pkg-core-apt:
+	@status=0; \
+	$(call apt_install_group,$(APT_CORE_PACKAGES)) || status=$$?; \
+	if [ "$$status" -eq 3 ]; then \
+		: ; \
+	elif [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ core apt group already satisfied"; \
+	fi
 
 # ------------------------------------------------------------
 # Tools Installation (The Bootstrap Core)
@@ -57,6 +82,34 @@ endef
 # All installed scripts are root-owned executables; repo scripts may be non-executable.
 define install_script
 	@$(call install_file,$(1),$(INSTALL_PATH)/$(2),$(ROOT_UID),$(ROOT_GID),0755)
+endef
+
+# $(call git_clone_or_fetch,DIR,URL,REF)
+define git_clone_or_fetch
+	@{ \
+		mkdir -p "$(1)"; \
+		if [ -d "$(1)/.git" ]; then \
+			cd "$(1)"; \
+			if ! git fetch --tags --quiet || ! git checkout --quiet "$(3)" 2>/dev/null; then \
+				cd ..; \
+				rm -rf "$(1)"; \
+				git clone --quiet --depth 1 --branch "$(3)" "$(2)" "$(1)"; \
+			fi; \
+		else \
+			git clone --quiet --depth 1 --branch "$(3)" "$(2)" "$(1)"; \
+		fi; \
+	}
+endef
+
+# $(call acme_fix_perms,DIR)
+# Ensures ACME directory permissions match ACME.sh security model.
+define acme_fix_perms
+	$(run_as_root) sh -c '\
+		chown -R $(ROOT_UID):$(ROOT_GID) "$(1)"; \
+		find "$(1)" -type d -exec chmod 0700 {} +; \
+		find "$(1)" -type f -name "*.sh" -exec chmod 0755 {} +; \
+		find "$(1)" -type f ! -name "*.sh" -exec chmod 0600 {} +; \
+	'
 endef
 
 # ------------------------------------------------------------
@@ -114,7 +167,7 @@ install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES)
 
 uninstall-all:
 	@echo "🗑️  Uninstalling all homelab scripts..."
-	@$(run_as_root) rm -f $(BIN_FILES) $(OTHER_SBIN_FILES) $(BOOTSTRAP_FILES)
+	-@$(run_as_root) rm -f $(BIN_FILES) $(OTHER_SBIN_FILES) $(BOOTSTRAP_FILES) || true
 
 ensure-run-as-root:
 	@test -f "$(run_as_root)" || { echo "❌ Error: run-as-root.sh not found. Run 'sudo make install-all' first."; exit 1; }
@@ -186,17 +239,90 @@ define apt_install
 endef
 
 
-# Arguments for apt_remove:
-# 1: PACKAGE_NAME
+# ------------------------------------------------------------
+# apt_remove
+# Removes a group of apt packages in ONE resolver pass.
+#
+# Usage:
+#   $(call apt_remove, pkg1 pkg2 pkg3 ...)
+#
+# Behavior:
+#   - Silent unless VERBOSE=1
+#   - Fast dpkg pre-probe: skip apt-get if nothing installed
+#   - Removes only installed packages
+#   - Privilege-correct: uses $(run_as_root)
+#   - No multi-shell fragmentation
+# ------------------------------------------------------------
 define apt_remove
-	@! dpkg -l $(1) >/dev/null 2>&1 || { \
-		echo "apt 🗑️ Removing $(1)..."; \
-		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq $(1); \
-		$(run_as_root) apt-get autoremove -y -qq; \
-	}
+	PKGS="$(1)"; \
+	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "🗑️ Removing apt packages: $$PKGS"; \
+	fi; \
+	INSTALLED=$$( \
+		dpkg-query -W -f='$${Status} $${Package}\n' $$PKGS 2>/dev/null \
+		| awk '$$1$$2$$3 == "installokinstalled" {print $$4}' \
+	); \
+	if [ -z "$$INSTALLED" ]; then \
+		if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+			echo "ℹ️ No packages to remove"; \
+		fi; \
+		exit 0; \
+	fi; \
+	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ Installed packages to remove: $$INSTALLED"; \
+	fi; \
+	DEBIAN_FRONTEND=noninteractive $(run_as_root) apt-get remove -y --allow-change-held-packages $$INSTALLED >/dev/null 2>&1
 endef
+
 
 # Updates apt cache only if it hasn't been updated in the last hour.
 define apt_update_if_needed
 	$(run_as_root) sh -c 'test $$(find /var/lib/apt/lists -mmin -60 | grep -q .) || apt-get update -qq'
 endef
+
+# ------------------------------------------------------------
+# apt_install_group
+# Installs a group of apt packages in ONE resolver pass.
+#
+# Usage:
+#   $(call apt_install_group, pkg1 pkg2 pkg3 ...)
+#
+# Behavior:
+#   - Silent unless VERBOSE=1
+#   - One dpkg/apt resolver pass (fast)
+#   - Idempotent: does nothing if all packages already installed
+#   - Privilege-correct: uses $(run_as_root)
+#   - No multi-shell fragmentation
+# ------------------------------------------------------------
+define apt_install_group
+	PKGS="$(1)"; \
+	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "📦 Installing apt package group: $$PKGS"; \
+	fi; \
+	MISSING=$$( \
+		dpkg-query -W -f='$${Status} $${Package}\n' $$PKGS 2>/dev/null \
+		| awk '$$1$$2$$3 != "installokinstalled" {print $$4}' \
+	); \
+	if [ -z "$$MISSING" ]; then \
+		if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+			echo "ℹ️ core apt group already satisfied"; \
+		fi; \
+		exit 0; \
+	fi; \
+	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ Missing packages: $$MISSING"; \
+	fi; \
+	DEBIAN_FRONTEND=noninteractive $(run_as_root) apt-get install -y --no-install-recommends $$MISSING
+endef
+
+# $(call ensure_service_enabled,<service>,<human-name>)
+# $(call ensure_service_enabled,<service>,<human-name>)
+define ensure_service_enabled
+	if ! systemctl is-enabled $(1) >/dev/null 2>&1; then \
+		$(run_as_root) systemctl enable --now $(1) >/dev/null 2>&1 || true; \
+		echo "✅ $(2) enabled"; \
+	elif [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ $(2) already enabled"; \
+	fi
+endef
+

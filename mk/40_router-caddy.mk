@@ -19,6 +19,8 @@
 #   - MUST be correct under 'make -j'
 #   - MUST NOT rely on timestamps for remote state
 # ------------------------------------------------------------
+export ROUTER_CADDY_BIN
+export ROUTER_CADDYFILE_DST
 
 .PHONY: router-require-arm64
 router-require-arm64: | router-ssh-check
@@ -52,15 +54,19 @@ router-caddy-bin: | router-ssh-check router-require-arm64
 # ------------------------------------------------------------
 
 .PHONY: router-caddy-config
-router-caddy-config: router-firewall-started | router-require-arm64 router-ssh-check
+router-caddy-config: router-certs-install-caddy | router-require-arm64 router-ssh-check
 	@echo "📦 Installing Caddyfile on router"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \
 		mkdir -p "$(dir $(ROUTER_CADDYFILE_DST))"; \
 	'
 	@set -e; \
+	if [ -z "$(INSTALL_FILE_IF_CHANGED)" ]; then \
+		echo "❌ INSTALL_FILE_IF_CHANGED is empty; check mk/00_constants.mk and homelab.env"; \
+		exit 1; \
+	fi; \
 	EC=0; \
-	$(INSTALL_PATH)/install_file_if_changed_v2.sh \
+	$(INSTALL_FILE_IF_CHANGED) \
 		"" "" \
 		"$(ROUTER_CADDYFILE_SRC)" \
 		"$(ROUTER_HOST)" "$(ROUTER_SSH_PORT)" \
@@ -71,8 +77,9 @@ router-caddy-config: router-firewall-started | router-require-arm64 router-ssh-c
 		exit "$$EC"; \
 	fi
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
-		'$(ROUTER_CADDY_BIN) validate --config $(ROUTER_CADDYFILE_DST)'
+		'"$(ROUTER_CADDY_BIN)" validate --config "$(ROUTER_CADDYFILE_DST)" --adapter caddyfile'
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '/jffs/scripts/caddy-reload.sh'
+
 
 
 # ------------------------------------------------------------
@@ -101,11 +108,12 @@ router-caddy-status: | router-ssh-check
 
 .PHONY: router-caddy-start
 router-caddy-start: | router-ssh-check
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_CADDY_BIN) start'
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '/jffs/scripts/caddy-reload.sh'
 
 .PHONY: router-caddy-stop
 router-caddy-stop: | router-ssh-check
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_CADDY_BIN) stop'
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) 'killall caddy 2>/dev/null || true'
+
 
 # ------------------------------------------------------------
 # Health, version, and restart
@@ -122,6 +130,7 @@ router-caddy-version: | router-ssh-check
 		fi \
 	'
 
+
 .PHONY: router-caddy-health
 router-caddy-health: | router-ssh-check
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
@@ -136,12 +145,8 @@ router-caddy-health: | router-ssh-check
 .PHONY: router-caddy-restart
 router-caddy-restart: | router-ssh-check
 	@echo "🔄 Restarting Caddy on router"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
-		if pidof caddy >/dev/null; then \
-			"$(ROUTER_CADDY_BIN)" stop || true; \
-		fi; \
-		"$(ROUTER_CADDY_BIN)" start \
-	'
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '/jffs/scripts/caddy-reload.sh'
+
 
 # ------------------------------------------------------------
 # Install TLS certs for Caddy (from router cert store)
@@ -165,20 +170,19 @@ router-caddy-upgrade: | router-ssh-check router-require-arm64
 	@echo "⬆️  Upgrading Caddy on router"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \
-		mkdir -p $(dir $(ROUTER_CADDY_BIN)); \
-		curl -fsSL "$(ROUTER_CADDY_URL)" -o "$(ROUTER_CADDY_BIN).tmp"; \
-		chmod 0755 "$(ROUTER_CADDY_BIN).tmp"; \
-		mv "$(ROUTER_CADDY_BIN).tmp" "$(ROUTER_CADDY_BIN)"; \
+		mkdir -p "$(dir $(ROUTER_CADDY_BIN))"; \
+		cd "$(dir $(ROUTER_CADDY_BIN))"; \
+		curl -fsSL "$(ROUTER_CADDY_URL)" -o caddy.tar.gz; \
+		tar -xzf caddy.tar.gz caddy; \
+		chmod 0755 caddy; \
+		mv caddy "$(ROUTER_CADDY_BIN)"; \
+		rm caddy.tar.gz; \
 		file "$(ROUTER_CADDY_BIN)" | grep -q "ARM aarch64" \
 			|| { echo "❌ Invalid Caddy binary"; exit 1; } \
 	'
 	@echo "🔄 Restarting Caddy after upgrade"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
-		if pidof caddy >/dev/null; then \
-			"$(ROUTER_CADDY_BIN)" stop || true; \
-		fi; \
-		"$(ROUTER_CADDY_BIN)" start \
-	'
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '/jffs/scripts/caddy-reload.sh'
+
 
 .PHONY: router-caddy-check
 router-caddy-check: | router-ssh-check router-require-arm64
@@ -189,7 +193,7 @@ router-caddy-check: | router-ssh-check router-require-arm64
 		fi \
 	'
 	@echo "🔍 Checking Caddy version"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '$(ROUTER_CADDY_BIN) version || exit 1'
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '"$(ROUTER_CADDY_BIN)" version || exit 1'
 	@echo "🔍 Checking Caddy process"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		if pidof caddy >/dev/null; then \
@@ -200,10 +204,11 @@ router-caddy-check: | router-ssh-check router-require-arm64
 	'
 	@echo "🔍 Validating Caddyfile"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
-		'$(ROUTER_CADDY_BIN) validate --config $(ROUTER_CADDYFILE_DST)'
+		'"$(ROUTER_CADDY_BIN)" validate --config "$(ROUTER_CADDYFILE_DST)" --adapter caddyfile'
 	@echo "🔍 Reloading Caddy"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '/jffs/scripts/caddy-reload.sh'
 	@echo "✅ Caddy check complete"
+
 
 .PHONY: router-caddy-enable
 router-caddy-enable: | router-ssh-check router-require-run-as-root
@@ -213,8 +218,8 @@ router-caddy-enable: | router-ssh-check router-require-run-as-root
 		mkdir -p /jffs/scripts; \
 		touch /jffs/scripts/services-start; \
 		chmod 0755 /jffs/scripts/services-start; \
-		if ! grep -q "$(ROUTER_SCRIPTS)/caddy start" /jffs/scripts/services-start; then \
-			echo "$(ROUTER_SCRIPTS)/caddy start" >> /jffs/scripts/services-start; \
+		if ! grep -q "/jffs/scripts/caddy-reload.sh" /jffs/scripts/services-start; then \
+			echo "/jffs/scripts/caddy-reload.sh" >> /jffs/scripts/services-start; \
 		fi \
 	'
 	@echo "✅ Caddy autostart enabled"

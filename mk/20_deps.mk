@@ -1,12 +1,123 @@
 # mk/20_deps.mk
 # Package installation and build helpers
 
+STAMP_DIR := $(STAMP_DIR_ROOT)
 GO_MODERN_VERSION := 1.25.5
 GO_MODERN_PREFIX  := /usr/local/go
 GO_MODERN_BIN     := $(GO_MODERN_PREFIX)/bin/go
 STAMP_GO_MODERN   := $(STAMP_DIR)/go-modern.installed
 GO_ARCH           := amd64
 GO_DIST_URL       := https://go.dev/dl/go$(GO_MODERN_VERSION).linux-$(GO_ARCH).tar.gz
+
+# ------------------------------------------------------------
+# REUSABLE MACROS
+# ------------------------------------------------------------
+
+# Macro: go_install_from_source
+# Compiles a Go tool into a temp dir and uses IFC to install resulting binaries atomically
+define go_install_from_source
+	BIN_NAME="$(1)"; VERSION_STR="$(2)"; \
+	REQ_VER="$${VERSION_STR##*@}"; \
+	DEST="$(INSTALL_PATH)/$$BIN_NAME"; \
+	STAMP="$(STAMP_DIR)/$$BIN_NAME.installed"; \
+	if [ -f "$$STAMP" ] && [ -f "$$DEST" ]; then \
+		CURRENT_SHA=$$(sha256sum "$$DEST" | awk '{print $$1}'); \
+		STAMP_SHA=$$(grep -oP 'sha256=\K[a-f0-9]+' "$$STAMP" || echo "none"); \
+		if [ "$$CURRENT_SHA" = "$$STAMP_SHA" ]; then \
+			echo "✅ $$BIN_NAME $$REQ_VER already installed (hash match)"; \
+			exit 0; \
+		fi; \
+	fi; \
+	echo "📦 Building $$BIN_NAME from source ($$VERSION_STR)..."; \
+	TMP_BIN=$$(mktemp -d /tmp/go-build.XXXXXX); \
+	GOBIN=$$TMP_BIN $(GO_MODERN_BIN) install $$VERSION_STR || exit 1; \
+	for f in $$TMP_BIN/*; do \
+		FILENAME=$$(basename $$f); \
+		TARGET="$(INSTALL_PATH)/$$FILENAME"; \
+		echo "🚚 Installing $$FILENAME via IFC"; \
+		RC=0; \
+		$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q "" "" "$$f" "" "" "$$TARGET" "$(ROOT_UID)" "$(ROOT_GID)" "0755" || RC=$$?; \
+		if [ "$$RC" -ne 0 ] && [ "$$RC" -ne 3 ]; then \
+			echo "❌ IFC failed for $$TARGET (exit $$RC)"; \
+			exit $$RC; \
+		fi; \
+	done; \
+	NEW_SHA=$$(sha256sum "$$DEST" | awk '{print $$1}'); \
+	TMP_STAMP=$$(mktemp); \
+	echo "version=$$REQ_VER sha256=$$NEW_SHA installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$$TMP_STAMP"; \
+	$(run_as_root) install -m 0644 "$$TMP_STAMP" "$$STAMP"; \
+	rm -f "$$TMP_STAMP"; \
+	rm -rf "$$TMP_BIN"
+endef
+
+# Removes only regular files or symlinks.
+# Arguments:
+#   $(1) List of paths to remove
+#   $(2) Optional package name (e.g., "age", "go"). Used in error messages.
+#        If empty, the function uses the first path's basename in the error message.
+#
+# Behavior:
+#   1. If path does not exist: Silently skips (idempotent).
+#   2. If path is a directory: Fails loudly.
+#   3. If path is unknown type: Fails loudly.
+#   4. If path is file/symlink: Removes it.
+define remove_file_or_link_if_exists
+	sh -c '\
+		DISPLAY_NAME="$(if $(1),$(shell basename "$(firstword $(1))"),files)"; \
+		[ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && \
+			echo "ℹ️ Cleaning up $$DISPLAY_NAME"; \
+		for item in $(1); do \
+			[ -z "$$item" ] && continue; \
+			LABEL="$(if $(2),$(2),$$item)"; \
+			if [ ! -e "$$item" ]; then \
+				[ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && \
+					echo "ℹ️ Skipping (not found): $$item"; \
+				continue; \
+			fi; \
+			if [ -d "$$item" ]; then \
+				echo "❌ ERROR: '\''$$LABEL'\'' is a directory. Refusing to delete directories." >&2; \
+				exit 1; \
+			fi; \
+			if [ -L "$$item" ] || [ -f "$$item" ]; then \
+				[ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && \
+					echo "🗑️ Removing: $$item"; \
+				$(run_as_root) rm -f "$$item"; \
+				continue; \
+			fi; \
+			echo "❌ ERROR: '\''$$LABEL'\'' is an unsupported type (not a file or symlink)." >&2; \
+			exit 1; \
+		done; \
+		[ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && \
+			echo "ℹ️ $$(echo "$$DISPLAY_NAME" | awk '\''{print toupper(substr($$0,1,1)) substr($$0,2)}'\'') removed"; \
+		exit 0; \
+	'
+endef
+
+# ------------------------------------------------------------
+# TAR/GZIP PACKAGE HELPERS (Reusable across Go, Kopia, Pandoc…)
+# ------------------------------------------------------------
+
+# $(call fetch_tarball,URL,TARBALL_PATH)
+define fetch_tarball
+	RET=0; \
+	OUT="$$( $(run_as_root) "$(INSTALL_URL_FILE_IF_CHANGED)" \
+		"$(1)" "$(2)" "$(ROOT_UID)" "$(ROOT_GID)" "0644" 2>&1 )" || RET=$$?; \
+	echo $$RET
+endef
+
+# $(call extract_tarball,TARBALL,DESTDIR)
+define extract_tarball
+	TMPDIR="$$(mktemp -d /tmp/extract.XXXXXX)"; \
+	$(run_as_root) rm -rf "$(2)"; \
+	$(run_as_root) tar -C "$$TMPDIR" -xzf "$(1)"; \
+	$(run_as_root) mv "$$TMPDIR"/* "$(2)"; \
+	rm -rf "$$TMPDIR"
+endef
+
+# $(call install_symlink,TARGET,LINK)
+define install_symlink
+	$(run_as_root) ln -sf "$(1)" "$(2)"
+endef
 
 .PHONY: deps install-pkg-go remove-pkg-go \
 	install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc \
@@ -17,17 +128,16 @@ GO_DIST_URL       := https://go.dev/dl/go$(GO_MODERN_VERSION).linux-$(GO_ARCH).t
 	install-pkg-age remove-pkg-age \
 	install-pkg-rclone remove-pkg-rclone \
 	install-pkg-kopia remove-pkg-kopia \
-	headscale-build \
-	remove-pkg-dnsmasq
+	headscale-build
 
 # ------------------------------------------------------------
 # Aggregate deps target
 # ------------------------------------------------------------
-deps: prereqs \
+deps: \
 	install-pkg-go install-pkg-pandoc install-pkg-checkmake \
 	install-pkg-strace install-pkg-vnstat \
 	install-pkg-age install-pkg-rclone install-pkg-kopia \
-	install-pkg-sops
+	install-pkg-sops | prereqs
 
 # ------------------------------------------------------------
 # Tailscale repository
@@ -38,127 +148,135 @@ TS_REPO_LIST    := /etc/apt/sources.list.d/tailscale.list
 
 .PHONY: tailscale-repo install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale verify-pkg-tailscale
 
-tailscale-repo: ensure-run-as-root
+tailscale-repo: | ensure-run-as-root ensure-default-gateway
 	@echo "📦 Adding Tailscale apt repository (Debian $(DEBIAN_CODENAME))"
 	@$(run_as_root) install -d -m 0755 /usr/share/keyrings
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg \
-	    | $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_KEYRING)
+	| $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_KEYRING)
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).list \
-	    | $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
+	| $(run_as_root) install -m 0644 -o root -g root /dev/stdin $(TS_REPO_LIST)
 	@$(call apt_update_if_needed)
 	@echo "✅ Tailscale repository configured"
 
-install-pkg-tailscale: ensure-run-as-root tailscale-repo verify-pkg-tailscale
+install-pkg-tailscale: tailscale-repo verify-pkg-tailscale | ensure-run-as-root ensure-default-gateway
 	@echo "📦 Installing Tailscale (client + daemon)"
-	@$(call apt_install,tailscale,tailscale)
-	@$(run_as_root) systemctl enable --now tailscaled >/dev/null 2>&1 || true
+	@$(call apt_install_group,tailscale)
+	@$(call ensure_service_enabled,tailscaled,tailscaled)
 	@echo "✅ Tailscale installed and running"
 
-upgrade-pkg-tailscale: ensure-run-as-root tailscale-repo verify-pkg-tailscale
+upgrade-pkg-tailscale: tailscale-repo verify-pkg-tailscale | ensure-run-as-root ensure-default-gateway
 	@echo "⬆️ Upgrading Tailscale to latest stable"
 	@$(call apt_update_if_needed)
 	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y tailscale
 	@$(run_as_root) systemctl restart tailscaled >/dev/null 2>&1
 	@echo "✅ Tailscale upgraded"
 
-remove-pkg-tailscale: ensure-run-as-root
-	@echo "🗑️ Removing Tailscale"
-	@$(run_as_root) systemctl stop tailscaled >/dev/null 2>&1 || true
-	@$(run_as_root) systemctl disable tailscaled >/dev/null 2>&1 || true
-	@$(call apt_remove,tailscale)
-	@echo "✅ Tailscale removed"
+remove-pkg-tailscale: | ensure-run-as-root
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "🗑️ Removing Tailscale"; \
+	fi
+	@$(run_as_root) sh -c '\
+		systemctl stop tailscaled >/dev/null 2>&1 || true; \
+		systemctl disable tailscaled >/dev/null 2>&1 || true; \
+	'
+	@{ $(call apt_remove,tailscale) ; }
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "✅ Tailscale removed"; \
+	fi
 
-verify-pkg-tailscale: ensure-run-as-root
+verify-pkg-tailscale: | ensure-run-as-root ensure-default-gateway
 	@echo "🔍 Verifying Tailscale installation"
 	@bash -c 'set -e; \
-	    CLI_VER=$$(tailscale version | head -n1); \
-	    DS_VER=$$($(run_as_root) tailscaled --version | head -n1); \
-	    echo "CLI: $$CLI_VER"; echo "DAEMON: $$DS_VER"; \
-	    if [ "$${CLI_VER}" != "$${DS_VER}" ]; then \
-	        echo "❌ Version mismatch"; exit 1; \
-	    fi; \
-	    echo "✔ Versions aligned" \
+	CLI_VER=$$(tailscale version | head -n1); \
+	DS_VER=$$($(run_as_root) tailscaled --version | head -n1); \
+	echo "CLI: $$CLI_VER"; echo "DAEMON: $$DS_VER"; \
+	if [ "$${CLI_VER}" != "$${DS_VER}" ]; then \
+		echo "❌ Version mismatch"; exit 1; \
+	fi; \
+	echo "✔ Versions aligned" \
 	'
 
 # ------------------------------------------------------------
 # Go (Modern Binary Distribution)
 # ------------------------------------------------------------
-# ------------------------------------------------------------
-# Go (Modern Binary Distribution)
-# ------------------------------------------------------------
-install-pkg-go: ensure-run-as-root
-	@if [ -x "$(GO_MODERN_BIN)" ]; then \
-		CURRENT_VER=$$($(GO_MODERN_BIN) version | awk '{print $$3}' | sed 's/go//'); \
-		if [ "$$CURRENT_VER" = "$(GO_MODERN_VERSION)" ]; then \
-			echo "✅ Go $(GO_MODERN_VERSION) already installed at $(GO_MODERN_PREFIX)"; \
-			exit 0; \
-		fi; \
-	fi; \
-	if dpkg -l golang-go >/dev/null 2>&1; then \
+
+GO_TARBALL := $(STAMP_DIR)/go$(GO_MODERN_VERSION).linux-$(GO_ARCH).tar.gz
+
+install-pkg-go: | ensure-run-as-root ensure-default-gateway ensure-stamp-dir
+	@set -e; \
+	if dpkg -s golang-go >/dev/null 2>&1 || dpkg -s golang-1.19-go >/dev/null 2>&1; then \
 		echo "🗑️ Removing legacy apt Go version..."; \
 		$(run_as_root) apt-get purge -y golang-go golang-1.19-go >/dev/null 2>&1; \
 		$(run_as_root) apt-get autoremove -y >/dev/null 2>&1; \
 	fi; \
-	echo "📦 Downloading and installing Go $(GO_MODERN_VERSION)..."; \
-	$(run_as_root) rm -rf $(GO_MODERN_PREFIX); \
-	curl -sSL $(GO_DIST_URL) | $(run_as_root) tar -C /usr/local -xz; \
-	$(run_as_root) ln -sf $(GO_MODERN_BIN) /usr/local/bin/go; \
-	echo "✅ $$(go version) is now installed"
+	echo "🔍 Checking for updates: $(GO_DIST_URL)"; \
+	RET="$$( \
+		$(call fetch_tarball,$(GO_DIST_URL),$(GO_TARBALL)) \
+	)"; \
+	if [ ! -x "$(GO_MODERN_BIN)" ] || [ "$$RET" -eq "$(INSTALL_IF_CHANGED_EXIT_CHANGED)" ]; then \
+		echo "📦 Extracting Go $(GO_MODERN_VERSION)..."; \
+		$(call extract_tarball,$(GO_TARBALL),$(GO_MODERN_PREFIX)); \
+		echo "🔗 Installing symlink"; \
+		$(call install_symlink,$(GO_MODERN_BIN),/usr/local/bin/go); \
+		echo "✅ $$("$(GO_MODERN_BIN)" version) is active"; \
+	else \
+		echo "✅ Go $(GO_MODERN_VERSION) already installed at $(GO_MODERN_PREFIX)"; \
+	fi
 
-remove-pkg-go: ensure-run-as-root
-	@echo "🗑️ Removing Go from $(GO_MODERN_PREFIX)"
-	$(run_as_root) rm -rf $(GO_MODERN_PREFIX)
-	$(run_as_root) rm -f /usr/local/bin/go
+remove-pkg-go: | ensure-run-as-root
+	@$(call remove_file_or_link_if_exists,$(GO_MODERN_BIN) /usr/local/bin/go,go)
 
 # ------------------------------------------------------------
 # vnstat
 # ------------------------------------------------------------
-install-pkg-vnstat: ensure-run-as-root
-	@echo "📦 Installing vnstat"
-	$(call apt_install,vnstat,vnstat)
-	@echo "Initializing vnstat database for tailscale0..."
-	@if ! $(run_as_root) vnstat --iflist | grep -q tailscale0; then \
-	    $(run_as_root) vnstat --add -i tailscale0; \
+install-pkg-vnstat: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ vnstat already ensured by core apt group"; \
 	fi
-	@$(run_as_root) systemctl enable --now vnstat >/dev/null 2>&1 || true
+	@if ! vnstat --iflist | grep -q tailscale0; then \
+		echo "Initializing vnstat database for tailscale0..."; \
+		$(run_as_root) vnstat --add -i tailscale0; \
+	fi
+	@{ $(call ensure_service_enabled,vnstat,vnstat) }
 	@echo "✅ vnstat installed and initialized for tailscale0"
 
 remove-pkg-vnstat:
-	$(call apt_remove,vnstat)
+	@{ $(call apt_remove,vnstat) ; }
 
 # ------------------------------------------------------------
 # nftables
 # ------------------------------------------------------------
-install-pkg-nftables: ensure-run-as-root
-	@echo "📦 Installing nftables"
-	$(call apt_install,nft,nftables)
-	@$(run_as_root) systemctl enable --now nftables >/dev/null 2>&1 || true
-	@echo "✅ nftables installed and service enabled"
+install-pkg-nftables: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ nftables already ensured by core apt group"; \
+	fi
+	@{ $(call ensure_service_enabled,nftables,nftables) }
 
 remove-pkg-nftables:
-	$(call apt_remove,nftables)
+	@{ $(call apt_remove,nftables) ; }
 
 # ------------------------------------------------------------
 # WireGuard
 # ------------------------------------------------------------
-install-pkg-wireguard:
-	@echo "📦 Installing WireGuard"
-	$(call apt_install,wg,wireguard wireguard-tools)
-	@echo "✅ WireGuard packages installed"
+install-pkg-wireguard: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ WireGuard already ensured by core apt group"; \
+	fi
 
 remove-pkg-wireguard:
-	$(call apt_remove,wireguard wireguard-tools)
+	@{ $(call apt_remove,wireguard wireguard-tools) ; }
 
 # ------------------------------------------------------------
 # Caddy
 # ------------------------------------------------------------
-install-pkg-caddy: ensure-run-as-root
-	@echo "📦 Installing Caddy"
-	@$(run_as_root) rm -f /etc/caddy/Caddyfile
-	$(call apt_install,caddy,caddy)
+install-pkg-caddy: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ Caddy already ensured by core apt group"; \
+	fi
 
 remove-pkg-caddy:
-	$(call apt_remove,caddy)
+	@{ $(call apt_remove,caddy) ; }
+	@$(run_as_root) rm -f /etc/caddy/Caddyfile
 
 # ------------------------------------------------------------
 # Age (Source build via Go)
@@ -167,23 +285,17 @@ AGE_BIN        := /usr/local/bin/age
 AGE_KEYGEN_BIN := /usr/local/bin/age-keygen
 AGE_VERSION    := v1.2.1
 
-install-pkg-age: install-pkg-go
+install-pkg-age: install-pkg-go | ensure-default-gateway ensure-stamp-dir
 	@if [ -x "$(AGE_BIN)" ] && $(AGE_BIN) --version 2>&1 | grep -q "$(AGE_VERSION)"; then \
 		echo "✅ age $(AGE_VERSION) already installed at $(AGE_BIN)"; \
 	else \
 		echo "📦 Building age $(AGE_VERSION) from source..."; \
-		mkdir -p /tmp/age-build; \
-		GOBIN=/tmp/age-build $(GO_MODERN_BIN) install filippo.io/age/cmd/...@$(AGE_VERSION); \
-		echo "🚚 Moving binaries to /usr/local/bin (requires root)"; \
-		$(run_as_root) install -m 0755 /tmp/age-build/age $(AGE_BIN); \
-		$(run_as_root) install -m 0755 /tmp/age-build/age-keygen $(AGE_KEYGEN_BIN); \
-		rm -rf /tmp/age-build; \
+		$(call go_install_from_source,age,filippo.io/age/cmd/...@$(AGE_VERSION)); \
 		echo "✅ age $(AGE_VERSION) installed"; \
 	fi
 
 remove-pkg-age:
-	@echo "🗑️ Removing age binaries"
-	@$(run_as_root) rm -f $(AGE_BIN) $(AGE_KEYGEN_BIN)
+	@$(call remove_file_or_link_if_exists,$(AGE_BIN) $(AGE_KEYGEN_BIN),age)
 
 # ------------------------------------------------------------
 # SOPS (Secrets Operations - Source build via Go)
@@ -192,32 +304,28 @@ SOPS_VERSION := v3.9.4
 
 .PHONY: install-pkg-sops remove-pkg-sops
 
-install-pkg-sops: install-pkg-go
+install-pkg-sops: install-pkg-go | ensure-default-gateway ensure-stamp-dir
 	@if command -v sops >/dev/null 2>&1; then \
 		echo "✅ SOPS already installed: $$(sops --version | head -n1)"; \
 	else \
 		echo "📦 Building SOPS $(SOPS_VERSION) from source..."; \
-		mkdir -p /tmp/sops-build; \
-		GOBIN=/tmp/sops-build $(GO_MODERN_BIN) install github.com/getsops/sops/v3/cmd/sops@$(SOPS_VERSION); \
-		echo "🚚 Moving SOPS to $(INSTALL_PATH)"; \
-		$(run_as_root) install -m 0755 /tmp/sops-build/sops $(INSTALL_PATH)/sops; \
-		rm -rf /tmp/sops-build; \
+		$(call go_install_from_source,sops,github.com/getsops/sops/v3/cmd/sops@$(SOPS_VERSION)); \
 		echo "✅ SOPS $(SOPS_VERSION) installed"; \
 	fi
 
 remove-pkg-sops:
-	@echo "🗑️ Removing SOPS binary"
-	@$(run_as_root) rm -f $(INSTALL_PATH)/sops
+	@$(call remove_file_or_link_if_exists,$(INSTALL_PATH)/sops,SOPS binary)
 
 # ------------------------------------------------------------
 # Rclone (The Swiss Army Knife for Cloud Storage)
 # ------------------------------------------------------------
-install-pkg-rclone: ensure-run-as-root
-	@echo "📦 Installing rclone"
-	$(call apt_install,rclone,rclone)
+install-pkg-rclone: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ rclone already ensured by core apt group"; \
+	fi
 
 remove-pkg-rclone:
-	$(call apt_remove,rclone)
+	@{ $(call apt_remove,rclone) ; }
 
 # ------------------------------------------------------------
 # Kopia (Fast, Encrypted, Deduplicated Backups)
@@ -226,31 +334,22 @@ KOPIA_VERSION := 0.16.0
 KOPIA_TARBALL_URL := https://github.com/kopia/kopia/releases/download/v$(KOPIA_VERSION)/kopia-$(KOPIA_VERSION)-linux-x64.tar.gz
 KOPIA_TARBALL := /tmp/kopia-$(KOPIA_VERSION)-linux-x64.tar.gz
 
-# SHA256 for kopia-0.16.0-linux-x64.tar.gz
 KOPIA_SHA256 := a29f2cc1a49f985d1bfe09340eda0f7ed7b3c98037704da249b47034f1be1a18
-# (Replace with the real SHA256 — run: curl -fsSL $URL | sha256sum)
-# curl -fsSL https://github.com/kopia/kopia/releases/download/v0.16.0/kopia-0.16.0-linux-x64.tar.gz | sha256sum
 
 .PHONY: fetch-kopia
-fetch-kopia: $(INSTALL_URL_FILE_IF_CHANGED)
-	@$(INSTALL_URL_FILE_IF_CHANGED) -q \
-		"$(KOPIA_TARBALL_URL)" \
-		"$(KOPIA_TARBALL)" \
-		"$(OPERATOR_USER)" \
-		"$(OPERATOR_GROUP)" \
-		"0644" \
-		"$(KOPIA_SHA256)" || true
+fetch-kopia:
+	@RET="$$( $(call fetch_tarball,$(KOPIA_TARBALL_URL),$(KOPIA_TARBALL)) )"; \
+	echo "RET=$$RET" >/dev/null
 
-STAMP_KOPIA := $(STAMP_DIR_ROOT)/kopia.installed
+STAMP_KOPIA := $(STAMP_DIR)/kopia.installed
 
 .PHONY: install-pkg-kopia
-install-pkg-kopia: ensure-run-as-root fetch-kopia
+install-pkg-kopia: fetch-kopia | ensure-run-as-root ensure-default-gateway ensure-stamp-dir
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "📦 Installing Kopia $(KOPIA_VERSION)"; fi; \
 	set -euo pipefail; \
 	TARBALL="$(KOPIA_TARBALL)"; \
 	STAMP="$(STAMP_KOPIA)"; \
 	VERSION="$(KOPIA_VERSION)"; \
-	\
 	if command -v kopia >/dev/null 2>&1; then \
 		INSTALLED_VER=$$(kopia --version | awk '{print $$1}'); \
 		if [ "$$INSTALLED_VER" = "$$VERSION" ]; then \
@@ -258,167 +357,158 @@ install-pkg-kopia: ensure-run-as-root fetch-kopia
 			exit 0; \
 		fi; \
 	fi; \
-	\
-	WORKDIR=$$(mktemp -d /tmp/kopia.XXXXXX); \
-	tar -xzf "$$TARBALL" -C "$$WORKDIR"; \
-
-	EXTRACT_DIR="$$(find "$$WORKDIR" -maxdepth 1 -type d -name 'kopia-*' | head -n1)"; \
-
-	$(run_as_root) install -m 0755 "$$EXTRACT_DIR/kopia" /usr/local/bin/kopia; \
-	rm -rf "$$WORKDIR"; \
-	$(run_as_root) rm -f "$(KOPIA_TARBALL)"; \
-	\
-	tmp_stamp="/tmp/kopia.installed.$$RANDOM"; \
-	echo "version=$$VERSION installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$$tmp_stamp"; \
-	$(run_as_root) install -m 0644 "$$tmp_stamp" "$$STAMP"; \
-	rm -f "$$tmp_stamp"; \
-	\
+	$(call extract_tarball,$(KOPIA_TARBALL),/usr/local/kopia); \
+	$(run_as_root) install -m 0755 /usr/local/kopia/kopia /usr/local/bin/kopia; \
+	echo "version=$(KOPIA_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		| $(run_as_root) tee "$(STAMP_KOPIA)" >/dev/null; \
 	echo "✅ kopia $$VERSION installed"
 
 .PHONY: remove-pkg-kopia
-remove-pkg-kopia: ensure-run-as-root
-	@echo "🗑️ Removing Kopia"
-	@$(run_as_root) sh -c 'rm -f /usr/local/bin/kopia "$(STAMP_KOPIA)"'
-	@echo "✅ Kopia removed"
+remove-pkg-kopia: | ensure-run-as-root
+	@$(call remove_file_or_link_if_exists,/usr/local/bin/kopia $(STAMP_KOPIA),kopia) || true
+	@$(run_as_root) rm -rf /usr/local/kopia >/dev/null 2>&1 || true
 
 # ------------------------------------------------------------
 # ndppd
 # ------------------------------------------------------------
-enable-ndppd: ensure-run-as-root prereqs
-	@echo "📦 Enabling ndppd service"
-	@$(run_as_root) systemctl enable --now ndppd >/dev/null 2>&1 || true
-	@echo "✅ ndppd enabled"
+enable-ndppd: | ensure-run-as-root
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "📦 Enabling ndppd service"; \
+	fi
+	@{ $(call ensure_service_enabled,ndppd,ndppd) }
 
 # ------------------------------------------------------------
 # checkmake
 # ------------------------------------------------------------
 CHECKMAKE_VERSION := 0.2.2
-CHECKMAKE_BIN := /usr/local/bin/checkmake
-STAMP_CHECKMAKE := $(STAMP_DIR)/checkmake.installed
+CHECKMAKE_BIN     := /usr/local/bin/checkmake
+CHECKMAKE_SRC     := $(HOME)/src/checkmake
+STAMP_CHECKMAKE   := $(STAMP_DIR)/checkmake.installed
 
-install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go
-	@echo "📦 Installing checkmake (v$(CHECKMAKE_VERSION))"
-	@if [ -f "$(STAMP_CHECKMAKE)" ]; then \
-	    INST_VER=$$(grep '^version=' "$(STAMP_CHECKMAKE)" | cut -d= -f2); \
-	    if [ "$$INST_VER" = "$(CHECKMAKE_VERSION)" ]; then \
-	        echo "checkmake $(CHECKMAKE_VERSION) already installed; skipping"; \
-	        exit 0; \
-	    fi; \
-	fi; \
-	mkdir -p $(HOME)/src; \
-	rm -rf $(HOME)/src/checkmake; \
-	git clone --quiet --depth 1 --branch v$(CHECKMAKE_VERSION) \
-	    https://github.com/mrtazz/checkmake.git $(HOME)/src/checkmake >/dev/null 2>&1; \
-	cd $(HOME)/src/checkmake >/dev/null 2>&1 && \
-	go build -o checkmake cmd/checkmake/main.go >/dev/null 2>&1; \
-	$(run_as_root) install -m 0755 $(HOME)/src/checkmake/checkmake $(CHECKMAKE_BIN); \
-	echo "version=$(CHECKMAKE_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-	    | $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null
-	@echo "✅ Installed checkmake $(CHECKMAKE_VERSION)"
+ensure-git-detachedhead-silenced:
+	@git config --global advice.detachedHead false || true
 
-remove-pkg-checkmake:
-	$(call remove_cmd,checkmake,rm -f /usr/local/bin/checkmake && rm -rf $(HOME)/src/checkmake && rm -f $(STAMP_CHECKMAKE))
+install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go ensure-git-detachedhead-silenced | ensure-default-gateway ensure-stamp-dir
+	@echo "📦 Checking checkmake (v$(CHECKMAKE_VERSION))"
+
+	# Fast path: skip everything if already installed
+	@if [ -f "$(STAMP_CHECKMAKE)" ] && [ -f "$(CHECKMAKE_BIN)" ]; then \
+		CURRENT_SHA=$$(sha256sum "$(CHECKMAKE_BIN)" | awk '{print $$1}'); \
+		STAMP_SHA=$$(grep -oP 'sha256=\K[a-f0-9]+' "$(STAMP_CHECKMAKE)" || echo none); \
+		if [ "$$CURRENT_SHA" = "$$STAMP_SHA" ]; then \
+			echo "✅ checkmake v$(CHECKMAKE_VERSION) already installed (hash match)"; \
+			exit 0; \
+		fi; \
+	fi
+
+	@{ \
+		set -e; \
+		mkdir -p "$(CHECKMAKE_SRC)"; \
+		if [ -d "$(CHECKMAKE_SRC)/.git" ]; then \
+			cd "$(CHECKMAKE_SRC)"; \
+			if ! git fetch --tags --quiet || ! git checkout --quiet "v$(CHECKMAKE_VERSION)" 2>/dev/null; then \
+				cd ..; \
+				rm -rf "$(CHECKMAKE_SRC)"; \
+				git clone --quiet --depth 1 --branch "v$(CHECKMAKE_VERSION)" https://github.com/mrtazz/checkmake.git "$(CHECKMAKE_SRC)"; \
+			fi; \
+		else \
+			git clone --quiet --depth 1 --branch "v$(CHECKMAKE_VERSION)" https://github.com/mrtazz/checkmake.git "$(CHECKMAKE_SRC)"; \
+		fi; \
+	}
+
+	@{ \
+		cd "$(CHECKMAKE_SRC)"; \
+		$(call go_install_from_source,checkmake,github.com/mrtazz/checkmake/cmd/checkmake@v$(CHECKMAKE_VERSION)); \
+	}
+
+
+remove-pkg-checkmake: | ensure-run-as-root
+	@{ \
+		$(call remove_file_or_link_if_exists,$(CHECKMAKE_BIN) $(STAMP_CHECKMAKE),checkmake); \
+		$(run_as_root) rm -rf "$(CHECKMAKE_SRC)" || true; \
+	}
 
 # ------------------------------------------------------------
 # strace
 # ------------------------------------------------------------
-install-pkg-strace:
-	$(call apt_install,strace,strace)
+install-pkg-strace: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "ℹ️ strace already ensured by core apt group"; \
+	fi
 
 remove-pkg-strace:
-	$(call apt_remove,strace)
+	@{ $(call apt_remove,strace) ; }
 
 # ------------------------------------------------------------
 # Headscale
 # ------------------------------------------------------------
 HEADSCALE_VERSION ?= v0.27.1
 
-headscale-build: install-pkg-go
-	@echo "� ️ Building Headscale $(HEADSCALE_VERSION)..."
-	@if ! command -v headscale >/dev/null 2>&1; then \
-	    GOBIN=$(INSTALL_PATH) go install github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION); \
-	else \
-	    CURRENT_VER=$$(headscale version | awk '{print $$3}'); \
-	    if [ "$$CURRENT_VER" != "$(HEADSCALE_VERSION)" ]; then \
-	        echo "� ️  A new version has been detected: $$CURRENT_VER"; \
-	        echo "👉 See https://github.com/juanfont/headscale/releases"; \
-	    fi; \
-	    command -v headscale >/dev/null 2>&1 && headscale version; \
+headscale-build: install-pkg-go | ensure-default-gateway ensure-stamp-dir
+	@if command -v headscale >/dev/null 2>&1; then \
+		CURRENT_VER=$$(headscale version | awk '{print $$3}'); \
+		if [ "$$CURRENT_VER" = "$(HEADSCALE_VERSION)" ]; then \
+			echo "✅ headscale $(HEADSCALE_VERSION) already installed (hash match)"; \
+			exit 0; \
+		fi; \
 	fi
+	@$(call go_install_from_source,headscale,github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION))
+	@echo "✅ headscale $(HEADSCALE_VERSION) installed"
+
+remove-pkg-headscale: | ensure-run-as-root
+	@$(call remove_file_or_link_if_exists,$(INSTALL_PATH)/headscale $(STAMP_DIR)/headscale.installed,headscale)
 
 # ------------------------------------------------------------
 # Pandoc (pinned .deb)
 # ------------------------------------------------------------
-#PANDOC_VERSION := 3.8.2.1
-#PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.8.2.1/pandoc-3.8.2.1-1-amd64.deb
-#PANDOC_SHA256 := 5d4ecbf9c616360a9046e14685389ff2898088847e5fb260eedecd023453995a
-
 PANDOC_VERSION := 3.9.0.2
 PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.9.0.2/pandoc-3.9.0.2-1-amd64.deb
 PANDOC_SHA256  := ce4ac48f48aa7eadc1f5dbdf3449a1739f188ecb8c5421c5adc070fe7479e567
 
-
-PANDOC_DEB := /tmp/pandoc-$(PANDOC_VERSION)-amd64.deb
-STAMP_PANDOC := $(STAMP_DIR_ROOT)/pandoc.installed
+PANDOC_DEB   := /tmp/pandoc-$(PANDOC_VERSION)-amd64.deb
+STAMP_PANDOC := $(STAMP_DIR)/pandoc.installed
 
 .PHONY: fetch-pandoc
-fetch-pandoc: $(INSTALL_URL_FILE_IF_CHANGED)
-	@$(INSTALL_URL_FILE_IF_CHANGED) \
-		"$(PANDOC_DEB_URL)" \
-		"$(PANDOC_DEB)" \
-		"$(OPERATOR_USER)" \
-		"$(OPERATOR_GROUP)" \
-		"0644" \
-		"$(PANDOC_SHA256)" || true
+fetch-pandoc: $(INSTALL_URL_FILE_IF_CHANGED) | ensure-default-gateway
+	@RET="$$( $(call fetch_tarball,$(PANDOC_DEB_URL),$(PANDOC_DEB)) )"; \
+	echo "RET=$$RET" >/dev/null
 
 .SILENT: install-pkg-pandoc
-
 .PHONY: install-pkg-pandoc
-install-pkg-pandoc: fetch-pandoc
+install-pkg-pandoc: fetch-pandoc | ensure-default-gateway ensure-stamp-dir
 	@echo "📦 install-pkg-pandoc"
-	@# Ensure system-wide stamp directory exists
-	@$(run_as_root) install -d -m 0755 "$(STAMP_DIR_ROOT)"
-
 	@set -euo pipefail; \
 	DEB="$(PANDOC_DEB)"; \
 	SHA="$(PANDOC_SHA256)"; \
 	VERSION="$(PANDOC_VERSION)"; \
 	STAMP="$(STAMP_PANDOC)"; \
-	\
 	installed_bin=$$(command -v pandoc 2>/dev/null || true); \
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
 	installed_version_base=$${installed_version%%-*}; \
-	\
 	if [ -n "$$installed_bin" ] && \
-	[ -f "$$DEB" ] && \
-	[ "$$(sha256sum "$$DEB" | cut -d" " -f1)" = "$$SHA" ] && \
-	[ "$$installed_version_base" = "$$VERSION" ]; then \
+		[ -f "$$DEB" ] && \
+		[ "$$(sha256sum "$$DEB" | cut -d" " -f1)" = "$$SHA" ] && \
+		[ "$$installed_version_base" = "$$VERSION" ]; then \
 		echo "ℹ️ pandoc $$VERSION already installed"; \
 		exit 0; \
 	fi; \
-	\
 	echo "$$SHA  $$DEB" | sha256sum -c - >/dev/null; \
-	\
 	DEBIAN_FRONTEND=noninteractive $(run_as_root) dpkg -i "$$DEB" >/dev/null 2>&1 || true; \
 	$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get -y -f install --no-install-recommends >/dev/null; \
 	$(run_as_root) apt-mark hold pandoc >/dev/null; \
-	\
 	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
 	installed_version_base=$${installed_version%%-*}; \
 	if [ "$$installed_version_base" != "$$VERSION" ]; then \
 		echo "❌ ERROR: pandoc wrong version (installed=$$installed_version)"; \
 		exit 1; \
 	fi; \
-	\
 	tmp_stamp="/tmp/pandoc.installed.$$RANDOM"; \
 	echo "version=$$installed_version sha256=$$SHA installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$$tmp_stamp"; \
 	$(run_as_root) install -m 0644 "$$tmp_stamp" "$$STAMP"; \
 	rm -f "$$tmp_stamp"; \
-	\
 	echo "✅ pandoc $$VERSION installed"
 
-
-upgrade-pkg-pandoc: ensure-run-as-root $(STAMP_PANDOC)
+upgrade-pkg-pandoc: $(STAMP_PANDOC) | ensure-run-as-root ensure-default-gateway
 	@echo "⬆️ Upgrading pandoc..."
 	@$(call apt_update_if_needed)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
@@ -428,8 +518,16 @@ upgrade-pkg-pandoc: ensure-run-as-root $(STAMP_PANDOC)
 	rm -f "$$tmp"
 	@echo "✅ pandoc upgrade complete"
 
-remove-pkg-pandoc: ensure-run-as-root
+remove-pkg-pandoc: | ensure-run-as-root
 	@if dpkg -s pandoc >/dev/null 2>&1; then \
-		echo "🗑️ Removing pandoc (takes about 4 seconds)..."
+		echo "🗑️ Removing pandoc (takes about 4 seconds)..."; \
 		$(run_as_root) apt-get remove -y --allow-change-held-packages pandoc >/dev/null 2>&1; \
 	fi
+
+print-STAMP-KOPIA:
+	@echo "STAMP_DIR_ROOT='$(STAMP_DIR_ROOT)'"
+	@echo "STAMP_DIR='$(STAMP_DIR)'"
+	@echo "STAMP_KOPIA='$(STAMP_KOPIA)'"
+
+print-run-as-root:
+	@printf 'run_as_root="%s"\n' "$(run_as_root)"

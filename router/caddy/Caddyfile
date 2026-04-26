@@ -76,12 +76,26 @@
 		remote_ip fd7a:115c:a1e0::/48
 		# TODO: add your WireGuard client subnets here
 	}
-	reverse_proxy @dev_allowed 10.89.12.4:443
+	reverse_proxy @dev_allowed 10.89.12.4:443 {
+		header_up Host {http.request.host}
+		header_up X-Forwarded-Host {http.request.host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Scheme https
+		header_up X-Forwarded-Port 443
+		header_up X-Forwarded-For {http.request.remote}
+		header_up X-Real-IP {http.request.remote}
+
+		transport http {
+			tls
+			tls_insecure_skip_verify
+		}
+	}
 
 	@dev_denied {
 		host dev.bardi.ch
 	}
 	respond @dev_denied "Forbidden" 403
+
 
 	# --------------------------------------------------------
 	# DSM management (internal only)
@@ -154,13 +168,27 @@
 	# --------------------------------------------------------
 	@nas_services {
 		host \
- dns.bardi.ch \
- vpn.bardi.ch \
- derp.bardi.ch \
- apt.bardi.ch \
- nas.bardi.ch
+			dns.bardi.ch \
+			vpn.bardi.ch \
+			derp.bardi.ch \
+			apt.bardi.ch \
+			nas.bardi.ch
 	}
-	reverse_proxy @nas_services 10.89.12.4:443
+	reverse_proxy @nas_services 10.89.12.4:443 {
+		header_up Host {http.request.host}
+		header_up X-Forwarded-Host {http.request.host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Scheme https
+		header_up X-Forwarded-Port 443
+		header_up X-Forwarded-For {http.request.remote}
+		header_up X-Real-IP {http.request.remote}
+
+		transport http {
+			tls
+			tls_insecure_skip_verify
+		}
+	}
+
 
 	@www host www.bardi.ch
 	redir @www https://bardi.ch{uri}
@@ -169,15 +197,15 @@
 	# Unknown host fallback
 	# --------------------------------------------------------
 	@unknown not host \
- bardi.ch \
- router.bardi.ch \
- dns.bardi.ch \
- vpn.bardi.ch \
- derp.bardi.ch \
- qnap.bardi.ch \
- nas.bardi.ch \
- dev.bardi.ch \
- apt.bardi.ch
+		bardi.ch \
+		router.bardi.ch \
+		dns.bardi.ch \
+		vpn.bardi.ch \
+		derp.bardi.ch \
+		qnap.bardi.ch \
+		nas.bardi.ch \
+		dev.bardi.ch \
+		apt.bardi.ch
 
 	respond @unknown "Not Found" 404
 }
