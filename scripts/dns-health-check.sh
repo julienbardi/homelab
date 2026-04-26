@@ -69,9 +69,9 @@ RESOLVER="${1:-127.0.0.1}"
 
 # Auto-append port if querying local Unbound
 if [[ "$RESOLVER" == "127.0.0.1" || "$RESOLVER" == "10.89.12.4" ]]; then
-    if [[ ! "$RESOLVER" =~ "-p" ]]; then
-        RESOLVER="$RESOLVER -p 5335"
-    fi
+  if [[ ! "$RESOLVER" =~ "-p" ]]; then
+    RESOLVER="$RESOLVER -p 5335"
+  fi
 fi
 
 TIMEOUT_SECONDS=2
@@ -202,10 +202,23 @@ pos_ok=false
 neg_status="$(get_status "$neg_raw")"
 
 neg_ok=false
-# Only pass if the resolver explicitly refuses the invalid signature (SERVFAIL)
-if [[ "$neg_status" == "SERVFAIL" ]]; then
-  neg_ok=true
-fi
+neg_inconclusive=false
+
+case "$neg_status" in
+  SERVFAIL)
+    # Correct behavior: resolver rejects invalid signatures
+    neg_ok=true
+    ;;
+  EMPTY|UNKNOWN)
+    # Inconclusive: timeout, parse failure, or no usable header
+    neg_inconclusive=true
+    ;;
+  *)
+    # Any other explicit status (e.g. NOERROR, NXDOMAIN) means
+    # the resolver did not enforce DNSSEC for the known-bad name.
+    neg_ok=false
+    ;;
+esac
 
 # ------------------------------------------------------------
 # 4) DoH DNSSEC validation (optional)
@@ -251,31 +264,51 @@ fi
 log "📊 DNS health check against resolver ${RESOLVER}"
 log "$([[ "$rec_ok" == true ]] && echo ✅ || echo ❌) Recursion (status=${rec_status}, flags=${rec_flags})"
 log "$([[ "$pos_ok" == true ]] && echo ✅ || echo ❌) DNSSEC positive (sigok: status=${pos_status}, AD=${pos_has_ad})"
-log "$([[ "$neg_ok" == true ]] && echo ✅ || echo ❌) DNSSEC negative (sigfail: status=${neg_status})"
+
+if [[ "$neg_ok" == true ]]; then
+  log "✅ DNSSEC negative (sigfail: status=${neg_status})"
+elif [[ "$neg_inconclusive" == true ]]; then
+  log "⚠️  DNSSEC negative (sigfail: status=${neg_status}) — test inconclusive (timeout or unparseable response)."
+else
+  log "❌ DNSSEC negative (sigfail: status=${neg_status})"
+fi
 
 if [[ -n "$DOH_HOST" && -n "$DOH_PATH" ]]; then
-    log "$([[ "$doh_ok" == true ]] && echo ✅ || echo ❌) DoH DNSSEC (${DOH_HOST}): ${doh_note}"
+  log "$([[ "$doh_ok" == true ]] && echo ✅ || echo ❌) DoH DNSSEC (${DOH_HOST}): ${doh_note}"
 fi
 
 # Capture the query time from dig output
 query_time=$(grep "Query time:" <<<"$rec_raw" | awk '{print $4}' | head -n1)
 if [[ "$rec_ok" == true && -n "$query_time" && "$query_time" -gt 500 ]]; then
-    log "⚠️  Cache appears COLD (Latency: ${query_time}ms)"
+  log "⚠️  Cache appears COLD (Latency: ${query_time}ms)"
 fi
 
 # ------------------------------------------------------------
 # Final verdict
 # ------------------------------------------------------------
-if [[ "$rec_ok" == true && "$pos_ok" == true && "$neg_ok" == true && ( -z "$DOH_HOST" || "$doh_ok" == true ) ]]; then
-    log "✅ DNS recursion and DNSSEC enforcement are working correctly."
-    log "ℹ️  Note: DNSSEC enforcement verified by rejection of invalid signatures."
-    exit 0
+if [[ "$rec_ok" == true && "$pos_ok" == true && "$neg_ok" == true && "$neg_inconclusive" == false && ( -z "$DOH_HOST" || "$doh_ok" == true ) ]]; then
+  log "✅ DNS recursion and DNSSEC enforcement are working correctly."
+  log "ℹ️  Note: DNSSEC enforcement verified by rejection of invalid signatures."
+  exit 0
 fi
 
 # Error reporting
-[[ "$rec_ok" != true ]] && log "❌ Recursion failed — check reachability/ACL."
-[[ "$pos_ok" != true ]] && log "❌ DNSSEC positive test failed — sigok did not resolve."
-[[ "$neg_ok" != true ]] && log "❌ DNSSEC negative test failed — invalid signatures accepted."
-[[ -n "$DOH_HOST" && "$doh_ok" != true ]] && log "❌ DoH DNSSEC test failed — expected SERVFAIL/HTTP-5xx."
+if [[ "$rec_ok" != true ]]; then
+  log "❌ Recursion failed — check reachability/ACL."
+fi
+
+if [[ "$pos_ok" != true ]]; then
+  log "❌ DNSSEC positive test failed — sigok did not resolve."
+fi
+
+if [[ "$neg_inconclusive" == true ]]; then
+  log "⚠️  DNSSEC negative test inconclusive — resolver response could not be parsed or timed out."
+elif [[ "$neg_ok" != true ]]; then
+  log "❌ DNSSEC negative test failed — resolver did not return SERVFAIL for invalid signatures."
+fi
+
+if [[ -n "$DOH_HOST" && "$doh_ok" != true ]]; then
+  log "❌ DoH DNSSEC test failed — expected SERVFAIL/HTTP-5xx."
+fi
 
 exit 1
