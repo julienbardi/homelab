@@ -9,6 +9,9 @@
 
 HEADSCALE_BIN := $(INSTALL_PATH)/headscale
 HEADSCALE_URL := https://github.com/juanfont/headscale/releases/download/v0.28.0-beta.1/headscale_0.28.0-beta.1_linux_amd64
+HEADSCALE_SHA256 := f9ba05660cfbba72a1f6a51f8792c83b5cdabb335ec84b975468ddc8df95f56e
+
+HEADSCALE_STAMP := $(STAMP_DIR)/headscale.installed
 
 HEADSCALE_CONFIG_SRC := config/headscale/config.yaml
 HEADSCALE_CONFIG_DST := /etc/headscale/config.yaml
@@ -33,18 +36,16 @@ headscale-derp-config: ensure-run-as-root $(HEADSCALE_DERP_CONFIG_SRC)
 	@$(call install_file,$(HEADSCALE_DERP_CONFIG_SRC),$(HEADSCALE_DERP_CONFIG_DST),headscale,headscale,0640)
 
 # --------------------------------------------------------------------
-# Bootstrap (one-time, idempotent)
+# Headscale binary (via centralized GitHub installer)
 # --------------------------------------------------------------------
-$(HEADSCALE_CACHE):
-	@echo "⬇️  Downloading Headscale binary"
-	@mkdir -p $(dir $@)
-	@curl -fsSL "$(HEADSCALE_URL)" -o "$@"
-	@chmod 0755 "$@"
-
 .PHONY: headscale-bin
-headscale-bin: ensure-run-as-root $(HEADSCALE_CACHE)
+headscale-bin: ensure-run-as-root ensure-stamp-dir install-all
 	@echo "📦 Ensuring Headscale binary"
-	@$(call install_file,$(HEADSCALE_CACHE),$(HEADSCALE_BIN),root,root,0755)
+	@$(run_as_root) $(INSTALL_PATH)/install_github_asset.sh \
+		"$(HEADSCALE_URL)" \
+		"$(HEADSCALE_BIN)" \
+		"$(HEADSCALE_SHA256)" \
+		"$(HEADSCALE_STAMP)"
 
 # --------------------------------------------------------------------
 # Tail Headscale logs

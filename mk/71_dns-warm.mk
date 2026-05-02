@@ -4,7 +4,7 @@
 ROTATE_SCRIPT_NAME      ?= dns-warm-rotate.sh
 ROTATE_SCRIPT_PATH      ?= $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
 #ROTATE_SCRIPT_SRC_INST  := $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
-ROTATE_SCRIPT_SRC := $(REPO_ROOT)scripts/$(ROTATE_SCRIPT_NAME)
+ROTATE_SCRIPT_SRC := $(REPO_ROOT)/scripts/$(ROTATE_SCRIPT_NAME)
 
 DOMAINS_DIR    ?= /etc/dns-warm
 DOMAINS_FILE   ?= $(DOMAINS_DIR)/domains.txt
@@ -25,7 +25,7 @@ RESOLVER       ?= $(NAS_LAN_IP)
 RESOLVER_IP6   ?=
 PER_RUN        ?= 2000
 
-DNS_WARM_POLICY_SRC := $(REPO_ROOT)scripts/dns-warm-update-domains.sh
+DNS_WARM_POLICY_SRC := $(REPO_ROOT)/scripts/dns-warm-update-domains.sh
 DNS_WARM_POLICY_DST := $(INSTALL_PATH)/dns-warm-update-domains
 
 .PHONY: install-dns-warm-policy update-dns-warm-domains prereqs-dns-warm-verify \
@@ -156,7 +156,7 @@ WantedBy=timers.target\n" | $(run_as_root) tee $(TIMER_PATH) > /dev/null
 # Async DNS cache warmer (c-ares based)
 # ------------------------------------------------------------
 
-DNS_WARM_ASYNC_SRC := $(REPO_ROOT)scripts/dns-warm-async.c
+DNS_WARM_ASYNC_SRC := $(REPO_ROOT)/scripts/dns-warm-async.c
 
 dns-warm-async: $(DNS_WARM_ASYNC_SRC) prereqs
 	@$(CC) -O2 -Wall -Wextra -o $@ $< -lcares

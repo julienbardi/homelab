@@ -1,49 +1,83 @@
-#!/bin/bash
-# ============================================================
+#!/bin/sh
 # rotate-unbound-rootkeys.sh
-# ------------------------------------------------------------
-# Generation 1 helper: refresh DNSSEC trust anchors for Unbound
-# Host: 10.89.12.4 (NAS / VPN node)
-# Responsibilities:
-#   - Run unbound-anchor to refresh root trust anchors
-#   - Validate updated keys
-#   - Restart Unbound service if anchors changed
-#   - Log degraded mode if refresh fails
-# ============================================================
+# Atomic, idempotent DNSSEC trust anchor refresh for Unbound.
 
-set -euo pipefail
+set -eu
 
-SERVICE_NAME="unbound"
-TRUST_ANCHORS="/var/lib/unbound/root.key"
-LOGFILE="/var/log/rotate-unbound-rootkeys.log"
+ROOT_KEY="/var/lib/unbound/root.key"
+ROOT_DIR="$(dirname "$ROOT_KEY")"
+OWNER_USER="root"
+OWNER_GROUP="unbound"
+MODE="0644"
+SERVICE="unbound"
 
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [rotate-unbound-rootkeys] $*" | tee -a ${LOGFILE}
-    logger -t rotate-unbound-rootkeys "$*"
+    printf '%s [rotate-unbound-rootkeys] %s\n' \
+        "$(date +'%Y-%m-%d %H:%M:%S')" "$*" >&2
 }
 
-# --- Refresh trust anchors ---
+cleanup() {
+    [ -n "${TMP:-}" ] && [ -f "$TMP" ] && rm -f "$TMP" || true
+}
+trap cleanup EXIT INT TERM
+
 log "Refreshing DNSSEC trust anchors..."
-if unbound-anchor -a ${TRUST_ANCHORS}; then
-    log "OK: Trust anchors refreshed at ${TRUST_ANCHORS}"
-else
-    log "ERROR: Failed to refresh trust anchors, continuing degraded"
+
+# Ensure directory exists
+install -d -m 0755 -o "$OWNER_USER" -g "$OWNER_GROUP" "$ROOT_DIR"
+
+# Create temp file on same filesystem with strict umask
+TMP="$(mktemp -p "$ROOT_DIR" root.key.XXXXXX)"
+
+# Fetch trust anchors into temp file
+if ! unbound-anchor -a "$TMP"; then
+    # Some unbound-anchor builds return non-zero even when they wrote a valid anchor.
+    if [ -s "$TMP" ] && grep -q 'IN[[:space:]]\+DNSKEY' "$TMP"; then
+        log "WARN: unbound-anchor returned non-zero but produced a valid trust anchor; continuing"
+    else
+        log "ERROR: unbound-anchor failed and no valid trust anchor was produced; leaving existing root.key untouched"
+        exit 1
+    fi
 fi
 
-# --- Validate anchors ---
-log "Validating trust anchors..."
-if grep -q "DS" ${TRUST_ANCHORS}; then
-    log "Trust anchors contain DS records (valid)"
-else
-    log "WARN: Trust anchors missing DS records"
+# Validate: must contain at least one DNSKEY
+if [ ! -s "$TMP" ] || ! grep -q 'IN[[:space:]]\+DNSKEY' "$TMP"; then
+    log "ERROR: invalid trust anchor file (missing DNSKEY); aborting"
+    exit 1
 fi
 
-# --- Restart Unbound ---
-log "Restarting Unbound service..."
-if systemctl restart ${SERVICE_NAME}; then
-    log "OK: Unbound restarted successfully"
-else
-    log "ERROR: Failed to restart Unbound, continuing degraded"
+COUNT_DNSKEYS="$(grep -c 'IN[[:space:]]\+DNSKEY' "$TMP" || true)"
+log "Validated $COUNT_DNSKEYS DNSKEY record(s)"
+
+# Canonicalize ownership and permissions
+if ! chown "$OWNER_USER:$OWNER_GROUP" "$TMP"; then
+    log "ERROR: chown failed — cannot set group to '$OWNER_GROUP'"
+    exit 1
+fi
+chmod "$MODE" "$TMP"
+
+# Paranoid: ensure data is flushed before atomic replace (optional but harmless)
+sync "$TMP" || true
+
+# Atomic replace
+mv "$TMP" "$ROOT_KEY"
+TMP=""
+
+log "OK: Trust anchors refreshed at $ROOT_KEY"
+
+# Restart Unbound if present
+if command -v systemctl >/dev/null 2>&1; then
+    if systemctl status "$SERVICE" >/dev/null 2>&1; then
+        log "Restarting Unbound service..."
+        sync
+        sleep 1
+        if systemctl restart "$SERVICE"; then
+            log "OK: Unbound restarted successfully"
+        else
+            log "WARN: Unbound restart failed; trust anchors updated but service not restarted"
+            exit 1
+        fi
+    fi
 fi
 
 log "Trust anchor rotation complete."

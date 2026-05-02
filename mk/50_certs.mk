@@ -29,7 +29,7 @@ CANON_CA          := $(SSL_CANONICAL_DIR)/ca.cer
 # Service deployment targets
 CADDY_DEPLOY_DIR ?= /etc/ssl/caddy
 
-#$(CERTS_DEPLOY): $(REPO_ROOT)scripts/certs-deploy.sh $(INSTALL_FILE_IF_CHANGED)
+#$(CERTS_DEPLOY): $(REPO_ROOT)/scripts/certs-deploy.sh $(INSTALL_FILE_IF_CHANGED)
 #	@$(call install_file,$<,$@,root,root,0755)
 
 # --------------------------------------------------------------------
@@ -196,7 +196,7 @@ install-helpers: $(INSTALL_PATH)/common.sh $(INSTALL_FILE_IF_CHANGED) $(INSTALL_
 	@echo "🛠️ Helpers verified and synced"
 
 # Ensure the pointer is explicitly linked to the source if not handled in common.mk
-$(INSTALL_PATH)/deploy_certificates.sh: $(REPO_ROOT)scripts/deploy_certificates.sh | $(BOOTSTRAP_FILES)
+$(INSTALL_PATH)/deploy_certificates.sh: $(REPO_ROOT)/scripts/deploy_certificates.sh | $(BOOTSTRAP_FILES)
 	$(call install_script,$<,$(notdir $@))
 
 prepare: ensure-run-as-root renew $(CERTS_DEPLOY)

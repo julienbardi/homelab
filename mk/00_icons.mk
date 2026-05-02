@@ -2,7 +2,7 @@
 # mk/00_icons.mk — Canonical icon definitions (contract-governed)
 # --------------------------------------------------------------------
 
-SUCCESS_ICON   := "📝"
+SUCCESS_ICON   := "✅"
 FAIL_ICON      := "❌"
 WARN_ICON      := "⚠️"
 INFO_ICON      := "ℹ️"
@@ -12,8 +12,7 @@ UNCHANGED_ICON := $(INFO_ICON)
 # NOTE: No spaces, no quotes — this is a raw character whitelist.
 #APPROVED_ICONS := 📝📦🔧🛠️✨🔄🔐⚙️ℹ️⚠️❌🚀🎉🧹📊🛡️📍
 # Expanded approved icons (auto-derived from repo)
-APPROVED_ICONS := ℹ️🔑📜🔍ℹ️📦❌🔄📍ℹ️📊🔍🚀ℹ️📍✨🚀⚙️⬆️⚠️📊📄🧩📄📄🛠️🔥🔥📍📝📍📝❌🧩📍📦🛠️✨🔄🔐⚙️ℹ️⚠️❌🚀🎉🧹📊🛡️📝🔧✅
-
+APPROVED_ICONS := 📝📦🔧🛠️✨🔄🔐⚙️ℹ️⚠️❌🚀🎉🧹📊🛡️📍✅
 
 .PHONY: check-icons
 check-icons:
@@ -37,6 +36,12 @@ fix-icons:
 	@allowed="$(APPROVED_ICONS)"; \
 	find scripts mk Makefile -type f \( -name "*.sh" -o -name "*.mk" -o -name "Makefile" \) -print0 | \
 	xargs -0 sed -i \
-		-e 's/ℹ️/ℹ️/g'
-	@echo "✅ Icons normalized to canonical contract."
-
+		-e 's/✔️/✅/g' \
+		-e 's/❗/⚠️/g' \
+		-e 's/‼️/⚠️/g' \
+		-e 's/➕/✨/g' \
+		-e 's/→/➡️/g' \
+		-e 's/↪️/➡️/g' \
+		-e 's/➜/➡️/g'
+	@echo "📝 Canonical replacements applied"
+	@echo "📦 Icons normalized to canonical contract."

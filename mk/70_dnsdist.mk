@@ -11,9 +11,9 @@ DNSDIST_UNIT         := dnsdist.service
 KDIG                 ?= kdig
 
 # Configuration (Ensuring trailing slash safety)
-DNSDIST_CONF_SRC     := $(REPO_ROOT)config/dnsdist/dnsdist.conf
+DNSDIST_CONF_SRC     := $(REPO_ROOT)/config/dnsdist/dnsdist.conf
 DNSDIST_CONF_DST     := /etc/dnsdist/dnsdist.conf
-DNSDIST_DROPIN_SRC   := $(REPO_ROOT)scripts/systemd/dnsdist.service.d/10-no-port53.conf
+DNSDIST_DROPIN_SRC   := $(REPO_ROOT)/scripts/systemd/dnsdist.service.d/10-no-port53.conf
 DNSDIST_DROPIN_DST   := /etc/systemd/system/dnsdist.service.d/10-no-port53.conf
 
 # TLS Material
@@ -99,7 +99,7 @@ CANONICAL_SUM := $(CANONICAL_DIR)/.lastsum
 .PHONY: deploy-dnsdist-certs
 
 # deploy depends on the stamp so deploy runs only when canonical store changed
-deploy-dnsdist-certs: acme-renew-all install-all $(HOMELAB_ENV_DST) $(DEPLOY_CERTS) $(CANONICAL_SUM) dnsdist-config ensure-run-as-root
+deploy-dnsdist-certs: install-all $(DEPLOY_CERTS) $(CANONICAL_SUM) dnsdist-config ensure-run-as-root
 
 # Robust checksum + deploy (atomic stamp write)
 $(CANONICAL_SUM): $(DEPLOY_CERTS)

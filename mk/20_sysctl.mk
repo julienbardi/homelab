@@ -1,7 +1,7 @@
 # mk/20_sysctl.mk
 
 # --- CONFIGURATION & PATHS ---
-SYSCTL_SRC := $(REPO_ROOT)config/sysctl.d/99-homelab-forwarding.conf
+SYSCTL_SRC := $(REPO_ROOT)/config/sysctl.d/99-homelab-forwarding.conf
 SYSCTL_DST := /etc/sysctl.d/99-homelab-forwarding.conf
 SYSCTL_BIN := /sbin/sysctl
 
@@ -26,20 +26,6 @@ define sysctl_preflight_check
 }
 endef
 
-define set_ipv6_token
-{ \
-	echo "📍 Locking IPv6 Token to $(NAS_IID_TOKEN)..."; \
-	for iface in eth0 eth1; do \
-		if [ -d "/sys/class/net/$$iface" ]; then \
-			$(run_as_root) ip token set $(NAS_IID_TOKEN) dev $$iface; \
-			$(run_as_root) ip link set dev $$iface down; \
-			$(run_as_root) ip link set dev $$iface up; \
-			echo "✅ Token $(NAS_IID_TOKEN) applied to $$iface"; \
-		fi; \
-	done; \
-}
-endef
-
 define inspect_ipv6_identity
 { \
 	echo "🔍 Current IPv6 Identity Mapping:"; \
@@ -53,21 +39,6 @@ define inspect_ipv6_identity
 		printf "%-11s | Interface: %-6s | Addr: %s\n", status, $$2, addr; \
 	}' | sort -u; \
 	echo "--------------------------------------------------------------------------------"; \
-}
-endef
-
-define set_ipv6_token
-{ \
-	echo "📍 Checking IPv6 Token convergence..."; \
-	for iface in eth0 eth1; do \
-		[ ! -d "/sys/class/net/$$iface" ] && continue; \
-		current=$$(ip token list dev $$iface | awk '{print $$1}'); \
-		[ "$$current" = "$(NAS_IID_TOKEN)" ] && { echo "✅ $$iface: Matches."; continue; }; \
-		echo "🔄 $$iface: Updating to $(NAS_IID_TOKEN)..."; \
-		$(run_as_root) ip token set $(NAS_IID_TOKEN) dev $$iface; \
-		$(run_as_root) ip link set dev $$iface down; \
-		$(run_as_root) ip link set dev $$iface up; \
-	done; \
 }
 endef
 
@@ -126,7 +97,16 @@ install-homelab-sysctl: ensure-run-as-root sysctl-preflight set-ipv6-token
 rotate-ipv6-secrets: ensure-run-as-root sysctl-preflight
 	@echo "🔄 Scrambling IPv6 identity (RFC 7217)..."
 	@set -eu; \
-	$(run_as_root) sed -i '/stable_secret/d; /Homelab/d' "$(SYSCTL_DST)"; \
-	( $(inject_ipv6_secrets) ); \
-	echo "🚀 Identity scrambled. Enforcing system reboot in 5s to clear leaked IIDs..."; \
-	sleep 5 && $(run_as_root) reboot
+	$(run_as_root) sh -e -c '\
+		sed -i "/stable_secret/d; /Homelab/d" "$(SYSCTL_DST)"; \
+		pool=$$(openssl rand -hex 32); \
+		s1=$$(echo $$pool | cut -c1-32 | sed "s/\(..\)/\1:/g; s/:$$//"); \
+		s2=$$(echo $$pool | cut -c33-64 | sed "s/\(..\)/\1:/g; s/:$$//"); \
+		{ \
+			printf "\n\n# --- Homelab IPv6 Stable Secrets ---\n"; \
+			[ -d /sys/class/net/eth0 ] && printf "net.ipv6.conf.eth0.stable_secret = %s\n" "$$s1"; \
+			[ -d /sys/class/net/eth1 ] && printf "net.ipv6.conf.eth1.stable_secret = %s\n" "$$s2"; \
+		} >> "$(SYSCTL_DST)"; \
+		sleep 5; \
+		reboot; \
+	'

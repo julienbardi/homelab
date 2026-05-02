@@ -34,7 +34,7 @@ prereqs-network-verify:
 ifeq ($(ROLE),router)
 	@command -v ethtool >/dev/null || { \
 		echo "❌ ethtool missing (required for ROLE=router)"; exit 1; }
-			echo "⚠️  Cannot read net.ipv4.ip_forward (sysctl unavailable?)"
+	@sysctl net.ipv4.ip_forward >/dev/null 2>&1 || \
 		echo "⚠️  Cannot read net.ipv4.ip_forward (sysctl unavailable?)"
 else
 	@command -v ethtool >/dev/null || \
@@ -42,41 +42,33 @@ else
 endif
 
 prereqs-public-dns-verify: | ensure-default-gateway
-	@echo "🔍 Verifying public DNS CNAME for apt.bardi.ch"
-	@out=$$(dig +short @$(PUBLIC_DNS) apt.bardi.ch CNAME 2>&1); \
-	case "$$out" in \
-		*"network unreachable"*) \
-			echo "❌ Network unreachable: NAS has no default route"; \
-			echo "   The NAS cannot reach $(PUBLIC_DNS) over IPv4."; \
-			echo "👉 Fix: ip route add default via $(ROUTER_ADDR) dev eth0"; \
-			exit 1;; \
-		*"no servers could be reached"*) \
-			echo "❌ Cannot reach DNS server $(PUBLIC_DNS)"; \
-			echo "   The NAS has IPv4 but DNS egress is blocked."; \
-			echo "👉 Check nftables, firewall, or WAN connectivity"; \
-			exit 1;; \
-		*"connection timed out"*) \
-			echo "❌ DNS query to $(PUBLIC_DNS) timed out"; \
-			echo "👉 Check upstream connectivity or firewall rules"; \
-			exit 1;; \
-	esac; \
-	cname=$$(printf "%s" "$$out" | sed 's/\.$$//'); \
-	if [ -z "$$cname" ]; then \
-		echo "❌ ERROR: No CNAME returned for apt.bardi.ch"; \
-		echo "👉 This may be a DNS issue or stale cache."; \
-		exit 1; \
-	fi; \
-	if [ "$$cname" != "$(APT_CNAME_EXPECTED)" ]; then \
-		echo "❌ ERROR: Public DNS misconfiguration detected"; \
-		echo "   Expected: apt.bardi.ch -> CNAME $(APT_CNAME_EXPECTED)."; \
-		echo "   Found:    apt.bardi.ch -> '$$cname'"; \
-		echo ""; \
-		echo "👉 Fix this in Infomaniak DNS before continuing:"; \
-		echo "   apt 21600 IN CNAME $(APT_CNAME_EXPECTED)."; \
-		exit 1; \
-	fi
-	@echo "✅ Public DNS CNAME is correct"
-
+	@$(WITH_SECRETS) \
+		echo "🔍 Verifying public DNS CNAME for apt.bardi.ch"; \
+		out=$$(dig +short @$$public_dns apt.bardi.ch CNAME 2>&1); \
+		case "$$out" in \
+			*"network unreachable"*) \
+				echo "❌ Network unreachable: NAS has no default route"; \
+				echo "👉 Fix: ip route add default via $$router_addr dev eth0"; \
+				exit 1;; \
+			*"no servers could be reached"*) \
+				echo "❌ Cannot reach DNS server $$public_dns"; \
+				exit 1;; \
+			*"connection timed out"*) \
+				echo "❌ DNS query to $$public_dns timed out"; \
+				exit 1;; \
+		esac; \
+		cname=$$(printf "%s" "$$out" | sed 's/\.$$//'); \
+		if [ -z "$$cname" ]; then \
+			echo "❌ ERROR: No CNAME returned for apt.bardi.ch"; \
+			exit 1; \
+		fi; \
+		if [ "$$cname" != "$$apt_cname_expected" ]; then \
+			echo "❌ ERROR: Public DNS misconfiguration detected"; \
+			echo "   Expected: $$apt_cname_expected"; \
+			echo "   Found:    $$cname"; \
+			exit 1; \
+		fi; \
+		echo "✅ Public DNS CNAME is correct"
 
 prereqs-tailscale-repo-verify: | ensure-default-gateway
 	@echo "🔍 Verifying Tailscale repo hygiene"
@@ -104,7 +96,6 @@ prereqs: \
 	prereqs-public-dns-verify \
 	prereqs-tailscale-repo-verify \
 	prereqs-network \
-	$(HOMELAB_ENV_DST) \
 	prereqs-dns-warm-verify \
 	prereqs-docs-verify \
 	prereqs-helper-scripts \
@@ -125,7 +116,6 @@ prereqs: \
 	@test -x /usr/sbin/nft || { \
 		echo "❌ nft binary missing at /usr/sbin/nft"; exit 1; }
 	@echo "✅ Base prerequisites installed"
-
 
 # ------------------------------------------------------------
 # Network & Infrastructure Mutators
@@ -174,8 +164,6 @@ fix-tailscale-repo: ensure-run-as-root
 	@# Inform about keyring if missing (non-fatal)
 	@test -f "$(TAILSCALE_KEYRING)" || echo "🔐 Note: keyring $(TAILSCALE_KEYRING) not found; run 'make prereqs' to install it"
 
-
-
 # ------------------------------------------------------------
 # SSH & Identity
 # ------------------------------------------------------------
@@ -214,12 +202,16 @@ prereqs-operator-ssh-key:
 	fi
 
 install-ssh-config: prereqs-operator-ssh-key
-	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
-		echo "🔧 Ensuring SSH config is up to date"; \
-	fi;
-	@sudo install -d -m 700 $(OPERATOR_HOME)/.ssh
-	@sudo chown $(OPERATOR_USER):$(OPERATOR_GROUP) $(OPERATOR_HOME)/.ssh
-	@$(call install_file,$(REPO_ROOT)config/ssh_config,$(OPERATOR_HOME)/.ssh/config,$(OPERATOR_USER),$(OPERATOR_GROUP),600)
+	@$(WITH_SECRETS) \
+		U_NAME=$${operator_user:-$$(id -un)}; \
+		G_NAME=$${operator_group:-$$(id -gn)}; \
+		U_HOME=$${operator_home:-$$HOME}; \
+		if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+			echo "🔧 Ensuring SSH config is up to date for $$U_NAME"; \
+		fi; \
+		sudo install -d -m 700 "$$U_HOME/.ssh"; \
+		sudo chown "$$U_NAME:$$G_NAME" "$$U_HOME/.ssh"; \
+		$(call install_file,$(REPO_ROOT)/config/ssh_config,$$U_HOME/.ssh/config,$$U_NAME,$$G_NAME,600)
 
 prereqs-python-venv-verify:
 	@python3 -c 'import venv' >/dev/null 2>&1 || { \
@@ -231,7 +223,6 @@ PYTHON_MIN ?= 3.11.2
 
 prereqs-python-venv: ensure-run-as-root | ensure-default-gateway
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "📍 Ensuring python3-venv is installed (need >= $(PYTHON_MIN))"; fi
-	@# If python3 >= $(PYTHON_MIN) and venv importable, do nothing; otherwise install.
 	@python3 -c 'import sys,importlib,pkgutil; min_ver=tuple(int(p) for p in "$(PYTHON_MIN)".split(".")); ver=tuple(sys.version_info[:len(min_ver)]); has_venv=(hasattr(importlib,"util") and importlib.util.find_spec("venv") is not None) or (pkgutil.find_loader("venv") is not None); sys.exit(0 if ver>=min_ver and has_venv else 1)' >/dev/null 2>&1 || { \
 	$(call apt_update_if_needed); \
 	if [ -z "$(VERBOSE)" ] || [ "$(VERBOSE)" = "0" ]; then \
@@ -242,7 +233,6 @@ prereqs-python-venv: ensure-run-as-root | ensure-default-gateway
 	dpkg -s python3-venv >/dev/null 2>&1 || { echo "❌ python3-venv not installed"; exit 1; }; \
 	}; \
 	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "ℹ️  python3 >= $(PYTHON_MIN) and venv available: $$(python3 -V 2>&1)"; fi
-
 
 prereqs-dns-health-check-verify: ensure-run-as-root
 	@$(run_as_root) $(INSTALL_PATH)/dns-health-check.sh --check-only || { \
@@ -259,5 +249,5 @@ prereqs-helper-scripts: ensure-run-as-root
 		VERBOSE="$(VERBOSE)"; \
 		if [ -n "$$VERBOSE" ] && [ "$$VERBOSE" != "0" ]; then echo "📦 Ensuring helper scripts are installed"; fi; \
 		install -d -o root -g root -m 0755 "$(INSTALL_PATH)"; \
-		install -o root -g root -m 0755 "$(REPO_ROOT)scripts/ensure_dir.sh" "$(INSTALL_PATH)/ensure_dir.sh"; \
+		install -o root -g root -m 0755 "$(REPO_ROOT)/scripts/ensure_dir.sh" "$(INSTALL_PATH)/ensure_dir.sh"; \
 	'

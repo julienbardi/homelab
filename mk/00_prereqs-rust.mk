@@ -75,6 +75,7 @@ rust-system: ensure-run-as-root
 			install -d -o root -g root -m 0755 "$(INSTALL_PATH)"; \
 			\
 			echo "📦 Installing Rust via rustup (root context)..."; \
+			command -v curl >/dev/null || { echo "error: curl not installed"; exit 1; }
 			curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path >/dev/null 2>&1; \
 			\
 			ln -sf /root/.cargo/bin/cargo "$(INSTALL_PATH)/cargo"; \

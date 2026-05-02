@@ -107,12 +107,15 @@ endef
 
 # $(call extract_tarball,TARBALL,DESTDIR)
 define extract_tarball
-	TMPDIR="$$(mktemp -d /tmp/extract.XXXXXX)"; \
-	$(run_as_root) rm -rf "$(2)"; \
-	$(run_as_root) tar -C "$$TMPDIR" -xzf "$(1)"; \
-	$(run_as_root) mv "$$TMPDIR"/* "$(2)"; \
-	rm -rf "$$TMPDIR"
+	$(run_as_root) sh -e -c '\
+		TMPDIR="$$(mktemp -d /tmp/extract.XXXXXX)"; \
+		rm -rf "$(2)"; \
+		tar -C "$$TMPDIR" -xzf "$(1)"; \
+		mv "$$TMPDIR"/* "$(2)"; \
+		rm -rf "$$TMPDIR"; \
+	'
 endef
+
 
 # $(call install_symlink,TARGET,LINK)
 define install_symlink
@@ -328,45 +331,27 @@ remove-pkg-rclone:
 	@{ $(call apt_remove,rclone) ; }
 
 # ------------------------------------------------------------
-# Kopia (Fast, Encrypted, Deduplicated Backups)
+# Kopia (GitHub tarball via centralized installer)
 # ------------------------------------------------------------
+
 KOPIA_VERSION := 0.16.0
-KOPIA_TARBALL_URL := https://github.com/kopia/kopia/releases/download/v$(KOPIA_VERSION)/kopia-$(KOPIA_VERSION)-linux-x64.tar.gz
-KOPIA_TARBALL := /tmp/kopia-$(KOPIA_VERSION)-linux-x64.tar.gz
-
-KOPIA_SHA256 := a29f2cc1a49f985d1bfe09340eda0f7ed7b3c98037704da249b47034f1be1a18
-
-.PHONY: fetch-kopia
-fetch-kopia:
-	@RET="$$( $(call fetch_tarball,$(KOPIA_TARBALL_URL),$(KOPIA_TARBALL)) )"; \
-	echo "RET=$$RET" >/dev/null
-
-STAMP_KOPIA := $(STAMP_DIR)/kopia.installed
+KOPIA_URL := https://github.com/kopia/kopia/releases/download/v$(KOPIA_VERSION)/kopia-$(KOPIA_VERSION)-linux-x64.tar.gz
+KOPIA_STAMP := $(STAMP_DIR)/kopia.installed
 
 .PHONY: install-pkg-kopia
-install-pkg-kopia: fetch-kopia | ensure-run-as-root ensure-default-gateway ensure-stamp-dir
-	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "📦 Installing Kopia $(KOPIA_VERSION)"; fi; \
-	set -euo pipefail; \
-	TARBALL="$(KOPIA_TARBALL)"; \
-	STAMP="$(STAMP_KOPIA)"; \
-	VERSION="$(KOPIA_VERSION)"; \
-	if command -v kopia >/dev/null 2>&1; then \
-		INSTALLED_VER=$$(kopia --version | awk '{print $$1}'); \
-		if [ "$$INSTALLED_VER" = "$$VERSION" ]; then \
-			if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "ℹ️ kopia $$VERSION already installed"; fi; \
-			exit 0; \
-		fi; \
-	fi; \
-	$(call extract_tarball,$(KOPIA_TARBALL),/usr/local/kopia); \
-	$(run_as_root) install -m 0755 /usr/local/kopia/kopia /usr/local/bin/kopia; \
-	echo "version=$(KOPIA_VERSION) installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-		| $(run_as_root) tee "$(STAMP_KOPIA)" >/dev/null; \
-	echo "✅ kopia $$VERSION installed"
+install-pkg-kopia: ensure-run-as-root ensure-default-gateway ensure-stamp-dir install-all
+	@echo "📦 Ensuring Kopia $(KOPIA_VERSION)"
+	@$(run_as_root) $(INSTALL_PATH)/install_github_asset.sh \
+		"$(KOPIA_URL)" \
+		"$(INSTALL_PATH)/kopia" \
+		"$(KOPIA_SHA256)" \
+		"$(KOPIA_STAMP)"
 
 .PHONY: remove-pkg-kopia
 remove-pkg-kopia: | ensure-run-as-root
-	@$(call remove_file_or_link_if_exists,/usr/local/bin/kopia $(STAMP_KOPIA),kopia) || true
+	@$(call remove_file_or_link_if_exists,/usr/local/bin/kopia $(KOPIA_STAMP),kopia) || true
 	@$(run_as_root) rm -rf /usr/local/kopia >/dev/null 2>&1 || true
+
 
 # ------------------------------------------------------------
 # ndppd
@@ -465,48 +450,17 @@ PANDOC_VERSION := 3.9.0.2
 PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.9.0.2/pandoc-3.9.0.2-1-amd64.deb
 PANDOC_SHA256  := ce4ac48f48aa7eadc1f5dbdf3449a1739f188ecb8c5421c5adc070fe7479e567
 
-PANDOC_DEB   := /tmp/pandoc-$(PANDOC_VERSION)-amd64.deb
 STAMP_PANDOC := $(STAMP_DIR)/pandoc.installed
-
-.PHONY: fetch-pandoc
-fetch-pandoc: $(INSTALL_URL_FILE_IF_CHANGED) | ensure-default-gateway
-	@RET="$$( $(call fetch_tarball,$(PANDOC_DEB_URL),$(PANDOC_DEB)) )"; \
-	echo "RET=$$RET" >/dev/null
 
 .SILENT: install-pkg-pandoc
 .PHONY: install-pkg-pandoc
-install-pkg-pandoc: fetch-pandoc | ensure-default-gateway ensure-stamp-dir
-	@echo "📦 install-pkg-pandoc"
-	@set -euo pipefail; \
-	DEB="$(PANDOC_DEB)"; \
-	SHA="$(PANDOC_SHA256)"; \
-	VERSION="$(PANDOC_VERSION)"; \
-	STAMP="$(STAMP_PANDOC)"; \
-	installed_bin=$$(command -v pandoc 2>/dev/null || true); \
-	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
-	installed_version_base=$${installed_version%%-*}; \
-	if [ -n "$$installed_bin" ] && \
-		[ -f "$$DEB" ] && \
-		[ "$$(sha256sum "$$DEB" | cut -d" " -f1)" = "$$SHA" ] && \
-		[ "$$installed_version_base" = "$$VERSION" ]; then \
-		echo "ℹ️ pandoc $$VERSION already installed"; \
-		exit 0; \
-	fi; \
-	echo "$$SHA  $$DEB" | sha256sum -c - >/dev/null; \
-	DEBIAN_FRONTEND=noninteractive $(run_as_root) dpkg -i "$$DEB" >/dev/null 2>&1 || true; \
-	$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get -y -f install --no-install-recommends >/dev/null; \
-	$(run_as_root) apt-mark hold pandoc >/dev/null; \
-	installed_version=$$(dpkg-query -W -f='$${Version}' pandoc 2>/dev/null || true); \
-	installed_version_base=$${installed_version%%-*}; \
-	if [ "$$installed_version_base" != "$$VERSION" ]; then \
-		echo "❌ ERROR: pandoc wrong version (installed=$$installed_version)"; \
-		exit 1; \
-	fi; \
-	tmp_stamp="/tmp/pandoc.installed.$$RANDOM"; \
-	echo "version=$$installed_version sha256=$$SHA installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$$tmp_stamp"; \
-	$(run_as_root) install -m 0644 "$$tmp_stamp" "$$STAMP"; \
-	rm -f "$$tmp_stamp"; \
-	echo "✅ pandoc $$VERSION installed"
+install-pkg-pandoc: ensure-run-as-root ensure-default-gateway ensure-stamp-dir install-all
+	@echo "📦 Ensuring Pandoc $(PANDOC_VERSION)"
+	@$(run_as_root) $(INSTALL_PATH)/install_github_asset.sh \
+		"$(PANDOC_DEB_URL)" \
+		"$(INSTALL_PATH)/pandoc" \
+		"$(PANDOC_SHA256)" \
+		"$(STAMP_PANDOC)"
 
 upgrade-pkg-pandoc: $(STAMP_PANDOC) | ensure-run-as-root ensure-default-gateway
 	@echo "⬆️ Upgrading pandoc..."

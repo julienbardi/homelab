@@ -32,50 +32,49 @@ INTERNAL_HOSTS := \
 	apt.bardi.ch
 
 # --- Includes (ordered by prefix) ---
-include $(REPO_ROOT)mk/00_constants.mk
-include $(REPO_ROOT)mk/00_icons.mk
-include $(REPO_ROOT)mk/00_prereqs-rust.mk
-include $(REPO_ROOT)mk/00_prereqs.mk
-include $(REPO_ROOT)mk/01_common.mk
-include $(REPO_ROOT)mk/05_bootstrap_acme.mk
-include $(REPO_ROOT)mk/06_acme_timer.mk
-include $(REPO_ROOT)mk/07_secrets.mk
-include $(REPO_ROOT)mk/10_bootstrap_security.mk
-include $(REPO_ROOT)mk/10_groups.mk
-include $(REPO_ROOT)mk/10_local-tools.mk
-include $(REPO_ROOT)mk/15_local-python-env.mk
-include $(REPO_ROOT)mk/20_deps.mk
-include $(REPO_ROOT)mk/20_gitignore.mk
-include $(REPO_ROOT)mk/20_local-python.mk
-include $(REPO_ROOT)mk/20_sysctl.mk
-include $(REPO_ROOT)mk/30_config_validation.mk
-include $(REPO_ROOT)mk/30_firewall-nas.mk
-include $(REPO_ROOT)mk/30_secrets.mk
-include $(REPO_ROOT)mk/40_acme.mk
-include $(REPO_ROOT)mk/40_code-server.mk
-include $(REPO_ROOT)mk/40_nas-caddy.mk
-include $(REPO_ROOT)mk/40_router-control.mk
-include $(REPO_ROOT)mk/40_router-caddy.mk
-include $(REPO_ROOT)mk/40_wireguard.mk
-include $(REPO_ROOT)mk/50_certs.mk
-include $(REPO_ROOT)mk/55_router-certs.mk
-include $(REPO_ROOT)mk/56_router-certs.mk
-include $(REPO_ROOT)mk/60_unbound.mk
-include $(REPO_ROOT)mk/65_dnsmasq.mk
-include $(REPO_ROOT)mk/70_dnsdist.mk
-include $(REPO_ROOT)mk/71_dns-warm.mk
-include $(REPO_ROOT)mk/70_apt_proxy_auto.mk
-include $(REPO_ROOT)mk/80_tailnet.mk
-include $(REPO_ROOT)mk/81_headscale.mk
-include $(REPO_ROOT)mk/83_headscale-users.mk
-include $(REPO_ROOT)mk/84_headscale-acls.mk
-include $(REPO_ROOT)mk/85_monitoring.mk
-include $(REPO_ROOT)mk/85_tailscaled.mk
-include $(REPO_ROOT)mk/90_dns-health.mk
-include $(REPO_ROOT)mk/90_help.mk
-include $(REPO_ROOT)mk/90_converge.mk
-include $(REPO_ROOT)mk/95_status.mk
-include $(REPO_ROOT)mk/99_lint.mk
+include $(REPO_ROOT)/mk/00_constants.mk
+include $(REPO_ROOT)/mk/00_icons.mk
+include $(REPO_ROOT)/mk/00_prereqs-rust.mk
+include $(REPO_ROOT)/mk/00_prereqs.mk
+include $(REPO_ROOT)/mk/01_common.mk
+include $(REPO_ROOT)/mk/05_bootstrap_acme.mk
+include $(REPO_ROOT)/mk/06_acme_timer.mk
+include $(REPO_ROOT)/mk/07_secrets.mk
+include $(REPO_ROOT)/mk/10_bootstrap_security.mk
+include $(REPO_ROOT)/mk/10_groups.mk
+include $(REPO_ROOT)/mk/10_local-tools.mk
+include $(REPO_ROOT)/mk/15_local-python-env.mk
+include $(REPO_ROOT)/mk/20_deps.mk
+include $(REPO_ROOT)/mk/20_gitignore.mk
+include $(REPO_ROOT)/mk/20_local-python.mk
+include $(REPO_ROOT)/mk/20_sysctl.mk
+include $(REPO_ROOT)/mk/30_config_validation.mk
+include $(REPO_ROOT)/mk/30_firewall-nas.mk
+include $(REPO_ROOT)/mk/40_acme.mk
+include $(REPO_ROOT)/mk/40_code-server.mk
+include $(REPO_ROOT)/mk/40_nas-caddy.mk
+include $(REPO_ROOT)/mk/40_router-control.mk
+include $(REPO_ROOT)/mk/40_router-caddy.mk
+include $(REPO_ROOT)/mk/40_wireguard.mk
+include $(REPO_ROOT)/mk/50_certs.mk
+include $(REPO_ROOT)/mk/55_router-certs.mk
+include $(REPO_ROOT)/mk/56_router-certs.mk
+include $(REPO_ROOT)/mk/60_unbound.mk
+include $(REPO_ROOT)/mk/65_dnsmasq.mk
+include $(REPO_ROOT)/mk/70_dnsdist.mk
+include $(REPO_ROOT)/mk/71_dns-warm.mk
+include $(REPO_ROOT)/mk/70_apt_proxy_auto.mk
+include $(REPO_ROOT)/mk/80_tailnet.mk
+include $(REPO_ROOT)/mk/81_headscale.mk
+include $(REPO_ROOT)/mk/83_headscale-users.mk
+include $(REPO_ROOT)/mk/84_headscale-acls.mk
+include $(REPO_ROOT)/mk/85_monitoring.mk
+include $(REPO_ROOT)/mk/85_tailscaled.mk
+include $(REPO_ROOT)/mk/90_dns-health.mk
+include $(REPO_ROOT)/mk/90_help.mk
+include $(REPO_ROOT)/mk/90_converge.mk
+include $(REPO_ROOT)/mk/95_status.mk
+include $(REPO_ROOT)/mk/99_lint.mk
 
 # ============================================================
 # ORCHESTRATION: The Bootstrap Flow
@@ -100,8 +99,8 @@ bootstrap: guard-config security-bootstrap acme-bootstrap install-pkg-sops ensur
 # --------------------------------------------------------------------
 
 # Path to the interactive known_hosts installer
-KNOWN_HOSTS_FILE := $(REPO_ROOT)known_hosts_to_check.txt
-KNOWN_HOSTS_SCRIPT := $(REPO_ROOT)scripts/verify_and_install_known_hosts.sh
+KNOWN_HOSTS_FILE := $(REPO_ROOT)/known_hosts_to_check.txt
+KNOWN_HOSTS_SCRIPT := $(REPO_ROOT)/scripts/verify_and_install_known_hosts.sh
 
 # Allow skipping in CI or when explicitly requested
 SKIP_KNOWN_HOSTS ?= 0
@@ -153,16 +152,10 @@ restart: ensure-run-as-root
 		echo "✅ tailscaled services restarted"; \
 	'
 
-
 test: logs ensure-run-as-root
 	@echo "🧩 Running run_as_root harness"
 	@$(run_as_root) bash $(INSTALL_PATH)/test_run_as_root.sh
 
-# all:
-# - Enforces invariants
-# - Converges kernel + firewall + DNS + WireGuard
-# - Brings up tailnet control plane (Headscale + tailscaled)
-# - Enables baseline observability (Prometheus)
 .PHONY: all
 all: assert-sanity converge-network wg tailscaled monitoring
 	@echo ""; \
@@ -194,20 +187,19 @@ REPO_SYSTEMD = config/systemd
 
 .PHONY: install-systemd enable-systemd uninstall-systemd verify-systemd
 
-# Install systemd units and reload systemd (idempotent)
 install-systemd: ensure-run-as-root
 	@echo "🧩 Installing systemd units"
-	@if [ ! -d "$(REPO_ROOT)$(REPO_SYSTEMD)" ]; then \
-		echo "ERROR: $(REPO_ROOT)$(REPO_SYSTEMD) not found"; exit 1; \
+	@if [ ! -d "$(REPO_ROOT)/$(REPO_SYSTEMD)" ]; then \
+		echo "ERROR: $(REPO_ROOT)/$(REPO_SYSTEMD) not found"; exit 1; \
 	fi
 	@$(run_as_root) sh -c '\
 		mkdir -p $(SYSTEMD_DIR); \
 		mkdir -p $(SYSTEMD_DIR)/unbound-ctl-fix.service.d; \
 		mkdir -p /etc/systemd/system/unbound.service.d; \
-		install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service; \
-		install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path; \
-		install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf; \
-		install -o root -g root -m 0644 $(REPO_ROOT)$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf; \
+		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service; \
+		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path; \
+		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf; \
+		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf; \
 		systemctl daemon-reload; \
 	'
 
@@ -247,11 +239,11 @@ uninstall-systemd: ensure-run-as-root
 .NOTPARALLEL: nft-confirm nft-apply
 
 install-nft-apply: ensure-run-as-root
-	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
+	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)/scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
 
 nft-sync: ensure-run-as-root
 	@echo "🔄 Syncing homelab.nft ruleset"
-	@$(call install_file,$(REPO_ROOT)scripts/homelab.nft,$(HOMELAB_NFT_RULESET),root,root,0644)
+	@$(call install_file,$(REPO_ROOT)/scripts/homelab.nft,$(HOMELAB_NFT_RULESET),root,root,0644)
 
 nft-apply: install-nft-apply nft-sync ensure-run-as-root
 	@$(run_as_root) sh -c '\
@@ -267,16 +259,15 @@ nft-confirm: ensure-run-as-root
 nft-install: install-nft-apply ensure-run-as-root
 	@$(run_as_root) sh -c '\
 		echo "🛡️ Installing homelab nftables firewall"; \
-		install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh; \
-		install -o root -g root -m 0755 $(REPO_ROOT)scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh; \
-		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service; \
-		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
-		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
+		install -o root -g root -m 0755 $(REPO_ROOT)/scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh; \
+		install -o root -g root -m 0755 $(REPO_ROOT)/scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh; \
+		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service; \
+		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
+		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
 		systemctl daemon-reload >/dev/null 2>&1; \
 		systemctl enable homelab-nft.service homelab-nft-rollback.timer >/dev/null 2>&1 || true; \
 		echo "✅ Firewall units installed (not yet applied)"; \
 	'
-
 
 nft-status: ensure-run-as-root
 	@$(run_as_root) nft list table inet homelab_filter
@@ -284,8 +275,8 @@ nft-status: ensure-run-as-root
 nft-install-rollback: ensure-run-as-root
 	@$(run_as_root) sh -c '\
 		echo "⏪ Installing homelab nft rollback units"; \
-		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
-		install -o root -g root -m 0644 $(REPO_ROOT)config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
+		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
+		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
 		systemctl daemon-reload >/dev/null 2>&1; \
 		systemctl enable homelab-nft-rollback.timer >/dev/null 2>&1 || true; \
 		echo "✅ nft rollback units installed"; \

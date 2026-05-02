@@ -18,16 +18,20 @@ endif
 PYTHON_DEPS_LOCK := $(TOOLS_DIR)/python.deps.lock
 PYTHON_DEPS      := qrcode[pil]>=8.2
 
+PYTHON_VENV_STAMP := $(PYTHON_VENV)/.venv_created
+PYTHON_DEPS_STAMP := $(TOOLS_DIR)/python.deps.stamp
+
 # ------------------------------------------------------------
-# Virtualenv bootstrap
+# Virtualenv bootstrap (idempotent)
 # ------------------------------------------------------------
 
-$(PYTHON_BIN):
+$(PYTHON_VENV_STAMP):
 	$(PYTHON) -m venv $(PYTHON_VENV)
+	@touch "$@"
 	@echo "🐍 Python venv created at $(PYTHON_VENV)"
 
 .PHONY: python-venv
-python-venv: $(PYTHON_BIN)
+python-venv: $(PYTHON_VENV_STAMP)
 	@echo "🐍 Python venv ready"
 
 # ------------------------------------------------------------
@@ -35,19 +39,21 @@ python-venv: $(PYTHON_BIN)
 # ------------------------------------------------------------
 
 .PHONY: python-pip-upgrade
-python-pip-upgrade: $(PYTHON_BIN)
+python-pip-upgrade: $(PYTHON_VENV_STAMP)
 	$(PIP_BIN) install --upgrade pip
 
 # ------------------------------------------------------------
-# Dependency policy
+# Dependency policy (deterministic)
 # ------------------------------------------------------------
 
 $(PYTHON_DEPS_LOCK):
 	@mkdir -p "$(dir $@)"
 	@printf "%s\n" "$(PYTHON_DEPS)" > "$@"
 
+$(PYTHON_DEPS_STAMP): $(PYTHON_VENV_STAMP) $(PYTHON_DEPS_LOCK)
+	$(PIP_BIN) install --upgrade -r $(PYTHON_DEPS_LOCK)
+	@touch "$@"
+	@echo "📦 Python deps installed / updated"
 
 .PHONY: python-deps
-python-deps: $(PYTHON_BIN) $(PYTHON_DEPS_LOCK)
-	$(PIP_BIN) install --upgrade -r $(PYTHON_DEPS_LOCK)
-	@echo "📦 Python deps installed / updated"
+python-deps: $(PYTHON_DEPS_STAMP)

@@ -54,15 +54,23 @@ acme-ensure-dirs: | $(run_as_root)
 ACME_SRC := $(HOME)/src/acme.sh
 
 acme-install: | $(run_as_root)
-	@{ \
-		CURRENT_VER="$$( $(run_as_root) sh -c 'test -x "$(ACME_BIN)" && "$(ACME_BIN)" --version | tail -n 1 | xargs || echo none' )"; \
-		if [ "$$CURRENT_VER" != "$(ACME_VERSION)" ]; then \
-			echo "🔄 ACME Version mismatch (Got: $$CURRENT_VER, Target: $(ACME_VERSION)). Installing..."; \
-			$(call git_clone_or_fetch,$(ACME_SRC),https://github.com/acmesh-official/acme.sh.git,master); \
-			cd "$(ACME_SRC)"; \
-			$(run_as_root) ./acme.sh --install --nocron --home "$(ACME_HOME)"; \
-			$(call acme_fix_perms,$(ACME_HOME)); \
-		else \
-			echo "✅ acme.sh $$CURRENT_VER already installed."; \
-		fi; \
-	}
+	@if ! command -v curl >/dev/null 2>&1; then \
+		echo "❌ curl missing — required for ACME bootstrap"; \
+		exit 1; \
+	fi; \
+	if ! command -v git >/dev/null 2>&1; then \
+		echo "❌ git missing — required for ACME source sync"; \
+		exit 1; \
+	fi; \
+	CURRENT_VER="$$( $(run_as_root) sh -c 'test -x "$(ACME_BIN)" && "$(ACME_BIN)" --version | tail -n 1 | xargs || echo none' )"; \
+	if [ "$$CURRENT_VER" != "$(ACME_VERSION)" ]; then \
+		echo "🔄 ACME Version mismatch (Got: $$CURRENT_VER, Target: $(ACME_VERSION)). Installing..."; \
+		$(call git_clone_or_fetch,$(ACME_SRC),https://github.com/acmesh-official/acme.sh.git,master); \
+		cd "$(ACME_SRC)"; \
+		$(run_as_root) ./acme.sh --install --nocron --home "$(ACME_HOME)"; \
+	else \
+		echo "✅ acme.sh $$CURRENT_VER already installed."; \
+	fi
+
+
+

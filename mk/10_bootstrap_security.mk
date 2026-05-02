@@ -2,14 +2,12 @@
 # ------------------------------------------------------------
 # Security & Identity Bootstrap (Root-Locked / Multi-Operator)
 # ------------------------------------------------------------
-# Owner: root:root (ROOT_UID:ROOT_GID)
-# Mode:  0640 (Root can RW, Root-Group/Admins can Read)
 
-AGE_KEY_DIR  := $(HOMELAB_DIR)/secrets
+AGE_KEY_DIR  := /etc/sops/keys
 AGE_KEY_FILE := $(AGE_KEY_DIR)/age.key
 
 .PHONY: security-bootstrap
-security-bootstrap: guard-config install-pkg-age
+security-bootstrap: install-pkg-age
 	@if [ -f "$(AGE_KEY_FILE)" ]; then \
 		echo "------------------------------------------------------------"; \
 		echo "✅ Age identity already exists at $(AGE_KEY_FILE)"; \
@@ -17,19 +15,19 @@ security-bootstrap: guard-config install-pkg-age
 		echo "------------------------------------------------------------"; \
 	else \
 		echo "🔐 Generating new homelab identity in $(AGE_KEY_DIR)..."; \
-		$(run_as_root) mkdir -p $(AGE_KEY_DIR); \
-		$(run_as_root) bash -c ' \
-			age-keygen -o $(AGE_KEY_FILE); \
-			{ \
-				echo "# ------------------------------------------------------------"; \
-				echo "# Source: See KeePass (Homelab/Infrastructure/AgeKey)"; \
-				echo "# Created by: mk/10_bootstrap_security.mk on $$(date)"; \
-				echo "# Operator: $(OPERATOR_USER)"; \
-				echo "# ------------------------------------------------------------"; \
-			} >> $(AGE_KEY_FILE); \
-		'; \
-		$(run_as_root) chown $(ROOT_UID):$(ROOT_GID) $(AGE_KEY_FILE); \
-		$(run_as_root) chmod 640 $(AGE_KEY_FILE); \
+		$(run_as_root) mkdir -p "$(AGE_KEY_DIR)"; \
+		$(run_as_root) chown $(ROOT_UID):$(ROOT_GID) "$(AGE_KEY_DIR)"; \
+		$(run_as_root) chmod 711 "$(AGE_KEY_DIR)"; \
+		$(run_as_root) age-keygen -o "$(AGE_KEY_FILE)"; \
+		printf "%s\n" \
+			"# ------------------------------------------------------------" \
+			"# Source: See KeePass (Homelab/Infrastructure/AgeKey)" \
+			"# Created by: mk/10_bootstrap_security.mk on $$(date)" \
+			"# Operator: $(OPERATOR_USER)" \
+			"# ------------------------------------------------------------" \
+			| $(run_as_root) tee -a "$(AGE_KEY_FILE)" >/dev/null; \
+		$(run_as_root) chown $(ROOT_UID):$(ROOT_GID) "$(AGE_KEY_FILE)"; \
+		$(run_as_root) chmod 600 "$(AGE_KEY_FILE)"; \
 		echo "✅ Identity created, commented, and locked to Root."; \
 		echo ""; \
 		echo "‼️  ACTION REQUIRED:"; \

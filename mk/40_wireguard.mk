@@ -43,10 +43,10 @@ define PUSH_WG_SCRIPT
     $(call install_script,$(1),$(notdir $(2)))
 endef
 
-$(INSTALL_PATH)/wgctl.sh: $(REPO_ROOT)scripts/wgctl.sh | $(BOOTSTRAP_FILES)
+$(INSTALL_PATH)/wgctl.sh: $(REPO_ROOT)/scripts/wgctl.sh | $(BOOTSTRAP_FILES)
 	$(call PUSH_WG_SCRIPT,$<,$@)
 
-$(INSTALL_PATH)/wg-generate-configs.sh: $(REPO_ROOT)scripts/wg-generate-configs.sh | $(BOOTSTRAP_FILES)
+$(INSTALL_PATH)/wg-generate-configs.sh: $(REPO_ROOT)/scripts/wg-generate-configs.sh | $(BOOTSTRAP_FILES)
 	$(call PUSH_WG_SCRIPT,$<,$@)
 
 wg-clean-out: wg-down-router wg-down-nas

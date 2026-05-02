@@ -22,6 +22,7 @@ Governance & authority:
   - Contract authority & precedence
   - No unverified assertions about repository state
   - Agent behavior & contract amendment boundaries
+  - Tool Capability & Constraint Verification Invariant
   - Authority & decision ownership
   - Repository authority & source of truth
   - Delegated authority
@@ -160,6 +161,59 @@ Rationale:
   - Forces explicit owner intent before any contract evolution.
   - Preserves documentation-as-law discipline under agent interaction.
 -------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+CONTRACT: Tool Capability & Constraint Verification Invariant
+-------------------------------------------------------------------------------
+
+### 1. Scope
+This invariant applies to all tools, libraries, CLIs, and services used in the
+system (including but not limited to: SOPS, YAML/JSON processors, templating
+engines, SSH helpers, and future tools). It governs any proposal that introduces
+a tool into a pipeline or changes how a tool is used.
+
+### 2. Mandatory Invariant
+No agent may propose, modify, or refactor a workflow that depends on a tool
+without first verifying that the tool’s capabilities and constraints are
+compatible with:
+
+- the actual data model (structure, types, shape)
+- the intended usage pattern (flags, modes, invocation style)
+- the error modes and failure semantics
+
+Assumptions about tool behavior are forbidden.
+
+### 3. Verification Requirements
+Before a tool is used in a new way (or introduced into a new path), the agent
+MUST:
+
+1. Identify the tool’s structural constraints on input (e.g. “exec-env requires
+   flat scalar key/value pairs only”).
+2. Validate those constraints against the current and planned data model.
+3. Validate error behavior with minimal, isolated test invocations.
+4. Confirm that the tool’s failure modes are acceptable for the calling
+   pipeline (no hidden or generic errors that obscure root cause).
+5. Refuse to propose refactors that violate any of the above.
+
+### 4. Prohibited Behavior
+The following behaviors are strictly forbidden:
+
+- Proposing large-scale refactors around a tool without prior constraint
+  validation.
+- Assuming a tool can handle arbitrary structures or types without proof.
+- Relying on generic error messages instead of understanding specific failure
+  conditions.
+- Introducing a tool into a critical path without a minimal, reproducible test.
+
+### 5. Enforcement
+Any proposal or change that uses a tool without satisfying this invariant:
+
+- MUST be treated as a contract breach.
+- MUST be rolled back or corrected.
+- MUST not be repeated for the same class of failure.
+
+Future agents are required to honor this invariant and MUST NOT repeat the
+pattern that led to the SOPS `exec-env` failure.
 
 
 -------------------------------------------------------------------------------
@@ -949,21 +1003,46 @@ contracts and reflects the current architecture.
 Rules:
 
   - Encrypted SSOT MUST reside exclusively in secrets.enc.yaml.
-  - Decryption MUST occur only inside the secrets-load recipe.
-  - Decrypted values MUST exist only in memory (environment variables) and
-    MUST NOT be written to persistent storage under any circumstances.
+  - Decryption is performed in exactly two places:
+      1. The $(SECRETS_REF_DIR)/secrets.yaml rule, which:
+         - decrypts secrets.enc.yaml via SOPS,
+         - writes a RAM-only, content-addressed object under
+           $(SECRETS_OBJ_DIR),
+         - stores a reference path in $(SECRETS_REF_DIR)/secrets.yaml.
+      2. The WITH_SECRETS macro, which:
+         - decrypts secrets.enc.yaml via SOPS,
+         - exports selected keys as environment variables for the duration
+           of a single recipe.
+  - The content-addressed objects under $(SECRETS_OBJ_DIR) and the ref file
+    under $(SECRETS_REF_DIR) are considered RAM-only working state and MUST
+    NOT be treated as SSOT.
+  - Decrypted values MUST NOT be written to any persistent location outside
+    the RAM-only secrets workspace and explicitly defined ephemeral artifacts.
   - Derived secret artifacts (e.g. ddns.conf) MUST be generated only in RAM
     (e.g. /tmp) and MUST NOT persist across reboots.
   - Any secret-derived file MUST be deployed to remote systems exclusively via
     install_file_if_changed_v2.sh using the 9‑argument signature.
-  - No recipe may read secrets.enc.yaml directly except secrets-load.
   - No recipe may log, echo, hash, diff, or otherwise expose secret values.
+    Only non-sensitive metadata (e.g. “Secrets OK”, object SHA) may be logged.
   - No recipe may embed decrypted values into homelab.env or any other
     persistent configuration file.
   - All secret-derived files MUST be treated as ephemeral and MUST NOT be
     considered SSOT.
-  - Any recipe requiring secrets MUST depend on secrets-load to guarantee
-    in-memory availability and avoid redundant decryptions.
+
+Dependency and usage rules:
+
+  - The secrets-load target is removed and MUST NOT be reintroduced.
+  - No recipe may depend on secrets-load.
+  - Recipes that need the decrypted secrets object path MUST depend on:
+        $(SECRETS_REF_DIR)/secrets.yaml
+    and read only the path (never re-decrypt secrets.enc.yaml themselves).
+  - Recipes that need secret values as environment variables MUST invoke:
+        $(WITH_SECRETS)
+    and MUST NOT call SOPS directly.
+  - No other recipe may read secrets.enc.yaml directly; only:
+        - $(SECRETS_REF_DIR)/secrets.yaml rule
+        - WITH_SECRETS
+    are allowed to invoke SOPS on secrets.enc.yaml.
 
 Rationale:
 
@@ -971,6 +1050,7 @@ Rationale:
   - Ensures deterministic, idempotent, memory-only secret handling.
   - Enforces strict privilege boundaries and minimizes attack surface.
   - Guarantees that only the minimal required derived artifacts are deployed.
+  - Aligns documentation with the actual Makefile and runtime behavior.
 -------------------------------------------------------------------------------
 
 

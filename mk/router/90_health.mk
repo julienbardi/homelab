@@ -3,7 +3,6 @@
 # ROUTER HEALTH & SECURITY INVARIANTS (namespaced)
 # ------------------------------------------------------------
 export ROUTER_CADDY_BIN
-export ROUTER_CADDYFILE_DST
 export ULA_PREFIX_NVRAM
 
 .PHONY: router-health

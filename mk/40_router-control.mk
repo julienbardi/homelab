@@ -65,12 +65,12 @@ check-tools:
 # ROUTER CONTROL PLANE (namespaced, already include in mk/graph.mk)
 # ------------------------------------------------------------
 
-include $(REPO_ROOT)mk/router/05_ssh.mk
-include $(REPO_ROOT)mk/router/10_bootstrap.mk
-#include $(REPO_ROOT)mk/router/20_firewall.mk
-#include $(REPO_ROOT)mk/router/20_wireguard.mk
-#include $(REPO_ROOT)mk/router/40_router-wireguard.mk
-include $(REPO_ROOT)mk/router/90_health.mk
+include $(REPO_ROOT)/mk/router/05_ssh.mk
+include $(REPO_ROOT)/mk/router/10_bootstrap.mk
+#include $(REPO_ROOT)/mk/router/20_firewall.mk
+#include $(REPO_ROOT)/mk/router/20_wireguard.mk
+#include $(REPO_ROOT)/mk/router/40_router-wireguard.mk
+include $(REPO_ROOT)/mk/router/90_health.mk
 
 # ------------------------------------------------------------
 # Router readiness

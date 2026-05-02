@@ -77,9 +77,9 @@ acme-migrate-and-deploy: ensure-run-as-root
 		$(run_as_root) rm -rf /var/lib/ssl/canonical/*; \
 		\
 		echo "🚀 Forcing full certificate redeploy..."; \
-		$(REPO_ROOT)scripts/deploy_certificates.sh renew; \
-		$(REPO_ROOT)scripts/deploy_certificates.sh prepare; \
-		$(REPO_ROOT)scripts/deploy_certificates.sh deploy dnsdist; \
+		$(REPO_ROOT)/scripts/deploy_certificates.sh renew; \
+		$(REPO_ROOT)/scripts/deploy_certificates.sh prepare; \
+		$(REPO_ROOT)/scripts/deploy_certificates.sh deploy dnsdist; \
 		\
 		echo "✅ Migration + forced deploy complete."; \
 	}

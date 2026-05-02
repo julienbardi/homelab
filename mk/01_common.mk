@@ -66,7 +66,7 @@ $(INSTALL_FILES_IF_CHANGED): $(IFC_V2_PLURAL_SRC) | $(INSTALL_FILE_IF_CHANGED)
 # Arguments for install_file_if_changed_v2.sh:
 # 1: SRC_PATH, 2: DST_PATH, 3: OWNER, 4: GROUP, 5: MODE
 define install_file
-	test -n "$(INSTALL_PATH)" || { echo "❌ Error: INSTALL_PATH is empty. Sync homelab.env first." >&2; exit 1; }; \
+	test -n "$(INSTALL_PATH)" || { echo "❌ Error: INSTALL_PATH is empty. Check mk/config.mk." >&2; exit 1; }; \
 	status=0; \
 	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) -q \
 		"" "" "$(1)" \
@@ -86,20 +86,19 @@ endef
 
 # $(call git_clone_or_fetch,DIR,URL,REF)
 define git_clone_or_fetch
-	@{ \
-		mkdir -p "$(1)"; \
-		if [ -d "$(1)/.git" ]; then \
-			cd "$(1)"; \
-			if ! git fetch --tags --quiet || ! git checkout --quiet "$(3)" 2>/dev/null; then \
-				cd ..; \
-				rm -rf "$(1)"; \
-				git clone --quiet --depth 1 --branch "$(3)" "$(2)" "$(1)"; \
-			fi; \
-		else \
+	mkdir -p "$(1)"; \
+	if [ -d "$(1)/.git" ]; then \
+		cd "$(1)"; \
+		if ! git fetch --tags --quiet || ! git checkout --quiet "$(3)" 2>/dev/null; then \
+			cd ..; \
+			rm -rf "$(1)"; \
 			git clone --quiet --depth 1 --branch "$(3)" "$(2)" "$(1)"; \
 		fi; \
-	}
+	else \
+		git clone --quiet --depth 1 --branch "$(3)" "$(2)" "$(1)"; \
+	fi
 endef
+
 
 # $(call acme_fix_perms,DIR)
 # Ensures ACME directory permissions match ACME.sh security model.
@@ -134,15 +133,14 @@ $(INSTALL_URL_FILE_IF_CHANGED): $(IFC_URL_SRC) | $(BOOTSTRAP_CORE)
 BOOTSTRAP_FILES := \
 	$(BOOTSTRAP_CORE) \
 	$(INSTALL_URL_FILE_IF_CHANGED) \
-	$(INSTALL_PATH)/common.sh \
-	$(HOMELAB_ENV_DST)
+	$(INSTALL_PATH)/common.sh
 
 # Install only non-router scripts
-$(INSTALL_PATH)/%.sh: $(REPO_ROOT)scripts/%.sh | $(BOOTSTRAP_FILES)
+$(INSTALL_PATH)/%.sh: $(REPO_ROOT)/scripts/%.sh | $(BOOTSTRAP_FILES)
 	@$(call install_script,$<,$(notdir $<))
 
 SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh
-ALL_SCRIPTS := $(notdir $(wildcard $(REPO_ROOT)scripts/*.sh))
+ALL_SCRIPTS := $(notdir $(wildcard $(REPO_ROOT)/scripts/*.sh))
 
 # Exclude bootstrap files and sbin files from the generic bin list
 EXCLUDE_LIST := $(SBIN_SCRIPTS) \
@@ -189,7 +187,7 @@ require-wg-plan-subnets:
 assert-sanity: \
 	assert-no-repo-exec \
 	assert-scripts-layout
-	@test -d $(REPO_ROOT)scripts || { echo "❌ Error: scripts directory missing"; exit 1; }
+	@test -d $(REPO_ROOT)/scripts || { echo "❌ Error: scripts directory missing"; exit 1; }
 
 # Prevents race conditions and ensures we don't accidentally execute
 # non-bootstrapped scripts from the working directory.
@@ -209,7 +207,7 @@ endif
 
 # Ensures all scripts reside in approved functional subdirectories.
 assert-scripts-layout:
-	@bad=$$(find "$(REPO_ROOT)scripts" \
+	@bad=$$(find "$(REPO_ROOT)/scripts" \
 		-mindepth 2 -type f -name '*.sh' \
 		! -path '*/_legacy_wireguard/*' \
 		-print); \

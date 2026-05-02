@@ -48,6 +48,12 @@ go.work
 go.work.sum
 
 # === Secrets & Environment (The "No-Go" Zone) ===
+secrets.tmp.*
+*.tmp.*
+*.tmp
+/tmp/
+/tmp/*
+
 .env
 *.env
 secrets/
