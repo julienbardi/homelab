@@ -52,12 +52,12 @@ sops-init:
 
 .PHONY: check-secrets-src
 check-secrets-src: sops-init
-    @if [ ! -f "$(SECRETS_FILE)" ]; then \
-        echo "❌ Error: $(SECRETS_FILE) not found!"; \
-        echo "👉 Required one-time activity:"; \
-        echo "   SOPS_AGE_KEY_FILE=$(SOPS_AGE_KEY_FILE) sops $(SECRETS_FILE)"; \
-        exit 1; \
-    fi
+	@if [ ! -f "$(SECRETS_FILE)" ]; then \
+		echo "❌ Error: $(SECRETS_FILE) not found!"; \
+		echo "👉 Required one-time activity:"; \
+		echo "   SOPS_AGE_KEY_FILE=$(SOPS_AGE_KEY_FILE) sops $(SECRETS_FILE)"; \
+		exit 1; \
+	fi
 
 # ----------------------------------------------------------------------------
 # Lockfile mechanism with stale lock detection

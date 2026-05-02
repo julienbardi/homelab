@@ -15,7 +15,9 @@ PUBLIC_DNS := 1.1.1.1
 LAN_IFACE  := eth0
 
 # Topology constants
-ROUTER_ADDR := 10.89.12.1
+export router_addr := 10.89.12.1
+export router_user := julie
+export router_ssh_port := 2222
 
 # Certificates & Identity
 DOMAIN               := bardi.ch

@@ -190,3 +190,13 @@ ROUTER_HOST := $(ROUTER_USER)@$(ROUTER_ADDR)
 # ----------------------------------------------------------------------------
 TMP_DDNS_DIR := /run/user/$(shell id -u)/homelab/ddns/$$PPID
 TMP_DDNS_CONF := $(TMP_DDNS_DIR)/.ddns_confidential
+
+.PHONY: print-router-vars
+print-router-vars:
+	@echo "router_addr=$(router_addr)"
+	@echo "router_user=$(router_user)"
+	@echo "router_ssh_port=$(router_ssh_port)"
+	@echo "ROUTER_ADDR=$(ROUTER_ADDR)"
+	@echo "ROUTER_USER=$(ROUTER_USER)"
+	@echo "ROUTER_SSH_PORT=$(ROUTER_SSH_PORT)"
+
