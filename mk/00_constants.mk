@@ -178,9 +178,15 @@ YQ_SHA256 ?= d56bf5c6819e8e696340c312bd70f849dc1678a7cda9c2ad63eebd906371d56b
 
 # Router address (from config.mk)
 ROUTER_ADDR := $(router_addr)
+ROUTER_ULA_IP6 = $(router_ula_ip6)
+
 # Router identity (from secrets)
 ROUTER_USER := $(router_user)
 ROUTER_SSH_PORT := $(router_ssh_port)
+
+# Nas address (from config.mk)
+NAS_LAN_IP = $(nas_lan_ip)
+NAS_LAN_IP6 = $(nas_lan_ip6)
 
 # Construct full SSH host
 ROUTER_HOST := $(ROUTER_USER)@$(ROUTER_ADDR)

@@ -18,6 +18,10 @@ LAN_IFACE  := eth0
 export router_addr := 10.89.12.1
 export router_user := julie
 export router_ssh_port := 2222
+export router_ula_ip6 := fd89:7a3b:42c0::1
+
+export nas_lan_ip := 10.89.12.4
+export nas_lan_ip6 := fd89:7a3b:42c0::4
 
 # Certificates & Identity
 DOMAIN               := bardi.ch
