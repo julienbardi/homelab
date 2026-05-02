@@ -129,3 +129,14 @@ gen2/site/dist/.cache
 # the KYEID used by sign.sh
 # Never commit: contains personal signing workflow, not project tooling.
 gpg-keyid
+
+# === GitHub Release Artifacts ===
+*.tar.gz
+*.tgz
+*.zip
+
+# === Local Machine Config ===
+mk/config.mk
+
+# === Accidental Files ===
+missing
