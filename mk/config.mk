@@ -14,6 +14,9 @@ INSTALL_SBIN_PATH := /usr/local/sbin
 PUBLIC_DNS := 1.1.1.1
 LAN_IFACE  := eth0
 
+# Topology constants
+ROUTER_ADDR := 10.89.12.1
+
 # Certificates & Identity
 DOMAIN               := bardi.ch
 ACME_HOME            := /var/lib/acme
