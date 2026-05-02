@@ -117,24 +117,27 @@
 
 ## 🌐 Router DDNS
 
-The router uses an event-driven DynDNS script compatible with Asuswrt-Merlin.
-The DDNS layer is split into deployment and execution for clarity and safety.
+The router uses an event‑driven DynDNS script compatible with Asuswrt‑Merlin.
+The DDNS pipeline is intentionally minimal: a single Make target performs both deployment of secret material and execution of the DDNS update on the router.
 
 Targets:
 
-- `router-ddns-deploy`
-  Deploys the DDNS runtime surface (`ddns-start` and secret material) to the router.
-  This target is idempotent and performs no network calls.
-
-- `router-ddns-run`
-  Executes the DDNS update logic on the router. Safe to re-run; provider-level
-  idempotence (`good` / `nochg`) is relied upon.
-
 - `router-ddns`
-  Convenience target that performs both deployment and execution.
-  This is the default and recommended entry point.
+  Performs the full DDNS pipeline:
 
-No cron jobs are installed; execution is event-driven by Asuswrt-Merlin.
+  - Generates the .ddns_confidential secret bundle (RAM‑only)
+  - Deploys it to /jffs/scripts/.ddds_confidential on the router
+  - Executes /jffs/scripts/ddns-start once on the router
+  - Relies on provider‑level idempotence (good / nochg)
+  - Removes local secret material after use
+
+  This target is idempotent, safe to re‑run, and is the canonical entry point for DDNS operations.
+  
+Execution model:
+
+No cron jobs are installed.
+DDNS updates are triggered manually via Make or automatically by Asuswrt‑Merlin’s native event system.
+
 
 ## 📦 Infrastructure
 

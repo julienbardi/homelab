@@ -104,7 +104,7 @@ router-caddy: \
 	router-install-scripts \
 	router-firewall-install \
 	router-install-ca \
-	router-ddns-check \
+	router-ddns \
 	router-certs-prepare \
 	router-certs-install-caddy \
 	router-caddy-config \

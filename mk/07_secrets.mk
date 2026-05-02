@@ -129,20 +129,7 @@ ddns-conf-generate: $(SECRETS_REF_DIR)/secrets.yaml
 	@echo "🧩 Generated $(TMP_DDNS_CONF) (RAM only)"
 
 # ----------------------------------------------------------------------------
-# 7. router-ddns-check & ddns-start (unchanged)
-# ----------------------------------------------------------------------------
-
-.PHONY: router-ddns-check
-router-ddns-check: router-ddns
-	@echo "🌐 Verifying DDNS update on router"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '/jffs/scripts/ddns-start'
-
-.PHONY: ddns-start
-ddns-start: router-ddns-check
-	@echo "🚀 DDNS start sequence completed"
-
-# ----------------------------------------------------------------------------
-# 8. Garbage Collection for deduplicated secret objects (POSIX-safe)
+# 7. Garbage Collection for deduplicated secret objects (POSIX-safe)
 # ----------------------------------------------------------------------------
 
 .PHONY: secrets-gc
@@ -280,6 +267,3 @@ check-age-key: ensure-authorized-admin
 	fi
 
 	@echo "🔐 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$($(run_as_root) age-keygen -y /etc/sops/keys/age.key) user=$(OPERATOR_USER)"
-
-
-
