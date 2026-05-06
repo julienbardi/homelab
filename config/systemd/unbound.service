@@ -1,4 +1,4 @@
-# /home/julie/src/homelab/config/systemd/unbound.service
+# config/systemd/unbound.service
 [Unit]
 Description=Unbound DNS resolver
 Documentation=man:unbound(8)

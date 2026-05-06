@@ -11,7 +11,7 @@ set -euo pipefail
 # shellcheck disable=SC2034
 SCRIPT_NAME="dns-warm-update-domains"
 # shellcheck disable=SC1091
-source "/home/julie/src/homelab/scripts/common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 require_bin funzip "Tranco list extraction"
 require_bin curl "Domain list downloads"

@@ -15,7 +15,7 @@ ROUTER_CERT_CHECKSUM := /tmp/router-cert-checksum.txt
 # Better checksum logic to prevent unnecessary re-runs
 $(ROUTER_CERT_CHECKSUM):
 	@mkdir -p /tmp
-	@newsum=$$(HOME=/home/julie $(run_as_root) sha256sum "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" "$(SSL_CANONICAL_DIR)/privkey_ecc.pem" | sha256sum | cut -d' ' -f1); \
+	@newsum=$$(HOME=$(ACTUAL_HOME) $(run_as_root) sha256sum "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" "$(SSL_CANONICAL_DIR)/privkey_ecc.pem" | sha256sum | cut -d' ' -f1); \
 	oldsum=$$(cat $@ 2>/dev/null || echo ""); \
 	if [ "$$newsum" != "$$oldsum" ]; then \
 		echo "$$newsum" > $@; \
@@ -91,9 +91,9 @@ prereqs-router-ssh:
 	tmp=/tmp/router-bundle-$$.tmp; \
 	{ \
 		echo "===FULLCHAIN==="; \
-		HOME=/home/julie $(run_as_root) cat "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem"; \
+		HOME=$(ACTUAL_HOME) $(run_as_root) cat "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem"; \
 		echo "===PRIVKEY==="; \
-		HOME=/home/julie $(run_as_root) cat "$(SSL_CANONICAL_DIR)/privkey_ecc.pem"; \
+		HOME=$(ACTUAL_HOME) $(run_as_root) cat "$(SSL_CANONICAL_DIR)/privkey_ecc.pem"; \
 		echo "===APPLY==="; \
 		cat /tmp/router-apply-local.sh; \
 	} > "$$tmp"; \

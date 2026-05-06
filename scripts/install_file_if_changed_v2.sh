@@ -89,7 +89,8 @@ TS="$(date +%s).${PID}"
 
 # Calculate Source Hash
 if [ -z "$SRC_HOST" ]; then
-    SRC_HASH=$(sha256sum "$SRC_PATH" 2>/dev/null | awk '{print $1}')
+    # Local source: may require root (e.g. /var/lib/ssl/canonical)
+    SRC_HASH=$(sudo sha256sum "$SRC_PATH" 2>/dev/null | awk '{print $1}')
 else
     SRC_HASH=$(ssh -p "$SRC_PORT" -o BatchMode=yes "$SRC_HOST" "sha256sum '$SRC_PATH'" 2>/dev/null | awk '{print $1}')
 fi
@@ -119,8 +120,8 @@ fi
 if [ -z "$DST_HOST" ]; then
     # --- LOCAL INSTALL STRATEGY ---
     LOCK="${DST_PATH}.lock"
-	# Create the buffer in the target's parent directory to ensure same-partition rename
-	DST_DIR=$(dirname "$DST_PATH")
+    # Create the buffer in the target's parent directory to ensure same-partition rename
+    DST_DIR=$(dirname "$DST_PATH")
     BUFFER="${DST_DIR}/.ifc_tmp_${PID}"
 
     # Capture source data into a buffer julie can write to
@@ -169,7 +170,14 @@ if [ -z "$DST_HOST" ]; then
 
 else
     # --- REMOTE INSTALL STRATEGY (binary-safe, no router deps) ---
-    BUFFER="${TMPDIR}/.ifc_buf_${PID}"
+    IFC_ID="$(date +%s).$$"
+    BUFFER="${TMPDIR}/.ifc_buf_${IFC_ID}"
+
+    # Resolve SSH identity: prefer SUDO_USER's key when running under sudo
+    SSH_IDENTITY="$HOME/.ssh/id_ed25519"
+    if [ -n "${SUDO_USER:-}" ] && [ -f "/home/${SUDO_USER}/.ssh/id_ed25519" ]; then
+        SSH_IDENTITY="/home/${SUDO_USER}/.ssh/id_ed25519"
+    fi
 
     # Capture source into local buffer (binary-safe)
     if [ -z "$SRC_HOST" ]; then
@@ -180,6 +188,7 @@ else
 
     # Verify buffer integrity before transfer
     BUF_HASH=$(sha256sum "$BUFFER" | awk '{print $1}')
+
     if [ "$BUF_HASH" != "$SRC_HASH" ]; then
         echo "❌ IFC: Buffer corruption detected" >&2
         rm -f "$BUFFER"
@@ -191,8 +200,8 @@ else
       -o PreferredAuthentications=publickey \
       -o PubkeyAuthentication=yes \
       -o PasswordAuthentication=no \
-      -o IdentityFile="$HOME/.ssh/id_ed25519" \
-      -P "$DST_PORT" "$BUFFER" "$DST_HOST:~/.ifc_rem_${PID}" || {
+      -o IdentityFile="$SSH_IDENTITY" \
+      -P "$DST_PORT" "$BUFFER" "$DST_HOST:~/.ifc_rem_${IFC_ID}" || {
         echo "❌ IFC: SCP transfer failed" >&2
         rm -f "$BUFFER"
         exit 1
@@ -205,21 +214,25 @@ else
       -o PreferredAuthentications=publickey \
       -o PubkeyAuthentication=yes \
       -o PasswordAuthentication=no \
-      -o IdentityFile="$HOME/.ssh/id_ed25519" \
-	  "$DST_HOST" "
+      -o IdentityFile="$SSH_IDENTITY" \
+      "$DST_HOST" "
         set -eu
-        T=\"\$HOME/.ifc_rem_${PID}\"
+        T=\"\$HOME/.ifc_rem_${IFC_ID}\"
+        SRC_HASH_REMOTE='$SRC_HASH'
+        if [ ! -f \"\$T\" ]; then
+            echo '[IFC][REMOTE] ERROR: temp file missing'
+            exit 1
+        fi
         H=\$(sha256sum \"\$T\" | awk '{print \$1}')
-        if [ \"\$H\" != \"$SRC_HASH\" ]; then exit 1; fi
-        mkdir -p \"\$(dirname '$DST_PATH')\"
-        mv -f \"\$T\" '$DST_PATH'
-        chown '$OWNER:$GROUP' '$DST_PATH' 2>/dev/null || chown '$OWNER' '$DST_PATH'
-        chmod '$MODE' '$DST_PATH'
-        sync
-    " || {
+        [ \"\$H\" = \"\$SRC_HASH_REMOTE\" ] || {
+            echo '[IFC][REMOTE] ERROR: hash mismatch'
+            exit 1
+        }
+        /jffs/scripts/run-as-root /jffs/scripts/install-cert.sh install \"\$T\" '$DST_PATH' '$OWNER' '$GROUP' '$MODE'
+      " || {
         echo "❌ IFC: Remote installation failed" >&2
         exit 1
-    }
+      }
 fi
 
 [ "$quiet" -eq 0 ] && log "🚀 Installed IFC: $DST_PATH"

@@ -61,11 +61,8 @@ CHECKMAKE := $(TOOLS_DIR)/checkmake
 # ------------------------------------------------------------
 
 .PHONY: tools
-ifeq ($(YQ_VERSION),latest)
-tools: require-awk check-yq-latest install-yq
-else
-tools: require-awk | $(YQ_STAMP)
-endif
+tools: STAMP_DIR := $(STAMP_DIR_USER)
+tools: require-awk check-yq-latest | $(YQ_STAMP)
 
 $(YQ_DIR):
 	@mkdir -p "$@"
@@ -75,29 +72,29 @@ YQ_LATEST_CACHE := $(YQ_DIR).yq_latest_tag
 .PHONY: check-yq-latest
 check-yq-latest:
 	@echo "🔎 checking latest yq release for $(YQ_GITHUB_REPO)"
-	@if [ "$${CI:-}" = "true" ]; then \
-	  echo "ℹ️ CI detected; skipping check-yq-latest"; \
-	  exit 0; \
-	fi; \
-	if [ -n "$${GITHUB_TOKEN:-}" ]; then \
-	  AUTH_HDR="-H Authorization: token $${GITHUB_TOKEN}"; \
-	else \
-	  AUTH_HDR=""; \
-	fi; \
-	if command -v jq >/dev/null 2>&1; then \
-	  LATEST_TAG=$$(curl -fsS $$AUTH_HDR https://api.github.com/repos/$(YQ_GITHUB_REPO)/releases/latest | jq -r .tag_name 2>/dev/null || true); \
-	else \
-	  LATEST_TAG=$$(curl -fsS $$AUTH_HDR https://api.github.com/repos/$(YQ_GITHUB_REPO)/releases/latest | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' 2>/dev/null || true); \
-	fi; \
-	if [ -z "$$LATEST_TAG" ]; then \
-	  echo "⚠️ Could not determine latest yq release (GitHub API failed or rate-limited)"; \
-	  rm -f "$(YQ_LATEST_CACHE)"; \
-	else \
-	  printf '%s\n' "$$LATEST_TAG" > "$(YQ_LATEST_CACHE)"; \
-	  echo "ℹ️ latest yq release: $$LATEST_TAG (cached at $(YQ_LATEST_CACHE))"; \
-	fi
+	@$(WITH_SECRETS) \
+		if [ "$${CI:-}" = "true" ]; then \
+			echo "ℹ️ CI detected; skipping check-yq-latest"; \
+			exit 0; \
+		fi; \
+		TOKEN_VAL=""; \
+		[ -n "$${GITHUB_TOKEN:-}" ] && TOKEN_VAL="Authorization: token $${GITHUB_TOKEN}"; \
+		if command -v jq >/dev/null 2>&1; then \
+			LATEST_TAG=$$(curl -fsS -H "$$TOKEN_VAL" https://api.github.com/repos/$(YQ_GITHUB_REPO)/releases/latest | jq -r .tag_name 2>/dev/null || true); \
+		else \
+			LATEST_TAG=$$(curl -fsS -H "$$TOKEN_VAL" https://api.github.com/repos/$(YQ_GITHUB_REPO)/releases/latest | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' 2>/dev/null || true); \
+		fi; \
+		if [ -z "$$LATEST_TAG" ]; then \
+			echo "⚠️ Could not determine latest yq release (GitHub API failed or rate-limited)"; \
+			rm -f "$(YQ_LATEST_CACHE)"; \
+		else \
+			printf '%s\n' "$$LATEST_TAG" > "$(YQ_LATEST_CACHE)"; \
+			echo "ℹ️ latest yq release: $$LATEST_TAG (cached at $(YQ_LATEST_CACHE))"; \
+		fi
 
 .PHONY: install-yq
+# Bind STAMP_DIR locally for this target and its dependencies
+install-yq: STAMP_DIR := $(STAMP_DIR_USER)
 install-yq: | $(YQ_DIR) ensure-stamp-dir $(INSTALL_PATH)/install_github_asset.sh
 	@$(INSTALL_PATH)/install_github_asset.sh \
 		"$(YQ_URL)" \
@@ -106,6 +103,7 @@ install-yq: | $(YQ_DIR) ensure-stamp-dir $(INSTALL_PATH)/install_github_asset.sh
 		"$(YQ_STAMP)" \
 		"yq $(YQ_VERSION)"
 
+$(YQ_STAMP): STAMP_DIR := $(STAMP_DIR_USER)
 $(YQ_STAMP): install-yq
 	@test -f "$@" || { echo "ERROR: expected stamp $@ missing"; exit 1; }
 

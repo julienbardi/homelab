@@ -4,6 +4,11 @@
 ROUTER_ID_FILE ?= .tmp/router-owner-group
 ROUTER_ID_TTL  ?= 60
 
+# ROUTER_BOOTSTRAP is an orchestration flag:
+# - empty  => normal operations
+# - "1"    => running under router-bootstrap
+export ROUTER_BOOTSTRAP ?=
+
 # ------------------------------------------------------------
 # ROUTER SSH PREFLIGHT & PRIVILEGE GUARDS
 # ------------------------------------------------------------

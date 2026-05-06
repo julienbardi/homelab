@@ -1,7 +1,7 @@
 # mk/07_secrets.mk
 # ============================================================================
 # Secret Management: SOPS/Age Decryption Orchestration
-# RAM-only, content-addressed deduplication under /tmp/homelab/<user>
+# RAM-only, no decrypted files on disk
 # ============================================================================
 
 # Ensure SOPS can decrypt inside Make recipes
@@ -14,18 +14,16 @@ export SECRETS_FILE  := $(REPO_ROOT)/secrets.enc.yaml
 # 0. RAM-only workspace (per-user)
 # ----------------------------------------------------------------------------
 
-HOMELAB_TMP_BASE    := /tmp/homelab
-export HOMELAB_TMP_USER := $(HOMELAB_TMP_BASE)/$(shell id -un)
+HOMELAB_RUNTIME_BASE := /run/user/$(shell id -u)/homelab
+export HOMELAB_RUNTIME_USER := $(HOMELAB_RUNTIME_BASE)
 
-export SECRETS_OBJ_DIR := $(HOMELAB_TMP_USER)/secrets/objects
-export SECRETS_REF_DIR := $(HOMELAB_TMP_USER)/secrets/refs
-export SECRETS_TMP_DIR := $(HOMELAB_TMP_USER)/secrets/tmp
+# Per-user secrets tmp dir (RAM-only)
+export SECRETS_TMP_DIR := $(HOMELAB_RUNTIME_USER)/secrets/tmp
 
-# Create RAM‑only secrets workspace under /tmp and lock it down to 0700 (prevent cross‑user reads)
-$(shell mkdir -p $(SECRETS_OBJ_DIR) $(SECRETS_REF_DIR) $(SECRETS_TMP_DIR) && chmod -R 700 $(HOMELAB_TMP_USER))
-$(shell chown -R $(shell id -un):$(shell id -gn) $(HOMELAB_TMP_USER) 2>/dev/null || true)
+# Ensure per-user runtime secrets workspace exists (RAM-only, managed by systemd)
+$(shell mkdir -p $(HOMELAB_RUNTIME_USER)/secrets $(SECRETS_TMP_DIR))
 
-export SECRETS_LOCK     := $(HOMELAB_TMP_USER)/secrets/lock
+export SECRETS_LOCK := $(HOMELAB_RUNTIME_USER)/secrets/lock
 export SECRETS_LOCK_PID := $(SECRETS_LOCK)/pid
 export SECRETS_LOCK_TS  := $(SECRETS_LOCK)/ts
 
@@ -34,9 +32,16 @@ SECRETS_LOCK_MAX_AGE := 30
 
 # Call as: $(call WITH_SECRETS, <shell commands>)
 define WITH_SECRETS
-	export $$(/usr/local/bin/sops -d $(REPO_ROOT)/secrets.enc.yaml \
+	export $$($(SOPS) -d $(REPO_ROOT)/secrets.enc.yaml \
 		| awk -F': ' '/: / {gsub(/"/, "", $$2); print $$1 "=" $$2}'); \
 	$(1)
+endef
+
+# ----------------------------------------------------------------------------
+# DHCP static lease aggregation (non-secret, derived from secrets)
+# ----------------------------------------------------------------------------
+define LOAD_STATIC_DHCP
+STATIC_DHCP="$$( $(WITH_SECRETS) sh -c 'for v in $$(compgen -A variable | grep "^dhcp_static_"); do printf "%s" "$${!v}"; done' )"; export STATIC_DHCP
 endef
 
 # ----------------------------------------------------------------------------
@@ -50,74 +55,12 @@ sops-init:
 		printf "creation_rules:\n  - path_regex: $(SECRETS_FILE)$$\n    age: $(SOPS_AGE_PUBKEY)\n" > .sops.yaml; \
 	fi
 
-.PHONY: check-secrets-src
-check-secrets-src: sops-init
-	@if [ ! -f "$(SECRETS_FILE)" ]; then \
-		echo "❌ Error: $(SECRETS_FILE) not found!"; \
-		echo "👉 Required one-time activity:"; \
-		echo "   SOPS_AGE_KEY_FILE=$(SOPS_AGE_KEY_FILE) sops $(SECRETS_FILE)"; \
-		exit 1; \
-	fi
-
-# ----------------------------------------------------------------------------
-# Lockfile mechanism with stale lock detection
-# ----------------------------------------------------------------------------
-
-define acquire_secrets_lock
-	@now=$$(date +%s); \
-	if [ -d "$(SECRETS_LOCK)" ]; then \
-		if [ -f "$(SECRETS_LOCK_TS)" ]; then \
-			ts=$$(cat "$(SECRETS_LOCK_TS)" 2>/dev/null || echo 0); \
-			age=$$((now - ts)); \
-			if [ $$age -gt $(SECRETS_LOCK_MAX_AGE) ]; then \
-				echo "⚠️ Stale secrets lock detected (age $$age s > $(SECRETS_LOCK_MAX_AGE)s). Breaking it."; \
-				rm -rf "$(SECRETS_LOCK)"; \
-			fi; \
-		else \
-			echo "⚠️ Lock directory exists but no timestamp — breaking lock."; \
-			rm -rf "$(SECRETS_LOCK)"; \
-		fi; \
-	fi; \
-	while ! mkdir "$(SECRETS_LOCK)" 2>/dev/null; do \
-		echo "⏳ Waiting for secrets lock..."; \
-		sleep 0.1; \
-	done; \
-	echo "$$" > "$(SECRETS_LOCK_PID)"; \
-	echo "$$now" > "$(SECRETS_LOCK_TS)"; \
-	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
-		echo "🔒 Acquired secrets lock (pid $$, ts $$now)"; \
-	fi
-endef
-
-define release_secrets_lock
-	@rm -rf "$(SECRETS_LOCK)" 2>/dev/null || true
-	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
-		echo "🔓 Released secrets lock"; \
-	fi
-endef
-
-
-$(SECRETS_REF_DIR)/secrets.yaml: check-secrets-src
-	$(call acquire_secrets_lock)
-	@trap 'rm -rf "$(SECRETS_LOCK)" 2>/dev/null || true' EXIT; \
-	tmpfile=$$(mktemp "$(SECRETS_TMP_DIR)/secrets.XXXXXX"); \
-	$(SOPS) -d "$(SECRETS_FILE)" > "$$tmpfile"; \
-	sha=$$(sha256sum "$$tmpfile" | awk '{print $$1}'); \
-	obj="$(SECRETS_OBJ_DIR)/$${sha}"; \
-	if [ ! -f "$$obj" ]; then cp "$$tmpfile" "$$obj"; fi; \
-	printf "%s" "$$obj" > "$(SECRETS_REF_DIR)/secrets.yaml"; \
-	rm -f "$$tmpfile"; \
-	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
-		echo "🔐 Secrets stored as object $$sha (RAM-only)"; \
-	fi
-	$(call release_secrets_lock)
-
 # ----------------------------------------------------------------------------
 # 6. ddns-conf-generate — ephemeral RAM-only file
 # ----------------------------------------------------------------------------
 
 .PHONY: ddns-conf-generate
-ddns-conf-generate: $(SECRETS_REF_DIR)/secrets.yaml
+ddns-conf-generate:
 	@mkdir -p $(dir $(TMP_DDNS_CONF))
 	@$(WITH_SECRETS) \
 		umask 077; \
@@ -128,63 +71,12 @@ ddns-conf-generate: $(SECRETS_REF_DIR)/secrets.yaml
 			> "$(TMP_DDNS_CONF)"
 	@echo "🧩 Generated $(TMP_DDNS_CONF) (RAM only)"
 
-# ----------------------------------------------------------------------------
-# 7. Garbage Collection for deduplicated secret objects (POSIX-safe)
-# ----------------------------------------------------------------------------
-
-.PHONY: secrets-gc
-secrets-gc:
-	$(call acquire_secrets_lock)
-	@echo "🧹 Running secrets GC under $(HOMELAB_TMP_USER)/secrets"
-	@objdir="$(SECRETS_OBJ_DIR)"; \
-	refdir="$(SECRETS_REF_DIR)"; \
-	\
-	reachable_tmp=$$(mktemp); \
-	for r in "$$refdir"/*; do \
-		[ -f "$$r" ] || continue; \
-		cat "$$r"; \
-	done | sort -u > $$reachable_tmp; \
-	\
-	all_tmp=$$(mktemp); \
-	find "$$objdir" -maxdepth 1 -type f 2>/dev/null | sort -u > $$all_tmp; \
-	\
-	unref_tmp=$$(mktemp); \
-	comm -23 $$all_tmp $$reachable_tmp > $$unref_tmp; \
-	\
-	if [ ! -s "$$unref_tmp" ]; then \
-		echo "🟢 No unreferenced objects to delete"; \
-	else \
-		echo "🗑️  Removing unreferenced objects:"; \
-		cat $$unref_tmp; \
-		xargs rm -f < $$unref_tmp; \
-		echo "✅ GC complete"; \
-	fi; \
-	rm -f $$reachable_tmp $$all_tmp $$unref_tmp; \
-	$(call release_secrets_lock)
-
 .PHONY: secrets-status
 secrets-status:
 	@echo "🔎 Secrets subsystem status"
 	@echo "  USER: $(shell id -un)"
-	@echo "  BASE: $(HOMELAB_TMP_USER)/secrets"
-	@echo ""
-	@echo "📁 Directories:"
-	@echo "  OBJ:  $(SECRETS_OBJ_DIR)"
-	@echo "  REF:  $(SECRETS_REF_DIR)"
-	@echo "  LOCK: $(SECRETS_LOCK)"
-	@echo ""
-	@echo "🔐 Current secrets object:"
-	@if [ -f "$(SECRETS_REF_DIR)/secrets.yaml" ]; then \
-		obj=$$(cat "$(SECRETS_REF_DIR)/secrets.yaml"); \
-		echo "  REF → $$obj"; \
-		if [ -f "$$obj" ]; then \
-			echo "  SHA → $$(basename $$obj)"; \
-		else \
-			echo "  ⚠️ Object missing"; \
-		fi; \
-	else \
-		echo "  ⚠️ No secrets loaded"; \
-	fi
+	@echo "  FILE: $(SECRETS_FILE)"
+	@echo "  BASE: $(HOMELAB_RUNTIME_USER)/secrets"
 	@echo ""
 	@echo "🔒 Lock state:"
 	@if [ -d "$(SECRETS_LOCK)" ]; then \
@@ -206,41 +98,68 @@ secrets-break-lock:
 	@echo "🔓 Lock removed"
 
 .PHONY: secrets-dump
-secrets-dump: $(SECRETS_REF_DIR)/secrets.yaml
-	@obj=$$(cat "$(SECRETS_REF_DIR)/secrets.yaml"); \
-	if [ ! -f "$$obj" ]; then \
-		echo "❌ Object $$obj missing"; \
-		exit 1; \
-	fi; \
-	echo "🔐 Dumping decrypted secrets (RAM-only):"; \
-	cat "$$obj"
+secrets-dump:
+	@echo "🔐 Dumping decrypted secrets (RAM-only):"
+	@$(SOPS) -d "$(SECRETS_FILE)" \
+		| awk -F': ' '/: / {gsub(/"/, "", $$2); printf "%s=\"%s\"\n", $$1, $$2}'
 
 .PHONY: secrets-verify
-secrets-verify:
+secrets-verify: $(YQ_STAMP)
 	@echo "🔎 Verifying secrets integrity"
-	@if [ ! -f "$(SECRETS_REF_DIR)/secrets.yaml" ]; then \
-		echo "❌ No secrets ref found"; exit 1; \
-	fi
-	@obj=$$(cat "$(SECRETS_REF_DIR)/secrets.yaml"); \
-	if [ ! -f "$$obj" ]; then \
-		echo "❌ Object file missing: $$obj"; exit 1; \
-	fi; \
-	sha_file=$$(basename "$$obj"); \
-	sha_calc=$$(sha256sum "$$obj" | awk '{print $$1}'); \
-	if [ "$$sha_file" != "$$sha_calc" ]; then \
-		echo "❌ SHA mismatch!"; \
-		echo "   filename: $$sha_file"; \
-		echo "   actual:   $$sha_calc"; \
+	@echo "  • Checking encrypted file exists..."
+	@if [ ! -f "$(SECRETS_FILE)" ]; then \
+		echo "❌ Missing: $(SECRETS_FILE)"; \
+		echo "👉 To initialize a new encrypted secrets file:"; \
+		echo "   SOPS_AGE_KEY_FILE=$(SOPS_AGE_KEY_FILE) $(SOPS) $(SECRETS_FILE)"; \
 		exit 1; \
-	fi; \
-	echo "🟢 Secrets object verified (SHA $$sha_file)"
+	fi
+	@echo "  • Checking SOPS decryption..."
+	@$(SOPS) -d "$(SECRETS_FILE)" >/dev/null || { echo "❌ Decryption failed"; exit 1; }
+	@echo "  • Checking YAML structure..."
+	@$(SOPS) -d "$(SECRETS_FILE)" \
+		| $(YQ) e 'keys' - >/dev/null || { echo "❌ Invalid YAML"; exit 1; }
+	@echo "🟢 Secrets OK — decryptable and structurally valid"
+
 
 .PHONY: secrets-edit
 secrets-edit:
-	$(call acquire_secrets_lock)
-	@echo "📝 Editing encrypted secrets with SOPS ($(SECRETS_FILE))"
-	@TMPDIR="$(SECRETS_TMP_DIR)" $(SOPS) "$(SECRETS_FILE)"
-	$(call release_secrets_lock)
+	@{ \
+		lock_dir="$(SECRETS_LOCK)"; \
+		lock_ts="$(SECRETS_LOCK_TS)"; \
+		now=$$(date +%s); \
+		# Stale lock handling
+		if [ -d "$$lock_dir" ]; then \
+			if [ -f "$$lock_ts" ]; then \
+				ts=$$(cat "$$lock_ts" 2>/dev/null || echo 0); \
+				age=$$((now - ts)); \
+				if [ $$age -gt $(SECRETS_LOCK_MAX_AGE) ]; then \
+					echo "⚠️ Stale secrets lock detected (age $$age s > $(SECRETS_LOCK_MAX_AGE)s). Breaking it."; \
+					rm -rf "$$lock_dir"; \
+				fi; \
+			else \
+				echo "⚠️ Lock directory exists but no timestamp — breaking lock."; \
+				rm -rf "$$lock_dir"; \
+			fi; \
+		fi; \
+		# Acquire lock
+		while ! mkdir "$$lock_dir" 2>/dev/null; do \
+			echo "⏳ Waiting for secrets lock (use make secrets-break-lock to force-remove the lock) ..."; \
+			sleep 0.1; \
+		done; \
+		echo $$now > "$$lock_ts"; \
+		trap 'rm -rf "$$lock_dir" 2>/dev/null || true' EXIT; \
+		echo "📝 Editing encrypted secrets with SOPS ($(SECRETS_FILE))"; \
+		status=0; \
+		TMPDIR="$(SECRETS_TMP_DIR)" $(SOPS) "$(SECRETS_FILE)" || status=$$?; \
+		if [ $$status -eq 200 ]; then \
+			status=0; \
+		fi; \
+		if [ $$status -ne 0 ]; then \
+			echo "❌ SOPS error (exit $$status)"; \
+			exit $$status; \
+		fi; \
+		true; \
+	}
 
 secrets-ready:
 	@$(WITH_SECRETS) \
@@ -248,22 +167,34 @@ secrets-ready:
 
 .PHONY: check-age-key
 check-age-key: ensure-authorized-admin
-	@if [ ! -f /etc/sops/keys/age.key ]; then \
-		echo "❌ AGE key missing at /etc/sops/keys/age.key"; exit 1; \
-	fi
-	@if [ "$$(stat -c %a /etc/sops/keys/age.key)" != "600" ]; then \
-		echo "❌ Wrong permissions on AGE key (expected 600)"; exit 1; \
-	fi
-	@if [ "$$(stat -c %U:%G /etc/sops/keys/age.key)" != "root:root" ]; then \
-		echo "❌ Wrong ownership on AGE key (expected root:root)"; exit 1; \
-	fi
+	@echo "🔎 Checking system AGE key (/etc/sops/keys/age.key)"
 
-	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
-		echo "🔍 Testing SOPS decryption as $(OPERATOR_USER)..."; \
-	fi
-	@if ! sudo -u "$(OPERATOR_USER)" sops -d secrets.enc.yaml >/dev/null 2>&1; then \
-		echo "❌ AGE key exists but cannot decrypt secrets.enc.yaml as $(OPERATOR_USER)"; \
+	@if [ ! -f /etc/sops/keys/age.key ]; then \
+		echo "❌ AGE key missing at /etc/sops/keys/age.key"; \
+		echo "👉 To generate a new system AGE key:"; \
+		echo "     sudo age-keygen -o /etc/sops/keys/age.key"; \
+		echo "     sudo chmod 600 /etc/sops/keys/age.key"; \
+		echo "     sudo chown root:root /etc/sops/keys/age.key"; \
 		exit 1; \
 	fi
 
-	@echo "🔐 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$($(run_as_root) age-keygen -y /etc/sops/keys/age.key) user=$(OPERATOR_USER)"
+	@if [ "$$(stat -c %a /etc/sops/keys/age.key)" != "600" ]; then \
+		echo "❌ Wrong permissions on AGE key (expected 600)"; \
+		exit 1; \
+	fi
+
+	@if [ "$$(stat -c %U:%G /etc/sops/keys/age.key)" != "root:root" ]; then \
+		echo "❌ Wrong ownership on AGE key (expected root:root)"; \
+		exit 1; \
+	fi
+
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		echo "  • Testing SOPS decryption as $(OPERATOR_USER)"; \
+	fi
+
+	@if ! sudo -u "$(OPERATOR_USER)" sops -d "$(SECRETS_FILE)" >/dev/null 2>&1; then \
+		echo "❌ AGE key exists but cannot decrypt $(SECRETS_FILE) as $(OPERATOR_USER)"; \
+		exit 1; \
+	fi
+
+	@echo "🟢 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$($(run_as_root) age-keygen -y /etc/sops/keys/age.key) user=$(OPERATOR_USER)"

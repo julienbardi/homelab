@@ -132,7 +132,7 @@ Targets:
   - Removes local secret material after use
 
   This target is idempotent, safe to re‑run, and is the canonical entry point for DDNS operations.
-  
+
 Execution model:
 
 No cron jobs are installed.
@@ -182,15 +182,10 @@ The router Caddy module manages the full lifecycle of the router‑side Caddy re
 - `make router-caddy-install` — Install Caddy binary on router
 - `make router-caddy-config` — Push and validate Caddy configuration
 - `make router-caddy-enable` — Ensure Caddy autostarts on boot (idempotent)
-- `make router-caddy-upgrade` — Fetch latest Caddy binary, validate, restart
 - `make router-caddy-check` — Full health probe (binary, version, process, config, reload)
-- `make router-caddy-status` — Show Caddy process status
 - `make router-caddy-health` — Check if Caddy is running
 - `make router-caddy-version` — Show Caddy version
-- `make router-caddy-start` — Start Caddy
-- `make router-caddy-stop` — Stop Caddy
 - `make router-caddy-restart` — Restart Caddy
-
 
 ### Router orchestration (aggregates)
 

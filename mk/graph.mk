@@ -31,15 +31,33 @@ INTERNAL_HOSTS := \
 	dev.bardi.ch \
 	apt.bardi.ch
 
-# --- Includes (ordered by prefix) ---
+# --- Includes (order matters, therefore prefix) ---
+
+# Step 1 — Core constants and prerequisites
 include $(REPO_ROOT)/mk/00_constants.mk
 include $(REPO_ROOT)/mk/00_icons.mk
 include $(REPO_ROOT)/mk/00_prereqs-rust.mk
 include $(REPO_ROOT)/mk/00_prereqs.mk
 include $(REPO_ROOT)/mk/01_common.mk
+include $(REPO_ROOT)/mk/01_core.mk
+
+# Step 2 — Secrets subsystem
+include $(REPO_ROOT)/mk/07_secrets.mk
+
+# Step 3 — SSH layer (router)
+include $(REPO_ROOT)/mk/router/05_ssh.mk
+
+# Step 4 — Router modules
+include $(REPO_ROOT)/mk/router/10_bootstrap.mk
+include $(REPO_ROOT)/mk/router/20_network.mk
+include $(REPO_ROOT)/mk/router/40_caddy.mk
+include $(REPO_ROOT)/mk/router/40_control.mk
+include $(REPO_ROOT)/mk/router/40_firewall.mk
+include $(REPO_ROOT)/mk/router/90_health.mk
+
+# Step 5 — Everything else
 include $(REPO_ROOT)/mk/05_bootstrap_acme.mk
 include $(REPO_ROOT)/mk/06_acme_timer.mk
-include $(REPO_ROOT)/mk/07_secrets.mk
 include $(REPO_ROOT)/mk/10_bootstrap_security.mk
 include $(REPO_ROOT)/mk/10_groups.mk
 include $(REPO_ROOT)/mk/10_local-tools.mk
@@ -53,8 +71,6 @@ include $(REPO_ROOT)/mk/30_firewall-nas.mk
 include $(REPO_ROOT)/mk/40_acme.mk
 include $(REPO_ROOT)/mk/40_code-server.mk
 include $(REPO_ROOT)/mk/40_nas-caddy.mk
-include $(REPO_ROOT)/mk/40_router-control.mk
-include $(REPO_ROOT)/mk/40_router-caddy.mk
 include $(REPO_ROOT)/mk/40_wireguard.mk
 include $(REPO_ROOT)/mk/50_certs.mk
 include $(REPO_ROOT)/mk/55_router-certs.mk

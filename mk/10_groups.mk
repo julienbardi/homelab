@@ -19,8 +19,21 @@ enforce-groups: ensure-authorized-admin ensure-run-as-root
 			id -nG "$$u" | grep -qw "$$g" || { \
 				echo "📍 Adding $$u to $$g"; \
 				$(run_as_root) usermod -aG "$$g" "$$u"; \
+				echo "ℹ️ Group membership for $$u updated — start a new login session to apply."; \
 			}; \
 		done; \
+	done
+
+	@# Ensure authorized admins belong to ssl-cert for read-only TLS access
+	@for u in $(AUTHORIZED_ADMINS); do \
+		id -u "$$u" >/dev/null 2>&1 || { echo "⚠️ Admin $$u not found"; continue; }; \
+		if echo "$(SERVICE_GROUPS)" | grep -qw "ssl-cert"; then \
+			id -nG "$$u" | grep -qw "ssl-cert" || { \
+				echo "📍 Adding $$u to ssl-cert"; \
+				$(run_as_root) usermod -aG ssl-cert "$$u"; \
+				echo "ℹ️ Group membership for $$u updated — start a new login session to apply."; \
+			}; \
+		fi; \
 	done
 
 	@# Ensure all service users + service groups exist

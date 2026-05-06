@@ -6,8 +6,8 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=/home/julie/src/homelab
-ExecStart=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml -f /home/julie/src/homelab/config/netbird/docker-compose.netbird.override.yaml up -d relay
+WorkingDirectory=%h/src/homelab
+ExecStart=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml -f config/netbird/docker-compose.netbird.override.yaml up -d relay
 ExecStop=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml stop relay
 ExecReload=/usr/bin/docker compose -f config/netbird/docker-compose.netbird.yaml restart relay
 

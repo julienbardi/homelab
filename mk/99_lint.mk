@@ -272,3 +272,10 @@ check-exec-surface:
 	else \
 		echo "✅ Executable surface is clean"; \
 	fi
+
+lint-dda:
+	@echo "🔎 Checking for DDA violations..."
+	@# Grep for /home/ but ignore lines containing 'nolint'
+	@if grep -r "/home/" . --exclude-dir=.git | grep -v "nolint"; then \
+		echo "❌ Found hardcoded home paths!"; exit 1; \
+	fi

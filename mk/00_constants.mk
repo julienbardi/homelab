@@ -115,7 +115,7 @@ COMMON_SRC        := $(REPO_ROOT)/scripts/common.sh
 export run_as_root                 := $(INSTALL_SBIN_PATH)/run-as-root.sh
 export INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
 export INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v2.sh
-export INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_changed.sh
+export INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/inst
 
 # ----------------------------------------------------------------------------
 # 7. Build Invariants
@@ -140,7 +140,7 @@ ROUTER_CADDY_SHA256  := b9d88bec4254d0a98bd415ad60f97f37e4222dec96235c00b442437f
 COMMON_SH_DST        := $(ROUTER_SCRIPTS)/common.sh
 
 CERTS_CREATE       := $(ROUTER_SCRIPTS)/certs-create.sh
-CERTS_DEPLOY       := $(ROUTER_SCRIPTS)/deploy_certificates.sh
+CERTS_DEPLOY       := $(INSTALL_PATH)/deploy_certificates.sh
 GEN_CLIENT_CERT    := $(ROUTER_SCRIPTS)/generate-client-cert.sh
 GEN_CLIENT_WRAPPER := $(ROUTER_SCRIPTS)/gen-client-cert-wrapper.sh
 
@@ -197,12 +197,11 @@ ROUTER_HOST := $(ROUTER_USER)@$(ROUTER_ADDR)
 TMP_DDNS_DIR := /run/user/$(shell id -u)/homelab/ddns/$$PPID
 TMP_DDNS_CONF := $(TMP_DDNS_DIR)/.ddns_confidential
 
-.PHONY: print-router-vars
-print-router-vars:
-	@echo "router_addr=$(router_addr)"
-	@echo "router_user=$(router_user)"
-	@echo "router_ssh_port=$(router_ssh_port)"
-	@echo "ROUTER_ADDR=$(ROUTER_ADDR)"
-	@echo "ROUTER_USER=$(ROUTER_USER)"
-	@echo "ROUTER_SSH_PORT=$(ROUTER_SSH_PORT)"
-
+# ----------------------------------------------------------------------------
+# 12. DHCP Architecture (Declarative Policy)
+# ----------------------------------------------------------------------------
+# Static DHCP reservations: .2 – .99
+# Dynamic DHCP pool:        .100 – .254
+DHCP_STATIC_MAX    := 99
+DHCP_DYNAMIC_START := 100
+DHCP_DYNAMIC_END   := 254

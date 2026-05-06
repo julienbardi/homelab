@@ -139,8 +139,9 @@ install_files_if_changed_v2() {
     require_file "/usr/local/bin/install_file_if_changed_v2.sh"
 
     for (( i=1; i<=total_args; i+=9 )); do
+        #echo "IFC CALL: ${@:i:9}" >&2
         set +e
-        /usr/local/bin/install_file_if_changed_v2.sh -q "${@:i:9}"
+        /usr/local/bin/install_file_if_changed_v2.sh "${@:i:9}"
         local rc=$?
         set -e
 

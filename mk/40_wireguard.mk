@@ -8,7 +8,12 @@
 
 # Capture the user context
 ACTUAL_USER := $(or $(SUDO_USER),$(USER))
-ACTUAL_HOME := /home/$(ACTUAL_USER)
+# DDA-Compliant: Resolve home directory via system database instead of hardcoded paths
+ACTUAL_HOME := $(shell getent passwd $(ACTUAL_USER) | cut -d: -f6)
+
+# Fallback in case getent is missing (minimal environments)
+ACTUAL_HOME := $(or $(ACTUAL_HOME),$(HOME))
+
 export ROUTER_IDENTITY := $(ACTUAL_HOME)/.ssh/id_ed25519
 
 # SSH Multiplexing Config
