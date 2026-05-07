@@ -116,7 +116,6 @@ ROUTER_SCRIPT_FILES := \
 	caddy-reload.sh certs-create.sh certs-deploy.sh common.sh \
 	gen-client-cert-wrapper.sh generate-client-cert.sh \
 	firewall-start \
-	wg-firewall.sh \
 	install-cert.sh
 
 .PHONY: router-install-%

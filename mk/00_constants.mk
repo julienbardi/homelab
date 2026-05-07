@@ -87,13 +87,15 @@ STAMP_DIR_ROOT := /var/lib/homelab
 
 .PHONY: ensure-stamp-dir
 ensure-stamp-dir:
-	@mkdir -p "$(STAMP_DIR)"
 	@if [ "$(STAMP_DIR)" = "$(STAMP_DIR_ROOT)" ]; then \
+		echo "📁 [root] Ensuring STAMP_DIR exists: $(STAMP_DIR)"; \
 		$(run_as_root) install -d -m 0755 "$(STAMP_DIR)"; \
 		$(run_as_root) chown root:root "$(STAMP_DIR)" || true; \
 	else \
+		echo "📁 [user] Ensuring STAMP_DIR exists: $(STAMP_DIR)"; \
 		install -d -m 0755 "$(STAMP_DIR)"; \
 	fi
+
 
 # ----------------------------------------------------------------------------
 # 5. Documentation Directory (Deferred assignment)
@@ -129,6 +131,9 @@ INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
 SRC_SCRIPTS          := $(REPO_ROOT)/router/jffs/scripts
 ROUTER_CADDYFILE_SRC := $(REPO_ROOT)/router/caddy/Caddyfile
 ROUTER_CADDYFILE_DST := /jffs/caddy/Caddyfile
+
+# Router-side WireGuard firewall script (non-secret, generated)
+ROUTER_WG_FIREWALL_DST := /jffs/scripts/wg-firewall.sh
 
 ROUTER_CADDY_VERSION ?= 2.11.2
 ROUTER_CADDY_ARCH    ?= linux_arm64

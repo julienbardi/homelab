@@ -14,74 +14,86 @@ OUT_SERVER="$OUTPUT_DIR/server"
 OUT_ROUTER="$OUTPUT_DIR/router"
 OUT_CLIENTS="$OUTPUT_DIR/clients"
 
-# Global state
 declare -A IF_HOST IF_PORT IF_ADDR_V4 IF_ADDR_V6 IF_ENABLED
 source /usr/local/bin/common.sh
 
-# --- 2. Helper Functions ---
+# --- 2. Helpers -------------------------------------------------------------
 
 install_content() {
-    local target="$1"
-    local mode="$2"
-    local target_base
-    target_base=$(basename "$target")
-    local tmp_src="/tmp/${target_base}.new"
+    local target="$1" mode="$2"
+    local tmp_src="/tmp/$(basename "$target").new"
 
     cat > "$tmp_src"
 
     set +e
+    local op_group rc
+    op_group="$(id -gn)"
     run_as_root /usr/local/bin/install_file_if_changed_v2.sh -q \
         "" "22" "$tmp_src" \
         "" "22" "$target" \
-        "root" "root" "$mode"
-    local rc=$?
+        "root" "$op_group" "$mode"
+    rc=$?
     set -e
 
     rm -f "$tmp_src"
-    [[ $rc -eq 0 || $rc -eq 3 ]] && return 0
-    return $rc
+    [[ $rc -eq 0 || $rc -eq 3 ]]
 }
 
 ipv4_network() {
     local cidr="$1"
-    local ip="${cidr%/*}"
-    local mask="${cidr#*/}"
+    local ip="${cidr%/*}" mask="${cidr#*/}"
     local o1 o2 o3 o4
-    IFS=. read -r o1 o2 o3 o4 <<EOF
-$ip
-EOF
-    local ip_int=$(( (o1 << 24) | (o2 << 16) | (o3 << 8) | o4 ))
-    local mask_int=$(( 0xFFFFFFFF << (32 - mask) & 0xFFFFFFFF ))
+    IFS=. read -r o1 o2 o3 o4 <<<"$ip"
+    local ip_int=$(( (o1<<24)|(o2<<16)|(o3<<8)|o4 ))
+    local mask_int=$(( 0xFFFFFFFF << (32-mask) & 0xFFFFFFFF ))
     local net_int=$(( ip_int & mask_int ))
-
     printf "%d.%d.%d.%d/%d" \
-        $(( (net_int >> 24) & 0xFF )) \
-        $(( (net_int >> 16) & 0xFF )) \
-        $(( (net_int >> 8)  & 0xFF )) \
-        $((  net_int        & 0xFF )) \
-        "$mask"
+        $((net_int>>24&255)) $((net_int>>16&255)) \
+        $((net_int>>8&255))  $((net_int&255)) "$mask"
 }
 
 hash_to_host_octet() {
-    local key="$1"
-    local h=$(printf '%s' "$key" | sha256sum | cut -c1-6)
-    local dec=$(( 0x$h ))
-    echo $(( (dec % 241) + 10 ))
+    local h; h=$(printf '%s' "$1" | sha256sum | cut -c1-6)
+    echo $(( (0x$h % 241) + 10 ))
 }
 
 alloc_client_ip_v4() {
-    local iface="$1"
-    local client_name="$2"
+    local iface="$1" name="$2"
     local v4_raw="${IF_ADDR_V4[$iface]}"
-    local base_ip="${v4_raw%/*}"
-    local host_oct=$(hash_to_host_octet "${iface}:${client_name}")
-    echo "${base_ip%.*}.${host_oct}"
+    local base="${v4_raw%/*}"
+    local host_oct; host_oct=$(hash_to_host_octet "${iface}:${name}")
+    echo "${base%.*}.${host_oct}"
+}
+
+fw_lan() {
+    local iface="$1" v4="$2" v6="$3"
+    cat <<EOF
+iptables -C FORWARD -i $iface -s $v4/32 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i $iface -s $v4/32 -o br0 -j ACCEPT
+ip6tables -C FORWARD -i $iface -s $v6/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s $v6/128 -o br0 -j ACCEPT
+EOF
+}
+
+fw_dns_only() {
+    local iface="$1" v4="$2" v6="$3" dns4="$4" dns6="$5"
+    cat <<EOF
+iptables -C FORWARD -i $iface -s $v4/32 -d $dns4/32 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i $iface -s $v4/32 -d $dns4/32 -o br0 -j ACCEPT
+ip6tables -C FORWARD -i $iface -s $v6/128 -d $dns6/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s $v6/128 -d $dns6/128 -o br0 -j ACCEPT
+EOF
+}
+
+fw_inet() {
+    local iface="$1" v4="$2" v6="$3" lan4="$4" lan6="$5"
+    cat <<EOF
+iptables -t nat -C POSTROUTING -s $v4/32 -j MASQUERADE 2>/dev/null || iptables -t nat -I POSTROUTING -s $v4/32 -j MASQUERADE
+iptables -C FORWARD -i $iface -s $v4/32 ! -d $lan4 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i $iface -s $v4/32 ! -d $lan4 -j ACCEPT
+ip6tables -C FORWARD -i $iface -s $v6/128 ! -d $lan6 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s $v6/128 ! -d $lan6 -j ACCEPT
+EOF
 }
 
 load_interfaces() {
-    while IFS=$'\t' read -r iface host_id port mtu v4 v6 en; do
+    while IFS=$'\t' read -r iface host port mtu v4 v6 en; do
         [[ -z "$iface" || "$iface" == "iface" || "$iface" == "#"* ]] && continue
-        IF_HOST["$iface"]="$host_id"
+        IF_HOST["$iface"]="$host"
         IF_PORT["$iface"]="$port"
         IF_ADDR_V4["$iface"]="$v4"
         IF_ADDR_V6["$iface"]="$v6"
@@ -90,47 +102,34 @@ load_interfaces() {
 }
 
 server_out_path() {
-    local iface="$1"
-    local host="${IF_HOST[$iface]:-nas}"
-    [[ "$host" == "nas" ]] && echo "$OUT_SERVER/$iface.conf" || echo "$OUT_ROUTER/$iface.conf"
+    [[ "${IF_HOST[$1]}" == "router" ]] && echo "$OUT_ROUTER/$1.conf" || echo "$OUT_SERVER/$1.conf"
 }
 
-# --- 3. Core Generation Logic ---
+# --- 3. Config Generation ---------------------------------------------------
 
 generate_configs() {
     declare -A SERVER_BUFFERS
-    local active_ifaces
-    active_ifaces=$(for k in "${!IF_ENABLED[@]}"; do echo "$k"; done | sort)
+    local peer_map_tmp
+    peer_map_tmp=$(mktemp)
+    printf "pubkey\tname\tiface\tipv4\tipv6\taccess\tlan\n" > "$peer_map_tmp"
 
-    for iface in $active_ifaces; do
-        [[ "${IF_ENABLED[$iface]:-0}" != "1" ]] && continue
+    for iface in $(printf '%s\n' "${!IF_ENABLED[@]}" | sort); do
+        [[ "${IF_ENABLED[$iface]}" != "1" ]] && continue
 
-        local host="${IF_HOST[$iface]:-nas}"
-        local privkey=""
-        local pubkey=""
         local kb="$KEY_DIR/servers/$iface"
+        local host="${IF_HOST[$iface]}"
+        local priv pub
 
         if [[ "$host" == "router" ]]; then
-            # Attempt to fetch keys from the Asus Router
-            echo "--> Fetching keys for $iface from Router (10.89.12.1)..."
-            privkey=$($ROUTER_SSH 'nvram get wgs1_priv' 2>/dev/null)
-            pubkey=$($ROUTER_SSH 'nvram get wgs1_pub' 2>/dev/null)
-
-            # Validation: If keys are missing, stop and notify operator
-            if [[ -z "$privkey" || -z "$pubkey" ]]; then
-                echo "ERROR: Could not retrieve WireGuard keys from Asus Merlin ($iface)."
-                echo "Please ensure WireGuard is enabled in the Asus Merlin WebUI and configured as 'Server 1'."
-                exit 1
-            fi
-
-            # Sync to local key directory for consistency with client generation
-            echo "$privkey" > "$kb.key"
-            echo "$pubkey" > "$kb.pub"
+            priv=$($ROUTER_SSH 'nvram get wgs1_priv' 2>/dev/null || true)
+            pub=$($ROUTER_SSH 'nvram get wgs1_pub' 2>/dev/null || true)
+            [[ -z "$priv" || -z "$pub" ]] && { echo "ERROR: Missing router keys for $iface"; exit 1; }
+            echo "$priv" > "$kb.key"
+            echo "$pub"  > "$kb.pub"
             chmod 600 "$kb.key"
         else
-            # Standard NAS logic: Generate keys if they don't exist
             [[ ! -f "$kb.key" ]] && { umask 077; wg genkey | tee "$kb.key" | wg pubkey > "$kb.pub"; }
-            privkey=$(<"$kb.key")
+            priv=$(<"$kb.key")
         fi
 
         local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
@@ -138,51 +137,58 @@ generate_configs() {
 [Interface]
 Address = ${IF_ADDR_V4[$iface]}, ${v6_prefix}::1/64
 ListenPort = ${IF_PORT[$iface]}
-PrivateKey = $privkey
+PrivateKey = $priv
 EOF
 )
     done
 
-    local peer_map_tmp="/tmp/peer-map.tsv"
-    printf "pubkey\tname\tiface\tipv4\tipv6\taccess\tlan\n" > "$peer_map_tmp"
+    while IFS=$'\t' read -r name dev os iface acc mode lan rest; do
+        [[ -z "$name" || "$name" == "#"* || "$name" == "name" ]] && continue
 
-    while IFS=$'\t' read -r c_name c_dev c_os c_iface c_access c_mode c_lan rest; do
-        [[ -z "$c_name" || "$c_name" == "#"* ]] && continue
-        local ck="$KEY_DIR/clients/$c_name"
+        local ck="$KEY_DIR/clients/$name"
         [[ ! -f "$ck.key" ]] && { umask 077; wg genkey | tee "$ck.key" | wg pubkey > "$ck.pub"; }
 
-        local ipv4=$(alloc_client_ip_v4 "$c_iface" "$c_name")
-        local c_pubkey=$(cat "$ck.pub")
-        local v6_prefix="${IF_ADDR_V6[$c_iface]%%::*}"
-        local o3=$(echo "$ipv4" | cut -d. -f3); local o4=$(echo "$ipv4" | cut -d. -f4)
-        local host_hex=$(printf '%04x' $(( (o3 << 8) + o4 )))
+        local ipv4; ipv4=$(alloc_client_ip_v4 "$iface" "$name")
+        local o3 o4 host_hex
+        o3=$(echo "$ipv4" | cut -d. -f3)
+        o4=$(echo "$ipv4" | cut -d. -f4)
+        host_hex=$(printf '%04x' $(( (o3<<8) + o4 )))
+
+        local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
         local ipv6="${v6_prefix}::${host_hex}"
 
-        install_content "$OUT_CLIENTS/$c_name.conf" "0600" <<EOF
+        install_content "$OUT_CLIENTS/$name.conf" "0600" <<EOF
 [Interface]
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}/128
 DNS = ${NAS_LAN_IP:-10.89.12.4}, ${NAS_LAN_IP6:-fd89:7a3b:42c0::4}
-$( [[ "$c_os" == "windows" ]] && echo "Table = off" )
+$( [[ "$os" == "windows" ]] && echo "Table = off" )
 
 [Peer]
-PublicKey = $(<"$KEY_DIR/servers/$c_iface.pub")
-Endpoint = vpn.bardi.ch:${IF_PORT[$c_iface]}
-AllowedIPs = $( [[ "$c_access" == "full" ]] && echo "0.0.0.0/0, ::/0" || echo "$(ipv4_network "${IF_ADDR_V4[$c_iface]}"), ${IF_ADDR_V6[$c_iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64" )
+PublicKey = $(<"$KEY_DIR/servers/$iface.pub")
+Endpoint = vpn.bardi.ch:${IF_PORT[$iface]}
+AllowedIPs = $( [[ "$acc" == "full" ]] && echo "0.0.0.0/0, ::/0" || echo "$(ipv4_network "${IF_ADDR_V4[$iface]}"), ${IF_ADDR_V6[$iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64" )
 PersistentKeepalive = 25
 EOF
 
-        SERVER_BUFFERS[$c_iface]+=$(printf "\n\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s/32, %s/128" "$c_name" "$c_pubkey" "$ipv4" "$ipv6")
-        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$c_pubkey" "$c_name" "$c_iface" "$ipv4" "$ipv6" "$c_access" "$c_lan" >> "$peer_map_tmp"
-    done < <(grep -vE '^(#|name)' "$CLIENTS_TSV")
+        SERVER_BUFFERS[$iface]+=$'\n\n'"[Peer]
+# $name
+PublicKey = $(<"$ck.pub")
+AllowedIPs = ${ipv4}/32, ${ipv6}/128"
+
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+            "$(<"$ck.pub")" "$name" "$iface" "$ipv4" "$ipv6" "$acc" "$lan" >> "$peer_map_tmp"
+    done < "$CLIENTS_TSV"
 
     for iface in "${!SERVER_BUFFERS[@]}"; do
-        echo "${SERVER_BUFFERS[$iface]}" | install_content "$(server_out_path "$iface")" "0600"
+        echo "${SERVER_BUFFERS[$iface]}" | install_content "$(server_out_path "$iface")" "0640"
     done
 
     install_content "$OUTPUT_DIR/peer-map.tsv" "0644" < "$peer_map_tmp"
     rm -f "$peer_map_tmp"
 }
+
+# --- 4. Firewall Generation -------------------------------------------------
 
 generate_router_firewall() {
     local fw_out="$OUT_ROUTER/wg-firewall.sh"
@@ -190,9 +196,13 @@ generate_router_firewall() {
     local dns_v6="${NAS_LAN_IP6:-fd89:7a3b:42c0::4}"
     local lan_v4="10.89.12.0/24"
     local lan_v6="fd89:7a3b:42c0::/64"
-    local peer_map_local="/tmp/peer-map-fw.tmp"
 
-    run_as_root cat "$OUTPUT_DIR/peer-map.tsv" > "$peer_map_local"
+    local peer_map_local="" tmp=""
+    peer_map_local=$(mktemp)
+    tmp=$(mktemp)
+    trap 'rm -f "${peer_map_local:-}" "${tmp:-}"' EXIT
+
+    cat "$OUTPUT_DIR/peer-map.tsv" > "$peer_map_local"
 
     local buffer
     buffer=$(cat <<EOF
@@ -200,55 +210,44 @@ generate_router_firewall() {
 # Generated - DO NOT EDIT
 set -e
 
-# Basic State Tracking
+ip link show wgs1 >/dev/null 2>&1 || exit 0
+
 iptables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ip6tables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 EOF
 )
 
-    local sorted_ifaces
-    sorted_ifaces=$(for k in "${!IF_HOST[@]}"; do echo "$k"; done | sort)
+    for iface in $(printf '%s\n' "${!IF_HOST[@]}" | sort); do
+        [[ "${IF_HOST[$iface]}" != "router" ]] && continue
+        local port="${IF_PORT[$iface]}"
 
-    for iface in $sorted_ifaces; do
-        local host="${IF_HOST[$iface]:-}"
-        [[ -z "$host" ]] && continue
+        buffer+=$'\n'"# --- ${iface} (Port ${port}) ---"
+        buffer+=$'\n'"iptables -C INPUT -p udp --dport ${port} -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport ${port} -j ACCEPT"
+        buffer+=$'\n'"ip6tables -C INPUT -p udp --dport ${port} -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p udp --dport ${port} -j ACCEPT"
 
-        if [[ "$host" == "router" ]]; then
-            local port="${IF_PORT[$iface]}"
-            buffer="${buffer}
-# --- ${iface} (Port ${port}) ---
-iptables -C INPUT -p udp --dport ${port} -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport ${port} -j ACCEPT
-ip6tables -C INPUT -p udp --dport ${port} -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p udp --dport ${port} -j ACCEPT"
+        while IFS=$'\t' read -r pub name ifc v4 v6 acc lan; do
+            [[ "$ifc" != "$iface" ]] && continue
 
-            while IFS=$'\t' read -r pub name ifc v4 v6 acc lan; do
-                [[ "$ifc" != "$iface" ]] && continue
+            if [[ "$lan" == "1" ]]; then
+                buffer+=$(fw_lan "$iface" "$v4" "$v6")
+            else
+                buffer+=$(fw_dns_only "$iface" "$v4" "$v6" "$dns_v4" "$dns_v6")
+            fi
 
-                # Rule 1: LAN Access (if lan == 1)
-                if [[ "$lan" == "1" ]]; then
-                    buffer="${buffer}
-iptables -C FORWARD -i ${iface} -s ${v4}/32 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i ${iface} -s ${v4}/32 -o br0 -j ACCEPT
-ip6tables -C FORWARD -i ${iface} -s ${v6}/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i ${iface} -s ${v6}/128 -o br0 -j ACCEPT"
-                else
-                    # Restricted: Only DNS/Router access
-                    buffer="${buffer}
-iptables -C FORWARD -i ${iface} -s ${v4}/32 -d ${dns_v4}/32 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i ${iface} -s ${v4}/32 -d ${dns_v4}/32 -o br0 -j ACCEPT
-ip6tables -C FORWARD -i ${iface} -s ${v6}/128 -d ${dns_v6}/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i ${iface} -s ${v6}/128 -d ${dns_v6}/128 -o br0 -j ACCEPT"
-                fi
-
-                # Rule 2: Internet Access (if acc == full)
-                if [[ "$acc" == "full" ]]; then
-                    buffer="${buffer}
-iptables -t nat -C POSTROUTING -s ${v4}/32 -j MASQUERADE 2>/dev/null || iptables -t nat -I POSTROUTING -s ${v4}/32 -j MASQUERADE
-iptables -C FORWARD -i ${iface} -s ${v4}/32 ! -d ${lan_v4} -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i ${iface} -s ${v4}/32 ! -d ${lan_v4} -j ACCEPT
-ip6tables -C FORWARD -i ${iface} -s ${v6}/128 ! -d ${lan_v6} -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i ${iface} -s ${v6}/128 ! -d ${lan_v6} -j ACCEPT"
-                fi
-            done < <(grep -vE '^(#|pubkey)' "$peer_map_local")
-        fi
+            if [[ "$acc" == "full" ]]; then
+                buffer+=$(fw_inet "$iface" "$v4" "$v6" "$lan_v4" "$lan_v6")
+            fi
+        done < <(grep -vE '^(#|pubkey)' "$peer_map_local")
     done
 
-    printf "%s\n" "${buffer}" | install_content "$fw_out" "0755"
-    rm -f "$peer_map_local"
+    printf "%s\n" "$buffer" > "$tmp"
+
+    if [[ ! -f "$fw_out" ]] || ! cmp -s "$tmp" "$fw_out"; then
+        install_content "$fw_out" "0755" < "$tmp"
+    fi
 }
+
+# --- 5. Main ---------------------------------------------------------------
 
 main() {
     load_interfaces
