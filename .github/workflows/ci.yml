@@ -1,5 +1,8 @@
 name: CI
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
   pull_request:
@@ -13,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install all required tools
-        run: make install-all
+        run: sudo make install-all
 
       - name: Run strict lint suite
         run: make lint-ci
