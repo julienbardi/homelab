@@ -1,9 +1,19 @@
-# .github/workflows/ci.yml
 name: CI
-on: [push]
+
+on:
+  push:
+  pull_request:
 
 jobs:
-  noop:
+  lint:
     runs-on: ubuntu-latest
+
     steps:
-      - run: echo "ok"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install all required tools
+        run: make install-all
+
+      - name: Run strict lint suite
+        run: make lint-ci
