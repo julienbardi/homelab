@@ -148,7 +148,8 @@ install_files_if_changed_v2() {
         if [[ "$rc" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]]; then
             _changed_ref=1
         elif [[ "$rc" -ne 0 ]]; then
-            log "❌ install_file_if_changed_v2.sh failed (rc=$rc) for ${@:i+2:1}"
+            local failed_arg="${@:i+2:1}"
+            log "❌ install_file_if_changed_v2.sh failed (rc=$rc) for ${failed_arg}"
             exit 1
         fi
     done

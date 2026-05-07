@@ -8,7 +8,7 @@ CANON_CA="${SSL_CANONICAL_DIR}/ca.cer"
 CADDY_DEPLOY_DIR="/jffs/ssl/caddy"
 
 log() {
-    echo "[certs] $@" >&2
+    echo "[certs] $*" >&2
 }
 
 if [ ! -f "$CA_PUB" ]; then
