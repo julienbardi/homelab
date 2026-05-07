@@ -15,8 +15,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install all required tools
-        run: sudo make install-all
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            shellcheck \
+            codespell \
+            aspell \
+            ripgrep \
+            curl \
+            make \
+            bash
+
+          # Install checkmake
+          curl -sSL https://github.com/mrtazz/checkmake/releases/latest/download/checkmake_linux_amd64 \
+            -o checkmake
+          sudo install -m 0755 checkmake /usr/local/bin/checkmake
 
       - name: Run strict lint suite
         run: make lint-ci
