@@ -84,8 +84,8 @@ EOF
 fw_inet() {
     local iface="$1" v4="$2" v6="$3" lan4="$4" lan6="$5"
     cat <<EOF
-iptables -t nat -C POSTROUTING -s $v4/32 -j MASQUERADE 2>/dev/null || iptables -t nat -I POSTROUTING -s $v4/32 -j MASQUERADE
-iptables -C FORWARD -i $iface -s $v4/32 ! -d $lan4 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i $iface -s $v4/32 ! -d $lan4 -j ACCEPT
+iptables -t nat -C POSTROUTING -s $v4/32 -o $wan_if -j MASQUERADE 2>/dev/null || iptables -t nat -I POSTROUTING -s $v4/32 -o $wan_if -j MASQUERADE
+iptables -C FORWARD -i $iface -s $v4/32 -o $wan_if ! -d $lan4 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i $iface -s $v4/32 -o $wan_if ! -d $lan4 -j ACCEPT
 ip6tables -C FORWARD -i $iface -s $v6/128 ! -d $lan6 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s $v6/128 ! -d $lan6 -j ACCEPT
 EOF
 }
@@ -121,6 +121,7 @@ generate_configs() {
         local priv pub
 
         if [[ "$host" == "router" ]]; then
+            # Router keys come from nvram
             priv=$($ROUTER_SSH 'nvram get wgs1_priv' 2>/dev/null || true)
             pub=$($ROUTER_SSH 'nvram get wgs1_pub' 2>/dev/null || true)
             [[ -z "$priv" || -z "$pub" ]] && { echo "ERROR: Missing router keys for $iface"; exit 1; }
@@ -128,21 +129,40 @@ generate_configs() {
             echo "$pub"  > "$kb.pub"
             chmod 600 "$kb.key"
         else
+            # NAS/server keys generated locally
             [[ ! -f "$kb.key" ]] && { umask 077; wg genkey | tee "$kb.key" | wg pubkey > "$kb.pub"; }
             priv=$(<"$kb.key")
         fi
 
         local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
-        SERVER_BUFFERS[$iface]=$(cat <<EOF
+
+        #
+        # *** CRITICAL FIX ***
+        # Router gets RAW wg config (NO Address=)
+        # NAS/server keeps wg-quick config (WITH Address=)
+        #
+        if [[ "$host" == "router" ]]; then
+            SERVER_BUFFERS[$iface]=$(cat <<EOF
+[Interface]
+PrivateKey = $priv
+ListenPort = ${IF_PORT[$iface]}
+EOF
+)
+        else
+            SERVER_BUFFERS[$iface]=$(cat <<EOF
 [Interface]
 Address = ${IF_ADDR_V4[$iface]}, ${v6_prefix}::1/64
 ListenPort = ${IF_PORT[$iface]}
 PrivateKey = $priv
 EOF
 )
+        fi
     done
 
-    while IFS=$'\t' read -r name dev os iface acc mode lan rest; do
+    #
+    # --- CLIENT GENERATION (unchanged) ---
+    #
+    while IFS=$'\t' read -r name dev os iface mode acc lan rest; do
         [[ -z "$name" || "$name" == "#"* || "$name" == "name" ]] && continue
 
         local ck="$KEY_DIR/clients/$name"
@@ -157,6 +177,9 @@ EOF
         local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
         local ipv6="${v6_prefix}::${host_hex}"
 
+        local host_id="${IF_HOST[$iface]}"
+        local endpoint_host="${host_id}.${DNS_TOPDOMAIN_NAME}"
+
         install_content "$OUT_CLIENTS/$name.conf" "0600" <<EOF
 [Interface]
 PrivateKey = $(<"$ck.key")
@@ -166,7 +189,7 @@ $( [[ "$os" == "windows" ]] && echo "Table = off" )
 
 [Peer]
 PublicKey = $(<"$KEY_DIR/servers/$iface.pub")
-Endpoint = vpn.bardi.ch:${IF_PORT[$iface]}
+Endpoint = ${endpoint_host}:${IF_PORT[$iface]}
 AllowedIPs = $( [[ "$acc" == "full" ]] && echo "0.0.0.0/0, ::/0" || echo "$(ipv4_network "${IF_ADDR_V4[$iface]}"), ${IF_ADDR_V6[$iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64" )
 PersistentKeepalive = 25
 EOF
@@ -180,6 +203,9 @@ AllowedIPs = ${ipv4}/32, ${ipv6}/128"
             "$(<"$ck.pub")" "$name" "$iface" "$ipv4" "$ipv6" "$acc" "$lan" >> "$peer_map_tmp"
     done < "$CLIENTS_TSV"
 
+    #
+    # --- WRITE SERVER CONFIGS ---
+    #
     for iface in "${!SERVER_BUFFERS[@]}"; do
         echo "${SERVER_BUFFERS[$iface]}" | install_content "$(server_out_path "$iface")" "0640"
     done
@@ -196,6 +222,7 @@ generate_router_firewall() {
     local dns_v6="${NAS_LAN_IP6:-fd89:7a3b:42c0::4}"
     local lan_v4="10.89.12.0/24"
     local lan_v6="fd89:7a3b:42c0::/64"
+    local wan_if="eth0"   # set to your actual WAN interface
 
     local peer_map_local="" tmp=""
     peer_map_local=$(mktemp)
@@ -205,15 +232,33 @@ generate_router_firewall() {
     cat "$OUTPUT_DIR/peer-map.tsv" > "$peer_map_local"
 
     local buffer
-    buffer=$(cat <<EOF
+    buffer=$(cat <<'EOF'
 #!/bin/sh
 # Generated - DO NOT EDIT
 set -e
 
 ip link show wgs1 >/dev/null 2>&1 || exit 0
 
-iptables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-ip6tables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# Ensure conntrack rule exists
+iptables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+iptables -I FORWARD 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ip6tables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+ip6tables -I FORWARD 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# --- Cleanup old WG rules ---
+iptables -S FORWARD | grep -E 'wgs1|10\.89\.101' | sed 's/^-A/iptables -D/' | sh
+iptables -t nat -S POSTROUTING | grep -E '10\.89\.101' | sed 's/^-A/iptables -t nat -D/' | sh
+
+# --- Dynamic WG zone rule placement ---
+# Find conntrack rule index on router (BusyBox-safe)
+CT_LINE=$(iptables -S FORWARD 2>/dev/null | awk '/ctstate ESTABLISHED,RELATED/ {print NR; exit}')
+[ -z "$CT_LINE" ] && CT_LINE=1
+
+# Insert WG rules immediately after conntrack
+iptables -C FORWARD -i wgs1 -j ACCEPT 2>/dev/null || iptables -I FORWARD $((CT_LINE+1)) -i wgs1 -j ACCEPT
+iptables -C FORWARD -o wgs1 -j ACCEPT 2>/dev/null || iptables -I FORWARD $((CT_LINE+2)) -o wgs1 -j ACCEPT
+iptables -C FORWARD -i wgs1 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD $((CT_LINE+3)) -i wgs1 -o br0 -j ACCEPT
+iptables -C FORWARD -i br0 -o wgs1 -j ACCEPT 2>/dev/null || iptables -I FORWARD $((CT_LINE+4)) -i br0 -o wgs1 -j ACCEPT
 EOF
 )
 

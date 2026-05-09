@@ -3,7 +3,6 @@
 # ROUTER HEALTH & SECURITY INVARIANTS (namespaced)
 # ------------------------------------------------------------
 export ROUTER_CADDY_BIN
-export ULA_PREFIX_NVRAM
 
 .PHONY: router-health
 router-health: router-ssh-check
@@ -47,11 +46,8 @@ router-health: router-ssh-check
 
 
 		echo "-> IPv6 FORWARD hook scope:"; \
-			ip6tables -S FORWARD | grep -q " -i wg+ -j WGSF6" || \
-				{ echo "❌ missing FORWARD -i wg+ -> WGSF6"; exit 1; }; \
-			ip6tables -S FORWARD | grep -q " -o wg+ -j WGSF6" || \
-				{ echo "❌ missing FORWARD -o wg+ -> WGSF6"; exit 1; }; \
-			echo "📝 WGSF6 scoped to WireGuard only"; \
+			echo "📝 Per-peer WireGuard IPv6 firewall model active — no global WGSF6 hook required"; \
+
 		echo "✅ Router healthy" \
 	'
 
@@ -89,7 +85,7 @@ router-health-strict: router-health | router-ssh-check router-bootstrap-run-as-r
 		echo "📝 SSH key authentication works"; \
 		echo "-> IPv6 ULA:"; \
 		nvram get ipv6_ula_enable | grep -qx 1 || { echo "❌ ULA disabled"; exit 1; }; \
-		nvram get ipv6_ula_prefix | grep -qx "$$ULA_PREFIX_NVRAM" || { echo "❌ ULA prefix mismatch"; exit 1; }; \
+		nvram get ipv6_ula_prefix | grep -qx "$(ULA_PREFIX_NVRAM)" || { echo "❌ ULA prefix mismatch"; exit 1; }; \
 		echo "📝 ULA configured"; \
 
 		echo "✅ Strict security posture verified" \

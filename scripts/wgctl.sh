@@ -60,11 +60,17 @@ do_install() {
 do_up() {
     log "Bringing up interfaces..."
     if [[ "$TARGET" == "router" ]]; then
-        ssh -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" \
-            "for f in ${ROUTER_WG_DIR}/*.conf; do wg-quick up \"\$f\" 2>/dev/null || true; done"
+        ssh -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" "
+            # Apply WireGuard config
+            wg setconf wgs1 ${ROUTER_WG_DIR}/wgs1.conf
+
+            # Assign server IPs (router uses raw wg)
+            ip addr add 10.89.101.1/24 dev wgs1 2>/dev/null || true
+            ip addr add fd89:7a3b:42c0:101::1/64 dev wgs1 2>/dev/null || true
+        "
     else
-        for f in "${NAS_WG_CONF}"/*.conf; do
-            sudo wg-quick up "$f" 2>/dev/null || true
+        for f in \"${NAS_WG_CONF}\"/*.conf; do
+            sudo wg-quick up \"\$f\" 2>/dev/null || true
         done
     fi
 }

@@ -80,6 +80,7 @@ include $(REPO_ROOT)/mk/65_dnsmasq.mk
 include $(REPO_ROOT)/mk/70_dnsdist.mk
 include $(REPO_ROOT)/mk/71_dns-warm.mk
 include $(REPO_ROOT)/mk/70_apt_proxy_auto.mk
+include $(REPO_ROOT)/mk/80_openssh9_pi.mk
 include $(REPO_ROOT)/mk/80_tailnet.mk
 include $(REPO_ROOT)/mk/81_headscale.mk
 include $(REPO_ROOT)/mk/83_headscale-users.mk

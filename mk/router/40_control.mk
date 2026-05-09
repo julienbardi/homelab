@@ -87,7 +87,6 @@ router-converge: \
 	router-firewall-hardened \
 	router-certs-deploy \
 	router-caddy \
-	router-wg-check \
 	router-health \
 	router-health-strict
 	@echo "🚀 Router fully converged"

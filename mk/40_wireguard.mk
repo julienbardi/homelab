@@ -76,7 +76,8 @@ wg-clean-out: wg-down-router wg-down-nas
 # --- Deployment ---
 
 wg-generate: $(INSTALL_PATH)/wg-generate-configs.sh
-	@NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) WG_ROOT=$(WG_ROOT) \
+	@DNS_TOPDOMAIN_NAME="$$( $(WITH_SECRETS) sh -c 'echo "$$ddns_topdomain"' )" \
+	NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) WG_ROOT=$(WG_ROOT) \
 	$(INSTALL_PATH)/wg-generate-configs.sh
 
 .PHONY: router-firewall
@@ -92,7 +93,7 @@ router-firewall: wg-generate
 	$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true
 
 wg-install-router: router-ensure-wg-module wg-router-preflight \
-		$(INSTALL_PATH)/wgctl.sh wg-generate $(INSTALL_FILE_IF_CHANGED) router-firewall
+	$(INSTALL_PATH)/wgctl.sh wg-generate $(INSTALL_FILE_IF_CHANGED) router-firewall
 	@EC=0; \
 	SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
 	$(WG_ENV) \

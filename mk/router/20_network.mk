@@ -159,17 +159,7 @@ router-dnsmasq-sync: secrets-ready | $(INSTALL_FILES_IF_CHANGED) ensure-router-u
 router-provision-nvram: secrets-ready | ensure-router-ula
 	@echo "🛡️ Syncing Router NVRAM (ULA/RDNSS) using SSOT"
 	@$(WITH_SECRETS) \
-		ULA_PREFIX_NVRAM="$$( \
-			if [ -z "$$nas_lan_ip6" ]; then \
-				echo ""; \
-			else \
-				echo "$$nas_lan_ip6" | sed -n 's/::[0-9a-fA-F]*$$/::\/48/p'; \
-			fi \
-		)"; \
-		if [ -n "$$nas_lan_ip6" ] && [ -z "$$ULA_PREFIX_NVRAM" ]; then \
-			echo "❌ Could not compute ULA_PREFIX_NVRAM from NAS_LAN_IP6=$$nas_lan_ip6"; \
-			exit 1; \
-		fi; \
+		ULA_PREFIX_NVRAM="$(ULA_PREFIX_NVRAM)"; \
 		echo "🔧 Using ULA_PREFIX_NVRAM='$$ULA_PREFIX_NVRAM'"; \
 		router_ssh="ssh -p $$router_ssh_port $$router_user@$$router_addr"; \
 		$$router_ssh 'set -e; \

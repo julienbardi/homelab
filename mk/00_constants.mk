@@ -181,6 +181,7 @@ YQ_URL := https://github.com/$(YQ_GITHUB_REPO)/releases/download/$(YQ_VERSION)/$
 # Expected SHA256 for pinned version (ignored when using latest)
 YQ_SHA256 ?= d56bf5c6819e8e696340c312bd70f849dc1678a7cda9c2ad63eebd906371d56b
 
+ULA_PREFIX_NVRAM = $(ula_prefix_nvram)
 # Router address (from config.mk)
 ROUTER_ADDR := $(router_addr)
 ROUTER_ULA_IP6 = $(router_ula_ip6)

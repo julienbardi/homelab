@@ -1,5 +1,5 @@
 #!/bin/sh
-# Generated - DO NOT EDIT
+# wg-firewall.sh, generated - DO NOT EDIT
 set -e
 
 # Exit quietly if WireGuard interface is not present
@@ -8,6 +8,9 @@ ip link show wgs1 >/dev/null 2>&1 || exit 0
 # Basic State Tracking
 iptables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ip6tables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# Allow all traffic in/out of wgs1 (ASUSWRT zone integration)
+iptables -C FORWARD -i wgs1 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -i wgs1 -j ACCEPT
+iptables -C FORWARD -o wgs1 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -o wgs1 -j ACCEPT
 # --- wgs1 (Port 51820) ---
 iptables -C INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport 51820 -j ACCEPT
 ip6tables -C INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p udp --dport 51820 -j ACCEPT
