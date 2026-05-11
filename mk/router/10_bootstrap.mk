@@ -99,14 +99,20 @@ ROUTER_ULA_VALUE := fd89:7a3b:42c0::1
 	@printf "%s\n" "$(ROUTER_ULA_VALUE)" > .tmp/router-ula
 
 .PHONY: ensure-router-ula
-ensure-router-ula: secrets-ready .tmp/router-ula router-bootstrap-run-as-root
-	@$(WITH_SECRETS) \
-		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-			$(INSTALL_FILE_IF_CHANGED) \
-				"" "" ".tmp/router-ula" \
-				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "$(ROUTER_ULA_FILE)" \
-				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
-		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+ensure-router-ula: secrets-ready router-bootstrap-run-as-root | $(INSTALL_FILES_IF_CHANGED)
+	@echo "🧩 Ensuring router ULA ($(ROUTER_ULA_VALUE))"
+
+	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_ULA)", \
+		printf "%s\n" "$(ROUTER_ULA_VALUE)" > "$(TMP_ROUTER_ULA)"; \
+
+		$(WITH_SECRETS) \
+			env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+				$(INSTALL_FILE_IF_CHANGED) \
+					"" "" "$(TMP_ROUTER_ULA)" \
+					"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "$(ROUTER_ULA_FILE)" \
+					"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
+			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
+	)
 
 # ------------------------------------------------------------
 # SCRIPT DEPLOYMENT ONLY
