@@ -139,31 +139,30 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-run-as-root ensure-router-ula
 	@echo "📡 Templating and Syncing DNS configuration for $(DOMAIN)..."
 
-	@# Generate RAM-only dnsmasq.conf.add
-	@sed "s|\$${NAS_LAN_IP}|$(NAS_LAN_IP)|g; s|\$${DOMAIN}|$(DOMAIN)|g" \
-		"$(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add" \
-		> "$(TMP_DNSMASQ_ADD)"
+	@trap 'rm -f "$(TMP_DNSMASQ_ADD)" "$(TMP_DNSMASQ_HOSTS)"' EXIT; \
+	{ \
+		# Generate RAM-only dnsmasq.conf.add
+		sed "s|\$${NAS_LAN_IP}|$(NAS_LAN_IP)|g; s|\$${DOMAIN}|$(DOMAIN)|g" \
+			"$(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add" \
+			> "$(TMP_DNSMASQ_ADD)"; \
 
-	@# Generate RAM-only hosts.add
-	@cp "$(REPO_ROOT)/router/jffs/configs/hosts.add" "$(TMP_DNSMASQ_HOSTS)"
+		# Generate RAM-only hosts.add
+		cp "$(REPO_ROOT)/router/jffs/configs/hosts.add" "$(TMP_DNSMASQ_HOSTS)"; \
 
-	@DNS_CHANGED=0; export DNS_CHANGED; \
-	{ VERBOSE=1 $(INSTALL_FILES_IF_CHANGED) DNS_CHANGED \
-		"" "" "$(TMP_DNSMASQ_ADD)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/dnsmasq.conf.add" \
-		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
-		"" "" "$(TMP_DNSMASQ_HOSTS)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/hosts.add" \
-		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
-		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; }
+		DNS_CHANGED=0; export DNS_CHANGED; \
+		VERBOSE=1 $(INSTALL_FILES_IF_CHANGED) DNS_CHANGED \
+			"" "" "$(TMP_DNSMASQ_ADD)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/dnsmasq.conf.add" \
+			"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
+			"" "" "$(TMP_DNSMASQ_HOSTS)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/hosts.add" \
+			"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
+			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
 
-	@if [ "$$DNS_CHANGED" -eq 1 ]; then \
-		echo "🔄 DNS changed. Restarting service..."; \
-		$(ROUTER_SSH) 'if command -v service >/dev/null 2>&1 && service restart_dnsmasq >/dev/null 2>&1; then echo restarted; else killall -HUP dnsmasq 2>/dev/null || /etc/init.d/dnsmasq restart 2>/dev/null || true; fi'; \
-		echo "✅ DNS configuration synced"; \
-	fi
-
-	@# Cleanup RAM-only temp files
-	@rm -f "$(TMP_DNSMASQ_ADD)" "$(TMP_DNSMASQ_HOSTS)"
-
+		if [ "$$DNS_CHANGED" -eq 1 ]; then \
+			echo "🔄 DNS changed. Restarting service..."; \
+			$(ROUTER_SSH) 'if command -v service >/dev/null 2>&1 && service restart_dnsmasq >/dev/null 2>&1; then echo restarted; else killall -HUP dnsmasq 2>/dev/null || /etc/init.d/dnsmasq restart 2>/dev/null || true; fi'; \
+			echo "✅ DNS configuration synced"; \
+		fi; \
+	}
 
 # ------------------------------------------------------------
 # IPv6 ULA / NVRAM provisioning
