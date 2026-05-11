@@ -114,29 +114,23 @@ wg-generate: router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh
 	NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) WG_ROOT=$(WG_ROOT) \
 	$(INSTALL_PATH)/wg-generate-configs.sh
 
-.PHONY: router-firewall
 router-firewall: wg-generate
 	@echo "🛡️ [router] Installing firewall for WireGuard..."
 
-	@# Generate RAM-only firewall script
-	@umask 077; \
-		cat "$(WG_FIREWALL)" > "$(TMP_ROUTER_WG_FIREWALL)"
+	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_WG_FIREWALL)", \
+		umask 077; \
+		cat "$(WG_FIREWALL)" > "$(TMP_ROUTER_WG_FIREWALL)"; \
 
-	@# Push to router
-	@FEC=0; \
-	SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
-	$(INSTALL_FILE_IF_CHANGED) "-q" \
-		"" "" "$(TMP_ROUTER_WG_FIREWALL)" \
-		"$(ROUTER_HOST)" $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
-		"0" "0" "0755" || FEC=$$?; \
-	if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi
+		FEC=0; \
+		SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
+		$(INSTALL_FILE_IF_CHANGED) "-q" \
+			"" "" "$(TMP_ROUTER_WG_FIREWALL)" \
+			"$(ROUTER_HOST)" $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
+			"0" "0" "0755" || FEC=$$?; \
+		if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi; \
 
-	@# Reload firewall if changed
-	@$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true
-
-	@# Cleanup RAM-only tmpfile
-	@rm -f "$(TMP_ROUTER_WG_FIREWALL)"
-
+		$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
+	)
 
 wg-install-router: router-ensure-wg-module wg-router-preflight \
 	$(INSTALL_PATH)/wgctl.sh wg-generate $(INSTALL_FILE_IF_CHANGED) router-firewall

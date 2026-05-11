@@ -139,14 +139,11 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-run-as-root ensure-router-ula
 	@echo "📡 Templating and Syncing DNS configuration for $(DOMAIN)..."
 
-	@trap 'rm -f "$(TMP_DNSMASQ_ADD)" "$(TMP_DNSMASQ_HOSTS)"' EXIT; \
-	{ \
-		# Generate RAM-only dnsmasq.conf.add
+	$(call TMPFILE_BLOCK,"$(TMP_DNSMASQ_ADD) $(TMP_DNSMASQ_HOSTS)", \
 		sed "s|\$${NAS_LAN_IP}|$(NAS_LAN_IP)|g; s|\$${DOMAIN}|$(DOMAIN)|g" \
 			"$(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add" \
 			> "$(TMP_DNSMASQ_ADD)"; \
 
-		# Generate RAM-only hosts.add
 		cp "$(REPO_ROOT)/router/jffs/configs/hosts.add" "$(TMP_DNSMASQ_HOSTS)"; \
 
 		DNS_CHANGED=0; export DNS_CHANGED; \
@@ -159,10 +156,11 @@ router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-boo
 
 		if [ "$$DNS_CHANGED" -eq 1 ]; then \
 			echo "🔄 DNS changed. Restarting service..."; \
-			$(ROUTER_SSH) 'if command -v service >/dev/null 2>&1 && service restart_dnsmasq >/dev/null 2>&1; then echo restarted; else killall -HUP dnsmasq 2>/dev/null || /etc/init.d/dnsmasq restart 2>/dev/null || true; fi'; \
+			$(ROUTER_SSH) 'killall -HUP dnsmasq 2>/dev/null || true'; \
 			echo "✅ DNS configuration synced"; \
 		fi; \
-	}
+	)
+
 
 # ------------------------------------------------------------
 # IPv6 ULA / NVRAM provisioning

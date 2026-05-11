@@ -325,3 +325,20 @@ define ensure_service_enabled
 	fi
 endef
 
+# ---------------------------------------------------------------------------
+# Unified tmpfile cleanup macro
+# Usage:
+#   $(call TMPFILE_BLOCK, "<tmpfiles>", <body>)
+#
+# Guarantees:
+#   - tmpfiles always cleaned (success, error, abort, Ctrl-C)
+#   - body executed inside a single shell
+#   - no drift, no leaks, no per-target duplication
+# ---------------------------------------------------------------------------
+
+define TMPFILE_BLOCK
+	@trap 'rm -f $(1)' EXIT; \
+	{ \
+		$(2) \
+	}
+endef
