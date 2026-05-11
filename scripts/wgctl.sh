@@ -60,7 +60,7 @@ do_install() {
 do_up() {
     log "Bringing up interfaces..."
     if [[ "$TARGET" == "router" ]]; then
-        ssh -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" "
+        ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" "
             # Apply WireGuard config
             wg setconf wgs1 ${ROUTER_WG_DIR}/wgs1.conf
 
@@ -78,7 +78,7 @@ do_up() {
 do_down() {
     log "Tearing down interfaces..."
     if [[ "$TARGET" == "router" ]]; then
-        ssh -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" \
+        ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" \
             "for f in ${ROUTER_WG_DIR}/*.conf; do wg-quick down \"\$f\" 2>/dev/null || true; done"
     else
         for f in "${NAS_WG_CONF}"/*.conf; do
@@ -93,7 +93,7 @@ do_status() {
     local now=$(date +%s)
 
     if [[ "$TARGET" == "router" ]]; then
-        remote_cmd="ssh -p $ROUTER_SSH_PORT $ROUTER_HOST"
+        remote_cmd="ssh -i $ROUTER_IDENTITY -p $ROUTER_SSH_PORT $ROUTER_HOST"
         local header_name="• PEER NAME [router]"
     else
         remote_cmd="sudo"

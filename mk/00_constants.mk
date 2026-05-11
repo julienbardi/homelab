@@ -194,14 +194,23 @@ ROUTER_SSH_PORT := $(router_ssh_port)
 NAS_LAN_IP = $(nas_lan_ip)
 NAS_LAN_IP6 = $(nas_lan_ip6)
 
+# IPv4 LAN gateway for NAS
+NAS_LAN_GW4 = 10.89.12.1
+
 # Construct full SSH host
-ROUTER_HOST := $(ROUTER_USER)@$(ROUTER_ADDR)
+export ROUTER_ADDR
+export ROUTER_USER
+export ROUTER_HOST := $(ROUTER_USER)@$(ROUTER_ADDR)
 
 # ----------------------------------------------------------------------------
 # Ephemeral DDNS temp (RAM-only, per-user, per-invocation)
 # ----------------------------------------------------------------------------
-TMP_DDNS_DIR := /run/user/$(shell id -u)/homelab/ddns/$$PPID
-TMP_DDNS_CONF := $(TMP_DDNS_DIR)/.ddns_confidential
+TMP_DDNS_CONF := /run/user/$(shell id -u)/homelab/.ddns_confidential_$$PPID
+
+TMP_DNSMASQ_ADD := /run/user/$(shell id -u)/homelab/.dnsmasq_conf_add_$$PPID
+TMP_DNSMASQ_HOSTS := /run/user/$(shell id -u)/homelab/.dnsmasq_hosts_add_$$PPID
+
+TMP_ROUTER_WG_FIREWALL := /run/user/$(shell id -u)/homelab/.wg_firewall_$$PPID
 
 # ----------------------------------------------------------------------------
 # 12. DHCP Architecture (Declarative Policy)

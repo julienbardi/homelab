@@ -15,14 +15,17 @@ readonly _HOMELAB_COMMON_SH_LOADED=1
 HOMELAB_ENV="/volume1/homelab/homelab.env"
 if [[ -f "$HOMELAB_ENV" ]]; then
     # We use 'set -a' to automatically export all variables found in the file
+    set +a
+    set +u
     set -a
     # shellcheck disable=SC1090
     source "$HOMELAB_ENV"
     set +a
+    set -u
 fi
 
 # Set derived router connection string if not already set
-: "${ROUTER_SSH:=ssh -p${ROUTER_SSH_PORT:-2222} ${ROUTER_USER:-julie}@${ROUTER_ADDR:-10.89.12.1}}"
+: "${ROUTER_SSH:=ssh -p${ROUTER_SSH_PORT:-2222} ${ROUTER_HOST:-}}"
 export ROUTER_SSH
 
 # Only set a default if SCRIPT_NAME is completely unset.
@@ -135,7 +138,7 @@ install_files_if_changed_v2() {
     shift
     local total_args=$#
 
-	# Precision check: Ensure the installer exists before processing the vector
+    # Precision check: Ensure the installer exists before processing the vector
     require_file "/usr/local/bin/install_file_if_changed_v2.sh"
 
     for (( i=1; i<=total_args; i+=9 )); do

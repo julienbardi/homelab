@@ -1,19 +1,12 @@
-# tailscaled-lan.service
+# /etc/systemd/system/tailscaled-lan.service
 [Unit]
-Description=Tailscale lan role (exit node + LAN route)
-After=network-online.target tailscaled.service
-Wants=network-online.target
+Description=Tailscale LAN role (managed by homelab Makefile)
+After=tailscaled.service
 Requires=tailscaled.service
-PartOf=tailscaled.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/tailscale up --reset \
-  --login-server=https://vpn.bardi.ch \
-  --advertise-exit-node \
-  --advertise-routes=10.89.12.0/24 \
-  --accept-dns=true \
-  --accept-routes=true
+ExecStart=/bin/true
 RemainAfterExit=yes
 
 [Install]

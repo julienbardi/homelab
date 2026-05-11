@@ -20,7 +20,8 @@ APT_CORE_PACKAGES := \
 	git-filter-repo python3-venv \
 	wireguard wireguard-tools netfilter-persistent iptables-persistent \
 	ethtool tcpdump \
-	rclone
+	rclone \
+	ndisc6
 
 install-pkg-core-apt:
 	@status=0; \

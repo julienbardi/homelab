@@ -36,7 +36,7 @@ RUNTIME_DIFF_FILE   := /tmp/homelab-net.diff
 converge-network: check-forwarding \
 				  install-homelab-sysctl \
 				  nft-verify \
-				  dns \
+				  ensure-default-route \
 				  wg-stack
 	@echo "✅ Network convergence complete"
 

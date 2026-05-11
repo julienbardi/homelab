@@ -7,7 +7,7 @@
 router-firewall-hardened: | router-ssh-check
 	@echo "🛡️ Validating router firewall invariants"
 	@$(call WITH_SECRETS, \
-		ssh -p "$$router_ssh_port" "$$router_user@$$router_addr" '\
+		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" '\
 			set -e; \
 			if [ ! -x /jffs/scripts/firewall-start ]; then \
 				echo "❌ Missing /jffs/scripts/firewall-start"; exit 1; \

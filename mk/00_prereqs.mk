@@ -20,11 +20,6 @@
 		prereqs-dns-health-check-verify prereqs-tailscale-repo-verify \
 		prereqs-helper-scripts
 
-PREREQ_PKGS := build-essential curl jq git nftables iptables shellcheck \
-			   pup codespell aspell aspell-en ndppd knot-dnsutils \
-			   unbound unbound-anchor dnsutils dnsperf iperf3 qrencode ripgrep htop \
-			   libc-ares-dev apt-cacher-ng unzip git-filter-repo
-
 # ------------------------------------------------------------
 # Network & System Verification
 # ------------------------------------------------------------

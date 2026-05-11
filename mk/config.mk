@@ -14,14 +14,29 @@ INSTALL_SBIN_PATH := /usr/local/sbin
 PUBLIC_DNS := 1.1.1.1
 LAN_IFACE  := eth0
 
-# Topology constants
-router_addr := 10.89.12.1
-router_user := julie
-router_ssh_port := 2222
+# ------------------------------------------------------------
+# Topology constants (raw inputs — NEVER exported)
+# ------------------------------------------------------------
+router_addr      := 10.89.12.1
+router_user      := julie
+router_ssh_port  := 2222
+
+# Ensure these lowercase variables NEVER leak into the environment
+unexport router_addr
+unexport router_user
+unexport router_ssh_port
+
+# ------------------------------------------------------------
+# Exported, Make-safe constants (uppercase — ALWAYS exported)
+# ------------------------------------------------------------
+export ROUTER_ADDR      := $(router_addr)
+export ROUTER_USER      := $(router_user)
+export ROUTER_SSH_PORT  := $(router_ssh_port)
+
 export ula_prefix_nvram := fd89:7a3b:42c0::/48
 export router_ula_ip6   := fd89:7a3b:42c0::1
 
-export nas_lan_ip := 10.89.12.4
+export nas_lan_ip  := 10.89.12.4
 export nas_lan_ip6 := fd89:7a3b:42c0::4
 
 # Certificates & Identity
@@ -48,10 +63,10 @@ SSL_DEPLOY_DIR_CADDY     := /etc/ssl/caddy
 SSL_DEPLOY_DIR_HEADSCALE := /etc/ssl/headscale
 
 # Router specific paths
-export ROUTER_SCRIPTS   := /jffs/scripts
-ROUTER_WG_DIR    := /jffs/configs
-ROUTER_CADDY_BIN := /tmp/mnt/sda/router/bin/caddy
-ROUTER_CADDY_STAMP := /jffs/.stamps/caddy.stamp
+export ROUTER_SCRIPTS    := /jffs/scripts
+ROUTER_WG_DIR            := /jffs/configs
+ROUTER_CADDY_BIN         := /tmp/mnt/sda/router/bin/caddy
+ROUTER_CADDY_STAMP       := /jffs/.stamps/caddy.stamp
 
 # Tooling Metadata
 ROUTER_SCRIPTS_OWNER := 0

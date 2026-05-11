@@ -7,7 +7,7 @@
 router-disable-asus-ca:
 	@echo "🛡️ Disabling ASUS internal certificate generation"
 	@$(WITH_SECRETS) \
-		router_ssh="ssh -p $$router_ssh_port $$router_user@$$router_addr"; \
+		router_ssh="ssh -p $$ROUTER_SSH_PORT $$ROUTER_USER@$$ROUTER_ADDR"; \
 		$$router_ssh 'set -e; \
 			cur_gen="$$(nvram get https_crt_gen 2>/dev/null || echo)"; \
 			cur_save="$$(nvram get https_crt_save 2>/dev/null || echo)"; \
@@ -78,7 +78,7 @@ router-bootstrap: \
 	router-ddns \
 	router-firewall-install \
 	router-disable-asus-ca
-	@echo "🛠️ Router bootstrap complete"
+	@echo "🛠️ Router bootstrap complete — all base services provisioned"
 
 .PHONY: router-converge
 router-converge: \

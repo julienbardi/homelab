@@ -32,7 +32,7 @@ newline := $(shell printf "\n")
 .PHONY: router-require-arm64
 router-require-arm64: | router-ssh-check
 	@$(call WITH_SECRETS, \
-		ssh $(SSH_OPTS) -p "$$router_ssh_port" "$$router_user@$$router_addr" uname -m | grep -q aarch64 \
+		ssh $(SSH_OPTS) -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" uname -m | grep -q aarch64 \
 	)
 
 # ------------------------------------------------------------
@@ -63,7 +63,7 @@ ROUTER_CADDY_BIN_CMD := \
 router-caddy-bin: | router-ssh-check router-require-arm64
 	@echo "⬇️  Ensuring Caddy $(ROUTER_CADDY_VERSION) ($(ROUTER_CADDY_ARCH)) on router"
 	@$(call WITH_SECRETS, \
-		ssh "$$router_user@$$router_addr" -p "$$router_ssh_port" "$(call one_line,$(ROUTER_CADDY_BIN_CMD))" \
+		ssh "$$ROUTER_USER@$$ROUTER_ADDR" -p "$$ROUTER_SSH_PORT" "$(call one_line,$(ROUTER_CADDY_BIN_CMD))" \
 	)
 
 # ------------------------------------------------------------
@@ -73,7 +73,7 @@ router-caddy-bin: | router-ssh-check router-require-arm64
 .PHONY: router-certs-install-caddy
 router-certs-install-caddy: | router-ssh-check router-require-run-as-root
 	@$(call WITH_SECRETS, \
-		ssh -p "$$router_ssh_port" "$$router_user@$$router_addr" '\
+		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" '\
 			set -e; \
 			mkdir -p /jffs/ssl/caddy; \
 			cp /jffs/ssl/fullchain.pem /jffs/ssl/caddy/fullchain.pem.tmp; \
@@ -102,7 +102,7 @@ router-caddy-config: router-certs-install-caddy | router-require-arm64 router-ss
 	$(INSTALL_FILE_IF_CHANGED) \
 		"" "" \
 		"$(ROUTER_CADDYFILE_SRC)" \
-		"$$router_user@$$router_addr" "$$router_ssh_port" \
+		"$$ROUTER_USER@$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" \
 		"$(ROUTER_CADDYFILE_DST)" \
 		"0" "0" "0644" \
 		|| EC=$$?; \
@@ -110,7 +110,7 @@ router-caddy-config: router-certs-install-caddy | router-require-arm64 router-ss
 
 	# Validate + reload in one SSH session
 	@$(call WITH_SECRETS, \
-		ssh -p "$$router_ssh_port" "$$router_user@$$router_addr" '\
+		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" '\
 			set -e; \
 			echo "🔍 Validating Caddyfile"; \
 			"$(ROUTER_CADDY_BIN)" validate --config "$(ROUTER_CADDYFILE_DST)" --adapter caddyfile; \
@@ -141,7 +141,7 @@ router-caddy: \
 .PHONY: router-caddy-version
 router-caddy-version: | router-ssh-check
 	@$(call WITH_SECRETS, \
-		ssh -p "$$router_ssh_port" "$$router_user@$$router_addr" '"$(ROUTER_CADDY_BIN)" version' \
+		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" '"$(ROUTER_CADDY_BIN)" version' \
 	)
 
 # ------------------------------------------------------------
@@ -151,7 +151,7 @@ router-caddy-version: | router-ssh-check
 .PHONY: router-caddy-health
 router-caddy-health: | router-ssh-check
 	@$(call WITH_SECRETS, \
-		ssh -p "$$router_ssh_port" "$$router_user@$$router_addr" '\
+		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" '\
 			if pidof caddy >/dev/null; then \
 				echo "✅ Caddy running"; \
 			else \
@@ -168,7 +168,7 @@ router-caddy-health: | router-ssh-check
 router-caddy-restart: | router-ssh-check
 	@echo "🔄 Restarting Caddy on router"
 	@$(call WITH_SECRETS, \
-		ssh -p "$$router_ssh_port" "$$router_user@$$router_addr" '/jffs/scripts/caddy-reload.sh' \
+		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" '/jffs/scripts/caddy-reload.sh' \
 	)
 
 # ------------------------------------------------------------
@@ -179,7 +179,7 @@ router-caddy-restart: | router-ssh-check
 router-caddy-check: | router-ssh-check router-require-arm64
 	@echo "🔍 Checking Caddy on router"
 	@$(call WITH_SECRETS, \
-		ssh -p "$$router_ssh_port" "$$router_user@$$router_addr" '\
+		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" '\
 			set -e; \
 			echo "🔍 Checking Caddy binary"; \
 			[ -x "$(ROUTER_CADDY_BIN)" ] || { echo "❌ Missing Caddy binary"; exit 1; }; \
@@ -203,7 +203,7 @@ router-caddy-check: | router-ssh-check router-require-arm64
 router-caddy-enable: | router-ssh-check router-require-run-as-root
 	@echo "⚙️  Enabling Caddy autostart on router"
 	@$(call WITH_SECRETS, \
-		ssh -p "$$router_ssh_port" "$$router_user@$$router_addr" '\
+		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" '\
 			set -e; \
 			mkdir -p /jffs/scripts; \
 			touch /jffs/scripts/services-start; \

@@ -1,4 +1,4 @@
-# contracts.inc
+# contracts.md
 ===============================================================================
 Homelab and WireGuard Control Plane — Global Contracts
 ===============================================================================
@@ -2265,6 +2265,20 @@ Enforcement status:
 
 -------------------------------------------------------------------------------
 
+Contract for the AGE key
+Authoritative truth:
+
+Location: /etc/sops/keys/age.key
+
+Owner: root:root, mode 600
+
+Single instance: exactly one key, never regenerated in place
+
+KeePass: Homelab/Infrastructure/AgeKey must match /etc/sops/keys/age.key
+
+Operators: never generate their own keys under $HOME/.config/sops
+
+Bootstrap: may create the key only if it does not exist; must never overwrite an existing key.
 
 ===============================================================================
 End of contracts.inc

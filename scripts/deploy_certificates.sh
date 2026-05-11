@@ -25,9 +25,9 @@ SCRIPT_NAME=""
 : "$SCRIPT_NAME"
 
 # Router identity injected by Makefile control-plane
-ROUTER_ADDR="${ROUTER_ADDR:-${router_addr:-10.89.12.1}}"
-ROUTER_USER="${ROUTER_USER:-${router_user:-root}}"
-ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-${router_ssh_port:-2222}}"
+ROUTER_ADDR="${ROUTER_ADDR:-10.89.12.1}"
+ROUTER_USER="${ROUTER_USER:-root}"
+ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
 
 # SSH options from control-plane (if provided)
 SSH_OPTS="${SSH_OPTS:-}"

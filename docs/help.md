@@ -25,7 +25,6 @@
 
 ## 🔐 Security / access control
 
-- `make harden-groups` — Verify group membership invariants (read-only)
 - `make enforce-groups` — Enforce group membership (authorized admin only)
 - `make check-groups` — Inspect group memberships
 

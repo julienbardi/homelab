@@ -11,7 +11,6 @@ OPENSSH9_TARBALL      := openssh-$(OPENSSH9_VERSION).tar.gz
 OPENSSH9_URL          := https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/$(OPENSSH9_TARBALL)
 
 # TODO: set to the real SHA256 of openssh-9.7p1.tar.gz
-# Get it from the official OpenSSH site, then paste here.
 OPENSSH9_SHA256       := CHANGE_ME_SHA256_FOR_$(OPENSSH9_TARBALL)
 
 OPENSSH9_SRC_DIR      := /usr/local/src
@@ -94,11 +93,11 @@ openssh9-install: openssh9-build
 openssh9-pin:
 	@set -eu; \
 	mkdir -p /etc/apt/preferences.d; \
-	cat > "$(OPENSSH9_PREF_FILE)" <<EOF
-Package: openssh-client openssh-server
-Pin: release *
-Pin-Priority: -1
-EOF
+	printf "%s\n" \
+"Package: openssh-client openssh-server" \
+"Pin: release *" \
+"Pin-Priority: -1" \
+		> "$(OPENSSH9_PREF_FILE)"; \
 	echo "📌 Pinned distro openssh packages via $(OPENSSH9_PREF_FILE)"
 
 openssh9-verify-pq:

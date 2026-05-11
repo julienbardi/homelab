@@ -3,12 +3,12 @@
 # ============================================================
 
 # Global variables required by other modules (e.g., Caddy/Graph)
-CADDY_INTERNAL_HOSTS_FILE := $(REPO_ROOT)config/caddy/internal-hosts.txt
+CADDY_INTERNAL_HOSTS_FILE := $(REPO_ROOT)/config/caddy/internal-hosts.txt
 
 # Configuration Paths
-DNSMASQ_CONF_SRC      := $(REPO_ROOT)config/dnsmasq/dnsmasq.conf
+DNSMASQ_CONF_SRC      := $(REPO_ROOT)/config/dnsmasq/dnsmasq.conf
 DNSMASQ_CONF_DST      := /etc/dnsmasq.conf
-DNSMASQ_FRAGMENTS_SRC := $(REPO_ROOT)config/dnsmasq
+DNSMASQ_FRAGMENTS_SRC := $(REPO_ROOT)/config/dnsmasq
 DNSMASQ_UGREEN_DIR    := /usr/ugreen/etc/dnsmasq/dnsmasq.d
 
 .PHONY: \

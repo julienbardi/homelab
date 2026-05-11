@@ -35,11 +35,11 @@ define PUSH_ROUTER_SCRIPTS_BATCH
 		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 			$(INSTALL_FILE_IF_CHANGED) -q \
 				"" "" "$$src" \
-				"$$router_addr" "$$router_ssh_port" "$$dst" \
+				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "$$dst" \
 				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)"; \
 		rc=$$?; \
 		if [ $$rc -ne 0 ] && [ $$rc -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-			echo "❌ Failed to push $$f to $$router_addr (rc=$$rc)"; \
+			echo "❌ Failed to push $$f to $$ROUTER_ADDR (rc=$$rc)"; \
 			exit $$rc; \
 		fi; \
 	done
@@ -52,17 +52,17 @@ define PUSH_ROUTER_SCRIPT
 	if [ -z "$(VERBOSE)" ] || [ "$(VERBOSE)" -eq 0 ]; then \
 	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) -q \
 		"" "" $(1) \
-		$$router_addr $$router_ssh_port $(2) \
+		$$ROUTER_ADDR $$ROUTER_SSH_PORT $(2) \
 		$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE); \
 	else \
 	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) \
 		"" "" $(1) \
-		$$router_addr $$router_ssh_port $(2) \
+		$$ROUTER_ADDR $$ROUTER_SSH_PORT $(2) \
 		$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE); \
 	fi; \
 	rc=$$?; \
 	if [ $$rc -ne 0 ] && [ $$rc -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-	echo "❌ Failed to push $(1) to $$router_addr (rc=$$rc)"; \
+	echo "❌ Failed to push $(1) to $$ROUTER_ADDR (rc=$$rc)"; \
 	exit $$rc; \
 	fi
 endef
@@ -74,9 +74,9 @@ endef
 .PHONY: ensure-default-gateway
 ensure-default-gateway: secrets-ready
 	@$(WITH_SECRETS) \
-		if ! ip route show default | grep -q "$$router_addr"; then \
-			echo "⚠️ Default gateway missing! Restoring path to $$router_addr..."; \
-			$(run_as_root) ip route add default via "$$router_addr" dev $(LAN_IFACE) 2>/dev/null || true; \
+		if ! ip route show default | grep -q "$$ROUTER_ADDR"; then \
+			echo "⚠️ Default gateway missing! Restoring path to $$ROUTER_ADDR..."; \
+			$(run_as_root) ip route add default via "$$ROUTER_ADDR" dev $(LAN_IFACE) 2>/dev/null || true; \
 			echo "✅ Default gateway restored"; \
 		else \
 			echo "🟢 Default gateway OK"; \
@@ -86,7 +86,7 @@ ensure-default-gateway: secrets-ready
 router-bootstrap-run-as-root: secrets-ready ensure-default-gateway
 	@echo "🛡️ Bootstrapping run-as-root on router"
 	@$(WITH_SECRETS) \
-		ssh -p "$$router_ssh_port" "$$router_user@$$router_addr" \
+		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" \
 			'set -e; mkdir -p /jffs/scripts; cat > /jffs/scripts/run-as-root; chmod 0755 /jffs/scripts/run-as-root' \
 		< $(REPO_ROOT)/router/jffs/scripts/run-as-root.sh
 	@echo "✅ run-as-root installed"
@@ -104,7 +104,7 @@ ensure-router-ula: secrets-ready .tmp/router-ula router-bootstrap-run-as-root
 		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 			$(INSTALL_FILE_IF_CHANGED) \
 				"" "" ".tmp/router-ula" \
-				"$$router_addr" "$$router_ssh_port" "$(ROUTER_ULA_FILE)" \
+				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "$(ROUTER_ULA_FILE)" \
 				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
 		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
@@ -129,8 +129,13 @@ router-install-%: | router-bootstrap-run-as-root
 
 .PHONY: router-install-scripts
 router-install-scripts: install-ssh-config router-bootstrap-run-as-root | ensure-router-ula
-	@$(WITH_SECRETS) $(call PUSH_ROUTER_SCRIPTS_BATCH)
-	@echo "✅ Router scripts installed"
+	@echo "📤 Deploying router scripts to $(ROUTER_ADDR):$(ROUTER_SCRIPTS)"
+	@echo "   Files: $(words $(ROUTER_SCRIPT_FILES))"
+
+	@$(call PUSH_ROUTER_SCRIPTS_BATCH)
+
+	@echo "🟢 Router scripts installed — $(words $(ROUTER_SCRIPT_FILES)) files deployed"
+
 
 # ------------------------------------------------------------
 # NO ORCHESTRATION BELOW THIS LINE

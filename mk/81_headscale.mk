@@ -65,7 +65,6 @@ headscale-bootstrap: \
 
 .PHONY: headscale-runtime
 headscale-runtime: \
-	harden-groups \
 	headscale-config \
 	headscale-derp-config \
 	deploy-headscale

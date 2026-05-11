@@ -31,7 +31,7 @@ endef
 HS_USER_LAN := $(call headscale_user_id,lan)
 HS_USER_WAN := $(call headscale_user_id,wan)
 
-SYSTEMD_SRC_DIR := $(REPO_ROOT)config/systemd
+SYSTEMD_SRC_DIR := $(REPO_ROOT)/config/systemd
 
 .PHONY: tailscaled-check-deps \
 	tailscaled-lan tailscaled-wan \
@@ -47,18 +47,26 @@ tailscaled-check-deps:
 	done
 
 .NOTPARALLEL: tailscaled-lan tailscaled-wan
+
 # --------------------------------------------------------------------
 # LAN client (trusted: LAN + exit-node)
 # --------------------------------------------------------------------
 # do not use --accept-dns=true as it hijacks DNS entries in /etc/resolv.conf
+# CONTRACT: This target is a no-op unless USE_TAILSCALED=1
 tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
+	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
+		echo "ℹ️ tailscaled-lan: USE_TAILSCALED=$(USE_TAILSCALED); skipping LAN enrollment"; \
+		exit 0; \
+	fi
 	$(call warn_if_no_net_tunnel_preflight)
 	@echo "🔑 Enrolling LAN client (bardi-lan / lan)"
-	@$(run_as_root) $(TS_BIN) up --reset \
+	@set -e; \
+	AUTH_KEY=$$($(run_as_root) $(HS_BIN) preauthkeys create \
+		--user $(HS_USER_LAN) \
+		--output json | jq -r '.key'); \
+	$(run_as_root) $(TS_BIN) up --reset \
 		--login-server=https://vpn.bardi.ch \
-		--authkey=$$($(run_as_root) $(HS_BIN) preauthkeys create \
-			--user $(HS_USER_LAN) \
-			--output json | jq -r '.key') \
+		--authkey="$$AUTH_KEY" \
 		--advertise-exit-node \
 		--advertise-routes=10.89.12.0/24 \
 		--accept-dns=false \
@@ -70,15 +78,22 @@ tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 # --------------------------------------------------------------------
 # WAN client (internet-only)
 # --------------------------------------------------------------------
+# CONTRACT: This target is a no-op unless USE_TAILSCALED=1
 tailscaled-wan: tailscaled-check-deps
+	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
+		echo "ℹ️ tailscaled-wan: USE_TAILSCALED=$(USE_TAILSCALED); skipping WAN enrollment"; \
+		exit 0; \
+	fi
 	$(call warn_if_no_net_tunnel_preflight)
 	@echo "🔑 Enrolling WAN client (bardi-wan / wan)"
-	@$(run_as_root) $(TS_BIN) up --reset \
+	@set -e; \
+	AUTH_KEY=$$($(run_as_root) $(HS_BIN) preauthkeys create \
+		--user $(HS_USER_WAN) \
+		--ephemeral=true \
+		--output json | jq -r '.key'); \
+	$(run_as_root) $(TS_BIN) up --reset \
 		--login-server=https://vpn.bardi.ch \
-		--authkey=$$($(run_as_root) $(HS_BIN) preauthkeys create \
-			--user $(HS_USER_WAN) \
-			--ephemeral=true \
-			--output json | jq -r '.key') \
+		--authkey="$$AUTH_KEY" \
 		--accept-dns=false
 	@echo "✅ WAN client configured (internet-only)"
 
@@ -109,6 +124,10 @@ stop-tailscaled:
 # Status and logs
 # --------------------------------------------------------------------
 tailscaled-status: install-pkg-vnstat
+	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
+		echo "ℹ️ tailscaled-status: USE_TAILSCALED=$(USE_TAILSCALED); skipping status check"; \
+		exit 0; \
+	fi
 	@echo "🔍 tailscaled health + stats"
 	@echo "📦 daemon:"; $(run_as_root) systemctl is-active tailscaled || echo "❌ inactive"
 	@echo "🧩 role unit:"; $(run_as_root) systemctl is-enabled tailscaled-lan.service || echo "❌ not enabled"
@@ -120,6 +139,7 @@ tailscaled-status: install-pkg-vnstat
 	@echo "📄 versions:"
 	@echo "    CLI:"; $(TS_BIN) version || true
 	@echo "    Daemon:"; $(run_as_root) tailscaled --version || true
+
 
 tailscaled-logs:
 	@echo "📜 Tailing logs (Ctrl-C to exit)"

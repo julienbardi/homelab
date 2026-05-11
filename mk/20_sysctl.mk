@@ -53,14 +53,13 @@ define set_ipv6_token
 			else \
 				echo "🔄 $$iface: Token mismatch. Applying $(NAS_IID_TOKEN)..."; \
 				$(run_as_root) ip token set $(NAS_IID_TOKEN) dev $$iface; \
-				$(run_as_root) ip link set dev $$iface down; \
-				$(run_as_root) ip link set dev $$iface up; \
-				echo "✨ $$iface: Token applied and link cycled."; \
+				echo "✨ $$iface: Token applied (no link cycle)."; \
 			fi; \
 		fi; \
 	done; \
 }
 endef
+
 
 define inject_ipv6_secrets
 { \

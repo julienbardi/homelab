@@ -66,6 +66,7 @@ include $(REPO_ROOT)/mk/20_deps.mk
 include $(REPO_ROOT)/mk/20_gitignore.mk
 include $(REPO_ROOT)/mk/20_local-python.mk
 include $(REPO_ROOT)/mk/20_sysctl.mk
+include $(REPO_ROOT)/mk/25_routing.mk
 include $(REPO_ROOT)/mk/30_config_validation.mk
 include $(REPO_ROOT)/mk/30_firewall-nas.mk
 include $(REPO_ROOT)/mk/40_acme.mk
@@ -97,13 +98,12 @@ include $(REPO_ROOT)/mk/99_lint.mk
 # ORCHESTRATION: The Bootstrap Flow
 # ============================================================
 # This target converges the "Zero State" to a "Functional Identity"
-# 1. guard-config: Validate homelab.env
-# 2. security-bootstrap: Generate age.key identity
-# 3. acme-bootstrap: Set up directory structures and acme.sh
-# 4. ensure-known-hosts: Verify SSH trust for repo/router
+# 1. security-bootstrap: Generate age.key identity
+# 2. acme-bootstrap: Set up directory structures and acme.sh
+# 3. ensure-known-hosts: Verify SSH trust for repo/router
 # ============================================================
 .PHONY: bootstrap
-bootstrap: guard-config security-bootstrap acme-bootstrap install-pkg-sops ensure-known-hosts check-secrets-src
+bootstrap: security-bootstrap acme-bootstrap install-pkg-sops ensure-known-hosts check-secrets-src
 	@echo "------------------------------------------------------------"
 	@echo "✅ GLOBAL BOOTSTRAP COMPLETE"
 	@echo "📍 Next Step: make all"
@@ -174,7 +174,7 @@ test: logs ensure-run-as-root
 	@$(run_as_root) bash $(INSTALL_PATH)/test_run_as_root.sh
 
 .PHONY: all
-all: assert-sanity converge-network wg tailscaled monitoring
+all: assert-sanity converge-network tailscaled monitoring
 	@echo ""; \
 	echo "🎉 Homelab fully converged"; \
 	echo "   - Network + WireGuard ready"; \
@@ -298,3 +298,13 @@ nft-install-rollback: ensure-run-as-root
 		systemctl enable homelab-nft-rollback.timer >/dev/null 2>&1 || true; \
 		echo "✅ nft rollback units installed"; \
 	'
+
+.PHONY: homelab-all
+homelab-all: \
+	nft-install \
+	nft-apply \
+	nft-confirm \
+	all \
+	wg-up-router \
+	wg-up-nas
+	@echo "🚀 Homelab fully converged (router + NAS + DNS + firewall + WireGuard + Tailnet + Monitoring)"

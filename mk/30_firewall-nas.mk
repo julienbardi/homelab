@@ -7,6 +7,8 @@
 # - Idempotent and safe to re-run
 # --------------------------------------------------------------------
 
+include /var/lib/homelab/wg-subnets.mk
+
 # Derived from authoritative wg-interfaces.tsv via wg-plan-subnets.sh
 ROUTER_WG_SUBNET   := $(WG_ROUTER_SUBNET_V4)
 ROUTER_WG_SUBNET6  := $(WG_ROUTER_SUBNET_V6)
@@ -19,7 +21,7 @@ $(if $(wildcard $(IP6TABLES)),,$(error ip6tables not found at $(IP6TABLES)))
 
 .PHONY: firewall-nas
 
-firewall-nas: ensure-run-as-root
+firewall-nas: ensure-run-as-root /var/lib/homelab/wg-subnets.mk
 	@echo "🔥 Allowing router-terminated WireGuard clients to access NAS"
 
 	@if ! $(run_as_root) $(IPTABLES) -C INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT 2>/dev/null; then \

@@ -17,6 +17,15 @@ OUT_CLIENTS="$OUTPUT_DIR/clients"
 declare -A IF_HOST IF_PORT IF_ADDR_V4 IF_ADDR_V6 IF_ENABLED
 source /usr/local/bin/common.sh
 
+# --- Canonical router SSH (authoritative, non‑drifting) ---
+: "${ROUTER_USER:?ROUTER_USER required}"
+: "${ROUTER_ADDR:?ROUTER_ADDR required}"
+: "${ROUTER_SSH_PORT:=2222}"
+: "${SSH_OPTS:=-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new}"
+: "${ROUTER_IDENTITY:=$HOME/.ssh/id_ed25519}"
+
+ROUTER_SSH_CMD=(ssh ${SSH_OPTS} -i "${ROUTER_IDENTITY}" -p "${ROUTER_SSH_PORT}" "${ROUTER_USER}@${ROUTER_ADDR}")
+
 # --- 2. Helpers -------------------------------------------------------------
 
 install_content() {
@@ -122,8 +131,8 @@ generate_configs() {
 
         if [[ "$host" == "router" ]]; then
             # Router keys come from nvram
-            priv=$($ROUTER_SSH 'nvram get wgs1_priv' 2>/dev/null || true)
-            pub=$($ROUTER_SSH 'nvram get wgs1_pub' 2>/dev/null || true)
+            priv=$("${ROUTER_SSH_CMD[@]}" nvram get wgs1_priv 2>/dev/null || true)
+            pub=$("${ROUTER_SSH_CMD[@]}" nvram get wgs1_pub 2>/dev/null || true)
             [[ -z "$priv" || -z "$pub" ]] && { echo "ERROR: Missing router keys for $iface"; exit 1; }
             echo "$priv" > "$kb.key"
             echo "$pub"  > "$kb.pub"
@@ -185,12 +194,29 @@ EOF
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}/128
 DNS = ${NAS_LAN_IP:-10.89.12.4}, ${NAS_LAN_IP6:-fd89:7a3b:42c0::4}
-$( [[ "$os" == "windows" ]] && echo "Table = off" )
+$( [[ "$os" == "windows" ]] && echo "Table = auto" )
 
 [Peer]
 PublicKey = $(<"$KEY_DIR/servers/$iface.pub")
 Endpoint = ${endpoint_host}:${IF_PORT[$iface]}
-AllowedIPs = $( [[ "$acc" == "full" ]] && echo "0.0.0.0/0, ::/0" || echo "$(ipv4_network "${IF_ADDR_V4[$iface]}"), ${IF_ADDR_V6[$iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64" )
+AllowedIPs = $(
+    if [[ "$os" == "windows" ]]; then
+        if [[ "$acc" == "full" ]]; then
+            # Windows full‑tunnel + LAN bypass
+            echo "10.89.12.0/24, fd89:7a3b:42c0::/64, 0.0.0.0/0, ::/0"
+        else
+            # Windows restricted mode
+            echo "$(ipv4_network "${IF_ADDR_V4[$iface]}"), ${IF_ADDR_V6[$iface]}"
+        fi
+    else
+        # Linux / Android / iOS / macOS
+        if [[ "$acc" == "full" ]]; then
+            echo "0.0.0.0/0, ::/0"
+        else
+            echo "$(ipv4_network "${IF_ADDR_V4[$iface]}"), ${IF_ADDR_V6[$iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64"
+        fi
+    fi
+)
 PersistentKeepalive = 25
 EOF
 
@@ -251,8 +277,8 @@ iptables -t nat -S POSTROUTING | grep -E '10\.89\.101' | sed 's/^-A/iptables -t 
 
 # --- Dynamic WG zone rule placement ---
 # Find conntrack rule index on router (BusyBox-safe)
-CT_LINE=$(iptables -S FORWARD 2>/dev/null | awk '/ctstate ESTABLISHED,RELATED/ {print NR; exit}')
-[ -z "$CT_LINE" ] && CT_LINE=1
+CT_LINE="$(iptables -S FORWARD 2>/dev/null | awk '/ctstate ESTABLISHED,RELATED/ {print NR; exit}')"
+if [ -z "$CT_LINE" ]; then CT_LINE=1; fi
 
 # Insert WG rules immediately after conntrack
 iptables -C FORWARD -i wgs1 -j ACCEPT 2>/dev/null || iptables -I FORWARD $((CT_LINE+1)) -i wgs1 -j ACCEPT
@@ -274,15 +300,18 @@ EOF
             [[ "$ifc" != "$iface" ]] && continue
 
             if [[ "$lan" == "1" ]]; then
-                buffer+=$(fw_lan "$iface" "$v4" "$v6")
+                buffer+=$'\n'"$(fw_lan "$iface" "$v4" "$v6")"
             else
-                buffer+=$(fw_dns_only "$iface" "$v4" "$v6" "$dns_v4" "$dns_v6")
+                buffer+=$'\n'"$(fw_dns_only "$iface" "$v4" "$v6" "$dns_v4" "$dns_v6")"
             fi
 
             if [[ "$acc" == "full" ]]; then
-                buffer+=$(fw_inet "$iface" "$v4" "$v6" "$lan_v4" "$lan_v6")
+                buffer+=$'\n'"$(fw_inet "$iface" "$v4" "$v6" "$lan_v4" "$lan_v6")"
+				# NAT66 for IPv6 WAN
+				buffer+=$'\n'"ip6tables -t nat -C POSTROUTING -s fd89:7a3b:42c0:101::/64 -o eth0 -j MASQUERADE 2>/dev/null || ip6tables -t nat -A POSTROUTING -s fd89:7a3b:42c0:101::/64 -o eth0 -j MASQUERADE"
             fi
         done < <(grep -vE '^(#|pubkey)' "$peer_map_local")
+
     done
 
     printf "%s\n" "$buffer" > "$tmp"
@@ -292,7 +321,7 @@ EOF
     fi
 }
 
-# --- 5. Main ---------------------------------------------------------------
+# --- 6. Main ---------------------------------------------------------------
 
 main() {
     load_interfaces

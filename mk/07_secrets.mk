@@ -5,7 +5,7 @@
 # ============================================================================
 
 # Ensure SOPS can decrypt inside Make recipes
-export SOPS_AGE_KEY_FILE := $(HOME)/.config/sops/age/keys.txt
+export SOPS_AGE_KEY_FILE := /etc/sops/keys/age.key
 
 SOPS             := /usr/local/bin/sops
 export SECRETS_FILE  := $(REPO_ROOT)/secrets.enc.yaml
@@ -54,22 +54,6 @@ sops-init:
 		echo "⚙️ Configuring .sops.yaml (Identity: $(SOPS_AGE_PUBKEY))..."; \
 		printf "creation_rules:\n  - path_regex: $(SECRETS_FILE)$$\n    age: $(SOPS_AGE_PUBKEY)\n" > .sops.yaml; \
 	fi
-
-# ----------------------------------------------------------------------------
-# 6. ddns-conf-generate — ephemeral RAM-only file
-# ----------------------------------------------------------------------------
-
-.PHONY: ddns-conf-generate
-ddns-conf-generate:
-	@mkdir -p $(dir $(TMP_DDNS_CONF))
-	@$(WITH_SECRETS) \
-		umask 077; \
-		printf "%s\n%s\n%s\n" \
-			"DNS_TOPDOMAIN_NAME='$$ddns_topdomain'" \
-			"DDNSUSERNAME='$$ddns_username'" \
-			"DDNSPASSWORD='$$ddns_password'" \
-			> "$(TMP_DDNS_CONF)"
-	@echo "🧩 Generated $(TMP_DDNS_CONF) (RAM only)"
 
 .PHONY: secrets-status
 secrets-status:
@@ -169,32 +153,32 @@ secrets-ready:
 check-age-key: ensure-authorized-admin
 	@echo "🔎 Checking system AGE key (/etc/sops/keys/age.key)"
 
-	@if [ ! -f /etc/sops/keys/age.key ]; then \
-		echo "❌ AGE key missing at /etc/sops/keys/age.key"; \
-		echo "👉 To generate a new system AGE key:"; \
-		echo "     sudo age-keygen -o /etc/sops/keys/age.key"; \
-		echo "     sudo chmod 600 /etc/sops/keys/age.key"; \
-		echo "     sudo chown root:root /etc/sops/keys/age.key"; \
-		exit 1; \
-	fi
+	@{ \
+		key="/etc/sops/keys/age.key"; \
+		if [ ! -f "$$key" ]; then \
+			echo "❌ AGE key missing at $$key"; \
+			exit 1; \
+		fi; \
+		info="$$(stat -c '%a %U %G' "$$key" 2>/dev/null || echo MISSING)"; \
+		if [ "$$info" != "640 root admin" ]; then \
+			echo "⚠️  AGE key permissions drifted ($$info → fixing)"; \
+			$(run_as_root) sh -c "chown root:admin \"$$key\" && chmod 640 \"$$key\""; \
+			info="$$(stat -c '%a %U %G' "$$key")"; \
+			echo "🛠️  Permissions set to $$info"; \
+		fi; \
+	}
 
-	@if [ "$$(stat -c %a /etc/sops/keys/age.key)" != "600" ]; then \
-		echo "❌ Wrong permissions on AGE key (expected 600)"; \
-		exit 1; \
-	fi
-
-	@if [ "$$(stat -c %U:%G /etc/sops/keys/age.key)" != "root:root" ]; then \
-		echo "❌ Wrong ownership on AGE key (expected root:root)"; \
-		exit 1; \
-	fi
-
-	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
-		echo "  • Testing SOPS decryption as $(OPERATOR_USER)"; \
-	fi
-
-	@if ! sudo -u "$(OPERATOR_USER)" sops -d "$(SECRETS_FILE)" >/dev/null 2>&1; then \
+	@if ! sudo -E -u "$(OPERATOR_USER)" sops -d "$(SECRETS_FILE)" >/dev/null 2>&1; then \
 		echo "❌ AGE key exists but cannot decrypt $(SECRETS_FILE) as $(OPERATOR_USER)"; \
 		exit 1; \
 	fi
 
-	@echo "🟢 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$($(run_as_root) age-keygen -y /etc/sops/keys/age.key) user=$(OPERATOR_USER)"
+	@{ \
+		pub="$$( $(run_as_root) age-keygen -y /etc/sops/keys/age.key 2>/dev/null )"; \
+		if [ -z "$$pub" ]; then \
+			echo "❌ AGE key is invalid or unreadable"; \
+			exit 1; \
+		fi; \
+		echo "🟢 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$pub user=$(OPERATOR_USER)"; \
+	}
+

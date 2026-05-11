@@ -44,15 +44,49 @@ run_as_root_router := ssh -p $(ROUTER_SSH_PORT) \
 	-o StrictHostKeyChecking=accept-new \
 	$(ROUTER_HOST)
 
+# --------------------------------------------------------------------
+# Generated subnet map (router + NAS WG subnets)
+# --------------------------------------------------------------------
+
+/var/lib/homelab/wg-subnets.mk: $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-subnets.sh
+	@echo "🌐 Generating WireGuard subnet map"
+	WG_ROOT="$(WG_ROOT)" $(run_as_root) $(INSTALL_PATH)/wg-plan-subnets.sh
+
 # --- Router Setup ---
 
 router-ensure-wg-module:
 	@if [ -z "$(ROUTER_WG_DIR)" ]; then echo "ERROR: ROUTER_WG_DIR undefined"; exit 1; fi
 	@echo "🛡️ [router] Ensuring WireGuard kernel module on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)..."
-	@$(run_as_root_router) "mkdir -p $(ROUTER_WG_DIR) && touch $(ROUTER_SCRIPTS)/services-start && chmod 0755 $(ROUTER_SCRIPTS)/services-start && (grep -q 'modprobe wireguard' $(ROUTER_SCRIPTS)/services-start || echo 'modprobe wireguard' >> $(ROUTER_SCRIPTS)/services-start)"
+	@$(run_as_root_router) " \
+		mkdir -p $(ROUTER_WG_DIR); \
+		touch $(ROUTER_SCRIPTS)/services-start; \
+		chmod 0755 $(ROUTER_SCRIPTS)/services-start; \
+		grep -q 'modprobe wireguard' $(ROUTER_SCRIPTS)/services-start || echo 'modprobe wireguard' >> $(ROUTER_SCRIPTS)/services-start; \
+		grep -q 'wg setconf wgs1 $(ROUTER_WG_DIR)/wgs1.conf' $(ROUTER_SCRIPTS)/services-start || echo 'wg setconf wgs1 $(ROUTER_WG_DIR)/wgs1.conf' >> $(ROUTER_SCRIPTS)/services-start; \
+	"
 
 wg-router-preflight:
 	@$(run_as_root_router) modprobe wireguard || true
+
+.PHONY: router-bootstrap-wg-keys
+router-bootstrap-wg-keys:
+	@echo "🧬 [router] Ensuring WireGuard identity in NVRAM (wgs1)..."
+	@$(run_as_root_router) ' \
+		set -eu; \
+		priv="$$(nvram get wgs1_priv 2>/dev/null || true)"; \
+		pub="$$(nvram get wgs1_pub 2>/dev/null || true)"; \
+		if [ -n "$$priv" ] && [ -n "$$pub" ]; then \
+			echo "🔒 Existing WireGuard identity found in NVRAM (wgs1)."; \
+			exit 0; \
+		fi; \
+		echo "🔐 Generating new WireGuard identity for wgs1 in NVRAM..."; \
+		wg genkey | tee /tmp/wgs1_priv | wg pubkey > /tmp/wgs1_pub; \
+		nvram set wgs1_priv="$$(cat /tmp/wgs1_priv)"; \
+		nvram set wgs1_pub="$$(cat /tmp/wgs1_pub)"; \
+		nvram commit; \
+		rm -f /tmp/wgs1_priv /tmp/wgs1_pub; \
+		echo "✅ Router WireGuard identity stored in NVRAM (wgs1_priv / wgs1_pub)."; \
+	'
 
 # --- File Operations ---
 
@@ -75,7 +109,7 @@ wg-clean-out: wg-down-router wg-down-nas
 
 # --- Deployment ---
 
-wg-generate: $(INSTALL_PATH)/wg-generate-configs.sh
+wg-generate: router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh
 	@DNS_TOPDOMAIN_NAME="$$( $(WITH_SECRETS) sh -c 'echo "$$ddns_topdomain"' )" \
 	NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) WG_ROOT=$(WG_ROOT) \
 	$(INSTALL_PATH)/wg-generate-configs.sh
@@ -83,14 +117,26 @@ wg-generate: $(INSTALL_PATH)/wg-generate-configs.sh
 .PHONY: router-firewall
 router-firewall: wg-generate
 	@echo "🛡️ [router] Installing firewall for WireGuard..."
+
+	@# Generate RAM-only firewall script
+	@umask 077; \
+		cat "$(WG_FIREWALL)" > "$(TMP_ROUTER_WG_FIREWALL)"
+
+	@# Push to router
 	@FEC=0; \
 	SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
 	$(INSTALL_FILE_IF_CHANGED) "-q" \
-		"" "" "$(WG_FIREWALL)" \
-		$(ROUTER_ADDR) $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
+		"" "" "$(TMP_ROUTER_WG_FIREWALL)" \
+		"$(ROUTER_HOST)" $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
 		"0" "0" "0755" || FEC=$$?; \
-	if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi; \
-	$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true
+	if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi
+
+	@# Reload firewall if changed
+	@$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true
+
+	@# Cleanup RAM-only tmpfile
+	@rm -f "$(TMP_ROUTER_WG_FIREWALL)"
+
 
 wg-install-router: router-ensure-wg-module wg-router-preflight \
 	$(INSTALL_PATH)/wgctl.sh wg-generate $(INSTALL_FILE_IF_CHANGED) router-firewall
@@ -122,7 +168,7 @@ wg-up-router: wg-install-router
 	SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
 	$(WG_ENV) \
 	ROUTER_CONTROL_PLANE=1 \
-	$(INSTALL_PATH)/wgctl.sh router up || EC=$$?; \
+	$(WG_SUDO) $(INSTALL_PATH)/wgctl.sh router up || EC=$$?; \
 	if [ "$$EC" != "0" ]; then exit "$$EC"; fi
 
 wg-down-nas: $(INSTALL_PATH)/wgctl.sh

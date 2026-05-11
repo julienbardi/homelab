@@ -21,10 +21,8 @@ export SECRETS_FILE
 
 # THE FIX: Decrypt to a shell-compatible format and source it in-line.
 # We use 'env' output from SOPS, which is naturally 'VAR=VAL'
-WITH_SECRETS = export $$( $(SOPS) -d $(SECRETS_FILE) | awk -F': ' '/: / {gsub(/"/, "", $$2); print $$1 "=" $$2}' );
-
-# Keep for single-use cases
-get-secret = $(shell $(SOPS) -d --extract '$(1)' $(SECRETS_FILE))
+# Legacy stub — do not use
+WITH_SECRETS_LEGACY = export $$( $(SOPS) -d $(SECRETS_FILE) | awk -F': ' '/: / {gsub(/"/, "", $$2); print $$1 "=" $$2}' );
 
 # Load non-secret config
 include $(REPO_ROOT)/mk/config.mk
@@ -34,23 +32,11 @@ include $(REPO_ROOT)/mk/graph.mk
 .PHONY: router
 router: router-converge
 
-# --- TARGETS ---
-
-# Works for dozens of variables.
-# We use one shell block so the 'export' persists for all commands.
 router-configure:
-	@$(WITH_SECRETS) \
-		echo "Task 1: Pinging $$router_addr..."; \
-		sudo -E ping -c1 $$router_addr; \
-		echo "Task 2: Checking service on $$router_addr..."; \
-		sudo curl -I http://$$router_addr; \
-		echo "All tasks complete."
-
-# This still works perfectly for you
-router-ping:
-	@sudo ping -c1 $(call get-secret,["router_addr"])
-
-print-makefile_dir:
-	@echo "REPO_ROOT is:    $(REPO_ROOT)"
-	@echo "CURDIR is:       $(CURDIR)"
-	@echo "SECRETS_FILE is: $(SECRETS_FILE)"
+	@$(call WITH_SECRETS, \
+		echo "Task 1: Pinging $$ROUTER_ADDR..."; \
+		sudo -E ping -c1 "$$ROUTER_ADDR"; \
+		echo "Task 2: Checking service on $$ROUTER_ADDR..."; \
+		sudo -E curl -I "http://$$ROUTER_ADDR"; \
+		echo "All tasks complete."; \
+	)
