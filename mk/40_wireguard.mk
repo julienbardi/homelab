@@ -80,11 +80,12 @@ router-bootstrap-wg-keys:
 			exit 0; \
 		fi; \
 		echo "🔐 Generating new WireGuard identity for wgs1 in NVRAM..."; \
-		wg genkey | tee /tmp/wgs1_priv | wg pubkey > /tmp/wgs1_pub; \
-		nvram set wgs1_priv="$$(cat /tmp/wgs1_priv)"; \
-		nvram set wgs1_pub="$$(cat /tmp/wgs1_pub)"; \
+		wgs1_priv="$$(wg genkey)"; \
+		wgs1_pub="$$(printf '%s' "$$wgs1_priv" | wg pubkey)";
+		nvram set wgs1_priv="$$wgs1_priv"; \
+		nvram set wgs1_pub="$$wgs1_pub"; \
 		nvram commit; \
-		rm -f /tmp/wgs1_priv /tmp/wgs1_pub; \
+		unset wgs1_priv wgs1_pub; \
 		echo "✅ Router WireGuard identity stored in NVRAM (wgs1_priv / wgs1_pub)."; \
 	'
 
@@ -119,6 +120,7 @@ router-firewall: wg-generate
 
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_WG_FIREWALL)", \
 		umask 077; \
+		trap 'rm -f "$(TMP_ROUTER_WG_FIREWALL)"' EXIT; \
 		cat "$(WG_FIREWALL)" > "$(TMP_ROUTER_WG_FIREWALL)"; \
 
 		FEC=0; \

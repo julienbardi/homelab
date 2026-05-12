@@ -11,7 +11,7 @@ INSTALL_PATH      := /usr/local/bin
 INSTALL_SBIN_PATH := /usr/local/sbin
 
 # Network - General
-PUBLIC_DNS := 1.1.1.1
+export PUBLIC_DNS := 1.1.1.1
 LAN_IFACE  := eth0
 
 # ------------------------------------------------------------
@@ -43,7 +43,7 @@ export nas_lan_ip6 := fd89:7a3b:42c0::4
 DOMAIN               := bardi.ch
 ACME_HOME            := /var/lib/acme
 RENEW_THRESHOLD_DAYS := 30
-APT_CNAME_EXPECTED   := bardi.ch
+export APT_CNAME_EXPECTED   := bardi.ch
 
 # Canonical certificate store
 SSL_CANONICAL_DIR := /var/lib/ssl/canonical
@@ -78,3 +78,7 @@ UNBOUND_PORT := 5335
 
 # Role
 ROLE := service
+
+# Canonical marker path
+export SYSTEM_STATE_DIR := /var/lib/homelab
+export ROUTER_PREFIX_MARKER := $(SYSTEM_STATE_DIR)/router-prefix.changed

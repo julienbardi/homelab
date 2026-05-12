@@ -39,17 +39,17 @@ endif
 prereqs-public-dns-verify: | ensure-default-gateway
 	@$(WITH_SECRETS) \
 		echo "🔍 Verifying public DNS CNAME for apt.bardi.ch"; \
-		out=$$(dig +short @$$public_dns apt.bardi.ch CNAME 2>&1); \
+		out=$$(dig +short @$$PUBLIC_DNS apt.bardi.ch CNAME 2>&1); \
 		case "$$out" in \
 			*"network unreachable"*) \
 				echo "❌ Network unreachable: NAS has no default route"; \
 				echo "👉 Fix: ip route add default via $$router_addr dev eth0"; \
 				exit 1;; \
 			*"no servers could be reached"*) \
-				echo "❌ Cannot reach DNS server $$public_dns"; \
+				echo "❌ Cannot reach DNS server $$PUBLIC_DNS"; \
 				exit 1;; \
 			*"connection timed out"*) \
-				echo "❌ DNS query to $$public_dns timed out"; \
+				echo "❌ DNS query to $$PUBLIC_DNS timed out"; \
 				exit 1;; \
 		esac; \
 		cname=$$(printf "%s" "$$out" | sed 's/\.$$//'); \
@@ -57,9 +57,9 @@ prereqs-public-dns-verify: | ensure-default-gateway
 			echo "❌ ERROR: No CNAME returned for apt.bardi.ch"; \
 			exit 1; \
 		fi; \
-		if [ "$$cname" != "$$apt_cname_expected" ]; then \
+		if [ "$$cname" != "$$APT_CNAME_EXPECTED" ]; then \
 			echo "❌ ERROR: Public DNS misconfiguration detected"; \
-			echo "   Expected: $$apt_cname_expected"; \
+			echo "   Expected: $$APT_CNAME_EXPECTED"; \
 			echo "   Found:    $$cname"; \
 			exit 1; \
 		fi; \
@@ -97,9 +97,13 @@ prereqs: \
 	install-ssh-config \
 	rust-system | ensure-default-gateway
 	@echo "🔐 Ensuring Tailscale APT signing key"
-	@curl -fsSL $(TAILSCALE_KEY_URL) -o /tmp/tailscale.key
-	@$(call install_file,/tmp/tailscale.key,$(TAILSCALE_KEYRING),root,root,644)
-	@rm -f /tmp/tailscale.key
+	@sh -c '\
+		set -e; \
+		tmp=$$(mktemp); \
+		trap "rm -f $$tmp" EXIT; \
+		curl -fsSL $(TAILSCALE_KEY_URL) -o "$$tmp"; \
+		$(call install_file,$$tmp,$(TAILSCALE_KEYRING),root,root,644)
+	'
 
 	@echo "📦 Ensuring installation of prerequisite tools"
 	@$(call apt_install_group,$(APT_CORE_PACKAGES))
@@ -139,7 +143,7 @@ fix-tailscale-repo: ensure-run-as-root
 			exit 0; \
 		fi; \
 		# Prepare desired line and atomically update the file as root; prefer run-as-root helper, fall back to sudo \
-		tmp=$$(mktemp); printf "%s\n" "$(TAILSCALE_REPO_LINE)" > $$tmp; \
+		tmp=$$(mktemp); trap "rm -f $$tmp" EXIT; printf "%s\n" "$(TAILSCALE_REPO_LINE)" > $$tmp; \
 		if grep -q -E "^deb .*pkgs.tailscale.com" "$(TAILSCALE_REPO_FILE)"; then \
 			if [ -x /usr/local/sbin/run-as-root.sh ]; then \
 				/usr/local/sbin/run-as-root.sh sh -c "sed -E '\''s|^deb .*pkgs.tailscale.com.*|$$(cat $$tmp)|'\'' '$(TAILSCALE_REPO_FILE)' > '$(TAILSCALE_REPO_FILE)'.new && mv -f '$(TAILSCALE_REPO_FILE)'.new '$(TAILSCALE_REPO_FILE)'"; \

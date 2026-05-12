@@ -38,12 +38,17 @@ define PUSH_ROUTER_SCRIPTS_BATCH
 				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "$$dst" \
 				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)"; \
 		rc=$$?; \
-		if [ $$rc -ne 0 ] && [ $$rc -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+			rc=0; \
+		fi; \
+		if [ $$rc -ne 0 ]; then \
 			echo "❌ Failed to push $$f to $$ROUTER_ADDR (rc=$$rc)"; \
 			exit $$rc; \
 		fi; \
-	done
+	done; \
+	exit 0
 endef
+
 
 
 define PUSH_ROUTER_SCRIPT
@@ -114,6 +119,29 @@ ensure-router-ula: secrets-ready router-bootstrap-run-as-root | $(INSTALL_FILES_
 			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
 	)
 
+.PHONY: ensure-router-known-hosts
+ensure-router-known-hosts: router-bootstrap-run-as-root
+	@echo "🔐 Ensuring NAS host key is trusted on router"
+
+	# Generate NAS host key line on NAS
+	@NAS_KEY_LINE="$$(ssh-keyscan -p 2222 10.89.12.4 2>/dev/null)"; \
+	if [ -z "$$NAS_KEY_LINE" ]; then \
+		echo "❌ Failed to obtain NAS host key via ssh-keyscan"; \
+		exit 1; \
+	fi; \
+
+	# Push to router if missing
+	ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" "\
+		mkdir -p /root/.ssh && chmod 700 /root/.ssh; \
+		grep -q \"\[$(nas_lan_ip)\]:2222\" /root/.ssh/known_hosts 2>/dev/null || { \
+			echo \"🔑 Adding NAS host key\"; \
+			echo \"$$NAS_KEY_LINE\" >> /root/.ssh/known_hosts; \
+			chmod 600 /root/.ssh/known_hosts; \
+		} \
+	"
+
+	@echo "🟢 NAS host key trusted"
+
 # ------------------------------------------------------------
 # SCRIPT DEPLOYMENT ONLY
 # ------------------------------------------------------------
@@ -122,7 +150,8 @@ ROUTER_SCRIPT_FILES := \
 	caddy-reload.sh certs-create.sh certs-deploy.sh common.sh \
 	gen-client-cert-wrapper.sh generate-client-cert.sh \
 	firewall-start \
-	install-cert.sh
+	install-cert.sh \
+	wan-event
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-run-as-root
@@ -134,14 +163,15 @@ router-install-%: | router-bootstrap-run-as-root
 	fi
 
 .PHONY: router-install-scripts
-router-install-scripts: install-ssh-config router-bootstrap-run-as-root | ensure-router-ula
+router-install-scripts: install-ssh-config \
+	router-bootstrap-run-as-root \
+	ensure-router-known-hosts | ensure-router-ula
 	@echo "📤 Deploying router scripts to $(ROUTER_ADDR):$(ROUTER_SCRIPTS)"
 	@echo "   Files: $(words $(ROUTER_SCRIPT_FILES))"
 
-	@$(call PUSH_ROUTER_SCRIPTS_BATCH)
+	@{ $(call PUSH_ROUTER_SCRIPTS_BATCH); } || true
 
 	@echo "🟢 Router scripts installed — $(words $(ROUTER_SCRIPT_FILES)) files deployed"
-
 
 # ------------------------------------------------------------
 # NO ORCHESTRATION BELOW THIS LINE

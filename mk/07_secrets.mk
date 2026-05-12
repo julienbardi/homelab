@@ -147,7 +147,7 @@ secrets-edit:
 
 secrets-ready:
 	@$(WITH_SECRETS) \
-		{ [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && echo "Secrets OK (router_addr=$$router_addr)"; } || true
+		{ [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && echo "Secrets OK (router_addr=$$ROUTER_ADDR)"; } || true
 
 .PHONY: check-age-key
 check-age-key: ensure-authorized-admin

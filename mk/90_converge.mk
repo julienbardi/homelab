@@ -46,6 +46,26 @@ converge-audit:
 	@echo "   Use: make -n converge-network | sed -n '1,200p'"
 
 # ------------------------------------------------------------
+# System-wide homelab state directory (root:admin, admin-writable)
+# ------------------------------------------------------------
+
+SYSTEM_STATE_DIR := /var/lib/homelab
+ROUTER_PREFIX_MARKER := $(SYSTEM_STATE_DIR)/router-prefix.changed
+
+# Primary admin group (first entry in ADMIN_GROUPS)
+PRIMARY_ADMIN_GROUP := $(word 1,$(ADMIN_GROUPS))
+
+$(SYSTEM_STATE_DIR):
+	$(run_as_root) install -d -m 0775 -o root -g $(PRIMARY_ADMIN_GROUP) $(SYSTEM_STATE_DIR)
+
+.PHONY: converge-router-prefix
+converge-router-prefix: $(SYSTEM_STATE_DIR) router-converge $(ROUTER_PREFIX_MARKER)
+	@echo "🌐 Router prefix changed — router DAG converged"
+	@rm -f $(ROUTER_PREFIX_MARKER)
+	@echo "🧹 Marker consumed"
+
+
+# ------------------------------------------------------------
 # WireGuard convergence DAG
 # ------------------------------------------------------------
 

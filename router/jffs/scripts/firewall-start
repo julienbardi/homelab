@@ -35,6 +35,16 @@ iptables -A INPUT ! -i br0 -j DROP
 log "baseline firewall invariants enforced"
 
 # ------------------------------------------------------------
+# 1b. BLOCK WAN IPv6 ACCESS TO ROUTER ADMIN PORTS
+# ------------------------------------------------------------
+
+# Drop IPv6 WAN access to TCP/8080 (router admin)
+if ! ip6tables -C INPUT -p tcp --dport 8080 -i eth0 -j DROP 2>/dev/null; then
+    log "blocking IPv6 WAN access to TCP/8080"
+    ip6tables -I INPUT -p tcp --dport 8080 -i eth0 -j DROP
+fi
+
+# ------------------------------------------------------------
 # 2. DYNAMIC WIREGUARD FIREWALL RULES
 # ------------------------------------------------------------
 
