@@ -104,7 +104,7 @@ include $(REPO_ROOT)/mk/99_lint.mk
 # 3. ensure-known-hosts: Verify SSH trust for repo/router
 # ============================================================
 .PHONY: bootstrap
-bootstrap: security-bootstrap acme-bootstrap install-pkg-sops ensure-known-hosts check-secrets-src
+bootstrap: sanity security-bootstrap acme-bootstrap install-pkg-sops ensure-known-hosts check-secrets-src
 	@echo "------------------------------------------------------------"
 	@echo "✅ GLOBAL BOOTSTRAP COMPLETE"
 	@echo "📍 Next Step: make all"
@@ -174,20 +174,12 @@ test: logs ensure-run-as-root
 	@echo "🧩 Running run_as_root harness"
 	@$(run_as_root) bash $(INSTALL_PATH)/test_run_as_root.sh
 
-.PHONY: all
-all: assert-sanity converge-network tailscaled monitoring
-	@echo ""; \
-	echo "🎉 Homelab fully converged"; \
-	echo "   - Network + WireGuard ready"; \
-	echo "   - Tailnet control plane active"; \
-	echo "   - Monitoring online"
-
 .PHONY: headscale-stack
 headscale-stack: \
 	headscale \
 	headscale-users \
 	headscale-acls
-	@echo "�  Headscale control plane ready"
+	@echo "🧠 Headscale control plane ready"
 
 .PHONY: tailscaled
 
@@ -305,8 +297,10 @@ homelab-all: \
 	nft-install \
 	nft-apply \
 	nft-confirm \
-	all \
+	converge-network \
+	tailscaled \
+	monitoring \
 	wg-install-router \
 	wg-up-nas \
 	install-router-prefix-watchdog
-	@echo "🚀 Homelab fully converged (router + NAS + DNS + firewall + WireGuard + Tailnet + Monitoring)"
+	@echo "🎉 Homelab fully converged (router + NAS + DNS + firewall + WireGuard + Tailnet + Monitoring)"

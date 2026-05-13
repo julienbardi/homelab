@@ -280,3 +280,36 @@ router-dhcp-list-static-format:
 			else \
 				echo "⚠️ dnsmasq.leases not found"; \
 			fi'
+
+# router-ssh-invariants:
+# Enforces LAN-only SSH by setting:
+#   ssh_wan=0  → disable SSH on WAN
+#   ssh_lan=1  → enable SSH on LAN
+# AsusWRT defaults to WAN-enabled SSH when ssh_wan is unset.
+# This target makes the invariant explicit and idempotent.
+.PHONY: router-ssh-invariants
+router-ssh-invariants:
+	@echo "🛡️ Enforcing router SSH invariants (LAN-only SSH)"
+	@$(ROUTER_SSH) 'set -e; \
+		changed=0; \
+		cur_wan="$$(nvram get ssh_wan || echo unset)"; \
+		cur_lan="$$(nvram get ssh_lan || echo unset)"; \
+		if [ "$$cur_wan" != "0" ]; then \
+			echo "🔒 Disabling WAN SSH (ssh_wan=0)"; \
+			nvram set ssh_wan=0; \
+			changed=1; \
+		fi; \
+		if [ "$$cur_lan" != "1" ]; then \
+			echo "🔓 Enabling LAN SSH (ssh_lan=1)"; \
+			nvram set ssh_lan=1; \
+			changed=1; \
+		fi; \
+		if [ "$$changed" -eq 1 ]; then \
+			echo "💾 Committing NVRAM changes"; \
+			nvram commit; \
+			echo "🔁 Restarting SSH service"; \
+			service restart_ssh; \
+			echo "✅ SSH invariants enforced"; \
+		else \
+			echo "✔️ SSH invariants already satisfied"; \
+		fi'

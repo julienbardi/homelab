@@ -33,7 +33,7 @@ include $(REPO_ROOT)/mk/graph.mk
 router: router-all
 
 .PHONY: router-all
-router-all: router-bootstrap router-converge router-verify
+router-all: sanity router-bootstrap router-converge router-verify
 	@echo "🎯 Router bootstrap + converge + verify complete"
 
 router-configure:
@@ -44,3 +44,11 @@ router-configure:
 		sudo -E curl -I "http://$$ROUTER_ADDR"; \
 		echo "All tasks complete."; \
 	)
+
+# Global Makefile invariants
+.PHONY: sanity
+sanity: assert-sanity
+
+
+.PHONY: all
+all: sanity homelab-all
