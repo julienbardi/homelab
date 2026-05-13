@@ -14,6 +14,14 @@ iptables -C FORWARD -o wgs1 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -o wg
 # --- wgs1 (Port 51820) ---
 iptables -C INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport 51820 -j ACCEPT
 ip6tables -C INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p udp --dport 51820 -j ACCEPT
+
+# --- HARD BLOCK: SSH ON WAN (port 2222) ---
+iptables -C INPUT -p tcp --dport 2222 ! -i br0 -j DROP 2>/dev/null || \
+iptables -I INPUT 1 -p tcp --dport 2222 ! -i br0 -j DROP
+
+ip6tables -C INPUT -p tcp --dport 2222 ! -i br0 -j DROP 2>/dev/null || \
+ip6tables -I INPUT 1 -p tcp --dport 2222 ! -i br0 -j DROP
+
 iptables -C FORWARD -i wgs1 -s 10.89.101.240/32 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i wgs1 -s 10.89.101.240/32 -o br0 -j ACCEPT
 ip6tables -C FORWARD -i wgs1 -s fd89:7a3b:42c0:101::65f0/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i wgs1 -s fd89:7a3b:42c0:101::65f0/128 -o br0 -j ACCEPT
 iptables -t nat -C POSTROUTING -s 10.89.101.240/32 -j MASQUERADE 2>/dev/null || iptables -t nat -I POSTROUTING -s 10.89.101.240/32 -j MASQUERADE
