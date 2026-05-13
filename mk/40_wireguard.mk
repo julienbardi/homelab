@@ -5,19 +5,20 @@ WG_OUTPUT_ROUTER := $(WG_ROOT)/output/router
 
 WG_FIREWALL := $(WG_OUTPUT_ROUTER)/wg-firewall.sh
 
-
 .PHONY: \
 	wg-clean-out wg-generate wg-install-router wg-install-nas \
-	wg-up-router wg-up-nas wg-down-router wg-down-nas \
-	wg-status wg-up wg-down router-ensure-wg-module wg-router-preflight
+	wg-up-nas wg-down-router wg-down-nas \
+	wg-status wg-up wg-down router-ensure-wg-module \
+	router-wg-health-strict router-wg-audit \
+	wg-clean-state
 
-# Capture the user context
 ACTUAL_USER := $(or $(SUDO_USER),$(USER))
+# Capture the user context
 # DDA-Compliant: Resolve home directory via system database instead of hardcoded paths
-ACTUAL_HOME := $(shell getent passwd $(ACTUAL_USER) | cut -d: -f6)
-
-# Fallback in case getent is missing (minimal environments)
-ACTUAL_HOME := $(or $(ACTUAL_HOME),$(HOME))
+ACTUAL_HOME := $(or \
+	$(shell getent passwd $(ACTUAL_USER) | cut -d: -f6), \
+	$(HOME) \
+)
 
 export ROUTER_IDENTITY := $(ACTUAL_HOME)/.ssh/id_ed25519
 
@@ -31,9 +32,9 @@ WG_ENV = \
 	ROUTER_WG_DIR="$(ROUTER_WG_DIR)" \
 	WG_ROOT="$(WG_ROOT)"
 
-# Define the unified sudo wrapper for NAS operations
+# Define the unified sudo wrapper for homelab root operations
 # This ensures Root inherits Julie's SSH tunnel and identity context
-WG_SUDO := sudo --preserve-env=ROUTER_HOST,ROUTER_ADDR,ROUTER_SSH_PORT,ROUTER_WG_DIR,WG_ROOT,SSH_AUTH_SOCK,ROUTER_IDENTITY,SSH_CONTROL_PATH
+WG_SUDO := sudo --preserve-env=ROUTER_HOST,ROUTER_ADDR,ROUTER_SSH_PORT,ROUTER_WG_DIR,WG_ROOT,WG_SUBNETS_MK,SSH_AUTH_SOCK,ROUTER_IDENTITY,SSH_CONTROL_PATH
 
 run_as_root_router := ssh -p $(ROUTER_SSH_PORT) \
 	-o ControlMaster=auto \
@@ -44,29 +45,33 @@ run_as_root_router := ssh -p $(ROUTER_SSH_PORT) \
 	-o StrictHostKeyChecking=accept-new \
 	$(ROUTER_HOST)
 
+WG_SUBNETS_MK := $(SYSTEM_STATE_DIR)/wg-subnets.mk
+
 # --------------------------------------------------------------------
 # Generated subnet map (router + NAS WG subnets)
 # --------------------------------------------------------------------
 
-/var/lib/homelab/wg-subnets.mk: $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-subnets.sh
+$(WG_SUBNETS_MK): $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-subnets.sh | ensure-stamp-dir
 	@echo "🌐 Generating WireGuard subnet map"
-	WG_ROOT="$(WG_ROOT)" $(run_as_root) $(INSTALL_PATH)/wg-plan-subnets.sh
+	@WG_ROOT="$(WG_ROOT)" WG_SUBNETS_MK="$(WG_SUBNETS_MK)" \
+	  $(WG_SUDO) $(INSTALL_PATH)/wg-plan-subnets.sh
+
+# Load the generated subnet map into the DAG (optional: tolerate first-run absence)
+-include $(WG_SUBNETS_MK)
+
+wg-generate: $(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh
+	@DNS_TOPDOMAIN_NAME="$$( $(WITH_SECRETS) sh -c 'echo "$$ddns_topdomain"' )" \
+	NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) WG_ROOT=$(WG_ROOT) \
+	$(INSTALL_PATH)/wg-generate-configs.sh
+
+wg-clean-state:
+	@$(WG_SUDO) rm -f $(WG_SUBNETS_MK)
 
 # --- Router Setup ---
 
-router-ensure-wg-module:
+router-ensure-wg-module: router-install-scripts
 	@if [ -z "$(ROUTER_WG_DIR)" ]; then echo "ERROR: ROUTER_WG_DIR undefined"; exit 1; fi
 	@echo "🛡️ [router] Ensuring WireGuard kernel module on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)..."
-	@$(run_as_root_router) " \
-		mkdir -p $(ROUTER_WG_DIR); \
-		touch $(ROUTER_SCRIPTS)/services-start; \
-		chmod 0755 $(ROUTER_SCRIPTS)/services-start; \
-		grep -q 'modprobe wireguard' $(ROUTER_SCRIPTS)/services-start || echo 'modprobe wireguard' >> $(ROUTER_SCRIPTS)/services-start; \
-		grep -q 'wg setconf wgs1 $(ROUTER_WG_DIR)/wgs1.conf' $(ROUTER_SCRIPTS)/services-start || echo 'wg setconf wgs1 $(ROUTER_WG_DIR)/wgs1.conf' >> $(ROUTER_SCRIPTS)/services-start; \
-	"
-
-wg-router-preflight:
-	@$(run_as_root_router) modprobe wireguard || true
 
 .PHONY: router-bootstrap-wg-keys
 router-bootstrap-wg-keys:
@@ -101,19 +106,14 @@ $(INSTALL_PATH)/wgctl.sh: $(REPO_ROOT)/scripts/wgctl.sh | $(BOOTSTRAP_FILES)
 $(INSTALL_PATH)/wg-generate-configs.sh: $(REPO_ROOT)/scripts/wg-generate-configs.sh | $(BOOTSTRAP_FILES)
 	$(call PUSH_WG_SCRIPT,$<,$@)
 
-wg-clean-out: wg-down-router wg-down-nas
+wg-clean-out: wg-down-router wg-down-nas wg-clean-state
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🧹 Cleaning local scripts & SSH sockets"; fi
 	@sudo rm -f "$(INSTALL_PATH)/wgctl.sh" "$(INSTALL_PATH)/wg-generate-configs.sh"
 	@rm -f $(SSH_SOCK_FILE)
 	@echo "🧹 Cleaning remote router scripts"
 	@$(run_as_root_router) "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
 
-# --- Deployment ---
-
-wg-generate: router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh
-	@DNS_TOPDOMAIN_NAME="$$( $(WITH_SECRETS) sh -c 'echo "$$ddns_topdomain"' )" \
-	NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) WG_ROOT=$(WG_ROOT) \
-	$(INSTALL_PATH)/wg-generate-configs.sh
+# --- Deployment --
 
 router-firewall: wg-generate
 	@echo "🛡️ [router] Installing firewall for WireGuard..."
@@ -130,42 +130,32 @@ router-firewall: wg-generate
 			"$(ROUTER_HOST)" $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
 			"0" "0" "0755" || FEC=$$?; \
 		if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi; \
-
-		$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
+		if [ "$$FEC" = "0" ]; then \
+			$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
+		fi
 	)
 
-wg-install-router: router-ensure-wg-module wg-router-preflight \
+wg-install-router: router-ensure-wg-module \
 	$(INSTALL_PATH)/wgctl.sh wg-generate $(INSTALL_FILE_IF_CHANGED) router-firewall
 	@EC=0; \
 	SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
 	$(WG_ENV) \
 	ROUTER_CONTROL_PLANE=1 \
-	$(INSTALL_PATH)/wgctl.sh router install || EC=$$?; \
+	$(INSTALL_PATH)/wgctl.sh router install-up || EC=$$?; \
 	if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi
 
-wg-install-nas: $(INSTALL_PATH)/wgctl.sh $(INSTALL_FILE_IF_CHANGED) | ensure-stamp-dir
+wg-install-nas: $(INSTALL_PATH)/wgctl.sh $(INSTALL_FILE_IF_CHANGED)
 	@echo "📦 [nas   ] Installing WireGuard configurations..."
 	@EC=0; \
 	$(WG_ENV) \
-	$(WG_SUDO) $(INSTALL_PATH)/wgctl.sh nas install || EC=$$?; \
+	NAS_CONTROL_PLANE=1 \
+	$(WG_SUDO) $(INSTALL_PATH)/wgctl.sh nas install-up || EC=$$?; \
 	if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi
 
 # --- Lifecycle Management ---
 
 wg-up-nas: wg-install-nas
-	@EC=0; \
-	$(WG_ENV) \
-	NAS_CONTROL_PLANE=1 \
-	$(INSTALL_PATH)/wgctl.sh nas up || EC=$$?; \
-	if [ "$$EC" != "0" ]; then exit "$$EC"; fi
-
-wg-up-router: wg-install-router
-	@EC=0; \
-	SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
-	$(WG_ENV) \
-	ROUTER_CONTROL_PLANE=1 \
-	$(WG_SUDO) $(INSTALL_PATH)/wgctl.sh router up || EC=$$?; \
-	if [ "$$EC" != "0" ]; then exit "$$EC"; fi
+	@true
 
 wg-down-nas: $(INSTALL_PATH)/wgctl.sh
 	@$(WG_SUDO) \
@@ -187,8 +177,27 @@ wg-status: $(INSTALL_PATH)/wgctl.sh
 	NAS_CONTROL_PLANE=1 \
 	$(INSTALL_PATH)/wgctl.sh nas status || true
 
-wg-up: wg-up-router wg-up-nas
+wg-up: wg-install-router wg-up-nas
 	@echo "🚀 WireGuard fully converged"
 
 wg-down: wg-down-router
 	@echo "✅ WireGuard fully stopped"
+
+router-wg-health-strict:
+	@echo "🔍 Strict WireGuard health check on router"
+	@$(run_as_root_router) 'set -e; \
+		if ! wg show wgs1 >/dev/null 2>&1; then \
+			echo "❌ WireGuard interface wgs1 missing or down"; \
+			exit 1; \
+		fi; \
+		echo "🟢 WireGuard interface wgs1 present"; \
+	'
+
+router-wg-audit:
+	@echo "🔍 Auditing WireGuard configuration on router"
+	@$(run_as_root_router) 'set -e; \
+		echo "📝 WireGuard interfaces:"; \
+		wg show; \
+		echo "📝 Routing table:"; \
+		ip route show table all | grep -E "wgs1|wg"; \
+	'

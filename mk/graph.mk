@@ -92,6 +92,7 @@ include $(REPO_ROOT)/mk/90_dns-health.mk
 include $(REPO_ROOT)/mk/90_help.mk
 include $(REPO_ROOT)/mk/90_converge.mk
 include $(REPO_ROOT)/mk/95_status.mk
+include $(REPO_ROOT)/mk/95_watchdog.mk
 include $(REPO_ROOT)/mk/99_lint.mk
 
 # ============================================================
@@ -305,6 +306,7 @@ homelab-all: \
 	nft-apply \
 	nft-confirm \
 	all \
-	wg-up-router \
-	wg-up-nas
+	wg-install-router \
+	wg-up-nas \
+	install-router-prefix-watchdog
 	@echo "🚀 Homelab fully converged (router + NAS + DNS + firewall + WireGuard + Tailnet + Monitoring)"

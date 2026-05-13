@@ -67,9 +67,9 @@ router-prepare: router-ready router-require-run-as-root router-certs-prepare
 .PHONY: router-bootstrap
 router-bootstrap: export ROUTER_BOOTSTRAP=1
 router-bootstrap: \
+	router-install-scripts \
 	ensure-default-gateway \
 	ensure-router-ula \
-	router-install-scripts \
 	router-provision-nvram \
 	router-dhcp-range-ensure \
 	router-dhcp-static-ensure \
@@ -90,9 +90,6 @@ router-converge: \
 	router-health \
 	router-health-strict
 	@echo "🚀 Router fully converged"
-
-.PHONY: router-all
-router-all: router-converge
 
 .PHONY: router-verify
 router-verify: \

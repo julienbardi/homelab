@@ -161,7 +161,7 @@ OTHER_SBIN_FILES := $(addprefix $(INSTALL_SBIN_PATH)/,$(filter-out run-as-root.s
 
 .PHONY: install-all uninstall-all ensure-run-as-root assert-sanity
 
-install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES)
+install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES) install-router-prefix-watchdog
 	@echo "📦 [$(ROLE)] Homelab bootstrap complete."
 
 uninstall-all:

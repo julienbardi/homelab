@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+TMPDIR="${TMPDIR:-/run/user/$(id -u)/homelab}"
+mkdir -p "$TMPDIR"
+
 # --- 1. Environment Requirements ---
 : "${WG_ROOT:?WG_ROOT must be exported by the Makefile}"
 : "${INSTALL_FILE_IF_CHANGED:?INSTALL_FILE_IF_CHANGED must be exported by the Makefile}"
@@ -119,7 +122,7 @@ server_out_path() {
 generate_configs() {
     declare -A SERVER_BUFFERS
     local peer_map_tmp
-    peer_map_tmp=$(mktemp)
+    peer_map_tmp=$(mktemp -p "$TMPDIR" homelab.ifc.tmp.XXXXXX)
     printf "pubkey\tname\tiface\tipv4\tipv6\taccess\tlan\n" > "$peer_map_tmp"
 
     for iface in $(printf '%s\n' "${!IF_ENABLED[@]}" | sort); do
@@ -251,8 +254,8 @@ generate_router_firewall() {
     local wan_if="eth0"   # set to your actual WAN interface
 
     local peer_map_local="" tmp=""
-    peer_map_local=$(mktemp)
-    tmp=$(mktemp)
+    peer_map_local=$(mktemp -p "$TMPDIR" homelab.ifc.tmp.XXXXXX)
+    tmp=$(mktemp -p "$TMPDIR" homelab.ifc.tmp.XXXXXX)
     trap 'rm -f "${peer_map_local:-}" "${tmp:-}"' EXIT
 
     cat "$OUTPUT_DIR/peer-map.tsv" > "$peer_map_local"

@@ -47,7 +47,7 @@ prereqs-router-ssh:
 /tmp/router-apply-local.sh:
 	@echo "🛠️  Generating router apply script"
 	@set -e; \
-	tmp=$$(mktemp /tmp/router-apply-XXXXXX.sh); \
+	tmp=$$(mktemp -p /run homelab.XXXXXX.sh); \
 	printf '%s\n' \
 		'#!/bin/sh' \
 		'set -eu' \

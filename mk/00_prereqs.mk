@@ -99,7 +99,7 @@ prereqs: \
 	@echo "🔐 Ensuring Tailscale APT signing key"
 	@sh -c '\
 		set -e; \
-		tmp=$$(mktemp); \
+		tmp=$$(mktemp -p /run homelab.ifc.tmp.XXXXXX); \
 		trap "rm -f $$tmp" EXIT; \
 		curl -fsSL $(TAILSCALE_KEY_URL) -o "$$tmp"; \
 		$(call install_file,$$tmp,$(TAILSCALE_KEYRING),root,root,644)

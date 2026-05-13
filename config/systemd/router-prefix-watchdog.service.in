@@ -1,0 +1,15 @@
+[Unit]
+Description=Watch for router IPv6 prefix changes and trigger converge
+After=network-online.target
+
+[Service]
+Type=simple
+User=@OPERATOR_USER@
+Group=@PRIMARY_ADMIN_GROUP@
+Environment=REPO_ROOT=@REPO_ROOT@
+ExecStart=@INSTALL_PATH@/router-prefix-watchdog.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

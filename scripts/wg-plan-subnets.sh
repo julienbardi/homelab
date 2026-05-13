@@ -2,16 +2,16 @@
 set -euo pipefail
 
 : "${WG_ROOT:?WG_ROOT must be exported}"
+: "${WG_SUBNETS_MK:?WG_SUBNETS_MK must be provided by Make}"
 
 INPUT_DIR="${WG_ROOT}/input"
 IFACES_TSV="${INPUT_DIR}/wg-interfaces.tsv"
-OUT="/var/lib/homelab/wg-subnets.mk"
-
-declare -A IF_HOST IF_ADDR_V4 IF_ADDR_V6
 
 # --- temp file with guaranteed cleanup ---
-tmp="$(mktemp)"
+tmp="$(mktemp -p /run homelab.ifc.tmp.XXXXXX)"
 trap 'rm -f "$tmp"' EXIT
+
+declare -A IF_HOST IF_ADDR_V4 IF_ADDR_V6
 
 # --- load interface metadata ---
 while IFS=$'\t' read -r iface host port mtu v4 v6 en; do
@@ -27,7 +27,10 @@ for iface in "${!IF_HOST[@]}"; do
     [[ "${IF_HOST[$iface]}" == "router" ]] && router_iface="$iface"
 done
 
-[[ -z "$router_iface" ]] && { echo "ERROR: No router WG interface found" >&2; exit 1; }
+[[ -z "$router_iface" ]] && {
+    echo "ERROR: No router WG interface found" >&2
+    exit 1
+}
 
 # --- compute IPv4 network ---
 ipv4_network() {
@@ -45,14 +48,12 @@ ipv4_network() {
 
 v4_net="$(ipv4_network "${IF_ADDR_V4[$router_iface]}")"
 
-# --- compute IPv6 subnet correctly ---
-# Example: fd89:7a3b:42c0:101::1/64 → fd89:7a3b:42c0:101::/64
+# --- compute IPv6 subnet ---
 raw_v6="${IF_ADDR_V6[$router_iface]}"
-addr_v6="${raw_v6%/*}"   # strip /64
+addr_v6="${raw_v6%/*}"
 
-# If ends with ::1 → convert to ::
 case "$addr_v6" in
-    *::1) prefix_v6="${addr_v6%1}" ;;   # fd89:7a3b:42c0:101::1 → fd89:7a3b:42c0:101::
+    *::1) prefix_v6="${addr_v6%1}" ;;
     *)    prefix_v6="$addr_v6" ;;
 esac
 
@@ -65,4 +66,4 @@ WG_ROUTER_SUBNET_V4 := $v4_net
 WG_ROUTER_SUBNET_V6 := $v6_net
 EOF
 
-install -m 0644 "$tmp" "$OUT"
+install -m 0644 "$tmp" "$WG_SUBNETS_MK"

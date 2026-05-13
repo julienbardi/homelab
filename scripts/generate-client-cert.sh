@@ -23,7 +23,7 @@ CA_KEY="/etc/ssl/private/ca/homelab_bardi_CA.key"
 CA_PUB="/var/lib/ssl/canonical/ca.cer"
 OUT_DIR="/etc/ssl/caddy/clients"
 
-TMPDIR="$(mktemp -d)"
+TMPDIR="$(mktemp -p /run -d homelab.XXXXXX)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
 KEY="$TMPDIR/client.key"

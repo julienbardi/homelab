@@ -29,7 +29,7 @@ define go_install_from_source
 		fi; \
 	fi; \
 	echo "📦 Building $$BIN_NAME from source ($$VERSION_STR)..."; \
-	TMP_BIN=$$(mktemp -d /tmp/go-build.XXXXXX); \
+	TMP_BIN=$$(mktemp -p /run -d homelab.XXXXXX); \
 	GOBIN=$$TMP_BIN $(GO_MODERN_BIN) install $$VERSION_STR || exit 1; \
 	for f in $$TMP_BIN/*; do \
 		FILENAME=$$(basename $$f); \
@@ -108,7 +108,7 @@ endef
 # $(call extract_tarball,TARBALL,DESTDIR)
 define extract_tarball
 	$(run_as_root) sh -e -c '\
-		TMPDIR="$$(mktemp -d /tmp/extract.XXXXXX)"; \
+		TMPDIR=$$(mktemp -p /run -d homelab.XXXXXX); \
 		rm -rf "$(2)"; \
 		tar -C "$$TMPDIR" -xzf "$(1)"; \
 		mv "$$TMPDIR"/* "$(2)"; \
@@ -466,7 +466,7 @@ upgrade-pkg-pandoc: $(STAMP_PANDOC) | ensure-run-as-root ensure-default-gateway
 	@echo "⬆️ Upgrading pandoc..."
 	@$(call apt_update_if_needed)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
-	@tmp=$$(mktemp); dpkg-query -W -f='${Version}\n' pandoc > "$$tmp" 2>/dev/null || echo "unknown" > "$$tmp"; \
+	@tmp=$$(mktemp -p /run homelab.pandoc.tmp.XXXXXX); dpkg-query -W -f='${Version}\n' pandoc > "$$tmp" 2>/dev/null || echo "unknown" > "$$tmp"; \
 	echo "version=$$(cat $$tmp) upgraded_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee $(STAMP_PANDOC) >/dev/null; \
 	rm -f "$$tmp"

@@ -26,12 +26,6 @@ nas-caddy: ensure-run-as-root gitcheck nas-assert-caddy-ports-free deploy-caddy
 		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
 		*) exit "$$rc" ;; \
 	esac; \
-	echo "📦 Deploying custom Caddy binary with rate_limit plugin"; \
-	#if [ -x "$(NAS_CADDY_BIN)" ] && [ ! -f "$(NAS_CADDY_BACKUP)" ]; then \
-	#    $(run_as_root) mv "$(NAS_CADDY_BIN)" "$(NAS_CADDY_BACKUP)"; \
-	#    echo "💾 Original Caddy backed up -> $(NAS_CADDY_BACKUP)"; \
-	#fi; \
-	#$(run_as_root) install -m 0755 -o root -g root /tmp/caddy "$(NAS_CADDY_BIN)"; \
 	echo "🔍 Verifying installed Caddy"; \
 	if ! "$(NAS_CADDY_BIN)" version >/dev/null 2>&1; then \
 		echo "❌ Installed Caddy not executable"; \

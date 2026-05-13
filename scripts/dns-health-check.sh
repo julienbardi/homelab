@@ -155,7 +155,7 @@ flags_has() {
 # ------------------------------------------------------------
 # Parallel query execution
 # ------------------------------------------------------------
-tmpdir="$(mktemp -d)"
+tmpdir="$(mktemp -p /run -d homelab.XXXXXX)"
 trap 'rm -rf "$tmpdir"' EXIT
 
 run_query_bg() {

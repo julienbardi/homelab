@@ -15,7 +15,7 @@ find "$ROOT" -type f -name '*.installed_hash' | while read -r stamp; do
 done || true
 
 # 2. Build set of referenced object hashes (from second line of stamps)
-USED_HASHES_FILE="$(mktemp "${ROOT%/}/ifc.used.XXXXXX")"
+USED_HASHES_FILE="$(mktemp -p /run homelab.ifc.used.XXXXXX)"
 trap 'rm -f "$USED_HASHES_FILE"' EXIT
 
 find "$ROOT" -type f -name '*.installed_hash' | while read -r stamp; do

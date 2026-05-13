@@ -30,7 +30,11 @@ include $(REPO_ROOT)/mk/config.mk
 include $(REPO_ROOT)/mk/graph.mk
 
 .PHONY: router
-router: router-converge
+router: router-all
+
+.PHONY: router-all
+router-all: router-bootstrap router-converge router-verify
+	@echo "🎯 Router bootstrap + converge + verify complete"
 
 router-configure:
 	@$(call WITH_SECRETS, \

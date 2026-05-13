@@ -61,7 +61,7 @@ trap cleanup EXIT INT TERM
 exec 9>"$LOCKFILE"
 flock -n 9 || exit 0
 
-TMPDIR_SCAN="$(mktemp -d)"
+TMPDIR_SCAN="$(mktemp -p /run -d homelab.XXXXXX)"
 declare -a HOST_META=()
 
 scan_one_host() {
@@ -122,7 +122,7 @@ for ((idx=0; idx<${#HOST_META[@]}; idx+=2)); do
   fi
 
   # Atomic User Update (Copy + Append + Sort + Replace)
-  u_tmp="$(mktemp)"
+  u_tmp="$(mktemp -p /run homelab.XXXXXX)"
   cp "$KNOWN_HOSTS" "$u_tmp"
   for k in "${KEYS[@]}"; do printf "%s\n" "$k" >> "$u_tmp"; done
   sort -u "$u_tmp" > "$KNOWN_HOSTS"

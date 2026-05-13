@@ -145,5 +145,6 @@ case "$MODE" in
     up)      do_up ;;
     down)    do_down ;;
     status)  do_status ;;
+	install-up)  do_install; do_up ;;
     *)       echo "Unknown mode: $MODE for target: $TARGET"; exit 1 ;;
 esac

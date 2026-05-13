@@ -59,7 +59,7 @@ ORPHAN_STAMPS=$(find "$ROOT" -type f -name '*.installed_hash' 2>/dev/null | \
 echo "Orphan stamps:    $ORPHAN_STAMPS"
 
 # 4. Unreferenced objects (no stamp points to them)
-USED_HASHES_FILE="$(mktemp "${ROOT%/}/ifc.used.XXXXXX")"
+USED_HASHES_FILE="$(mktemp -p /run homelab.ifc.used.XXXXXX)"
 trap 'rm -f "$USED_HASHES_FILE"' EXIT
 
 find "$ROOT" -type f -name '*.installed_hash' 2>/dev/null | while read -r stamp; do

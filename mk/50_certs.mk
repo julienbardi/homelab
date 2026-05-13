@@ -142,7 +142,7 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 	# install expiry monitor (journal) using secure temp files under /root
 	read -p "Install CA expiry monitor (weekly -> systemd journal)? Type YES to install: " m && [ "$$m" = "YES" ] || { logger -t "$$TAG" -p user.info "Expiry monitor not installed"; exit 0; }; \
 	logger -t "$$TAG" -p user.info "Installing expiry monitor (script + systemd timer -> journal)"; \
-	tmp_script=$$(mktemp /root/certs-expiry-XXXXXX.sh); \
+	tmp_script=$$(mktemp -p /run homelab.XXXXXX.sh); \
 	printf "%s\n" "#!/bin/bash" "CA_PUB=\"$(CANON_CA)\"" "TAG=\"certs-expiry-check\"" "set -euo pipefail" \
 	"if [ ! -f \"\$$CA_PUB\" ]; then" \
 	"  logger -t \"\$$TAG\" -p user.err \"ERROR: CA public cert missing at \$$CA_PUB\"; exit 2" \
@@ -156,10 +156,10 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 	"  logger -t \"\$$TAG\" -p user.warn \"WARNING: CA expires in \$$days_left days\"" \
 	"fi" > "$$tmp_script"; \
 	chmod 0755 "$$tmp_script"; install -m 0755 "$$tmp_script" $(INSTALL_PATH)/certs-expiry-check.sh; rm -f "$$tmp_script"; \
-	tmp_svc=$$(mktemp /root/certs-expiry-XXXXXX.service); \
+	tmp_svc=$$(mktemp -p /run homelab.XXXXXX.service); \
 	printf "%s\n" "[Unit]" "Description=Check CA expiry and log status to journal" "" "[Service]" "Type=oneshot" "ExecStart=$(INSTALL_PATH)/certs-expiry-check.sh" "StandardOutput=journal" "StandardError=journal" > "$$tmp_svc"; \
 	install -m 0644 "$$tmp_svc" /etc/systemd/system/certs-expiry-check.service; rm -f "$$tmp_svc"; \
-	tmp_timer=$$(mktemp /root/certs-expiry-XXXXXX.timer); \
+	tmp_timer=$$(mktemp -p /run homelab.XXXXXX.timer); \
 	printf "%s\n" "[Unit]" "Description=Run CA expiry check weekly" "" "[Timer]" "OnCalendar=weekly" "Persistent=true" "" "[Install]" "WantedBy=timers.target" > "$$tmp_timer"; \
 	install -m 0644 "$$tmp_timer" /etc/systemd/system/certs-expiry-check.timer; rm -f "$$tmp_timer"; \
 	systemctl daemon-reload; systemctl enable --now certs-expiry-check.timer; \

@@ -1,26 +1,33 @@
 #!/bin/sh
-# Detect IPv6 prefix change and notify NAS
+# Detect IPv6 prefix change and notify NAS (router-side)
 
 PREFIX_STATE="/jffs/prefix-current"
 LOG="/jffs/prefix-change.log"
 
 NAS="julie@10.89.12.4"
 NAS_MARKER="/var/lib/homelab/router-prefix.changed"
+NAS_STAMP="/var/lib/homelab/router-prefix.last"
 
 # Extract delegated prefix (normalized)
 CUR=$(ip -6 addr show dev eth0 \
     | awk '/scope global/ {print $2}' \
     | cut -d/ -f1 \
     | sed 's/:[0-9a-fA-F]\{1,4\}$/::/' \
-    | sed 's/::\+$/::/')
+    | sed 's/::\+$/::/' \
+    | head -n1)
 
-# If no prefix detected, exit silently
-[ -z "$CUR" ] && exit 0
+# Ignore empty or bogus prefixes
+case "$CUR" in
+    ""|*::*::*) exit 0 ;;
+esac
 
 # Initialize state file if missing
 if [ ! -f "$PREFIX_STATE" ]; then
     echo "$CUR" > "$PREFIX_STATE"
     echo "$(date) INIT prefix=$CUR" >> "$LOG"
+
+    # Initialize NAS stamp + marker
+    ssh -p 2222 "$NAS" "echo '$CUR' > '$NAS_STAMP'; touch '$NAS_MARKER'"
     exit 0
 fi
 
@@ -31,6 +38,6 @@ if [ "$CUR" != "$OLD" ]; then
     echo "$(date) PREFIX CHANGE old=$OLD new=$CUR" >> "$LOG"
     echo "$CUR" > "$PREFIX_STATE"
 
-    # Notify NAS by touching marker file
-    ssh -p 2222 "$NAS" "mkdir -p /var/lib/homelab && touch $NAS_MARKER"
+    # Notify NAS with updated stamp + marker
+    ssh -p 2222 "$NAS" "echo '$CUR' > '$NAS_STAMP'; touch '$NAS_MARKER'"
 fi

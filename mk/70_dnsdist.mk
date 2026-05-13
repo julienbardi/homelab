@@ -113,7 +113,8 @@ $(CANONICAL_SUM): $(DEPLOY_CERTS)
 	nfiles=$$($(run_as_root) sh -c "find '$(CANONICAL_DIR)' -type f -print -quit | wc -l"); \
 	if [ "$$nfiles" -eq 0 ]; then \
 	  echo "⚠️  canonical store empty: $(CANONICAL_DIR)"; \
-	  tmp=$$(mktemp); printf "%s\n" "" > "$$tmp"; $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
+	  tmp=$$(mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
+	  printf "%s\n" "" > "$$tmp"; $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
 	  exit 0; \
 	fi; \
 	sum=$$($(run_as_root) sh -c "find '$(CANONICAL_DIR)' -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | cut -d' ' -f1"); \
@@ -123,7 +124,8 @@ $(CANONICAL_SUM): $(DEPLOY_CERTS)
 	else \
 	  echo "📦 Deploying certificates to dnsdist"; \
 	  $(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(DEPLOY_CERTS) deploy dnsdist"; \
-	  tmp=$$(mktemp); printf "%s\n" "$$sum" > "$$tmp"; $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
+	  tmp=$$(mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
+	  printf "%s\n" "$$sum" > "$$tmp"; $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
 	  echo "✅ deploy-dnsdist-certs complete"; \
 	fi
 

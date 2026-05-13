@@ -56,7 +56,7 @@ else
     fi
 fi
 
-TMP_PATH=$("$RUN_AS_ROOT" mktemp "$VERIF_DIR/$CN-verification.XXXXXX")
+TMP_PATH=$("$RUN_AS_ROOT" mktemp -p /run "homelab.XXXXXX")
 
 printf "%s\n\n%s\n%s\n" "$SUBJECT" "$SHA1_RAW" "$SHA256_RAW" | "$RUN_AS_ROOT" tee "$TMP_PATH" >/dev/null
 

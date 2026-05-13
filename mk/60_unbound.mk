@@ -59,7 +59,7 @@ deploy-unbound-sysctl: ensure-run-as-root
 update-root-hints: ensure-default-gateway ensure-run-as-root
 	@echo "🌐 Updating root hints -> /var/lib/unbound/root.hints"
 	@$(run_as_root) install -d -m 0770 -o root -g unbound /var/lib/unbound
-	@tmp=$$(mktemp); \
+	tmp=$$(mktemp -p /run homelab.unbound.tmp.XXXXXX); \
 	if curl -fsSL --connect-timeout 10 --max-time 20 https://www.internic.net/domain/named.root -o $$tmp; then \
 		$(run_as_root) install -m 0644 -o root -g unbound $$tmp /var/lib/unbound/root.hints; \
 		echo "✅ root hints updated"; \

@@ -69,9 +69,6 @@ OWNER="${7:-}"
 GROUP="${8:-}"
 MODE="${9:-}"
 
-INSTALL_MODE=local
-[ -n "$DST_HOST" ] && INSTALL_MODE=remote
-
 # Validations
 [ -n "$SRC_PATH" ] && [ -n "$DST_PATH" ] && [ -n "$OWNER" ] && [ -n "$GROUP" ] && [ -n "$MODE" ] || {
     echo "❌ Usage: SRC_HOST SRC_PORT SRC_PATH DST_HOST DST_PORT DST_PATH OWNER GROUP MODE" >&2
@@ -79,7 +76,6 @@ INSTALL_MODE=local
 }
 
 PID="$$"
-TS="$(date +%s).${PID}"
 : "${TMPDIR:=/tmp}"
 
 # ---------------------------------------------------------------------------

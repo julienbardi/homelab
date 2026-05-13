@@ -12,7 +12,8 @@
 # ============================================================
 
 set -euo pipefail
-source "common.sh"
+# shellcheck disable=SC1091
+source /usr/local/bin/common.sh
 
 SERVICE_NAME="unbound"
 UNBOUND_CONF="/etc/unbound/unbound.conf"

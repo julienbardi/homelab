@@ -10,7 +10,8 @@
 			  deploy-unbound-service deploy-unbound-control-config \
 			  dns-runtime \
 			  runtime-snapshot-before runtime-snapshot-after runtime-diff \
-			  wg-converge-runtime
+			  wg-converge-runtime \
+			  converge-network
 
 .PHONY: \
 	converge-network converge-audit \
@@ -22,12 +23,33 @@
 
 SNAPSHOT_NETWORK  := $(INSTALL_PATH)/snapshot-network.sh
 
+STAMP_PREFIX := $(STAMP_DIR)/router-prefix.last
+
+router-prefix-current:
+	@$(run_as_root) ssh $(ROUTER) "ip -6 addr show dev eth0 | awk '/scope global/ {print \$2}' | cut -d/ -f1 | sed 's/:[0-9a-fA-F]\{1,4\}\$$/::/' | sed 's/::\+$$/::/'" > $@
+
+.PHONY: prefix-bootstrap
+prefix-bootstrap: router-prefix-current
+	@if [ ! -f "$(STAMP_PREFIX)" ]; then \
+		echo "📌 Prefix bootstrap: no NAS stamp found"; \
+		$(run_as_root) cp router-prefix-current "$(STAMP_PREFIX)"; \
+		$(run_as_root) touch "$(ROUTER_PREFIX_MARKER)"; \
+		echo "📌 Prefix bootstrap: marker created"; \
+	elif ! $(run_as_root) diff -q router-prefix-current "$(STAMP_PREFIX)" >/dev/null; then \
+		echo "📌 Prefix bootstrap: NAS prefix out of sync"; \
+		$(run_as_root) cp router-prefix-current "$(STAMP_PREFIX)"; \
+		$(run_as_root) touch "$(ROUTER_PREFIX_MARKER)"; \
+		echo "📌 Prefix bootstrap: marker created"; \
+	else \
+		echo "📌 Prefix bootstrap: already converged"; \
+	fi
+
 # ------------------------------------------------------------
 # Runtime snapshot locations (ephemeral, root-owned)
 # ------------------------------------------------------------
 RUNTIME_SNAP_BEFORE := /run/homelab-net.before
 RUNTIME_SNAP_AFTER  := /run/homelab-net.after
-RUNTIME_DIFF_FILE   := /tmp/homelab-net.diff
+RUNTIME_DIFF_FILE   := /run/homelab-net.diff
 
 # ------------------------------------------------------------
 # Top-level convergence entry points
@@ -87,7 +109,7 @@ runtime-snapshot-before:
 	@set -euo pipefail; \
 	tmpdir="$$( $(run_as_root) sh -c 'mktemp -d /run/homelab-net.before.XXXXXX' 2>/dev/null || true )"; \
 	if [ -z "$$tmpdir" ]; then \
-	  tmpdir="$$(mktemp -d)"; \
+	  tmpdir="$$(mktemp -p /run -d homelab.XXXXXX)"; \
 	fi; \
 	$(run_as_root) sh -c '$(SNAPSHOT_NETWORK) "$$1"' _ "$$tmpdir"; \
 	$(run_as_root) chmod 755 "$$tmpdir"; \
@@ -100,7 +122,7 @@ runtime-snapshot-after:
 	@set -euo pipefail; \
 	tmpdir="$$( $(run_as_root) sh -c 'mktemp -d /run/homelab-net.after.XXXXXX' 2>/dev/null || true )"; \
 	if [ -z "$$tmpdir" ]; then \
-	  tmpdir="$$(mktemp -d)"; \
+	  tmpdir="$$(mktemp -p /run -d homelab.XXXXXX)"; \
 	fi; \
 	$(run_as_root) sh -c '$(SNAPSHOT_NETWORK) "$$1"' _ "$$tmpdir"; \
 	$(run_as_root) chmod 755 "$$tmpdir"; \
@@ -112,10 +134,10 @@ runtime-snapshot-after:
 # runtime-diff:
 # - Pure comparison only
 # - Must never mutate kernel or filesystem state (except diff marker)
-runtime-diff:
+runtime-diff: prefix-bootstrap
 	@echo "🔍 Checking runtime network state"; \
 	set -euo pipefail; \
-	difffile="$$($(run_as_root) sh -c 'mktemp /run/homelab-net.diff.XXXXXX' 2>/dev/null || mktemp)"; \
+	difffile="$$($(run_as_root) sh -c 'mktemp -p /run homelab.XXXXXX' 2>/dev/null || mktemp -p /run homelab.XXXXXX)"; \
 	case "$$difffile" in /run/*) \
 	  $(run_as_root) sh -c ': > "$$1" && chmod 644 "$$1"' _ "$$difffile"; \
 	  trap '$(run_as_root) rm -f "$$difffile" >/dev/null 2>&1 || true' EXIT INT TERM; \
