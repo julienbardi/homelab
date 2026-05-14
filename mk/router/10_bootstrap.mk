@@ -91,7 +91,7 @@ ensure-default-gateway: secrets-ready
 router-bootstrap-run-as-root: secrets-ready ensure-default-gateway
 	@echo "🛡️ Bootstrapping run-as-root on router"
 	@$(WITH_SECRETS) \
-		ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" \
 			'set -e; mkdir -p /jffs/scripts; cat > /jffs/scripts/run-as-root; chmod 0755 /jffs/scripts/run-as-root' \
 		< $(REPO_ROOT)/router/jffs/scripts/run-as-root.sh
 	@echo "✅ run-as-root installed"
@@ -131,9 +131,9 @@ ensure-router-known-hosts: router-bootstrap-run-as-root
 	fi; \
 
 	# Push to router if missing
-	ssh -p "$$ROUTER_SSH_PORT" "$$ROUTER_USER@$$ROUTER_ADDR" "\
+	ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "\
 		mkdir -p /root/.ssh && chmod 700 /root/.ssh; \
-		grep -q \"\[$(nas_lan_ip)\]:2222\" /root/.ssh/known_hosts 2>/dev/null || { \
+		grep -q \"\[$(LAN_NAS)\]:2222\" /root/.ssh/known_hosts 2>/dev/null || { \
 			echo \"🔑 Adding NAS host key\"; \
 			echo \"$$NAS_KEY_LINE\" >> /root/.ssh/known_hosts; \
 			chmod 600 /root/.ssh/known_hosts; \

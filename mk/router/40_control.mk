@@ -7,7 +7,7 @@
 router-disable-asus-ca:
 	@echo "🛡️ Disabling ASUS internal certificate generation"
 	@$(WITH_SECRETS) \
-		router_ssh="ssh -p $$ROUTER_SSH_PORT $$ROUTER_USER@$$ROUTER_ADDR"; \
+		router_ssh="ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR"; \
 		$$router_ssh 'set -e; \
 			cur_gen="$$(nvram get https_crt_gen 2>/dev/null || echo)"; \
 			cur_save="$$(nvram get https_crt_save 2>/dev/null || echo)"; \

@@ -10,7 +10,7 @@ endif
 define deploy_with_status
 	@ROUTER_ADDR="$(ROUTER_ADDR)" \
 	ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
-	ROUTER_USER="$(ROUTER_USER)" \
+	SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
 	SSH_OPTS="$(SSH_OPTS) -F $(HOME)/.ssh/config -i $(HOME)/.ssh/id_ed25519" \
 	$(run_as_root) $(CERTS_DEPLOY) deploy $(1)
 	@if [ "$(1)" = "caddy" ]; then \
@@ -29,7 +29,7 @@ endef
 .PHONY: router-certs-prereqs-ssh
 router-certs-prereqs-ssh:
 	@$(call WITH_SECRETS, \
-		ssh $(SSH_OPTS) -o BatchMode=yes -p "$(ROUTER_SSH_PORT)" "$(ROUTER_USER)@$(ROUTER_ADDR)" true \
+		ssh $(SSH_OPTS) -o BatchMode=yes -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" true \
 	) 2>/dev/null || { \
 		echo "❌ SSH key authentication to router failed"; \
 		exit 1; \
@@ -39,7 +39,7 @@ router-certs-prereqs-ssh:
 router-certs-prepare: install-all router-certs-deploy-script router-require-run-as-root
 	@ROUTER_ADDR="$(ROUTER_ADDR)" \
 	ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
-	ROUTER_USER="$(ROUTER_USER)" \
+	SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
 	SSH_OPTS="$(SSH_OPTS) -F $(HOME)/.ssh/config -i $(HOME)/.ssh/id_ed25519" \
 	$(run_as_root) $(CERTS_DEPLOY) prepare
 
@@ -68,6 +68,6 @@ router-certs-status: router-bootstrap router-certs-prepare
 	@$(WITH_SECRETS) \
 		ROUTER_ADDR="$(ROUTER_ADDR)" \
 		ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
-		ROUTER_USER="$(ROUTER_USER)" \
+		SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
 		SSH_OPTS="$(SSH_OPTS)" \
 		$(CERTS_DEPLOY) status router

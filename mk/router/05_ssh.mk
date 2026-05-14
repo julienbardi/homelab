@@ -15,7 +15,7 @@ export ROUTER_BOOTSTRAP ?=
 
 .PHONY: router-ssh-check
 router-ssh-check: install-ssh-config
-	@echo "🔎 Checking router SSH ($(ROUTER_USER)@$(ROUTER_ADDR):$(ROUTER_SSH_PORT))"
+	@echo "🔎 Checking router SSH ($(SSH_USER_ROUTER)@$(ROUTER_ADDR):$(ROUTER_SSH_PORT))"
 
 	@# 1. Dependency check
 	@command -v nc >/dev/null 2>&1 || { \
@@ -34,13 +34,13 @@ router-ssh-check: install-ssh-config
 		-o BatchMode=yes \
 		-o ConnectTimeout=5 \
 		-p "$(ROUTER_SSH_PORT)" \
-		"$(ROUTER_USER)@$(ROUTER_ADDR)" \
+		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
 		true >/dev/null 2>&1 || { \
-		echo "❌ SSH reachable but authentication failed for $(ROUTER_USER)"; \
+		echo "❌ SSH reachable but authentication failed for $(SSH_USER_ROUTER)"; \
 		exit 1; \
 	}
 
-	@echo "🟢 Router SSH OK — authenticated as $(ROUTER_USER)"
+	@echo "🟢 Router SSH OK — authenticated as $(SSH_USER_ROUTER)"
 
 .PHONY: router-require-run-as-root
 router-require-run-as-root: | router-ssh-check
@@ -50,7 +50,7 @@ router-require-run-as-root: | router-ssh-check
 	@echo "🔎 Checking router run-as-root helper"
 
 	@ssh -p "$(ROUTER_SSH_PORT)" \
-		"$(ROUTER_USER)@$(ROUTER_ADDR)" \
+		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
 		'test -x /jffs/scripts/run-as-root' >/dev/null 2>&1 || { \
 			echo "❌ run-as-root missing on router"; \
 			echo "ℹ️  Router helpers not installed"; \
@@ -62,7 +62,7 @@ router-require-run-as-root: | router-ssh-check
 
 .PHONY: get-router-root-identity
 get-router-root-identity: router-require-run-as-root
-	@echo "🔍 Checking router identity for $(ROUTER_USER) on $(ROUTER_ADDR)"
+	@echo "🔍 Checking router identity for $(SSH_USER_ROUTER) on $(ROUTER_ADDR)"
 
 	@# Ensure cache directory exists
 	@mkdir -p "$(dir $(ROUTER_ID_FILE))"
@@ -83,8 +83,8 @@ get-router-root-identity: router-require-run-as-root
 
 	@# 3. Remote identity lookup (BusyBox-safe AWK)
 	@ssh -p "$(ROUTER_SSH_PORT)" \
-		"$(ROUTER_USER)@$(ROUTER_ADDR)" \
-		'awk -F: -v U="$(ROUTER_USER)" '\'' \
+		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
+		'awk -F: -v U="$(SSH_USER_ROUTER)" '\'' \
 			FILENAME=="/etc/group"  { g[$$3]=$$1; next } \
 			FILENAME=="/etc/passwd" { if ($$1==U) { printf "%s:%s:%s:%s\n", $$3, $$4, $$1, (g[$$4]||""); found=1; exit } } \
 			END { if (!found) print "MISSING" } \
@@ -98,7 +98,7 @@ get-router-root-identity: router-require-run-as-root
 	@# 5. Validate result
 	@R_ID="$$(cat "$(ROUTER_ID_FILE)")"; \
 	if [ "$$R_ID" = "MISSING" ]; then \
-		echo "❌ Router user $(ROUTER_USER) not found"; \
+		echo "❌ Router user $(SSH_USER_ROUTER) not found"; \
 		rm -f "$(ROUTER_ID_FILE)"; \
 		exit 2; \
 	fi

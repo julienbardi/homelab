@@ -12,6 +12,7 @@ repo-preflight:
 	@fails=0; \
 	./scripts/gitignore-stamp.sh || fails=1; \
 	./scripts/secrets-stamp.sh || fails=1; \
+	./scripts/detect-unauthorized-lan-ips.sh || fails=1; \
 	if [ $$fails -ne 0 ]; then \
 		echo "❌ repo-preflight FAILED"; \
 		exit 1; \

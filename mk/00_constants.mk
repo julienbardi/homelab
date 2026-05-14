@@ -182,25 +182,13 @@ YQ_URL := https://github.com/$(YQ_GITHUB_REPO)/releases/download/$(YQ_VERSION)/$
 YQ_SHA256 ?= d56bf5c6819e8e696340c312bd70f849dc1678a7cda9c2ad63eebd906371d56b
 
 ULA_PREFIX_NVRAM = $(ula_prefix_nvram)
-# Router address (from config.mk)
-ROUTER_ADDR := $(router_addr)
-ROUTER_ULA_IP6 = $(router_ula_ip6)
-
-# Router identity (from secrets)
-ROUTER_USER := $(router_user)
-ROUTER_SSH_PORT := $(router_ssh_port)
 
 # Nas address (from config.mk)
-NAS_LAN_IP = $(nas_lan_ip)
-NAS_LAN_IP6 = $(nas_lan_ip6)
+NAS_LAN_IP = $(LAN_NAS)
+NAS_LAN_IP6 = $(LAN6_NAS)
 
-# IPv4 LAN gateway for NAS
-NAS_LAN_GW4 = 10.89.12.1
-
-# Construct full SSH host
-export ROUTER_ADDR
-export ROUTER_USER
-export ROUTER_HOST := $(ROUTER_USER)@$(ROUTER_ADDR)
+# Construct full SSH host (derived, not exported)
+ROUTER_HOST = $(SSH_USER_ROUTER)@$(ROUTER_ADDR)
 
 # ----------------------------------------------------------------------------
 # Ephemeral DDNS temp (RAM-only, per-user, per-invocation)
@@ -222,3 +210,8 @@ TMP_ROUTER_ULA := /run/user/$(shell id -u)/homelab/.router_ula_$$PPID
 DHCP_STATIC_MAX    := 99
 DHCP_DYNAMIC_START := 100
 DHCP_DYNAMIC_END   := 254
+
+print-ssh-user-router:
+	@echo "SSH_USER_ROUTER='$(SSH_USER_ROUTER)'"
+	@echo "ROUTER_ADDR='$(ROUTER_ADDR)'"
+	@echo "ROUTER_SSH_PORT='$(ROUTER_SSH_PORT)'"

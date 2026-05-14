@@ -60,7 +60,7 @@ router-dhcp-range-ensure: secrets-ready | ensure-router-ula
 	@echo "🛡️ Enforcing DHCP pool range via NVRAM"
 
 	@ssh -p "$(ROUTER_SSH_PORT)" \
-		"$(ROUTER_USER)@$(ROUTER_ADDR)" \
+		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
 		'set -e; \
 			cur_start="$$(nvram get dhcp_start 2>/dev/null || echo)"; \
 			cur_end="$$(nvram get dhcp_end 2>/dev/null || echo)"; \
@@ -108,7 +108,7 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 			exit 0; \
 		fi; \
 		ssh -p "$$ROUTER_SSH_PORT" \
-			"$$ROUTER_USER@$$ROUTER_ADDR" \
+			"$$SSH_USER_ROUTER@$$ROUTER_ADDR" \
 			'set -e; \
 				current="$$(nvram get dhcp_staticlist 2>/dev/null || echo)"; \
 				desired="'"$$desired"'"; \
@@ -184,7 +184,7 @@ router-provision-nvram: secrets-ready | ensure-router-ula
 	@echo "🔧 Using ULA_PREFIX_NVRAM='$$ULA_PREFIX_NVRAM'"
 
 	@ssh -p "$(ROUTER_SSH_PORT)" \
-		"$(ROUTER_USER)@$(ROUTER_ADDR)" \
+		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
 		'set -e; \
 			cur_prefix="$$(nvram get ipv6_ula_prefix 2>/dev/null || echo)"; \
 			cur_dns1="$$(nvram get ipv6_dns1 2>/dev/null || echo)"; \
@@ -245,7 +245,7 @@ router-ddns: ensure-router-ula
 			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
 
 	@echo "🔄 Executing DDNS update"
-	@ssh -p "$(ROUTER_SSH_PORT)" "$(ROUTER_USER)@$(ROUTER_ADDR)" \
+	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
 		'$(ROUTER_SCRIPTS)/ddns-start'
 
 	@echo "🧹 Cleaning up RAM-only local DDNS secrets"
@@ -261,7 +261,7 @@ router-ddns: ensure-router-ula
 router-dhcp-list:
 	@echo "📋 Listing current DHCP clients on router:"
 	@$(WITH_SECRETS) \
-		router_ssh="ssh -p $$ROUTER_SSH_PORT $$ROUTER_USER@$$ROUTER_ADDR"; \
+		router_ssh="ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR"; \
 		$$router_ssh 'set -e; \
 			if [ -f /var/lib/misc/dnsmasq.leases ]; then \
 				cat /var/lib/misc/dnsmasq.leases; \
@@ -273,7 +273,7 @@ router-dhcp-list:
 router-dhcp-list-static-format:
 	@echo "📋 DHCP clients in static NVRAM format:"
 	@$(WITH_SECRETS) \
-		router_ssh="ssh -p $$ROUTER_SSH_PORT $$ROUTER_USER@$$ROUTER_ADDR"; \
+		router_ssh="ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR"; \
 		$$router_ssh 'set -e; \
 			if [ -f /var/lib/misc/dnsmasq.leases ]; then \
 				awk "{print \$$2 \"=\" \$$3 \"=\" \$$4 \"=0\"}" /var/lib/misc/dnsmasq.leases; \

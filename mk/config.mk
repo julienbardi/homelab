@@ -1,5 +1,28 @@
 # config.mk — committed, non-secret configuration
 
+# LAN Topology (authoritative)
+export LAN_NET      := 10.89.12.0/24
+export LAN_NET_ADDR := 10.89.12.0
+export LAN_ROUTER   := 10.89.12.1
+export LAN_SYNOLOGY := 10.89.12.2
+export LAN_QNAP     := 10.89.12.3
+export LAN_NAS      := 10.89.12.4
+
+# IPv6 ULA Topology (authoritative)
+export LAN6_NET      := fd89:7a3b:42c0::/64
+export LAN6_ROUTER   := fd89:7a3b:42c0::1
+export LAN6_SYNOLOGY := fd89:7a3b:42c0::2
+export LAN6_NAS      := fd89:7a3b:42c0::4
+export LAN6_PREFIXLEN := 64
+# Add others as needed:
+# export LAN6_QNAP     := ...
+
+# SSH users per host
+export SSH_USER_ROUTER   := julie
+export SSH_USER_NAS      := julie
+export SSH_USER_SYNOLOGY := julie
+export SSH_USER_QNAP     := admin
+
 # Paths
 HOMELAB_DIR := /volume1/homelab
 WG_ROOT     := $(HOMELAB_DIR)/wireguard
@@ -18,26 +41,20 @@ LAN_IFACE  := eth0
 # Topology constants (raw inputs — NEVER exported)
 # ------------------------------------------------------------
 router_addr      := 10.89.12.1
-router_user      := julie
 router_ssh_port  := 2222
 
 # Ensure these lowercase variables NEVER leak into the environment
 unexport router_addr
-unexport router_user
 unexport router_ssh_port
 
 # ------------------------------------------------------------
 # Exported, Make-safe constants (uppercase — ALWAYS exported)
 # ------------------------------------------------------------
 export ROUTER_ADDR      := $(router_addr)
-export ROUTER_USER      := $(router_user)
 export ROUTER_SSH_PORT  := $(router_ssh_port)
 
 export ula_prefix_nvram := fd89:7a3b:42c0::/48
 export router_ula_ip6   := fd89:7a3b:42c0::1
-
-export nas_lan_ip  := 10.89.12.4
-export nas_lan_ip6 := fd89:7a3b:42c0::4
 
 # Certificates & Identity
 DOMAIN               := bardi.ch

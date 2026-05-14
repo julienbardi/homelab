@@ -21,13 +21,13 @@ declare -A IF_HOST IF_PORT IF_ADDR_V4 IF_ADDR_V6 IF_ENABLED
 source /usr/local/bin/common.sh
 
 # --- Canonical router SSH (authoritative, non‑drifting) ---
-: "${ROUTER_USER:?ROUTER_USER required}"
+: "${SSH_USER_ROUTER:?SSH_USER_ROUTER required}"
 : "${ROUTER_ADDR:?ROUTER_ADDR required}"
 : "${ROUTER_SSH_PORT:=2222}"
 : "${SSH_OPTS:=-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new}"
 : "${ROUTER_IDENTITY:=$HOME/.ssh/id_ed25519}"
 
-ROUTER_SSH_CMD=(ssh ${SSH_OPTS} -i "${ROUTER_IDENTITY}" -p "${ROUTER_SSH_PORT}" "${ROUTER_USER}@${ROUTER_ADDR}")
+ROUTER_SSH_CMD=(ssh ${SSH_OPTS} -i "${ROUTER_IDENTITY}" -p "${ROUTER_SSH_PORT}" "${SSH_USER_ROUTER}@${ROUTER_ADDR}")
 
 # --- 2. Helpers -------------------------------------------------------------
 
@@ -196,7 +196,7 @@ EOF
 [Interface]
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}/128
-DNS = ${NAS_LAN_IP:-10.89.12.4}, ${NAS_LAN_IP6:-fd89:7a3b:42c0::4}
+DNS = ${LAN_NAS}, ${LAN6_NAS}
 $( [[ "$os" == "windows" ]] && echo "Table = auto" )
 
 [Peer]

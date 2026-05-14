@@ -26,7 +26,7 @@ SCRIPT_NAME=""
 
 # Router identity injected by Makefile control-plane
 ROUTER_ADDR="${ROUTER_ADDR:-10.89.12.1}"
-ROUTER_USER="${ROUTER_USER:-root}"
+SSH_USER_ROUTER="${SSH_USER_ROUTER:-root}"
 ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
 
 # SSH options from control-plane (if provided)
@@ -318,7 +318,7 @@ deploy_router() {
 
     /usr/local/bin/install_file_if_changed_v2.sh \
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-        "${ROUTER_USER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" \
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" \
         "julie" "root" "0644" || rc=$?
 
     if [ "$rc" -ne 0 ] && [ "$rc" -ne "$CHANGED_EXIT_CODE" ]; then
@@ -330,7 +330,7 @@ deploy_router() {
     rc=0
     /usr/local/bin/install_file_if_changed_v2.sh \
         "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
-        "${ROUTER_USER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
         "julie" "root" "0600" || rc=$?
 
     if [ "$rc" -ne 0 ] && [ "$rc" -ne "$CHANGED_EXIT_CODE" ]; then
@@ -391,7 +391,7 @@ status_router() {
             -o StrictHostKeyChecking=accept-new \
             -F "$HOME/.ssh/config" \
             -i "$HOME/.ssh/id_ed25519" \
-            ${ROUTER_USER}@${ROUTER_ADDR} \
+            ${SSH_USER_ROUTER}@${ROUTER_ADDR} \
             sha256sum /jffs/ssl/fullchain.pem \
         | awk '{print $1}'
     )"
@@ -403,7 +403,7 @@ status_router() {
             -o StrictHostKeyChecking=accept-new \
             -F "$HOME/.ssh/config" \
             -i "$HOME/.ssh/id_ed25519" \
-            ${ROUTER_USER}@${ROUTER_ADDR} \
+            ${SSH_USER_ROUTER}@${ROUTER_ADDR} \
             sha256sum /jffs/ssl/privkey.pem \
         | awk '{print $1}'
     )" || {
