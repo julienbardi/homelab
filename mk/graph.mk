@@ -66,6 +66,7 @@ include $(REPO_ROOT)/mk/20_deps.mk
 include $(REPO_ROOT)/mk/20_gitignore.mk
 include $(REPO_ROOT)/mk/20_local-python.mk
 include $(REPO_ROOT)/mk/20_sysctl.mk
+include $(REPO_ROOT)/mk/21_invariants_stamps.mk
 include $(REPO_ROOT)/mk/25_routing.mk
 include $(REPO_ROOT)/mk/30_config_validation.mk
 include $(REPO_ROOT)/mk/30_firewall-nas.mk

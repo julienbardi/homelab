@@ -49,6 +49,6 @@ router-configure:
 .PHONY: sanity
 sanity: assert-sanity
 
-
 .PHONY: all
-all: sanity homelab-all
+all: sanity repo-preflight homelab-all
+.NOTPARALLEL: homelab-all
