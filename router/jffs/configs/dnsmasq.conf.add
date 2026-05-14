@@ -32,6 +32,34 @@ domain-needed
 bogus-priv
 
 # --- PART E: IPv6 Router Advertisements (LAN only) ---
+# ============================================================
+# ULA‑ONLY RA POLICY
+# ------------------------------------------------------------
+# Why this matters:
+# 1. AsusWRT sometimes reassigns the WAN‑delegated global prefix to br0.
+#    If dnsmasq sees a global prefix on br0, it may *re‑advertise it*.
+# 2. Clients then keep a stale global IPv6 address even after the router
+#    stops routing that prefix → IPv6 breaks silently.
+# 3. Using "constructor:br0" is dangerous because it mirrors whatever
+#    prefixes appear on br0 (including accidental global ones).
+# 4. Explicit ULA prefix ensures LAN IPv6 is *stable*, *predictable*,
+#    and *never depends on WAN state*.
+# 5. This eliminates the exact failure mode you just experienced.
+# ============================================================
+
+# Enable Router Advertisements
 enable-ra
-dhcp-range=::100,::1ff,constructor:br0,ra-names,64
+
+# Explicit ULA-only prefix (NO constructor, NO global prefix leakage)
+# This guarantees that only fd89:7a3b:42c0::/64 is ever advertised.
+dhcp-range=fd89:7a3b:42c0::100,fd89:7a3b:42c0::1ff,64
+
+# Advertise NAS ULA as IPv6 DNS server (stable, local, sovereign)
 dhcp-option=option6:dns-server,[fd89:7a3b:42c0::4]
+
+# RA parameters:
+# - Prefix length 64 (required for SLAAC)
+# - RA lifetime 1800s (clients refresh often, stale prefixes die quickly)
+# - Prevents clients from caching old global prefixes indefinitely
+ra-param=br0,64,1800
+
