@@ -9,25 +9,29 @@
 # 3. Automatic fallback to ISP/Provider if the NAS is powered off.
 # ============================================================
 
-
 # --- PART A: LOCAL SOVEREIGNTY ---
 # Define the authoritative domain for the LAN
-domain=${DOMAIN}
+domain=bardi.ch
 # Do not forward queries for this domain to upstream servers
-local=/${DOMAIN}/
-# Allow shortnames (e.g., 'nas') to resolve as 'nas.${DOMAIN}'
+local=/bardi.ch/
+# Allow shortnames (e.g., 'nas') to resolve as 'nas.bardi.ch'
 expand-hosts
 
 # --- PART B: HIGH-PERFORMANCE SOVEREIGNTY ---
 # Favor the NAS (Unbound) via the low-latency IPv4 path
-server=${NAS_LAN_IP}
+server=10.89.12.4
+
+# Advertise NAS (primary) and router (fallback) as DNS to DHCP clients
+dhcp-option=6,10.89.12.4,10.89.12.1
 
 # --- PART C: GRACEFUL DEGRADATION ---
-# Query all upstreams (NAS + ISP) simultaneously for maximum resilience
 all-servers
 
 # --- PART D: HYGIENE & SECURITY ---
-# Never forward plain names (without a dot or domain) to the internet
 domain-needed
-# Never forward addresses in the non-routed address spaces
 bogus-priv
+
+# --- PART E: IPv6 Router Advertisements (LAN only) ---
+enable-ra
+dhcp-range=::100,::1ff,constructor:br0,ra-names,64
+dhcp-option=option6:dns-server,[fd89:7a3b:42c0::4]

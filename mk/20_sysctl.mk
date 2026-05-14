@@ -44,22 +44,21 @@ endef
 
 define set_ipv6_token
 { \
-	echo "📍 Checking IPv6 Token convergence ($(NAS_IID_TOKEN))..."; \
-	for iface in eth0 eth1; do \
+	echo "📍 Checking IPv6 address convergence ($(NAS_LAN_IP6))..."; \
+	for iface in eth0; do \
 		if [ -d "/sys/class/net/$$iface" ]; then \
-			current_token=$$(ip token list dev $$iface | awk '{print $$1}'); \
-			if [ "$$current_token" = "$(NAS_IID_TOKEN)" ]; then \
-				echo "✅ $$iface: Token already matches. Skipping cycle."; \
+			if ip -6 addr show dev $$iface scope global | grep -q " $(NAS_LAN_IP6)/"; then \
+				echo "✅ $$iface: IPv6 address already converged to $(NAS_LAN_IP6)."; \
 			else \
-				echo "🔄 $$iface: Token mismatch. Applying $(NAS_IID_TOKEN)..."; \
-				$(run_as_root) ip token set $(NAS_IID_TOKEN) dev $$iface; \
-				echo "✨ $$iface: Token applied (no link cycle)."; \
+				echo "🔄 $$iface: IPv6 address mismatch. Forcing $(NAS_LAN_IP6)..."; \
+				$(run_as_root) ip -6 addr flush dev $$iface scope global; \
+				$(run_as_root) ip -6 addr add $(NAS_LAN_IP6)/64 dev $$iface; \
+				echo "✨ $$iface: IPv6 address set to $(NAS_LAN_IP6)/64 (RA-independent)."; \
 			fi; \
 		fi; \
 	done; \
 }
 endef
-
 
 define inject_ipv6_secrets
 { \
@@ -91,7 +90,7 @@ install-homelab-sysctl: ensure-run-as-root sysctl-preflight set-ipv6-token
 	echo "🔄 Syncing functional sysctl configuration..."; \
 	$(run_as_root) install -o root -g root -m 0644 "$(SYSCTL_SRC)" "$(SYSCTL_DST)"; \
 	$(run_as_root) $(SYSCTL_BIN) -p "$(SYSCTL_DST)" >/dev/null; \
-	echo "✨ Convergence verified: NAS is locked to suffix $(NAS_IID_TOKEN)"
+	echo "✨ Convergence verified: NAS IPv6 address is $(NAS_LAN_IP6)/64 (RA-independent)"
 
 rotate-ipv6-secrets: ensure-run-as-root sysctl-preflight
 	@echo "🔄 Scrambling IPv6 identity (RFC 7217)..."

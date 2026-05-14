@@ -1,33 +1,38 @@
 # ============================================================
-# mk/65_dnsmasq.mk — Local DNS Forwarder & DHCP
+# mk/65_dnsmasq.mk — Local DNS Forwarder (NAS)
 # ============================================================
 
 # Global variables required by other modules (e.g., Caddy/Graph)
 CADDY_INTERNAL_HOSTS_FILE := $(REPO_ROOT)/config/caddy/internal-hosts.txt
 
-# Configuration Paths
-DNSMASQ_CONF_SRC      := $(REPO_ROOT)/config/dnsmasq/dnsmasq.conf
-DNSMASQ_CONF_DST      := /etc/dnsmasq.conf
+# Configuration Paths (NAS only)
 DNSMASQ_FRAGMENTS_SRC := $(REPO_ROOT)/config/dnsmasq
 DNSMASQ_UGREEN_DIR    := /usr/ugreen/etc/dnsmasq/dnsmasq.d
+DNSMASQ_UGREEN_BASE   := /usr/ugreen/etc/dnsmasq/dnsmasq.conf
 
 .PHONY: \
-    enable-dnsmasq \
-    install-pkg-dnsmasq \
-    deploy-dnsmasq-config \
-    dnsmasq-health \
-    disable-resolved
+	enable-dnsmasq \
+	install-pkg-dnsmasq \
+	deploy-dnsmasq-config \
+	dnsmasq-health \
+	disable-resolved \
+	check-ugreen-dnsmasq-file
 
 # --- Main Entry Point ---
 enable-dnsmasq: \
-    assert-unbound-running \
-    disable-resolved \
-    install-pkg-dnsmasq \
-    deploy-dnsmasq-config
+	assert-unbound-running \
+	disable-resolved \
+	install-pkg-dnsmasq \
+	deploy-dnsmasq-config
 	@echo "🔄 Restarting dnsmasq"
 	@$(run_as_root) systemctl restart dnsmasq
 	@$(run_as_root) systemctl is-active --quiet dnsmasq || (echo "❌ Failed"; exit 1)
-	@dig @127.0.0.1 google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ DNS Fail"; exit 1)
+
+	@echo "🔍 Testing DNS resolution (user context)"
+	@dig @127.0.0.1 google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ Loopback DNS fail"; exit 1)
+	@dig @$(NAS_LAN_IP) google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ LAN IPv4 DNS fail"; exit 1)
+	@dig @$(NAS_LAN_IP6) google.com AAAA +short +tries=1 +time=2 >/dev/null || (echo "❌ ULA IPv6 DNS fail"; exit 1)
+
 	@echo "✅ dnsmasq healthy"
 
 # --- Installation ---
@@ -35,16 +40,29 @@ install-pkg-dnsmasq:
 	@echo "📦 Installing dnsmasq"
 	@$(call apt_install,dnsmasq,dnsmasq)
 
-# --- Configuration (Merged Logic) ---
-deploy-dnsmasq-config: ensure-run-as-root
-	@echo "🔍 Validating main config"
-	@$(run_as_root) dnsmasq --test --conf-file=$(DNSMASQ_CONF_SRC) || exit 1
-	@$(call install_file,$(DNSMASQ_CONF_SRC),$(DNSMASQ_CONF_DST),root,root,0644)
+# --- UGOS base file existence guard ---
+check-ugreen-dnsmasq-file:
+	@if [ ! -f "$(DNSMASQ_UGREEN_BASE)" ]; then \
+		echo "❌ UGOS base dnsmasq.conf missing"; \
+		echo "   Expected: $(DNSMASQ_UGREEN_BASE)"; \
+		echo "   This file is part of UGOS firmware and not managed by homelab."; \
+		exit 1; \
+	fi
 
+# --- Configuration (Fragments Only) ---
+deploy-dnsmasq-config: ensure-run-as-root check-ugreen-dnsmasq-file
 	@echo "📄 Deploying dnsmasq fragments to UGOS path"
 	@$(run_as_root) install -d -m 0755 $(DNSMASQ_UGREEN_DIR)
+	# Render dnsmasq templates with variable substitution
 	@for f in $(wildcard $(DNSMASQ_FRAGMENTS_SRC)/*.conf); do \
-		$(call install_file,$$f,$(DNSMASQ_UGREEN_DIR)/$$(basename $$f),root,root,0644); \
+		out="$(DNSMASQ_UGREEN_DIR)/$$(basename $$f)"; \
+		echo "🔧 Rendering $$f → $$out"; \
+		DOMAIN=$(DOMAIN) \
+		NAS_LAN_IP=$(NAS_LAN_IP) \
+		LAN_NAS=$(LAN_NAS) \
+		LAN_ROUTER=$(LAN_ROUTER) \
+		envsubst < $$f > /tmp/dnsmasq.rendered; \
+		$(call install_file,/tmp/dnsmasq.rendered,$$out,root,root,0644); \
 	done
 
 # --- Conflicts ---
@@ -57,4 +75,13 @@ disable-resolved: ensure-run-as-root
 
 # --- Health Check ---
 dnsmasq-health:
-	@dig @127.0.0.1 google.com +short +tries=1 +time=2 >/dev/null && echo "✅ OK" || echo "❌ Fail"
+	@echo "🔍 Testing DNS via 127.0.0.1 (loopback)"
+	@dig @127.0.0.1 google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ Loopback DNS fail"; exit 1)
+
+	@echo "🔍 Testing DNS via $(NAS_LAN_IP) (LAN IPv4)"
+	@dig @$(NAS_LAN_IP) google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ LAN IPv4 DNS fail"; exit 1)
+
+	@echo "🔍 Testing DNS via $(NAS_LAN_IP6) (ULA IPv6)"
+	@dig @$(NAS_LAN_IP6) google.com AAAA +short +tries=1 +time=2 >/dev/null || (echo "❌ ULA IPv6 DNS fail"; exit 1)
+
+	@echo "✅ dnsmasq healthy (IPv4 + IPv6 + loopback)"
