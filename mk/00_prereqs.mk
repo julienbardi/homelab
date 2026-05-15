@@ -97,12 +97,12 @@ prereqs: \
 	install-ssh-config \
 	rust-system | ensure-default-gateway
 	@echo "🔐 Ensuring Tailscale APT signing key"
-	@sh -c '\
+	@$(run_as_root) sh -c '\
 		set -e; \
 		tmp=$$(mktemp -p /run homelab.ifc.tmp.XXXXXX); \
 		trap "rm -f $$tmp" EXIT; \
 		curl -fsSL $(TAILSCALE_KEY_URL) -o "$$tmp"; \
-		$(call install_file,$$tmp,$(TAILSCALE_KEYRING),root,root,644)
+		$(INSTALL_FILE_IF_CHANGED) -q "" "" "$$tmp" "" "" "$(TAILSCALE_KEYRING)" root root 0644
 	'
 
 	@echo "📦 Ensuring installation of prerequisite tools"
