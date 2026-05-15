@@ -74,6 +74,7 @@ disable-resolved: ensure-run-as-root
 	fi
 
 # --- Health Check ---
+# --- Health Check ---
 dnsmasq-health:
 	@echo "🔍 Testing DNS via 127.0.0.1 (loopback)"
 	@dig @127.0.0.1 google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ Loopback DNS fail"; exit 1)
@@ -81,7 +82,11 @@ dnsmasq-health:
 	@echo "🔍 Testing DNS via $(NAS_LAN_IP) (LAN IPv4)"
 	@dig @$(NAS_LAN_IP) google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ LAN IPv4 DNS fail"; exit 1)
 
+ifdef NAS_LAN_IP6
 	@echo "🔍 Testing DNS via $(NAS_LAN_IP6) (ULA IPv6)"
 	@dig @$(NAS_LAN_IP6) google.com AAAA +short +tries=1 +time=2 >/dev/null || (echo "❌ ULA IPv6 DNS fail"; exit 1)
+endif
 
 	@echo "✅ dnsmasq healthy (IPv4 + IPv6 + loopback)"
+
+
