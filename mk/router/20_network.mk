@@ -290,7 +290,7 @@ router-dhcp-list-static-format:
 .PHONY: router-ssh-invariants
 router-ssh-invariants:
 	@echo "🛡️ Enforcing router SSH invariants (LAN-only SSH)"
-	@$(ROUTER_SSH) 'set -e; \
+	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" 'set -e; \
 		changed=0; \
 		cur_wan="$$(nvram get ssh_wan || echo unset)"; \
 		cur_lan="$$(nvram get ssh_lan || echo unset)"; \
