@@ -7,12 +7,15 @@ export LAN_ROUTER   := 10.89.12.1
 export LAN_SYNOLOGY := 10.89.12.2
 export LAN_QNAP     := 10.89.12.3
 export LAN_NAS      := 10.89.12.4
+export LAN_AC86U    := 10.89.12.6
 
 # IPv6 ULA Topology (authoritative)
 export LAN6_NET      := fd89:7a3b:42c0::/64
 export LAN6_ROUTER   := fd89:7a3b:42c0::1
 export LAN6_SYNOLOGY := fd89:7a3b:42c0::2
 export LAN6_NAS      := fd89:7a3b:42c0::4
+export LAN6_AC86U    := fd89:7a3b:42c0::6
+
 export LAN6_PREFIXLEN := 64
 # Add others as needed:
 # export LAN6_QNAP     := ...
@@ -22,6 +25,7 @@ export SSH_USER_ROUTER   := julie
 export SSH_USER_NAS      := julie
 export SSH_USER_SYNOLOGY := julie
 export SSH_USER_QNAP     := admin
+export SSH_USER_AC86U    := admin
 
 # Paths
 HOMELAB_DIR := /volume1/homelab
@@ -99,3 +103,20 @@ ROLE := service
 # Canonical marker path
 export SYSTEM_STATE_DIR := /var/lib/homelab
 export ROUTER_PREFIX_MARKER := $(SYSTEM_STATE_DIR)/router-prefix.changed
+
+# Deterministic PATH for all recipes
+PATH := /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+# Packages UGOS ships and cannot be removed
+UGOS_VENDOR_PACKAGES := \
+	curl jq git nftables iptables unbound unbound-anchor dnsutils dnsperf \
+	iperf3 ripgrep htop libc-ares-dev python3-venv \
+	netfilter-persistent iptables-persistent \
+	ethtool tcpdump ndisc6
+
+# Packages we actually install and can uninstall
+APT_INSTALLABLE_PACKAGES := \
+	build-essential shellcheck pup codespell aspell aspell-en ndppd \
+	knot-dnsutils apt-cacher-ng unzip git-filter-repo rclone \
+	wireguard-tools qrencode

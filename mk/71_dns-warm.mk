@@ -53,6 +53,13 @@ prereqs-dns-warm-verify:
 		exit 1; \
 	}
 
+# Install missing tools for dns-warm
+prereqs-dns-warm-install:
+	$(call apt_install, funzip, unzip)
+
+# Wire install → verify
+prereqs-dns-warm: prereqs-dns-warm-install prereqs-dns-warm-verify
+
 # -------------------------------------------------
 # Public targets
 # -------------------------------------------------

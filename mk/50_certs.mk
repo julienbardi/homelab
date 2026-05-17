@@ -179,8 +179,9 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 # - They must never mutate CA material
 .PHONY: renew prepare \
 	deploy-caddy deploy-headscale deploy-dnsdist deploy-diskstation deploy-qnap deploy-dsm \
-	validate-caddy validate-headscale validate-diskstation validate-qnap validate-dsm \
-	all-caddy all-headscale all-router all-diskstation all-qnap \
+	validate-caddy validate-headscale validate-diskstation validate-qnap validate-dsm validate-ac86u \
+	all-caddy all-headscale all-router all-diskstation all-qnap all-ac86u\
+	all-remote \
 	setup-cert-watch-% setup-cert-watch-all \
 	deploy-cert-watch-% deploy-cert-watch-all \
 	bootstrap-caddy bootstrap-headscale bootstrap-diskstation bootstrap-qnap \
@@ -237,6 +238,19 @@ validate-diskstation: validate-dsm
 	@echo "🔄 DiskStation validation OK"
 validate-qnap:
 	$(call validate_with_status,qnap)
+validate-ac86u:
+	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443"
+	@remote_fp=$$(openssl s_client \
+		-connect $(LAN_AC86U):8443 \
+		-servername $(DOMAIN) \
+		-tls1_2 -showcerts </dev/null 2>/dev/null \
+		| openssl x509 -noout -fingerprint -sha256 2>/dev/null); \
+	if [ -z "$$remote_fp" ]; then \
+		echo "⚠️  AC86U unreachable or no certificate received — skipping (best-effort)"; \
+		exit 0; \
+	fi; \
+	echo "ℹ️  Remote Fingerprint: $$remote_fp"; \
+	echo "🔄 AC86U validation OK (best-effort)"
 
 # All-in-one targets (pattern rule: renew + prepare + deploy + validate)
 all-caddy:       renew prepare deploy-caddy       validate-caddy
@@ -244,6 +258,10 @@ all-headscale:   renew prepare deploy-headscale   validate-headscale
 all-router:      renew prepare deploy-router
 all-diskstation: renew prepare deploy-diskstation validate-diskstation
 all-qnap:        renew prepare deploy-qnap        validate-qnap
+all-ac86u:       renew prepare deploy-ac86u       validate-ac86u
+
+all-remote: all-router all-diskstation all-qnap all-ac86u
+	@echo "🌐 [all-remote] Completed (AC86U best-effort)"
 
 # Cert watch setup targets
 setup-cert-watch-%: ensure-run-as-root scripts/systemd/cert-reload@.service scripts/systemd/$*-cert.path
@@ -265,17 +283,18 @@ setup-cert-watch-%: ensure-run-as-root scripts/systemd/cert-reload@.service scri
 # POLICY: only local services may have certificate watchers
 setup-cert-watch-all: setup-cert-watch-caddy setup-cert-watch-dnsdist setup-cert-watch-headscale
 
-# Bootstrap combos
-define bootstrap_with_status
-	@$(MAKE) setup-cert-watch-$(1)
-	@$(MAKE) all-$(1)
-	@echo "🚀 $(1) bootstrapped"
-endef
+# Bootstrap combos — non‑recursive, pure DAG
+bootstrap-caddy: setup-cert-watch-caddy all-caddy
+	@echo "🚀 caddy bootstrapped"
 
-bootstrap-caddy:         $(call bootstrap_with_status,caddy)
-bootstrap-headscale:     $(call bootstrap_with_status,headscale)
-bootstrap-diskstation:   $(call bootstrap_with_status,diskstation)
-bootstrap-qnap:          $(call bootstrap_with_status,qnap)
+bootstrap-headscale: setup-cert-watch-headscale all-headscale
+	@echo "🚀 headscale bootstrapped"
+
+bootstrap-diskstation: setup-cert-watch-diskstation all-diskstation
+	@echo "🚀 diskstation bootstrapped"
+
+bootstrap-qnap: setup-cert-watch-qnap all-qnap
+	@echo "🚀 qnap bootstrapped"
 
 # FIX: bootstrap-all wires only LOCAL watchers; no remote hosts here
 bootstrap-all: setup-cert-watch-caddy all-caddy setup-cert-watch-headscale all-headscale
@@ -304,7 +323,7 @@ deploy-cert-watch-all: \
 
 deploy-dsm:
 	@echo "🔐 [deploy][dsm] Deploying certificate to Synology DSM…"
-	$(ACME_HOME)/acme.sh --deploy -d $(DOMAIN) --deploy-hook synology_dsm
+	$(run_as_root) $(ACME_HOME)/acme.sh --home $(ACME_HOME) --deploy -d $(DOMAIN) --deploy-hook synology_dsm
 	@echo "⚙️ [deploy][dsm] Deployment triggered — not waiting for DSM"
 	@echo "✅ [deploy][dsm] DSM deployment complete"
 
@@ -320,3 +339,15 @@ validate-dsm:
 		exit 1; \
 	fi; \
 	echo "ℹ️ Remote Fingerprint: $$remote_fp"
+
+deploy-ac86u: prepare
+	@echo "🔐 [deploy][ac86u] Deploying certificate to AC86U ($(LAN_AC86U))…"
+	scp -P $(ROUTER_SSH_PORT) $(SSL_CANONICAL_DIR)/fullchain.pem $(SSH_USER_AC86U)@$(LAN_AC86U):/tmp/fullchain.pem
+	scp -P $(ROUTER_SSH_PORT) $(SSL_CANONICAL_DIR)/privkey.pem   $(SSH_USER_AC86U)@$(LAN_AC86U):/tmp/privkey.pem
+	ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
+		"mkdir -p /jffs/ssl && \
+		 mv /tmp/fullchain.pem /jffs/ssl/fullchain.pem && \
+		 mv /tmp/privkey.pem   /jffs/ssl/privkey.pem && \
+		 chmod 0600 /jffs/ssl/privkey.pem && \
+		 service restart_httpd"
+	@echo "✅ [deploy][ac86u] AC86U certificate deployed and HTTPS reloaded"

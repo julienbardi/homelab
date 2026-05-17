@@ -93,9 +93,8 @@ ensure-stamp-dir:
 		$(run_as_root) chown root:root "$(STAMP_DIR)" || true; \
 	else \
 		echo "📁 [user] Ensuring STAMP_DIR exists: $(STAMP_DIR)"; \
-		install -d -m 0755 "$(STAMP_DIR)"; \
+		mkdir -p "$(STAMP_DIR)"; \
 	fi
-
 
 # ----------------------------------------------------------------------------
 # 5. Documentation Directory (Deferred assignment)

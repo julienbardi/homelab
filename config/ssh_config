@@ -1,13 +1,12 @@
-# config/ssh_config
-# ------------------------------------------------------------
-# GLOBAL OPERATOR IDENTITY
-# One keypair reused across all homelab devices
-# ------------------------------------------------------------
+# ============================================================
+# GLOBAL HARDENED DEFAULTS (portable across Windows/Linux/macOS)
+# ============================================================
 Host *
+    # Identity
     IdentityFile ~/.ssh/id_ed25519
     IdentitiesOnly yes
 
-    # SSH multiplexing for speed
+    # Multiplexing (Linux/macOS use it; Windows ignores safely)
     ControlMaster auto
     ControlPath ~/.ssh/cm-%r@%h:%p
     ControlPersist 10m
@@ -18,39 +17,51 @@ Host *
     StrictHostKeyChecking accept-new
     UserKnownHostsFile ~/.ssh/known_hosts
 
-# ------------------------------------------------------------
+
+# ============================================================
 # ROUTER — Asus RT‑AX86U Pro
-# ------------------------------------------------------------
-Host router
+# ============================================================
+Host router 10.89.12.1
     HostName 10.89.12.1
     Port 2222
     User julie
 
-Host 10.89.12.1
-    Port 2222
-    User julie
 
-# ------------------------------------------------------------
+# ============================================================
 # DISKSTATION — Synology DS218play
-# ------------------------------------------------------------
-Host diskstation
+# ============================================================
+Host diskstation 10.89.12.2
     HostName 10.89.12.2
     Port 2222
     User julie
 
-# ------------------------------------------------------------
-# QNAP — TS210
-# ------------------------------------------------------------
-Host qnap
+
+# ============================================================
+# QNAP — TS210 (legacy OpenSSH)
+# ============================================================
+Host qnap 10.89.12.3
     HostName 10.89.12.3
     Port 2222
     User admin
 
-# ------------------------------------------------------------
+
+# ============================================================
 # NAS — Ugreen DXP4800+
-# Self‑reference for consistency
-# ------------------------------------------------------------
-Host nas
+# Requires PQ‑KEX suppression
+# ============================================================
+Host nas 10.89.12.4
     HostName 10.89.12.4
     Port 2222
     User julie
+    KexAlgorithms -sntrup761x25519-sha512@openssh.com
+
+
+# ============================================================
+# ACCESS POINT — Asus RT‑AC86U
+# ============================================================
+Host ac86u 10.89.12.6
+    HostName 10.89.12.6
+    Port 2222
+    User admin
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes

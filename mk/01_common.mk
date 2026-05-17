@@ -9,28 +9,28 @@
 #   to ensure the wrapper exists before invocation.
 # --------------------------------------------------------------------
 
-# Deterministic PATH for all recipes
-PATH := /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-export PATH
+.PHONY: apt-uninstall-installed
+apt-uninstall-installed: | $(run_as_root)
+	@echo "🗑️  Removing all homelab APT packages (best-effort)..."
+	@for pkg in $(APT_INSTALLABLE_PACKAGES); do \
+		BIN=$$(command -v "$$pkg" 2>/dev/null || true); \
+		if [ -n "$$BIN" ]; then \
+			REAL=$$(dpkg -S "$$BIN" 2>/dev/null | head -n1 | cut -d: -f1); \
+		else \
+			REAL="$$pkg"; \
+		fi; \
+		[ -z "$$REAL" ] && REAL="$$pkg"; \
+		printf "📦 Removing %-25s (pkg: %-20s) ... " "$$pkg" "$$REAL"; \
+		if $(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get remove -y "$$REAL" >/dev/null 2>&1; then \
+			echo "OK ✔"; \
+		else \
+			echo "not installed or failed"; \
+		fi; \
+	done; \
+	echo "🧹 Autoremoving leftover dependencies"; \
+	$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get autoremove -y >/dev/null 2>&1 || true; \
+	echo "🔎 Done."
 
-APT_CORE_PACKAGES := \
-	build-essential curl jq git nftables iptables shellcheck pup codespell \
-	aspell aspell-en ndppd knot-dnsutils unbound unbound-anchor dnsutils \
-	dnsperf iperf3 qrencode ripgrep htop libc-ares-dev apt-cacher-ng unzip \
-	git-filter-repo python3-venv \
-	wireguard wireguard-tools netfilter-persistent iptables-persistent \
-	ethtool tcpdump \
-	rclone \
-	ndisc6
-
-install-pkg-core-apt:
-	@status=0; \
-	$(call apt_install_group,$(APT_CORE_PACKAGES)) || status=$$?; \
-	if [ "$$status" -eq 3 ]; then \
-		: ; \
-	elif [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
-		echo "ℹ️ core apt group already satisfied"; \
-	fi
 
 # ------------------------------------------------------------
 # Tools Installation (The Bootstrap Core)
@@ -140,6 +140,9 @@ BOOTSTRAP_FILES := \
 $(INSTALL_PATH)/%.sh: $(REPO_ROOT)/scripts/%.sh | $(BOOTSTRAP_FILES)
 	@$(call install_script,$<,$(notdir $<))
 
+$(INSTALL_SBIN_PATH)/%.sh: $(REPO_ROOT)/scripts/%.sh | $(run_as_root)
+	@$(call install_script,$<,$(notdir $<))
+
 SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh
 ALL_SCRIPTS := $(notdir $(wildcard $(REPO_ROOT)/scripts/*.sh))
 
@@ -229,14 +232,13 @@ assert-scripts-layout:
 define apt_install
 	@command -v $(1) >/dev/null 2>&1 || { \
 		echo "apt 📦 Installing $(2)..."; \
-		$(run_as_root) sh -c 'test -x /usr/local/sbin/apt-proxy-auto.sh && /usr/local/sbin/apt-proxy-auto.sh || true'; \
+		$(run_as_root) sh -c '( test -x /usr/local/sbin/apt-proxy-auto.sh && /usr/local/sbin/apt-proxy-auto.sh ) || true'; \
 		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get update -qq; \
 		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
 			-o Dpkg::Options::="--force-confold" \
 			-o Dpkg::Options::="--force-confdef" $(2); \
 	}
 endef
-
 
 # ------------------------------------------------------------
 # apt_remove
@@ -299,8 +301,11 @@ define apt_install_group
 		echo "📦 Installing apt package group: $$PKGS"; \
 	fi; \
 	MISSING=$$( \
-		dpkg-query -W -f='$${Status} $${Package}\n' $$PKGS 2>/dev/null \
-		| awk '$$1$$2$$3 != "installokinstalled" {print $$4}' \
+		for pkg in $$PKGS; do \
+			if ! dpkg-query -W -f='$${Status}' "$$pkg" 2>/dev/null | grep -q "ok installed"; then \
+				echo "$$pkg"; \
+			fi; \
+		done \
 	); \
 	if [ -z "$$MISSING" ]; then \
 		if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
@@ -313,6 +318,7 @@ define apt_install_group
 	fi; \
 	DEBIAN_FRONTEND=noninteractive $(run_as_root) apt-get install -y --no-install-recommends $$MISSING
 endef
+
 
 # $(call ensure_service_enabled,<service>,<human-name>)
 # $(call ensure_service_enabled,<service>,<human-name>)
@@ -342,3 +348,23 @@ define TMPFILE_BLOCK
 		$(2) \
 	}
 endef
+
+.PHONY: apt-diagnostic
+apt-diagnostic:
+	@echo "=== PACKAGE ORIGIN DIAGNOSTIC ==="; \
+	for p in $(UGOS_VENDOR_PACKAGES) $(APT_INSTALLABLE_PACKAGES); do \
+		printf "%-25s : " $$p; \
+		if dpkg-query -W -f='$${Status}\n' $$p 2>/dev/null | grep -q "^install ok installed$$"; then \
+			PRIO=$$(dpkg-query -W -f='$${Priority}\n' $$p 2>/dev/null || echo "unknown"); \
+			ESS=$$(dpkg-query -W -f='$${Essential}\n' $$p 2>/dev/null || echo "no"); \
+			if [ "$$ESS" = "yes" ]; then \
+				echo "UGOS (essential)"; \
+			elif [ "$$PRIO" = "required" ]; then \
+				echo "UGOS (priority: required)"; \
+			else \
+				echo "USER-INSTALLED (removable)"; \
+			fi; \
+		else \
+			echo "NOT INSTALLED"; \
+		fi; \
+	done

@@ -1086,6 +1086,34 @@ systems.
 
 Rules:
 
+  - Recursive Make is strictly forbidden. No recipe, macro, or included .mk
+    file may invoke `make`, `$(MAKE)`, or any mechanism that spawns a new
+    Make process. This includes direct, indirect, dynamic, or shell-wrapped
+    invocations.
+
+        Forbidden examples:
+          $(MAKE) target
+          make target
+          @$(MAKE) $(1)
+          sh -c "make ..."
+
+  - Rationale: Recursive Make destroys the single-pass DAG evaluation model,
+    re-parses the entire repository in a new process, overrides or drops
+    previously defined targets, and causes non-deterministic behavior such as
+    silent target disappearance. This class of failure is catastrophic and
+    must be impossible.
+
+  - All recursive-make patterns MUST be replaced with explicit DAG wiring,
+    macro calls, pattern rules, or multi-target recipes. No exceptions.
+
+  - Verification: A CI rule MUST scan all parsed Makefiles for recursive-make
+    patterns and fail loudly if any are found:
+
+        grep -R --line-number -E '(^|[^A-Za-z0-9_])make([^A-Za-z0-9_]|$)|\$\((MAKE)\)' $(MAKEFILE_LIST)
+
+  - Enforcement: Any occurrence of recursive Make is a contract violation.
+    Execution MUST abort, merge MUST be blocked, and correction is mandatory.
+
   - Any target that executes $(run_as_root) MUST declare an order-only
         <target>: | $(run_as_root)
     dependency to guarantee the wrapper exists before invocation and to

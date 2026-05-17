@@ -11,6 +11,15 @@
 # ROLE gates prerequisites by responsibility: routers must manage NICs; services must not.
 # ------------------------------------------------------------
 
+PREREQS_PACKAGES := \
+	apt-cacher-ng \
+	aspell \
+	aspell-en \
+	ndppd \
+	wireguard-tools \
+	unzip \
+	qrencode
+
 .PHONY: all help \
 		prereqs prereqs-network prereqs-network-verify \
 		prereqs-docs-verify prereqs-public-dns-verify \
@@ -85,17 +94,22 @@ prereqs-tailscale-repo-verify: | ensure-default-gateway
 # Main Prereqs Target
 # ------------------------------------------------------------
 
+$(INSTALL_SBIN_PATH)/apt-proxy-auto.sh: $(REPO_ROOT)/scripts/apt-proxy-auto.sh | $(run_as_root)
+	@$(call install_script,$<,apt-proxy-auto.sh)
+
 prereqs: \
+	$(INSTALL_SBIN_PATH)/apt-proxy-auto.sh \
 	ensure-run-as-root \
 	ensure-default-gateway \
 	prereqs-public-dns-verify \
 	prereqs-tailscale-repo-verify \
-	prereqs-network \
+	prereqs-dns-warm \
 	prereqs-dns-warm-verify \
 	prereqs-docs-verify \
 	prereqs-helper-scripts \
 	install-ssh-config \
-	rust-system | ensure-default-gateway
+	rust-system \
+	| ensure-default-gateway $(INSTALL_SBIN_PATH)/apt-proxy-auto.sh
 	@echo "🔐 Ensuring Tailscale APT signing key"
 	@$(run_as_root) sh -c '\
 		set -e; \
@@ -106,21 +120,24 @@ prereqs: \
 	'
 
 	@echo "📦 Ensuring installation of prerequisite tools"
-	@$(call apt_install_group,$(APT_CORE_PACKAGES))
+	@$(call apt_install_group,$(PREREQS_PACKAGES)) || true
 
-	@for bin in curl jq git iperf3 qrencode funzip; do \
-		command -v $$bin >/dev/null || { \
-			echo "❌ $$bin missing after install"; exit 1; }; \
-	done
-	@test -x /usr/sbin/nft || { \
-		echo "❌ nft binary missing at /usr/sbin/nft"; exit 1; }
-	@echo "✅ Base prerequisites installed"
+	@sh -c '\
+		export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"; \
+		for bin in curl jq git iperf3 qrencode funzip; do \
+			command -v "$$bin" >/dev/null || { \
+				echo "❌ $$bin missing after install"; exit 1; }; \
+		done; \
+		test -x /usr/sbin/nft || { \
+			echo "❌ nft binary missing at /usr/sbin/nft"; exit 1; }; \
+		echo "✅ Base prerequisites installed"; \
+	'
 
 # ------------------------------------------------------------
 # Network & Infrastructure Mutators
 # ------------------------------------------------------------
 
-prereqs-network: ensure-run-as-root prereqs-network-verify install-pkg-core-apt | ensure-default-gateway
+prereqs-network: ensure-run-as-root prereqs-network-verify prereqs | ensure-default-gateway
 	@echo "📦 Networking prerequisites already ensured"
 
 fix-tailscale-repo: ensure-run-as-root

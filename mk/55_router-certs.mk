@@ -42,13 +42,11 @@ prereqs-router-ssh:
 	}
 
 # ------------------------------------------------------------
-# Internal: Generate and deploy router apply script
+# Internal: Generate router apply script safely
 # ------------------------------------------------------------
 /tmp/router-apply-local.sh:
 	@echo "🛠️  Generating router apply script"
-	@set -e; \
-	tmp=$$(mktemp -p /run homelab.XXXXXX.sh); \
-	printf '%s\n' \
+	@printf '%s\n' \
 		'#!/bin/sh' \
 		'set -eu' \
 		'' \
@@ -77,18 +75,16 @@ prereqs-router-ssh:
 		'service restart_httpds 2>/dev/null || log "⚠️ restart_httpds failed (non-fatal)"' \
 		'' \
 		'log "✅ router UI cert apply complete"' \
-		> "$$tmp"; \
-	cp "$$tmp" /tmp/router-apply-local.sh; \
-	rm -f "$$tmp"
+		> /tmp/router-apply-local.sh
+	@chmod 0755 /tmp/router-apply-local.sh
 	@echo "📄  Router apply script deployed"
 
 # ------------------------------------------------------------
-# Internal: Deploy certs + apply script + execute apply (BusyBox-safe single SSH session)
+# Internal: Deploy certs + apply script + execute apply (Zero-disk memory pipe)
 # ------------------------------------------------------------
 /tmp/router-deploy.stamp: /tmp/router-apply-local.sh
 	@set -e; \
-	echo "📁  Uploading router certs + apply script + executing apply"; \
-	tmp=/tmp/router-bundle-$$.tmp; \
+	echo "📁  Uploading router certs + apply script + executing apply (streaming)"; \
 	{ \
 		echo "===FULLCHAIN==="; \
 		HOME=$(ACTUAL_HOME) $(run_as_root) cat "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem"; \
@@ -96,9 +92,7 @@ prereqs-router-ssh:
 		HOME=$(ACTUAL_HOME) $(run_as_root) cat "$(SSL_CANONICAL_DIR)/privkey_ecc.pem"; \
 		echo "===APPLY==="; \
 		cat /tmp/router-apply-local.sh; \
-	} > "$$tmp"; \
-	\
-	ssh -o BatchMode=no -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) ' \
+	} | ssh -o BatchMode=no -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) ' \
 		mkdir -p /jffs/ssl && chmod 700 /jffs/ssl; \
 		: > /jffs/scripts/apply-router-cert.sh; \
 		mode=none; \
@@ -118,8 +112,7 @@ prereqs-router-ssh:
 		chmod 0600 /jffs/ssl/privkey.pem; \
 		chmod 0755 /jffs/scripts/apply-router-cert.sh; \
 		/jffs/scripts/apply-router-cert.sh \
-	' < "$$tmp" >/dev/null 2>&1; \
-	rm -f "$$tmp"; \
+	' >/dev/null 2>&1; \
 	echo "ok" > /tmp/router-deploy.stamp; \
 	echo "✨  Router certs uploaded + applied"
 

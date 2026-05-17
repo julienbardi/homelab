@@ -232,7 +232,7 @@ remove-pkg-go: | ensure-run-as-root
 # ------------------------------------------------------------
 # vnstat
 # ------------------------------------------------------------
-install-pkg-vnstat: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+install-pkg-vnstat: prereqs | ensure-run-as-root ensure-default-gateway
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ vnstat already ensured by core apt group"; \
 	fi
@@ -249,7 +249,7 @@ remove-pkg-vnstat:
 # ------------------------------------------------------------
 # nftables
 # ------------------------------------------------------------
-install-pkg-nftables: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+install-pkg-nftables: prereqs | ensure-run-as-root ensure-default-gateway
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ nftables already ensured by core apt group"; \
 	fi
@@ -261,7 +261,7 @@ remove-pkg-nftables:
 # ------------------------------------------------------------
 # WireGuard
 # ------------------------------------------------------------
-install-pkg-wireguard: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+install-pkg-wireguard: prereqs | ensure-run-as-root ensure-default-gateway
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ WireGuard already ensured by core apt group"; \
 	fi
@@ -272,7 +272,7 @@ remove-pkg-wireguard:
 # ------------------------------------------------------------
 # Caddy
 # ------------------------------------------------------------
-install-pkg-caddy: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+install-pkg-caddy: prereqs | ensure-run-as-root ensure-default-gateway
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ Caddy already ensured by core apt group"; \
 	fi
@@ -322,7 +322,7 @@ remove-pkg-sops:
 # ------------------------------------------------------------
 # Rclone (The Swiss Army Knife for Cloud Storage)
 # ------------------------------------------------------------
-install-pkg-rclone: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+install-pkg-rclone: prereqs | ensure-run-as-root ensure-default-gateway
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ rclone already ensured by core apt group"; \
 	fi
@@ -416,7 +416,7 @@ remove-pkg-checkmake: | ensure-run-as-root
 # ------------------------------------------------------------
 # strace
 # ------------------------------------------------------------
-install-pkg-strace: install-pkg-core-apt | ensure-run-as-root ensure-default-gateway
+install-pkg-strace: prereqs | ensure-run-as-root ensure-default-gateway
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ strace already ensured by core apt group"; \
 	fi

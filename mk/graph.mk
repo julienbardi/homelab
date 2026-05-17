@@ -303,5 +303,6 @@ homelab-all: \
 	monitoring \
 	wg-install-router \
 	wg-up-nas \
-	install-router-prefix-watchdog
-	@echo "🎉 Homelab fully converged (router + NAS + DNS + firewall + WireGuard + Tailnet + Monitoring)"
+	install-router-prefix-watchdog \
+	all-remote
+	@echo "🎉 Homelab fully converged (router + NAS + DNS + firewall + WireGuard + Tailnet + Monitoring + Remote Certs)"

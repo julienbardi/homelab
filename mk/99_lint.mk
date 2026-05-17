@@ -81,7 +81,7 @@ lint-fast: lint-gitignore lint-scripts lint-makefile \
 	check-exec-surface
 
 # Full lint: fast + spell checks + headscale config test (permissive)
-lint-all: lint-fast lint-spell lint-headscale
+lint-all: lint-fast lint-spell lint-headscale lint-no-recursive-make
 
 # Strict CI lint: fail on any issue (ShellCheck warnings, checkmake errors, codespell, aspell)
 lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale-strict lint-semantic-strict \
@@ -273,9 +273,24 @@ check-exec-surface:
 		echo "✅ Executable surface is clean"; \
 	fi
 
+.PHONY: lint-dda
 lint-dda:
 	@echo "🔎 Checking for DDA violations..."
 	@# Grep for /home/ but ignore lines containing 'nolint'
 	@if grep -r "/home/" . --exclude-dir=.git | grep -v "nolint"; then \
 		echo "❌ Found hardcoded home paths!"; exit 1; \
 	fi
+
+
+.PHONY: lint-no-recursive-make
+lint-no-recursive-make:
+	@echo "🔍 Scanning for recursive make misuse"
+	@bad=$$( \
+		grep -RIn "^[[:space:]]*@\s*\$$(MAKE)[[:space:]]" mk --include="*.mk" --color=never 2>/dev/null || true \
+	); \
+	if [ -n "$$bad" ]; then \
+		echo "❌ Recursive make detected:"; \
+		echo "$$bad"; \
+		exit 1; \
+	fi; \
+	echo "✅ No recursive make misuse detected"
