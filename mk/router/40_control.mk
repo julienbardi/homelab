@@ -77,6 +77,7 @@ router-bootstrap: \
 	install-ssh-config \
 	router-ddns \
 	router-firewall-install \
+	router-nat-install \
 	router-ssh-invariants \
 	router-disable-asus-ca
 	@echo "🛠️ Router bootstrap complete — all base services provisioned"

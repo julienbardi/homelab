@@ -201,6 +201,9 @@ TMP_ROUTER_WG_FIREWALL := /run/user/$(shell id -u)/homelab/.wg_firewall_$$PPID
 
 TMP_ROUTER_ULA := /run/user/$(shell id -u)/homelab/.router_ula_$$PPID
 
+# $(file …) bypasses the shell, so $PPID never expands and the NAT script path must not depend on it
+TMP_ROUTER_NAT := /run/user/$(shell id -u)/homelab/.router_nat
+
 # ----------------------------------------------------------------------------
 # 12. DHCP Architecture (Declarative Policy)
 # ----------------------------------------------------------------------------

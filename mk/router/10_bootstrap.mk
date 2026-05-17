@@ -143,7 +143,7 @@ ensure-router-known-hosts: router-bootstrap-run-as-root
 	@echo "🟢 NAS host key trusted"
 
 # ------------------------------------------------------------
-# SCRIPT DEPLOYMENT ONLY
+# SCRIPT DEPLOYMENT ONLY, no generated scripts like nat-start
 # ------------------------------------------------------------
 
 ROUTER_SCRIPT_FILES := \
