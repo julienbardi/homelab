@@ -36,21 +36,6 @@ include $(REPO_ROOT)/mk/config.mk
 
 include $(REPO_ROOT)/mk/graph.mk
 
-.PHONY: router
-router: router-all
-
-.PHONY: router-all
-router-all: sanity router-bootstrap router-converge router-verify
-	@echo "🎯 Router bootstrap + converge + verify complete"
-
-router-configure:
-	@$(call WITH_SECRETS, \
-		echo "Task 1: Pinging $$ROUTER_ADDR..."; \
-		sudo -E ping -c1 "$$ROUTER_ADDR"; \
-		echo "Task 2: Checking service on $$ROUTER_ADDR..."; \
-		sudo -E curl -I "http://$$ROUTER_ADDR"; \
-		echo "All tasks complete."; \
-	)
 
 # Global Makefile invariants
 .PHONY: sanity

@@ -58,32 +58,6 @@ iptables -A HOMELAB_INPUT -p tcp --dport 443 -j ACCEPT
 $(if $(LAN_SYNOLOGY),$(ROUTER_NAT_SYNOLOGY))
 endef
 
-
-
-define ROUTER_NAT_WG_AWK
-NR==1 { next }
-$0 ~ /^#/ { next }
-$0 ~ /^[[:space:]]*$/ { next }
-NF < 7 { next }
-
-{
-	enabled = $7
-	port    = $3
-	host    = $2
-
-	if (enabled != "1") next
-	if (port == "0")    next
-
-	if (host == "nas") {
-		printf "iptables -t nat -A HOMELAB_NAT -p udp --dport %s -j DNAT --to-destination %s:%s\n", port, lan_nas, port
-		printf "iptables -A HOMELAB_FWD -p udp -d %s --dport %s -j ACCEPT\n", lan_nas, port
-	} else if (host == "router") {
-		printf "iptables -A HOMELAB_INPUT -p udp --dport %s -j ACCEPT\n", port
-	}
-}
-endef
-
-
 # Out-of-repo absolute path for topology isolation
 WG_INTERFACES_TSV := /volume1/homelab/wireguard/input/wg-interfaces.tsv
 
@@ -266,5 +240,64 @@ router-nat-dump: | router-ssh-check
 		_err=$$?; rm -f "$(TMP_ROUTER_NAT).dump"; exit $$_err \
 	)
 
-test1:
-	@awk ' { print $$2 } ' <<< "a b c"
+.PHONY: router-firewall-started
+router-firewall-started: | router-install-scripts router-nat-install
+	@echo "🔁 Reloading router firewall (firewall-start)"
+	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) "sh /jffs/scripts/firewall-start"
+	@echo "🟢 Router firewall reloaded"
+
+.PHONY: router
+router: router-all
+
+.PHONY: router-all
+router-all: sanity router-bootstrap router-converge router-verify \
+	| router-install-scripts router-nat-install router-firewall-started
+	@echo "🎯 Router bootstrap + converge + verify complete"
+
+router-configure:
+	@$(call WITH_SECRETS, \
+		echo "Task 1: Pinging $$ROUTER_ADDR..."; \
+		sudo -E ping -c1 "$$ROUTER_ADDR"; \
+		echo "Task 2: Checking service on $$ROUTER_ADDR..."; \
+		sudo -E curl -I "http://$$ROUTER_ADDR"; \
+		echo "All tasks complete."; \
+	)
+
+.PHONY: router-nat-apply
+router-nat-apply: | router-install-scripts router-nat-install router-firewall-started
+	@echo "🚀 Applying NAT pipeline (deploy + activate + verify)"
+
+	# 1) Generate dump script locally (atomic)
+	$(file >$(TMP_ROUTER_NAT).dump,$(ROUTER_NAT_DUMP_SCRIPT))
+
+	# 2) Upload atomically to router as root
+	@$(call WITH_SECRETS, \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" '\
+			umask 077; \
+			cat > /tmp/nat-dump.sh.tmp; \
+			mv /tmp/nat-dump.sh.tmp /tmp/nat-dump.sh; \
+		' < "$(TMP_ROUTER_NAT).dump"; \
+		rm -f "$(TMP_ROUTER_NAT).dump"; \
+	)
+
+	# 3) Validate ownership + permissions before execution
+	@$(call WITH_SECRETS, \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" '\
+			set -e; \
+			[ "$$(stat -c %U /tmp/nat-dump.sh)" = "root" ] || { echo "❌ nat-dump.sh not owned by root"; exit 1; }; \
+			[ "$$(stat -c %a /tmp/nat-dump.sh)" = "600" ] || { echo "❌ nat-dump.sh permissions not 600"; exit 1; }; \
+		' \
+	)
+
+	# 4) Execute explicitly (no PATH lookup)
+	@$(call WITH_SECRETS, \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "sh /tmp/nat-dump.sh" \
+	)
+
+	# 5) Ephemeral cleanup
+	@$(call WITH_SECRETS, \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "rm -f /tmp/nat-dump.sh" \
+	)
+
+	@echo "🎯 NAT pipeline complete"
+

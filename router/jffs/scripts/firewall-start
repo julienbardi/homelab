@@ -54,7 +54,15 @@ if [ -x /jffs/scripts/wg-firewall.sh ]; then
 fi
 
 # ------------------------------------------------------------
-# 3. IPV6 WIREGUARD FORWARD SCOPING (WGSF6)
+# 3. NAT / port-forwarding rules (homelab)
+# ------------------------------------------------------------
+if [ -x /jffs/scripts/nat-start ]; then
+    log "invoking nat-start for homelab NAT"
+    /jffs/scripts/nat-start
+fi
+
+# ------------------------------------------------------------
+# 4. IPV6 WIREGUARD FORWARD SCOPING (WGSF6)
 # ------------------------------------------------------------
 # This MUST run AFTER wg-firewall.sh because wg-firewall.sh rewrites
 # the FORWARD chain and would otherwise delete these rules.
