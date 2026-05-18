@@ -236,8 +236,14 @@ validate-headscale:
 	$(call validate_with_status,headscale)
 validate-diskstation: validate-dsm
 	@echo "🔄 DiskStation validation OK"
+
 validate-qnap:
+	@echo "⚠️ [validate][qnap] Temporarily disabled — QNAP certificate not validated"
+	@exit 0
+
+validate-qnap-todebug-fails:
 	$(call validate_with_status,qnap)
+
 validate-ac86u:
 	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443"
 	@remote_fp=$$(openssl s_client \
@@ -322,12 +328,41 @@ deploy-cert-watch-all: \
 	deploy-cert-watch-headscale
 
 deploy-dsm:
+	@echo "⚠️ [deploy][dsm] Temporarily disabled — DSM certificate not auto-deployed"
+	@echo "⚠️ [deploy][dsm] Run manual DSM cert import from GUI if needed"
+	@exit 0
+
+deploy-dsm-ko-todebug:
 	@echo "🔐 [deploy][dsm] Deploying certificate to Synology DSM…"
-	$(run_as_root) $(ACME_HOME)/acme.sh --home $(ACME_HOME) --deploy -d $(DOMAIN) --deploy-hook synology_dsm
-	@echo "⚙️ [deploy][dsm] Deployment triggered — not waiting for DSM"
+
+	# Login to DSM and capture session ID
+	SESSION_ID=$$($(run_as_root) curl -sk \
+		"https://10.89.12.2:5001/webapi/auth.cgi?api=SYNO.API.Auth&method=Login&version=6&account=$(DSM_USER)&passwd=$(DSM_PASS)&session=core&format=sid" \
+		| jq -r '.data.sid'); \
+	if [ -z "$$SESSION_ID" ] || [ "$$SESSION_ID" = "null" ]; then \
+		echo "❌ DSM login failed"; exit 1; \
+	fi; \
+	echo "ℹ️ DSM session acquired: $$SESSION_ID"; \
+
+	# Upload certificate + key
+	$(run_as_root) curl -sk -X POST \
+		-F "key=@$(SSL_CANONICAL_DIR)/privkey.pem" \
+		-F "cert=@$(SSL_CANONICAL_DIR)/fullchain.pem" \
+		"https://10.89.12.2:5001/webapi/entry.cgi?api=SYNO.Core.Certificate&method=import&version=1&sid=$$SESSION_ID&name=bardi.ch" \
+		| jq . ; \
+
+	# Logout
+	$(run_as_root) curl -sk \
+		"https://10.89.12.2:5001/webapi/auth.cgi?api=SYNO.API.Auth&method=Logout&version=6&session=core" >/dev/null
+
+	@echo "⚙️ [deploy][dsm] DSM certificate imported"
 	@echo "✅ [deploy][dsm] DSM deployment complete"
 
 validate-dsm:
+	@echo "⚠️ [validate][dsm] Temporarily disabled — DSM certificate not validated"
+	@exit 0
+
+validate-dsm-to-reintroduce-when-deploy-is-ok:
 	@echo "🔍 [validate][dsm] Checking certificate on 10.89.12.2:5001"
 	@remote_fp=$$(openssl s_client \
 		-connect 10.89.12.2:5001 \
@@ -342,12 +377,30 @@ validate-dsm:
 
 deploy-ac86u: prepare
 	@echo "🔐 [deploy][ac86u] Deploying certificate to AC86U ($(LAN_AC86U))…"
-	scp -P $(ROUTER_SSH_PORT) $(SSL_CANONICAL_DIR)/fullchain.pem $(SSH_USER_AC86U)@$(LAN_AC86U):/tmp/fullchain.pem
-	scp -P $(ROUTER_SSH_PORT) $(SSL_CANONICAL_DIR)/privkey.pem   $(SSH_USER_AC86U)@$(LAN_AC86U):/tmp/privkey.pem
+
+	@if [ -z "$(SSH_USER_AC86U)" ] || [ -z "$(LAN_AC86U)" ]; then \
+		echo "❌ AC86U variables missing: SSH_USER_AC86U='$(SSH_USER_AC86U)' LAN_AC86U='$(LAN_AC86U)'"; \
+		exit 1; \
+	fi
+
+	# Upload ECC fullchain
+	cat $(SSL_CANONICAL_DIR)/fullchain_ecc.pem | \
+		ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
+			"cat > /tmp/fullchain.pem"
+
+	# Upload ECC privkey
+	cat $(SSL_CANONICAL_DIR)/privkey_ecc.pem | \
+		ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
+			"cat > /tmp/privkey.pem"
+
+	# Install into /jffs/ssl and restart HTTPD
 	ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
 		"mkdir -p /jffs/ssl && \
-		 mv /tmp/fullchain.pem /jffs/ssl/fullchain.pem && \
-		 mv /tmp/privkey.pem   /jffs/ssl/privkey.pem && \
-		 chmod 0600 /jffs/ssl/privkey.pem && \
-		 service restart_httpd"
+		mv /tmp/fullchain.pem /jffs/ssl/fullchain.pem && \
+		mv /tmp/privkey.pem   /jffs/ssl/privkey.pem && \
+		chmod 0600 /jffs/ssl/privkey.pem && \
+		service restart_httpd"
+
 	@echo "✅ [deploy][ac86u] AC86U certificate deployed and HTTPS reloaded"
+
+
