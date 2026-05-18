@@ -50,6 +50,7 @@ include $(REPO_ROOT)/mk/router/05_ssh.mk
 # Step 4 — Router modules
 include $(REPO_ROOT)/mk/router/10_bootstrap.mk
 include $(REPO_ROOT)/mk/router/20_network.mk
+include $(REPO_ROOT)/mk/router/30_dnsmasq.mk
 include $(REPO_ROOT)/mk/router/40_caddy.mk
 include $(REPO_ROOT)/mk/router/40_control.mk
 include $(REPO_ROOT)/mk/router/40_firewall.mk

@@ -120,3 +120,13 @@ APT_INSTALLABLE_PACKAGES := \
 	build-essential shellcheck pup codespell aspell aspell-en ndppd \
 	knot-dnsutils apt-cacher-ng unzip git-filter-repo rclone \
 	wireguard-tools qrencode
+
+# ----------------------------------------------------------------------------
+# 12. DHCP Architecture (Declarative Policy)
+# ----------------------------------------------------------------------------
+# Static DHCP reservations: .2 – .99
+# Dynamic DHCP pool:        .100 – .254
+DHCP_STATIC_MAX    := 99
+LAN_PREFIX        := 10.89.12
+DHCP_DYNAMIC_START := $(LAN_PREFIX).100
+DHCP_DYNAMIC_END   := $(LAN_PREFIX).254

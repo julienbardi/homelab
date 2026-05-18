@@ -28,6 +28,10 @@ iptables -I INPUT -i br0 -j ACCEPT
 iptables -C INPUT -i lo -j ACCEPT 2>/dev/null || \
 iptables -I INPUT -i lo -j ACCEPT
 
+# 3b. Allow WAN HTTPS to Caddy for public site (bardi.ch)
+iptables -C INPUT -p tcp --dport 443 -i eth0 -j ACCEPT 2>/dev/null || \
+iptables -I INPUT -p tcp --dport 443 -i eth0 -j ACCEPT
+
 # 4. Last-resort drop for non-LAN traffic to router (WAN protection)
 iptables -C INPUT ! -i br0 -j DROP 2>/dev/null || \
 iptables -A INPUT ! -i br0 -j DROP

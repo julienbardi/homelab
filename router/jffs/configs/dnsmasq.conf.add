@@ -52,14 +52,13 @@ enable-ra
 
 # Explicit ULA-only prefix (NO constructor, NO global prefix leakage)
 # This guarantees that only fd89:7a3b:42c0::/64 is ever advertised.
-dhcp-range=fd89:7a3b:42c0::100,fd89:7a3b:42c0::1ff,64
+dhcp-range=set:ula,fd89:7a3b:42c0::100,fd89:7a3b:42c0::1ff,ra-names,64,86400s
 
 # Advertise NAS ULA as IPv6 DNS server (stable, local, sovereign)
-dhcp-option=option6:dns-server,[fd89:7a3b:42c0::4]
+dhcp-option=tag:ula,option6:dns-server,[fd89:7a3b:42c0::4],[fd89:7a3b:42c0::1]
 
 # RA parameters:
 # - Prefix length 64 (required for SLAAC)
 # - RA lifetime 1800s (clients refresh often, stale prefixes die quickly)
 # - Prevents clients from caching old global prefixes indefinitely
 ra-param=br0,64,1800
-

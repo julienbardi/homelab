@@ -204,14 +204,7 @@ TMP_ROUTER_ULA := /run/user/$(shell id -u)/homelab/.router_ula_$$PPID
 # $(file …) bypasses the shell, so $PPID never expands and the NAT script path must not depend on it
 TMP_ROUTER_NAT := /run/user/$(shell id -u)/homelab/.router_nat
 
-# ----------------------------------------------------------------------------
-# 12. DHCP Architecture (Declarative Policy)
-# ----------------------------------------------------------------------------
-# Static DHCP reservations: .2 – .99
-# Dynamic DHCP pool:        .100 – .254
-DHCP_STATIC_MAX    := 99
-DHCP_DYNAMIC_START := 100
-DHCP_DYNAMIC_END   := 254
+
 
 print-ssh-user-router:
 	@echo "SSH_USER_ROUTER='$(SSH_USER_ROUTER)'"
