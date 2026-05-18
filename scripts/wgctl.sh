@@ -120,31 +120,38 @@ do_status() {
     active_ifaces=$($remote_cmd "$wg_bin" show interfaces 2>/dev/null || echo "")
     # ------------------------------------------------------
 
-    local fmt_h="%-22s  %-5s %-15s %-26s %-14s %-3s\n"
-    local fmt_d="%-23s %-5s %-15s %-26s %-14s %-3s\n"
+	# --- Determine dynamic width for the PEER NAME column ---
+	max_peer_len=$(awk -F'\t' 'NR>1 {print length($2)}' "$PEER_MAP" | sort -n | tail -1)
+	((max_peer_len < 12)) && max_peer_len=12
 
-    printf "$fmt_h" "$header_name" "IF" "VPN IPv4" "VPN IPv6" "ACCESS" "LAN"
-    echo "----------------------------------------------------------------------------------------------------------------"
+	# Header
+	printf "• %-*s  %-5s %-15s %-26s %-14s %-3s\n" \
+		"$max_peer_len" "PEER NAME" "IF" "VPN IPv4" "VPN IPv6" "ACCESS" "LAN"
 
-    while IFS=$'\t' read -r pk nm iface v4 v6 acc lan || [[ -n "$pk" ]]; do
-        [[ "$pk" == "pubkey" || "$pk" == "#"* || -z "$pk" ]] && continue
-        [[ " $active_ifaces " =~ " $iface " ]] || continue
+	printf "%0.s-" $(seq 1 $((max_peer_len + 80)))
+	echo
 
-        # Extract handshake from the one-shot variable instead of forking SSH
-        local handshake
-        handshake=$(echo "$all_handshakes" | grep "$pk" | awk '{print $3}' || echo "0")
-        [[ -z "$handshake" ]] && handshake=0
+	# Rows
+	while IFS=$'\t' read -r pk nm iface v4 v6 acc lan || [[ -n "$pk" ]]; do
+		[[ "$pk" == "pubkey" || "$pk" == "#"* || -z "$pk" ]] && continue
+		[[ " $active_ifaces " =~ " $iface " ]] || continue
 
-        local icon="○"
-        if [[ "$handshake" -gt 0 ]]; then
-            [[ $((now - handshake)) -lt 150 ]] && icon="●" || icon="◌"
-        fi
+		local handshake
+		handshake=$(echo "$all_handshakes" | grep "$pk" | awk '{print $3}' || echo "0")
+		[[ -z "$handshake" ]] && handshake=0
 
-        local disp_v4="${v4%/*}"
-        local disp_v6="${v6%/*}"
+		local icon="○"
+		if [[ "$handshake" -gt 0 ]]; then
+			[[ $((now - handshake)) -lt 150 ]] && icon="●" || icon="◌"
+		fi
 
-        printf "$fmt_d" "$icon $nm" "$iface" "$disp_v4" "$disp_v6" "$acc" "$lan"
-    done < "$PEER_MAP"
+		local disp_v4="${v4%/*}"
+		local disp_v6="${v6%/*}"
+
+		printf "○ %-*s  %-5s %-15s %-26s %-14s %-3s\n" \
+			"$max_peer_len" "$nm" "$iface" "$disp_v4" "$disp_v6" "$acc" "$lan"
+	done < "$PEER_MAP"
+
 }
 
 # --- Guard & Execute ---
