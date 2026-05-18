@@ -36,7 +36,6 @@ include $(REPO_ROOT)/mk/config.mk
 
 include $(REPO_ROOT)/mk/graph.mk
 
-
 # Global Makefile invariants
 .PHONY: sanity
 sanity: assert-sanity

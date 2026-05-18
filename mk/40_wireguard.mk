@@ -10,7 +10,7 @@ WG_FIREWALL := $(WG_OUTPUT_ROUTER)/wg-firewall.sh
 	wg-up-nas wg-down-router wg-down-nas \
 	wg-status wg-up wg-down router-ensure-wg-module \
 	router-wg-health-strict router-wg-audit \
-	wg-clean-state
+	wg-clean-state wg7-validate wg-router-ipv6-probe
 
 ACTUAL_USER := $(or $(SUDO_USER),$(USER))
 # Capture the user context
@@ -201,3 +201,72 @@ router-wg-audit:
 		echo "📝 Routing table:"; \
 		ip route show table all | grep -E "wgs1|wg"; \
 	'
+# --------------------------------------------------------------------
+
+# wg7-validate — End-to-end sanity for the NAS-terminated wg7 interface
+# --------------------------------------------------------------------
+# Tests:
+#   1. wg7 interface present on NAS
+#   2. NAS can reach wg7 server address (IPv4 self-ping)
+#   3. NAS eth0 has a global IPv6 from router RA (prerequisite for NAT66)
+#   4. nftables NAT66 masquerade rule loaded (table ip6 homelab_nat6)
+#   5. Outbound IPv6 internet reachability from NAS (curl -6)
+#
+# IPv6 internet for wg7 clients flows:
+#   client ::/0 → wg7 tunnel → NAS → homelab_nat6 masquerade → eth0 → internet
+# NAT66 source: global IPv6 from router RA on NAS eth0 (NOT router ip6tables nat)
+# Asus Merlin lacks CONFIG_IP6_NF_NAT — that dead end is irrelevant for wg7.
+# Client configs include ::/0 in AllowedIPs for full-tunnel / location privacy.
+# --------------------------------------------------------------------
+wg7-validate:
+	@echo "🔍 [wg7] Step 1/5 — checking wg7 interface on NAS..."
+	@$(WG_SUDO) wg show wg7 >/dev/null 2>&1 \
+		&& echo "   ✅ wg7 interface present" \
+		|| { echo "   ❌ wg7 interface missing — run: make wg-install-nas"; exit 1; }
+
+	@echo "🔍 [wg7] Step 2/5 — IPv4 connectivity (NAS → wg7 server addr)..."
+	@ping -c2 -W2 "$$($(WG_SUDO) wg show wg7 | awk '/address:/{print $$2}' | cut -d/ -f1)" >/dev/null 2>&1 \
+		&& echo "   ✅ wg7 IPv4 self-ping OK" \
+		|| echo "   ⚠️  wg7 IPv4 self-ping failed (interface may be up but unconfigured)"
+
+	@echo "🔍 [wg7] Step 3/5 — NAS eth0 global IPv6 (NAT66 egress prerequisite)..."
+	@$(WG_SUDO) ip -6 addr show dev eth0 scope global | grep -q 'inet6' \
+		&& echo "   ✅ NAS eth0 has a global IPv6 address" \
+		|| echo "   ❌ NAS eth0 has NO global IPv6 — router RA/prefix delegation not yet active"
+
+	@echo "🔍 [wg7] Step 4/5 — nftables NAT66 masquerade rule present (homelab_nat6)..."
+	@$(WG_SUDO) nft list chain ip6 homelab_nat6 postrouting 2>/dev/null | grep -q 'masquerade' \
+		&& echo "   ✅ homelab_nat6 masquerade rule active" \
+		|| echo "   ❌ homelab_nat6 masquerade not loaded — run: make nft-apply && make nft-confirm"
+
+	@echo "🔍 [wg7] Step 5/5 — outbound IPv6 internet reachability (NAS → internet via NAT66)..."
+	@curl -6 -s --max-time 5 https://ifconfig.io > /dev/null 2>&1 \
+		&& echo "   ✅ IPv6 internet reachable from NAS (NAT66 egress working)" \
+		|| echo "   ⚠️  IPv6 internet unreachable from NAS (check global IPv6 on eth0 and default route)"
+
+	@echo "🏁 wg7-validate complete"
+
+# wg-router-ipv6-probe — standalone check for router IPv6 capabilities and prefix delegation
+wg-router-ipv6-probe:
+	@echo "🔍 Probing router IPv6 stack..."
+	@$(run_as_root_router) ' \
+		echo "=== ip6tables nat table (expected: FAIL — Asus Merlin lacks CONFIG_IP6_NF_NAT) ==="; \
+		ip6tables -t nat -L 2>&1 || echo "  (not available — expected, wg7 uses NAS NAT66 instead)"; \
+		echo ""; \
+		echo "=== All global IPv6 addresses on router (required for prefix delegation) ==="; \
+		ip -6 addr show scope global 2>/dev/null || echo "  (no global IPv6 — enable in Merlin WAN → IPv6)"; \
+		echo ""; \
+		echo "=== wgs1 IPv6 addresses ==="; \
+		ip -6 addr show dev wgs1 2>/dev/null || echo "  (wgs1 not up)"; \
+		echo ""; \
+		echo "=== IPv6 forwarding ==="; \
+		sysctl net.ipv6.conf.all.forwarding 2>/dev/null || true; \
+		echo ""; \
+		echo "=== Merlin IPv6 service mode (NVRAM) ==="; \
+		printf "ipv6_service: %s\n" "$$(nvram get ipv6_service 2>/dev/null)"; \
+	'
+	@echo ""
+	@echo "=== NAS eth0 global IPv6 (should be received via router RA) ==="
+	@$(WG_SUDO) ip -6 addr show dev eth0 scope global 2>/dev/null \
+		&& echo "(above is NAS eth0 — if empty, router RA/PD is not yet delegating)" \
+		|| echo "   ❌ NAS eth0 has no global IPv6 yet"

@@ -178,6 +178,17 @@ table inet homelab_filter {
 
         ct state established,related counter accept comment "sr:forward-ct"
 
+        # PMTUD — ICMP errors must traverse the forward chain unconditionally.
+        # Without these rules, "fragmentation needed" (v4) and "packet too big" (v6)
+        # are dropped by the default-deny policy, causing silent TCP stalls on WG tunnels
+        # (WG MTU ~1420 vs LAN MTU 1500).
+        ip  protocol icmp  icmp  type { destination-unreachable, time-exceeded } accept comment "pmtud:icmpv4-fwd"
+        ip6 nexthdr  icmpv6 icmpv6 type { packet-too-big, destination-unreachable, time-exceeded } accept comment "pmtud:icmpv6-fwd"
+
+        # TCP MSS clamping for WireGuard tunnels (prevents black holes without requiring PMTUD)
+        iifname "wg+" oifname "eth0"  tcp flags & (syn|rst) == syn tcp option maxseg size set rt mtu comment "mss-clamp:wg-to-lan"
+        iifname "eth0" oifname "wg+"  tcp flags & (syn|rst) == syn tcp option maxseg size set rt mtu comment "mss-clamp:lan-to-wg"
+
         # Trusted Router -> LAN
         iifname "eth0" oifname "eth0" ip  saddr 10.6.0.0/24        ip  daddr 10.89.12.0/24        accept comment "sr:forward-trusted-lan-v4"
         # Trusted router to any global IPv6 on LAN (non-ULA)
@@ -254,19 +265,27 @@ table inet homelab_filter {
         iifname "wg14" oifname "eth0" ip saddr 10.14.0.0/16 ip daddr != 10.89.12.0/24 accept comment "sr:forward-wg14-inet-v4"
         iifname "wg15" oifname "eth0" ip saddr 10.15.0.0/16 ip daddr != 10.89.12.0/24 accept comment "sr:forward-wg15-inet-v4"
 
-        # Internet IPv6 bit (ifnum has bit2 set): Forwarding rule (ULA -> Internet)
-        iifname "wg4"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:4::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg4-inet-ula-v6"
-        iifname "wg5"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:5::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg5-inet-ula-v6"
-        iifname "wg6"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:6::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg6-inet-ula-v6"
+        # Internet IPv6 bit (ifnum has bit2 set): ULA -> Internet forwarding
+        #
+        # NAT66 is handled by homelab_nat6 masquerade (oifname eth0, saddr fd89::/48).
+        # masquerade automatically picks the global IPv6 from eth0 as the source once
+        # the router delegates a prefix. No change to the NAT rule required at that point.
+        #
+        # wg4/wg5/wg6: dns-only or lan-only profiles - reject is intentional (no inet bit)
+        # wg7+: accept for interfaces with the IPv6 internet bit set
+        iifname "wg4"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:4::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter reject with icmpv6 type no-route comment "sr:forward-wg4-inet-ula-v6"
+        iifname "wg5"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:5::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter reject with icmpv6 type no-route comment "sr:forward-wg5-inet-ula-v6"
+        iifname "wg6"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:6::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter reject with icmpv6 type no-route comment "sr:forward-wg6-inet-ula-v6"
         iifname "wg7"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:7::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg7-inet-ula-v6"
-        iifname "wg12" oifname "eth0" ip6 saddr fd89:7a3b:42c0:12::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg12-inet-ula-v6"
-        iifname "wg13" oifname "eth0" ip6 saddr fd89:7a3b:42c0:13::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg13-inet-ula-v6"
+        iifname "wg12" oifname "eth0" ip6 saddr fd89:7a3b:42c0:12::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter reject with icmpv6 type no-route comment "sr:forward-wg12-inet-ula-v6"
+        iifname "wg13" oifname "eth0" ip6 saddr fd89:7a3b:42c0:13::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter reject with icmpv6 type no-route comment "sr:forward-wg13-inet-ula-v6"
         iifname "wg14" oifname "eth0" ip6 saddr fd89:7a3b:42c0:14::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg14-inet-ula-v6"
         iifname "wg15" oifname "eth0" ip6 saddr fd89:7a3b:42c0:15::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg15-inet-ula-v6"
 
         iifname "eth0" oifname "wg+" ip6 daddr fd89:7a3b:42c0::/48 ct state established,related counter accept comment "sr:forward-wg-inet-ula-v6-rev"
 
-        # IPv6 Internet return path for full-tunnel profiles
+        # IPv6 Internet return path for full-tunnel profiles (wg7, wg14, wg15)
+        iifname "eth0" oifname "wg7"  ip6 daddr fd89:7a3b:42c0:7::/64  ct state established,related accept comment "sr:forward-wg7-inet-v6-rev"
         iifname "eth0" oifname "wg14" ip6 daddr fd89:7a3b:42c0:14::/64 ct state established,related accept comment "sr:forward-wg14-inet-v6-rev"
         iifname "eth0" oifname "wg15" ip6 daddr fd89:7a3b:42c0:15::/64 ct state established,related accept comment "sr:forward-wg15-inet-v6-rev"
 

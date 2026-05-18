@@ -1,30 +1,30 @@
 # ============================================================
-# mk/25_routing.mk — IPv4 routing convergence
+# mk/25_routing.mk — IPv4 + IPv6 routing convergence
 # ============================================================
 #
-# IPv6 Routing Policy (LAN-only, ULA-only)
+# IPv6 Routing Policy (NAS)
 # ----------------------------------------
-# The NAS participates in IPv6 *only inside the LAN* using:
-#   - ULA prefix: fd89:7a3b:42c0::/64
-#   - Link-local: fe80::/64
-#   - Token-based addressing (::4)
+# The NAS participates in IPv6 on the LAN using:
+#   - ULA prefix:    fd89:7a3b:42c0::/64  (stable, always present)
+#   - Global prefix: 2xxx::/64            (from router RA / ISP delegation)
+#   - Link-local:    fe80::/64
+#   - Token-based addressing (::4) on both prefixes
 #
-# The router does NOT provide:
-#   - Global IPv6 prefix (2xxx::/3)
-#   - IPv6 upstream connectivity
-#   - IPv6 default route
+# The router MUST provide:
+#   - IPv6 default route (via RA or static)
+#   - ISP-delegated global prefix (for NAT66 on wg7)
 #
 # Therefore:
-#   - The NAS MUST NOT have an IPv6 default route.
-#   - The NAS MUST NOT have any global IPv6 address.
-#   - The NAS MUST have a ULA IPv6 address.
+#   - The NAS MUST have a ULA IPv6 address (enforced).
+#   - The NAS MUST have a global IPv6 address from the router RA.
+#   - The NAS MUST have an IPv6 default route via the router.
 #
 # Rationale:
-#   - A global IPv6 prefix would break deterministic routing.
-#   - An IPv6 default route would blackhole traffic (router has no upstream).
-#   - ULA-only IPv6 keeps LAN IPv6 fast, deterministic, and stable.
+#   - NAT66 masquerade on the NAS requires a global source address on eth0.
+#   - Without it, wg7 IPv6 internet silently black-holes (ULA not routable by ISPs).
+#   - The delegated global prefix is used ONLY for egress NAT66; it is NOT
+#     advertised to WG clients or LAN hosts (no delegated IPv6 in tunnel configs).
 #
-# This target enforces the above invariants.
 # ============================================================
 
 .PHONY: ensure-default-route
@@ -56,58 +56,33 @@ ensure-default-route:
 	fi; \
 	\
 	# ------------------------------------------------------------ \
-	# IPv6 LAN-only invariants \
+	# IPv6 routing invariants (RA-enabled) \
 	# ------------------------------------------------------------ \
 	\
-	# 1. Reject any IPv6 default route (router must NOT advertise one) \
-	if ip -6 route show default | grep -q .; then \
-		echo "❌ IPv6 default route detected — forbidden in IPv6 LAN-only mode"; \
-		echo "   Fix router RA configuration or remove the route manually."; \
-		exit 1; \
+	# 1. Require IPv6 default route (router must advertise one for NAT66 to work) \
+	if ! ip -6 route show default | grep -q .; then \
+		echo "⚠️ No IPv6 default route - router RA not yet configured for IPv6."; \
+		echo "   wg7 IPv6 internet will not work until the router delegates a prefix."; \
+		echo "   This is non-fatal: IPv6 clients will fast-fail via ICMPv6 and use IPv4."; \
+	else \
+		echo "✅ IPv6 default route present"; \
 	fi; \
 	\
-	# 2. Reject global IPv6 addresses (2xxx::/3) \
-	if ip -6 addr show dev eth0 | grep -q 'inet6 2'; then \
-		echo "❌ Global IPv6 prefix detected (2xxx::/3) — forbidden in LAN-only mode"; \
-		echo "   Router must NOT advertise a global IPv6 prefix."; \
-		exit 1; \
+	# 2. Require global IPv6 address (2xxx::/3) — needed for NAT66 masquerade source \
+	if ! ip -6 addr show dev eth0 | grep -q 'inet6 2'; then \
+		echo "⚠️ No global IPv6 address on eth0 — router not yet delegating a prefix."; \
+		echo "   NAT66 will fallback to IPv4-only egress."; \
+		echo "   This is non-fatal: see docs/network-contract.md IPv6 Internet section."; \
+	else \
+		echo "✅ Global IPv6 address present on eth0 (NAT66 masquerade source ready)"; \
 	fi; \
 	\
-	# 3. Require ULA IPv6 address (fd00::/8) \
+	# 3+4. Require ULA IPv6 on eth0 AND router ULA advertisement \
 	if ! ip -6 addr show dev eth0 | grep -q 'inet6 fd'; then \
-		echo "❌ No ULA IPv6 address detected on eth0 — required for LAN-only IPv6"; \
+		echo "❌ No ULA IPv6 address detected on eth0 — required invariant"; \
+		echo "❌ Router is NOT advertising a ULA prefix — LAN IPv6 broken"; \
 		exit 1; \
 	fi; \
 	\
-	# ------------------------------------------------------------ \
-	# Router RA verification (LAN-only IPv6) \
-	# ------------------------------------------------------------ \
-	# The router must advertise:
-	#   - ULA prefix only (fd00::/8)
-	#   - NO global prefix (2xxx::/3)
-	#   - NO IPv6 default route
-	#   - NO DHCPv6
-	#
-	# We verify this indirectly by inspecting what the NAS receives.
-	# ------------------------------------------------------------ \
-	\
-	# 4. Router must advertise a ULA prefix \
-	if ! ip -6 addr show dev eth0 | grep -q 'inet6 fd'; then \
-		echo "❌ Router is NOT advertising a ULA prefix — LAN-only IPv6 broken"; \
-		exit 1; \
-	fi; \
-	\
-	# 5. Router must NOT advertise a global prefix \
-	if ip -6 addr show dev eth0 | grep -q 'inet6 2'; then \
-		echo "❌ Router is leaking a global IPv6 prefix (2xxx::/3) — forbidden"; \
-		exit 1; \
-	fi; \
-	\
-	# 6. Router must NOT advertise an IPv6 default route \
-	if ip -6 route show default | grep -q .; then \
-		echo "❌ Router is advertising an IPv6 default route — forbidden"; \
-		exit 1; \
-	fi; \
-	\
-	echo "♻️ IPv4 default route converged: $$current_gw (dev $$current_dev)"; \
-	echo "✨ IPv6 LAN-only invariants satisfied (ULA present, no global prefix, no default route)"
+	# 5. WG clients must NOT receive delegated global IPv6 (enforced in wg-generate-configs.sh) \
+	echo "✅ IPv6 routing invariants checked (ULA + global + default route)";

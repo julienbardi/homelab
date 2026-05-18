@@ -64,9 +64,19 @@ do_up() {
             # Apply WireGuard config
             wg setconf wgs1 ${ROUTER_WG_DIR}/wgs1.conf
 
-            # Assign server IPs (router uses raw wg)
+            # Assign IPv4 server address
             ip addr add 10.89.101.1/24 dev wgs1 2>/dev/null || true
-            ip addr add fd89:7a3b:42c0:101::1/64 dev wgs1 2>/dev/null || true
+            # Attempt IPv6 server address - Asus Merlin may not support this.
+            # Failure is non-fatal: IPv6 peer rules in wg-firewall.sh will be present
+            # but inactive. IPv6 internet for wgs1 clients is rejected at the NAS
+            # (bftables REJECT with icmpv6 no-route -> OD falls back to IPv4 instantly).
+            # ::/0 remains in client AllowedIPs for location privacy (full tunnel).
+            if ip addr add fd89:7a3b:42c0:101::1/64 dev wgs1 2>/dev/null; then
+                echo'wgs1: IPv6 address assigned (fd89:7a3b:42c0:101::1/64)'
+            else
+                echo 'WARNING: wgs1 IPv6 address could not be assigned. IPv6 WG is not operational on this router.'
+                echo 'This is expected on Asus Merlin if IPv6 kernel support is incomplete.'
+            fi
         "
     else
         for f in \"${NAS_WG_CONF}\"/*.conf; do

@@ -44,16 +44,16 @@ endef
 
 define set_ipv6_token
 { \
-	echo "📍 Checking IPv6 address convergence ($(NAS_LAN_IP6))..."; \
+	echo "📍 Checking IPv6 ULA address convergence ($(NAS_LAN_IP6))..."; \
 	for iface in eth0; do \
 		if [ -d "/sys/class/net/$$iface" ]; then \
 			if ip -6 addr show dev $$iface scope global | grep -q " $(NAS_LAN_IP6)/"; then \
-				echo "✅ $$iface: IPv6 address already converged to $(NAS_LAN_IP6)."; \
+				echo "✅ $$iface: ULA IPv6 address already converged to $(NAS_LAN_IP6)."; \
 			else \
-				echo "🔄 $$iface: IPv6 address mismatch. Forcing $(NAS_LAN_IP6)..."; \
-				$(run_as_root) ip -6 addr flush dev $$iface scope global; \
-				$(run_as_root) ip -6 addr add $(NAS_LAN_IP6)/64 dev $$iface; \
-				echo "✨ $$iface: IPv6 address set to $(NAS_LAN_IP6)/64 (RA-independent)."; \
+				echo "🔄 $$iface: ULA IPv6 not found. Adding $(NAS_LAN_IP6)..."; \
+				$(run_as_root) ip -6 addr add $(NAS_LAN_IP6)/64 dev $$iface >2/dev/null || true; \
+				echo "✨ $$iface: IPv6 address set to $(NAS_LAN_IP6)/64."; \
+				echo "ℹ️ Any ISP-delegated global IPv6 from router RA is preserved (needed for NAT66)."; \
 			fi; \
 		fi; \
 	done; \

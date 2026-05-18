@@ -95,10 +95,17 @@ EOF
 
 fw_inet() {
     local iface="$1" v4="$2" v6="$3" lan4="$4" lan6="$5"
+    # NOTE: This function only runs for router-terminated interfaces (wgs1).
+    # NAS-terminated interfaces (wg7, etc.) are skipped by generate_router_firewall()
+    # and their IPv6 internet is handled entirely by NAS nftables NAT66 (homelab_nat6)
     cat <<EOF
 iptables -t nat -C POSTROUTING -s $v4/32 -o $wan_if -j MASQUERADE 2>/dev/null || iptables -t nat -I POSTROUTING -s $v4/32 -o $wan_if -j MASQUERADE
 iptables -C FORWARD -i $iface -s $v4/32 -o $wan_if ! -d $lan4 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i $iface -s $v4/32 -o $wan_if ! -d $lan4 -j ACCEPT
-ip6tables -C FORWARD -i $iface -s $v6/128 ! -d $lan6 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s $v6/128 ! -d $lan6 -j ACCEPT
+# IPv6 internet: NAT66 not available on this router (Asus Merlin lacks CONFIG_IP6_NF_NAT).
+# REJECT (not DROP) so the client gets an immediate ICMPv6 no-route error and Happy Eyeballs
+# retries on IPv4 within ~100ms. Traffic is still routed into the tunnel (no location leak).
+# ::/0 remains in wgs1 client AllowedIPs for full tunnel / location privacy.
+ip6tables -C FORWARD -i $iface -s $v6/128 ! -d $lan6 -j REJECT --reject-with icmp6-no-route 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s $v6/128 ! -d $lan6 -j REJECT --reject-with icmp6-no-route
 EOF
 }
 
@@ -205,7 +212,12 @@ Endpoint = ${endpoint_host}:${IF_PORT[$iface]}
 AllowedIPs = $(
     if [[ "$os" == "windows" ]]; then
         if [[ "$acc" == "full" ]]; then
-            # Windows full‑tunnel + LAN bypass
+            # Windows full-tunnel + LAN bypass.
+            # ::/0 is intentionally included: routing ALL IPv6 through the tunnel prevents
+            # the client's native IPv6 from bypassing the VPN and leaking their real location.
+            # At the tunnel exit the router REJECTs (not drops) non-LAN IPv6, so the OS
+            # fails fast via Happy Eyeballs and retries on IPv4 (~100ms). No black hole.
+            # IPv6 internet will work once NAT66 is operational (see wg7 notes)
             echo "10.89.12.0/24, fd89:7a3b:42c0::/64, 0.0.0.0/0, ::/0"
         else
             # Windows restricted mode
@@ -214,6 +226,7 @@ AllowedIPs = $(
     else
         # Linux / Android / iOS / macOS
         if [[ "$acc" == "full" ]]; then
+            # ::/0 intentionally included - see Windows comment above.
             echo "0.0.0.0/0, ::/0"
         else
             echo "$(ipv4_network "${IF_ADDR_V4[$iface]}"), ${IF_ADDR_V6[$iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64"
@@ -310,8 +323,15 @@ EOF
 
             if [[ "$acc" == "full" ]]; then
                 buffer+=$'\n'"$(fw_inet "$iface" "$v4" "$v6" "$lan_v4" "$lan_v6")"
-				# NAT66 for IPv6 WAN
-				buffer+=$'\n'"ip6tables -t nat -C POSTROUTING -s fd89:7a3b:42c0:101::/64 -o eth0 -j MASQUERADE 2>/dev/null || ip6tables -t nat -A POSTROUTING -s fd89:7a3b:42c0:101::/64 -o eth0 -j MASQUERADE"
+                # NAT66 for IPv6 WAN
+                #buffer+=$'\n'"ip6tables -t nat -C POSTROUTING -s fd89:7a3b:42c0:101::/64 -o eth0 -j MASQUERADE 2>/dev/null || ip6tables -t nat -A POSTROUTING -s fd89:7a3b:42c0:101::/64 -o eth0 -j MASQUERADE"
+                # NAT66 intentionally NOT generated:
+                # Asus Merlin (RT-AX86U) kernel lacks CONFIG_IP6_NF_NAT.
+                # The ip6tables nar table does not exist on this router.
+                #
+                # IPv6 internet for wgs1 clients is rejected at the router (ICMPv6 no-route);
+                # OD Happy Eyeballs falls back to IPv4 in ~100ms. No black hole, no location leak.
+                # wg7 IPv6 internet is unaffected - it is NAS-terminated and uses NAS NAT66.
             fi
         done < <(grep -vE '^(#|pubkey)' "$peer_map_local")
 
