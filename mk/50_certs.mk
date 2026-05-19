@@ -246,11 +246,11 @@ validate-qnap-todebug-fails:
 
 validate-ac86u:
 	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443"
-	@remote_fp=$$(openssl s_client \
-		-connect $(LAN_AC86U):8443 \
-		-servername $(DOMAIN) \
-		-tls1_2 -showcerts </dev/null 2>/dev/null \
-		| openssl x509 -noout -fingerprint -sha256 2>/dev/null); \
+	@for i in 1 2 3 4 5; do \
+		remote_fp=$$(openssl s_client -connect $(LAN_AC86U):8443 -servername $(DOMAIN) -tls1_2 -showcerts </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256 2>/dev/null); \
+		if [ -n "$$remote_fp" ]; then break; fi; \
+		sleep 1; \
+	done; \
 	if [ -z "$$remote_fp" ]; then \
 		echo "⚠️  AC86U unreachable or no certificate received — skipping (best-effort)"; \
 		exit 0; \
