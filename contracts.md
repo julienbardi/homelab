@@ -2308,6 +2308,67 @@ Operators: never generate their own keys under $HOME/.config/sops
 
 Bootstrap: may create the key only if it does not exist; must never overwrite an existing key.
 
+-------------------------------------------------------------------------------
+CONTRACT: NAS IPv6 forwarding and RA acceptance
+-------------------------------------------------------------------------------
+
+Setting net.ipv6.conf.all.forwarding = 1 is required for WireGuard and
+Tailscale to route IPv4/IPv6 traffic.  However, the Linux kernel silently
+forces accept_ra = 0 on all interfaces when any forwarding flag is active.
+This removes the IPv6 default route the NAS receives via Router Advertisement
+from the router.  The result is a silent IPv6 black hole for every wgN client
+that tunnels IPv6 traffic through the NAS.
+
+Invariants:
+
+  - net.ipv6.conf.eth0.accept_ra = 2 MUST be present in
+    config/sysctl.d/99-homelab-forwarding.conf.
+  - It MUST appear AFTER the forwarding = 1 lines so intent is explicit.
+  - Value 1 is NOT sufficient (suppressed by forwarding=1).
+  - Value 2 = "accept RAs even when forwarding is active" (RFC 4861 §6.2.3).
+  - The make target ensure-accept-ra MUST pass after every sysctl install.
+  - The make target ensure-ipv6-default-route MUST be included in the
+    converge sequence.
+
+Rationale:
+
+  - Without this setting wg7 clients on a LAN PC experience an IPv6 black
+    hole even though the WireGuard tunnel is established.
+  - The fix is a single sysctl line; not applying it is a latent defect in
+    every NAS deployment.
+
+Enforcement status:
+  enforceable and enforced (sysctl-preflight guard + ensure-accept-ra target)
+
+-------------------------------------------------------------------------------
+CONTRACT: WireGuard public endpoint
+-------------------------------------------------------------------------------
+
+All generated WireGuard client configurations MUST use the bare domain
+bardi.ch as the [Peer] Endpoint, never a sub-domain.
+
+Invariants:
+
+  - Endpoint = bardi.ch:<port>  MUST appear in every generated client config.
+  - Endpoint = router.bardi.ch:<port> is FORBIDDEN.
+  - Endpoint = <any sub-domain>:<port> is FORBIDDEN.
+  - No Unbound local-data record for bardi.ch (bare) MUST exist; it MUST
+    resolve via public DNS to the WAN IP on all network segments.
+
+Rationale:
+
+  - router.bardi.ch is resolved by Unbound split-horizon to 10.89.12.1
+    (router LAN IP).  NAS-hosted WireGuard interfaces (wg1–wg15) listen on
+    the NAS (10.89.12.4), not on the router.  A LAN client using
+    router.bardi.ch:<NAS port> sends its handshake to the router, which has
+    no listener on that port, producing a silent black hole.
+  - bardi.ch has no split-horizon override and always resolves to the WAN IP
+    via public DNS, producing consistent behaviour from LAN (NAT hairpin) and
+    WAN (direct forwarding).
+
+Enforcement status:
+  enforceable (wg-generate-configs.sh hardcodes DNS_TOPDOMAIN_NAME as endpoint)
+
 ===============================================================================
 End of contracts.inc
 ===============================================================================

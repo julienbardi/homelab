@@ -57,6 +57,7 @@ RUNTIME_DIFF_FILE   := /run/homelab-net.diff
 
 converge-network: check-forwarding \
 				  install-homelab-sysctl \
+				  ensure-accept-ra \
 				  nft-verify \
 				  ensure-default-route \
 				  wg-stack

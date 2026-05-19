@@ -27,7 +27,7 @@
 #
 # ============================================================
 
-.PHONY: ensure-default-route
+.PHONY: ensure-default-route ensure-ipv6-default-route
 
 ensure-default-route:
 	@set -euo pipefail; \
@@ -86,3 +86,24 @@ ensure-default-route:
 	\
 	# 5. WG clients must NOT receive delegated global IPv6 (enforced in wg-generate-configs.sh) \
 	echo "✅ IPv6 routing invariants checked (ULA + global + default route)";
+
+# ------------------------------------------------------------
+# IPv6 default route — learned via RA from the router.
+# Requires net.ipv6.conf.eth0.accept_ra = 2 (see mk/20_sysctl.mk).
+# Without accept_ra=2, forwarding=1 suppresses RA reception and this
+# route never appears → IPv6 black hole for all wgN clients.
+# ------------------------------------------------------------
+
+ensure-ipv6-default-route:
+	@set -euo pipefail; \
+	echo "🔍 Ensuring IPv6 default route (via router RA on eth0)"; \
+	current_gw6=$$(ip -6 route show default | awk '/default/ {print $$3; exit}'); \
+	\
+	if [ -z "$$current_gw6" ]; then \
+		echo "❌ No IPv6 default route present."; \
+		echo "   Likely cause: net.ipv6.conf.eth0.accept_ra != 2"; \
+		echo "   Fix: make install-homelab-sysctl && make ensure-accept-ra"; \
+		exit 1; \
+	fi; \
+	\
+	echo "♻️  IPv6 default route present via $$current_gw6"

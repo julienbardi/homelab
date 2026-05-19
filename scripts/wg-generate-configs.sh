@@ -197,7 +197,11 @@ EOF
         local ipv6="${v6_prefix}::${host_hex}"
 
         local host_id="${IF_HOST[$iface]}"
-        local endpoint_host="${host_id}.${DNS_TOPDOMAIN_NAME}"
+        # Endpoint MUST always be the bare domain (WAN IP, no split-horizon override).
+		# Using host_id.domain (e.g. router.bardi.ch) is wrong for LAN clients because
+		# Unbound's split-horizon returns the router's *internal* IP, causing the
+		# Wireguard handshake to target teh wrong host and silently black-hole.
+		local endpoint_host="${DNS_TOPDOMAIN_NAME}"
 
         install_content "$OUT_CLIENTS/$name.conf" "0600" <<EOF
 [Interface]

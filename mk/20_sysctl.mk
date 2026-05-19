@@ -8,7 +8,7 @@ SYSCTL_BIN := /sbin/sysctl
 # Extract IID from constants (e.g., ::4)
 NAS_IID_TOKEN := ::$(shell echo "$(NAS_LAN_IP6)" | sed 's/.*:://')
 
-.PHONY: install-homelab-sysctl sysctl-inspect sysctl-preflight set-ipv6-token rotate-ipv6-secrets
+.PHONY: install-homelab-sysctl sysctl-inspect sysctl-preflight set-ipv6-token rotate-ipv6-secrets ensure-accept-ra
 
 # --- OPERATOR-GRADE MACROS ---
 
@@ -22,6 +22,9 @@ define sysctl_preflight_check
 	done; \
 	if [ ! -f "$(SYSCTL_SRC)" ]; then \
 		echo "❌ ERROR: Source config $(SYSCTL_SRC) missing."; exit 1; \
+	fi; \
+	if ! grep -q 'net.ipv6.conf.eth0.accept_ra' "$(SYSCTL_SRC)"; then \
+		echo "❌ ERROR: $(SYSCTL_SRC) is missing sysctl config missing net.ipv6.conf.eth0.accept_ra = 2 (IPv6 black-hole guard)."; exit 1; \
 	fi; \
 }
 endef
@@ -38,6 +41,17 @@ define inspect_ipv6_identity
 		status = (addr ~ target"$$") ? "✅" : "⚠️  MISMATCH"; \
 		printf "%-11s | Interface: %-6s | Addr: %s\n", status, $$2, addr; \
 	}' | sort -u; \
+	echo "--------------------------------------------------------------------------------"; \
+	echo "🔍 accept_ra status (must be 2 on eth0 to survive forwarding=1):"; \
+	for iface in eth0 eth1; do \
+		[ -f "/proc/sys/net/ipv6/conf/$$iface/accept_ra" ] || continue; \
+		val=$$(cat "/proc/sys/net/ipv6/conf/$$iface/accept_ra"); \
+		if [ "$$val" = "2" ]; then \
+			echo "✅ $$iface: accept_ra = $$val"; \
+		else \
+			echo "❌ $$iface: accept_ra = $$val (expected 2 - IPv6 default route will be missing!)"; \
+		fi; \
+	done; \
 	echo "--------------------------------------------------------------------------------"; \
 }
 endef
@@ -85,12 +99,23 @@ sysctl-inspect: sysctl-preflight
 set-ipv6-token: ensure-run-as-root
 	@set -eu; ( $(set_ipv6_token) )
 
+# Verify effective accept_ra =2 on eth0 without touching sysctl files.
+# Run after install-homelab-sysctl to confirm the kernel absorbed the setting.
+ensure-accept-ra:
+	@set -eu; \
+	val=$$(cat /proc/sys/net/ipv6/conf/eth0/accept_ra 2>/dev/null || echo "missing"); \
+	if [ "$$val" != "2" ]; then \
+		echo "❌ eth0: net.ipv6.conf.eth0.accept_ra = $$val (expected 2). Run: make install-homelab-sysctl"; \
+		exit 1; \
+	fi; \
+	echo "✅ net.ipv6.conf.eth0.accept_ra = 2 - IPv6 default route will be accepted from router RA."; \
+
 install-homelab-sysctl: ensure-run-as-root sysctl-preflight set-ipv6-token
 	@set -eu; \
 	echo "🔄 Syncing functional sysctl configuration..."; \
 	$(run_as_root) install -o root -g root -m 0644 "$(SYSCTL_SRC)" "$(SYSCTL_DST)"; \
 	$(run_as_root) $(SYSCTL_BIN) -p "$(SYSCTL_DST)" >/dev/null; \
-	echo "✨ Convergence verified: NAS IPv6 address is $(NAS_LAN_IP6)/64 (RA-independent)"
+	echo "✨ Convergence verified: NAS IPv6 address is $(NAS_LAN_IP6)/64 (RA-independent)"; \
 
 rotate-ipv6-secrets: ensure-run-as-root sysctl-preflight
 	@echo "🔄 Scrambling IPv6 identity (RFC 7217)..."

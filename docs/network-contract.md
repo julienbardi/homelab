@@ -23,7 +23,7 @@ Delegated IPv6 MUST NOT appear in:
 - WireGuard configs (`AllowedIPs`, `Address`)
 - WireGuard server configs (`Address`)
 - dnsmasq configs
-- nftables rules (except the NAT66 masquerade - which uses `saddr fd89::/48`, not the delegated prefix directly)
+- nftables rules (except the NAT66 masquerade - which uses `saddr fd89:7a3b:42c0::/48` exclusively, never the delegated prefix)
 - Router scripts
 - Caddy configs
 - Any generated output
@@ -48,6 +48,7 @@ Delegated IPv6 MUST NOT appear in:
 - No WireGuard interface may route to another WireGuard interface
 - No forwarding rules may bridge WG interfaces
 - AllowedIPs MUST NOT overlap between interfaces
+- AllowedIPs MUST NOT overlap for either IPv4 or IPv6.
 
 ## IPv6 Internet Access
 
@@ -60,8 +61,48 @@ Delegated IPv6 MUST NOT appear in:
 - Router: routing, IPv4 NAT (LAN -> WAN), firewall, exposure, RA advertisement (ULA + global prefix)
 - NAS: config generation, key management, deployment, NAT66 egress for wg7 (table ip6 homelab_nat6)
 - Hosts: assume legitimacy of received traffic but do not route
+- The router MUST advertise the delegated IPv6 prefix via RA using dynamic WAN-learned values;
+  no delegated prefix may appear statically in any router config file.
 
 ## Enforcement
 
-- A Makefile guard MUST scan the repository for delegated IPv6 in configs and generated output
-- NAS eth0 global IPv6 is exempt (it is not in any commited file; it is assigned at runtime by RA)
+- The guard MUST reject any literal IPv6 address in 2000::/3 (global unicast).
+  Runtime NAS eth0 global IPv6 never appears in the repository and therefore
+  requires no exemption.
+
+## NAS IPv6 Forwarding and RA Acceptance
+
+When `net.ipv6.conf.all.forwarding = 1` is active on the NAS (required for
+WireGuard and Tailscale routing), the Linux kernel **automatically suppresses**
+Router Advertisement reception on every interface (`accept_ra` defaults to 0).
+Without a corrective override the NAS loses its IPv6 default route and all
+wgN clients tunnelling IPv6 traffic hit a silent black hole.
+
+**Invariant**: `net.ipv6.conf.eth0.accept_ra = 2` MUST be present in
+`config/sysctl.d/99-homelab-forwarding.conf` and verified live by
+`make ensure-accept-ra`.
+
+- Value `1` is useless here (suppressed by `forwarding=1`).
+- Value `2` = "accept RAs even when forwarding is enabled" (RFC 4861 §6.2.3).
+- Only `eth0` (LAN) should carry this override; wgN interfaces never receive RAs.
+- `net.ipv6.conf.all.accept_ra = 0`
+- `net.ipv6.conf.default.accept_ra = 0`
+- `net.ipv6.conf.eth0.forwarding = 0`
+- All WireGuard interfaces (wg0–wg15) inherit forwarding=1 via `net.ipv6.conf.all.forwarding = 1`.
+
+## WireGuard Public Endpoint
+
+All generated WireGuard client configs MUST use the bare domain `bardi.ch`
+as the peer endpoint, **not** a sub-domain such as `router.bardi.ch`.
+
+Rationale:
+- Unbound split-horizon DNS resolves `router.bardi.ch` to `10.89.12.1` (router
+  LAN IP) for clients on the LAN segment.
+- wg7 (and other NAS-hosted interfaces) run on `10.89.12.4`, **not** on
+  `10.89.12.1`.  Sending a handshake to the router's LAN IP on a NAS port
+  produces a silent black hole.
+- `bardi.ch` has no split-horizon override → always resolves to the WAN IP via
+  public DNS → consistent from both LAN (NAT hairpin) and WAN.
+
+The router MUST forward each WireGuard UDP port from WAN to the appropriate
+host/port (`wgs1:51820` stays on the router; `wg1–wg15:5142N` forward to NAS).
