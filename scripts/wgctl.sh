@@ -72,7 +72,7 @@ do_up() {
             # (bftables REJECT with icmpv6 no-route -> OD falls back to IPv4 instantly).
             # ::/0 remains in client AllowedIPs for location privacy (full tunnel).
             if ip addr add fd89:7a3b:42c0:101::1/64 dev wgs1 2>/dev/null; then
-                echo'wgs1: IPv6 address assigned (fd89:7a3b:42c0:101::1/64)'
+                echo 'wgs1: IPv6 address assigned (fd89:7a3b:42c0:101::1/64)'
             else
                 echo 'WARNING: wgs1 IPv6 address could not be assigned. IPv6 WG is not operational on this router.'
                 echo 'This is expected on Asus Merlin if IPv6 kernel support is incomplete.'
