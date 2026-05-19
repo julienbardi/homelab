@@ -164,12 +164,15 @@ WantedBy=timers.target\n" | $(run_as_root) tee $(TIMER_PATH) > /dev/null
 # ------------------------------------------------------------
 
 DNS_WARM_ASYNC_SRC := $(REPO_ROOT)/scripts/dns-warm-async.c
+DNS_WARM_ASYNC_BIN := $(INSTALL_PATH)/dns-warm-async
 
-dns-warm-async: $(DNS_WARM_ASYNC_SRC) prereqs
-	@$(CC) -O2 -Wall -Wextra -o $@ $< -lcares
+$(DNS_WARM_ASYNC_BIN): $(DNS_WARM_ASYNC_SRC) prereqs
+	@$(run_as_root) $(CC) -O2 -Wall -Wextra -o $@ $< -lcares
 
-dns-warm-async-install: dns-warm-async ensure-run-as-root
-	@$(call install_file,dns-warm-async,$(INSTALL_PATH)/dns-warm-async,root,root,0755)
+dns-warm-async: $(DNS_WARM_ASYNC_BIN)
+
+dns-warm-async-install: $(DNS_WARM_ASYNC_BIN) ensure-run-as-root
+	@$(run_as_root) chmod 0755 $(DNS_WARM_ASYNC_BIN)
 
 dns-warm-health: ensure-run-as-root
 	@echo "🔍 DNS-warm health check"
