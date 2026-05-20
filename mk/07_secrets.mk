@@ -31,10 +31,12 @@ export SECRETS_LOCK_TS  := $(SECRETS_LOCK)/ts
 SECRETS_LOCK_MAX_AGE := 30
 
 # Call as: $(call WITH_SECRETS, <shell commands>)
+# Secrest are scoped to a subshell - they do NOT leak into the parent recipe
+# environment or subsequent make recipe lines.
 define WITH_SECRETS
-	export $$($(SOPS) -d $(REPO_ROOT)/secrets.enc.yaml \
+	( export $$($(SOPS) -d $(REPO_ROOT)/secrets.enc.yaml \
 		| awk -F': ' '/: / {gsub(/"/, "", $$2); print $$1 "=" $$2}'); \
-	$(1)
+	$(1) )
 endef
 
 # ----------------------------------------------------------------------------
