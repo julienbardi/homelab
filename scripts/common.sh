@@ -13,26 +13,32 @@ readonly _HOMELAB_COMMON_SH_LOADED=1
 # --- 1. Environment Loading (INSERT HERE) ---
 # Load authoritative homelab environment variables
 HOMELAB_ENV="/volume1/homelab/homelab.env"
+TRUSTED_GROUP="admin"
+
 if [[ -f "$HOMELAB_ENV" ]]; then
     # Safety: refuse to source if teh file is not owned by root or the current user
 	# or if it is world-writable. This prevents accidental privilege escalation via a
 	# worldwritable env file being sourced by a root-run script.
-	_env_owner=$(stat -c "%u" "$HOMELAB_ENV" 2>/dev/null || echo "")
-	_env_mode=$(stat -c "%a" "$HOMELAB_ENV" 2>/dev/null || echo "")
-	if [[ "$_env_owner" != "0" && "$_env_owner" != "$(id -u)" ]]; then
-		echo "[common.sh] WARNING: $HOMELAB_ENV is owned by uid $_env_owner (not root or current user) - skipping source" >&2
-	elif [[ "${_env_mode: -1}" =~[2367] ]]; then
+	_env_owner=$(stat -c "%u" "$HOMELAB_ENV")
+	_env_group=$(stat -c "%g" "$HOMELAB_ENV")
+	_env_mode=$(stat -c "%a" "$HOMELAB_ENV")
 
+	current_uid=$(id -u)
+	current_gid=$(id -g)
+	trusted_gid=$(getent group admin | cut -d: -f3)
+
+	if [[ "$_env_owner" != "0" && "$_env_owner" != "$current_uid" && "$_env_group" != "$trusted_gid" ]]; then
+		echo "[common.sh] WARNING: $HOMELAB_ENV owner/group not trusted — skipping source" >&2
+	elif (( (10#$_env_mode & 002) != 0 )); then
+		echo "[common.sh] WARNING: $HOMELAB_ENV is world-writable ($_env_mode) - skipping source" >&2
+	elif (( (10#$_env_mode & 020) != 0 && _env_group != trusted_gid )); then
+		echo "[common.sh] WARNING: $HOMELAB_ENV is group-writable by untrusted group ($_env_mode) - skipping source" >&2
 	else
-		# We use 'set -a' to automatically export all variables found in the file
-		set +a
-		set +u
-		set -a
-		# shellcheck disable=SC1090
+		set +a; set +u; set -a
 		source "$HOMELAB_ENV"
-		set +a
-		set -u
+		set +a; set -u
 	fi
+
 	unset _env_owner _env_mode
 fi
 
