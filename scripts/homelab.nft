@@ -39,9 +39,12 @@ table inet homelab_filter {
         # WS-Discovery multicast (Windows Network Discovery)
         iifname "eth0" ip daddr 239.255.255.250 udp dport 3702 accept comment "sr:input-wsdd2-mc-v4"
 
-        # Essential Services
-        tcp dport { 22, 443, 445, 3142, 2222, 9443, 9999 } accept comment "sr:input-svc-tcp"
-        udp dport { 53, 1900, 3702, 5335 } accept comment "sr:input-svc-udp"
+        # Essential Services - reacheable from all internal interfaces
+        iifname { "lo", "eth0", "wg+", "tailscale0" } tcp dport { 22, 443, 2222, 9443, 9999 } accept comment "sr:input-svc-tcp"
+        iifname { "lo", "eth0", "wg+", "tailscale0" } udp dport { 53, 1900, 3702, 5335 } accept comment "sr:input-svc-udp"
+
+        # LAN/WG-only services (SMB and apt-cacher MUST not be internet-facing)
+        iifname { "eth0", "wg+" } tcp dport { 445, 3142 } accept comment "sr:input-svc-lan-tcp"
 
         # ------------------------------------------------------------
         # DNS ENFORCEMENT (LAN + WG + Router)
