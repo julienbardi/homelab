@@ -254,7 +254,7 @@ validate-ac86u:
 			-tls1_2 -showcerts </dev/null 2>/dev/null \
 			| openssl x509 -noout -fingerprint -sha256 2>/dev/null); \
 		if [ -n "$$remote_fp" ]; then \
-			echo "ℹ️  Remote Fingerprint: $$remote_fp"; \
+			echo "ℹ️ Remote Fingerprint: $$remote_fp"; \
 			echo "🔄 AC86U validation OK (best-effort)"; \
 			success=1; \
 			break; \
@@ -264,7 +264,7 @@ validate-ac86u:
 		sleep $$sleep_time; \
 	done; \
 	if [ "$$success" -ne 1 ]; then \
-		echo "⚠️  [validate][ac86u] Certificate validation failed after retries — skipping (best-effort)"; \
+		echo "⚠️ [validate][ac86u] Certificate validation failed after retries — skipping (best-effort)"; \
 		exit 0; \
 	fi
 
