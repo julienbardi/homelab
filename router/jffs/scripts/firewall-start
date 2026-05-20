@@ -49,6 +49,32 @@ if ! ip6tables -C INPUT -p tcp --dport 8080 -i eth0 -j DROP 2>/dev/null; then
 fi
 
 # ------------------------------------------------------------
+# 1c. IPv6 INPUT BASELINE (MIRROR OF SECTION 1)
+# ------------------------------------------------------------
+
+# Accept established/related IPv6
+ip6tables -C INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+ip6tables -I INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# Accept IPv6 from LAN bridge
+ip6tables -C INPUT -i br0 -j ACCEPT 2>/dev/null || \
+ip6tables -I INPUT -i br0 -j ACCEPT
+
+# Accept loopback for IPv6
+ip6tables -C INPUT -i lo -j ACCEPT 2>/dev/null || \
+ip6tables -I INPUT -i lo -j ACCEPT
+
+# Allow WAN IPv6 HTTPS to Caddy for public site (bardi.ch)
+ip6tables -C INPUT -p tcp --dport 443 -i eth0 -j ACCEPT 2>/dev/null || \
+ip6tables -I INPUT -p tcp --dport 443 -i eth0 -j ACCEPT
+
+# Default deny: drop all non-LAN IPv6 input (WAN protection, mirrors IPv4 rule 4)
+ip6tables -C INPUT ! -i br0 -j DROP 2>/dev/null || \
+ip6tables -A INPUT ! -i br0 -j DROP
+
+log "baseline IPv6 firewall invariants enforced"
+
+# ------------------------------------------------------------
 # 2. DYNAMIC WIREGUARD FIREWALL RULES
 # ------------------------------------------------------------
 
