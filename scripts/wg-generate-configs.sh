@@ -147,9 +147,8 @@ generate_configs() {
             priv=$("${ROUTER_SSH_CMD[@]}" nvram get wgs1_priv 2>/dev/null || true)
             pub=$("${ROUTER_SSH_CMD[@]}" nvram get wgs1_pub 2>/dev/null || true)
             [[ -z "$priv" || -z "$pub" ]] && { echo "ERROR: Missing router keys for $iface"; exit 1; }
-            echo "$priv" > "$kb.key"
+            (umask 077; echo "$priv" > "$kb.key")
             echo "$pub"  > "$kb.pub"
-            chmod 600 "$kb.key"
         else
             # NAS/server keys generated locally
             [[ ! -f "$kb.key" ]] && { umask 077; wg genkey | tee "$kb.key" | wg pubkey > "$kb.pub"; }
