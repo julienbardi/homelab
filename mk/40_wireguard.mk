@@ -61,7 +61,7 @@ $(WG_SUBNETS_MK): $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-sub
 
 wg-generate: $(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh
 	@DNS_TOPDOMAIN_NAME="$$( $(WITH_SECRETS) sh -c 'echo "$$ddns_topdomain"' )" \
-	NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) WG_ROOT=$(WG_ROOT) \
+	NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) LAN_ROUTER=$(LAN_ROUTER) WG_ROOT=$(WG_ROOT) \
 	$(INSTALL_PATH)/wg-generate-configs.sh
 
 wg-clean-state:

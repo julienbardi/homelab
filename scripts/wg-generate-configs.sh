@@ -7,6 +7,9 @@ mkdir -p "$TMPDIR"
 # --- 1. Environment Requirements ---
 : "${WG_ROOT:?WG_ROOT must be exported by the Makefile}"
 : "${INSTALL_FILE_IF_CHANGED:?INSTALL_FILE_IF_CHANGED must be exported by the Makefile}"
+: "${LAN_NAS:?LAN_NAS must be exported by the Makefile}"
+: "${LAN6_NAS:?LAN6_NAS must be exported by the Makefile}"
+: "${LAN_ROUTER:?LAN_ROUTER must be exported by the Makefile}"
 
 INPUT_DIR="${WG_ROOT}/input"
 OUTPUT_DIR="${WG_ROOT}/output"
