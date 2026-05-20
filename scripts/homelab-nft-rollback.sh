@@ -15,6 +15,7 @@ log "⚠️ Rollback triggered! Restoring minimal safe firewall."
 
 nft flush table inet homelab_filter
 nft flush table ip homelab_nat
+nft flush table ip6 homelab_nat6
 
 rm -f "$HOMELAB_NFT_ROLLBACK_FLAG"
 
