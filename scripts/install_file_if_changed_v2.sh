@@ -144,6 +144,16 @@ if [ -z "$DST_HOST" ]; then
             exit 1
         fi
 
+        #1b. Re-verify buffer hash inside privileged context to close TOCTOU window
+		# (between user-space BUF_HASH check above ans this sudo sh -c, an attacker
+		# could swap teh buffer; re-hashing here under root closes that window)
+		_actual=\$(sha256sum '$BUFFER' 2>/dev/null | awk '{print \$1}')
+		if [ "\$_actual" != '$SRC_HASH' ]; then
+            echo '❌ IFC: Buffer tampered between verification and install (TOCTOU)' >&2
+            rm -rf '$LOCK'
+            exit 1
+        fi
+
         # 2. Finalize preparation (metadata) on the hidden buffer
         # We do this before the swap to ensure 0ms of incorrect exposure
         chown '$OWNER:$GROUP' '$BUFFER' 2>/dev/null || chown '$OWNER' '$BUFFER'
