@@ -14,14 +14,26 @@ readonly _HOMELAB_COMMON_SH_LOADED=1
 # Load authoritative homelab environment variables
 HOMELAB_ENV="/volume1/homelab/homelab.env"
 if [[ -f "$HOMELAB_ENV" ]]; then
-    # We use 'set -a' to automatically export all variables found in the file
-    set +a
-    set +u
-    set -a
-    # shellcheck disable=SC1090
-    source "$HOMELAB_ENV"
-    set +a
-    set -u
+    # Safety: refuse to source if teh file is not owned by root or the current user
+	# or if it is world-writable. This prevents accidental privilege escalation via a
+	# worldwritable env file being sourced by a root-run script.
+	_env_owner=$(stat -c "%u" "$HOMELAB_ENV" 2>/dev/null || echo "")
+	_env_mode=$(stat -c "%a" "$HOMELAB_ENV" 2>/dev/null || echo "")
+	if [[ "$_env_owner" != "0" && "$_env_owner" != "$(id -u)" ]]; then
+		echo "[common.sh] WARNING: $HOMELAB_ENV is owned by uid $_env_owner (not root or current user) - skipping source" >&2
+	elif [[ "${_env_mode: -1}" =~[2367] ]]; then
+
+	else
+		# We use 'set -a' to automatically export all variables found in the file
+		set +a
+		set +u
+		set -a
+		# shellcheck disable=SC1090
+		source "$HOMELAB_ENV"
+		set +a
+		set -u
+	fi
+	unset _env_owner _env_mode
 fi
 
 # Set derived router connection string if not already set
