@@ -156,8 +156,7 @@ SOPS_AGE_PUBKEY := age1rzyyxnn2ejkchp4jewdpw92av689wdtj2kgrv3ys4p3chn862vjqc3fs5
 # ----------------------------------------------------------------------------
 # 10. SSH Configuration for Router (Non-secret)
 # ----------------------------------------------------------------------------
-SSH_OPTS   := -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new
-#ROUTER_SSH := ssh $(SSH_OPTS)
+SSH_OPTS   := -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes
 
 # ----------------------------------------------------------------------------
 # 11. Local Tooling Policy (Declarative Only)

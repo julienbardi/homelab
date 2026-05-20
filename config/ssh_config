@@ -14,7 +14,7 @@ Host *
     # Safety & ergonomics
     ServerAliveInterval 30
     ServerAliveCountMax 3
-    StrictHostKeyChecking accept-new
+    StrictHostKeyChecking yes
     UserKnownHostsFile ~/.ssh/known_hosts
 
 

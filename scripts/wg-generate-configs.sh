@@ -27,7 +27,7 @@ source /usr/local/bin/common.sh
 : "${SSH_USER_ROUTER:?SSH_USER_ROUTER required}"
 : "${ROUTER_ADDR:?ROUTER_ADDR required}"
 : "${ROUTER_SSH_PORT:=2222}"
-: "${SSH_OPTS:=-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new}"
+: "${SSH_OPTS:=-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes}"
 : "${ROUTER_IDENTITY:=$HOME/.ssh/id_ed25519}"
 
 ROUTER_SSH_CMD=(ssh ${SSH_OPTS} -i "${ROUTER_IDENTITY}" -p "${ROUTER_SSH_PORT}" "${SSH_USER_ROUTER}@${ROUTER_ADDR}")

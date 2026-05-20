@@ -42,7 +42,7 @@ run_as_root_router := ssh -p $(ROUTER_SSH_PORT) \
 	-o ControlPersist=60s \
 	-o BatchMode=yes \
 	-o IdentityFile=$(ROUTER_IDENTITY) \
-	-o StrictHostKeyChecking=accept-new \
+	-o StrictHostKeyChecking=yes \
 	$(ROUTER_HOST)
 
 WG_SUBNETS_MK := $(SYSTEM_STATE_DIR)/wg-subnets.mk
