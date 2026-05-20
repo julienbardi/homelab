@@ -171,10 +171,15 @@ router-nat-install: router-install-scripts
 			host    = $$2; \
 			if (enabled != "1") next; \
 			if (port == "0")    next; \
-			if (host == "nas") { \
-				printf "iptables -t nat -A HOMELAB_NAT -p udp --dport %s -j DNAT --to-destination %s:%s\n", port, lan_nas, port; \
-				printf "iptables -A HOMELAB_FWD -p udp -d %s --dport %s -j ACCEPT\n", lan_nas, port; \
-			} else if (host == "router") { \
+			if (host == "nas") {
+				# WAN → NAS:wgX_port (allowed)
+				printf "iptables -t nat -A HOMELAB_NAT -p udp --dport %s -j DNAT --to-destination %s:%s\n", port, lan_nas, port;
+				printf "iptables -A HOMELAB_FWD -p udp -d %s --dport %s -j ACCEPT\n", lan_nas, port;
+
+				# LAN → NAS:wgX_port (REJECT — hairpin protection) -> LAN clients will fail fast instead of black‑holing traffic in a loop
+				printf "iptables -A HOMELAB_FWD -s 10.89.12.0/24 -d %s -p udp --dport %s -j REJECT\n", lan_nas, port;
+			}
+			else if (host == "router") { \
 				printf "iptables -A HOMELAB_INPUT -p udp --dport %s -j ACCEPT\n", port; \
 			} \
 		} \
