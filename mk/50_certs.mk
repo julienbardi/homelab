@@ -246,17 +246,27 @@ validate-qnap-todebug-fails:
 
 validate-ac86u:
 	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443"
-	@for i in 1 2 3 4 5; do \
-		remote_fp=$$(openssl s_client -connect $(LAN_AC86U):8443 -servername $(DOMAIN) -tls1_2 -showcerts </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256 2>/dev/null); \
-		if [ -n "$$remote_fp" ]; then break; fi; \
-		sleep 1; \
+	@success=0; \
+	for i in 1 2 3 4 5 6 7 8 9 10; do \
+		remote_fp=$$(openssl s_client \
+			-connect $(LAN_AC86U):8443 \
+			-servername $(DOMAIN) \
+			-tls1_2 -showcerts </dev/null 2>/dev/null \
+			| openssl x509 -noout -fingerprint -sha256 2>/dev/null); \
+		if [ -n "$$remote_fp" ]; then \
+			echo "ℹ️  Remote Fingerprint: $$remote_fp"; \
+			echo "🔄 AC86U validation OK (best-effort)"; \
+			success=1; \
+			break; \
+		fi; \
+		sleep_time=$$((i < 6 ? i : 5)); \
+		echo "⏳ [validate][ac86u] Attempt $$i failed — retrying in $${sleep_time}s..."; \
+		sleep $$sleep_time; \
 	done; \
-	if [ -z "$$remote_fp" ]; then \
-		echo "⚠️  AC86U unreachable or no certificate received — skipping (best-effort)"; \
+	if [ "$$success" -ne 1 ]; then \
+		echo "⚠️  [validate][ac86u] Certificate validation failed after retries — skipping (best-effort)"; \
 		exit 0; \
-	fi; \
-	echo "ℹ️  Remote Fingerprint: $$remote_fp"; \
-	echo "🔄 AC86U validation OK (best-effort)"
+	fi
 
 # All-in-one targets (pattern rule: renew + prepare + deploy + validate)
 all-caddy:       renew prepare deploy-caddy       validate-caddy
