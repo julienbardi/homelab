@@ -36,7 +36,8 @@ ROUTER_SSH_CMD=(ssh ${SSH_OPTS} -i "${ROUTER_IDENTITY}" -p "${ROUTER_SSH_PORT}" 
 
 install_content() {
     local target="$1" mode="$2"
-    local tmp_src="/tmp/$(basename "$target").new"
+    local tmp_src=
+    tmp_src=$(mktemp -p "$TMPDIR" homelab.content.XXXXXX)
 
     cat > "$tmp_src"
 
