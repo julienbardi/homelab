@@ -254,6 +254,21 @@ runtime-diff: prefix-bootstrap
 	  fi; \
 	fi; \
 	\
+	# Case 4: WireGuard drift but final normalized wg.dump matches desired
+	if grep -q '^WG_CHANGED=1' "$$difffile"; then \
+	tmp_before="$$(mktemp)"; \
+	tmp_after="$$(mktemp)"; \
+	awk '{ if (NF >= 5) { print $$1, $$2, $$3, $$4, $$5 } else { print $$0 } }' \
+		"$(RUNTIME_SNAP_BEFORE)/wg.dump" > "$$tmp_before"; \
+	awk '{ if (NF >= 5) { print $$1, $$2, $$3, $$4, $$5 } else { print $$0 } }' \
+		"$(RUNTIME_SNAP_AFTER)/wg.dump" > "$$tmp_after"; \
+	if diff -u "$$tmp_before" "$$tmp_after" >/dev/null 2>&1; then \
+		echo "♻️  Suppressed: transient WireGuard drift (final state correct)"; \
+		continue_flag=1; \
+	fi; \
+	rm -f "$$tmp_before" "$$tmp_after" >/dev/null 2>&1 || true; \
+	fi; \
+	\
 	# If any suppression applied → skip error \
 	if [ "$$continue_flag" = "1" ]; then \
 	  echo "♻️  Runtime network state already converged (after suppression)"; \
