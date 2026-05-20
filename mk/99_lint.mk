@@ -81,12 +81,13 @@ lint-fast: lint-gitignore lint-scripts lint-makefile \
 	check-exec-surface
 
 # Full lint: fast + spell checks + headscale config test (permissive)
-lint-all: lint-fast lint-spell lint-headscale lint-no-recursive-make
+lint-all: lint-fast lint-spell lint-headscale lint-no-recursive-make lint-sensitive
 
 # Strict CI lint: fail on any issue (ShellCheck warnings, checkmake errors, codespell, aspell)
 lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale-strict lint-semantic-strict \
 	check-control-plane-reasoning \
-	check-exec-surface
+	check-exec-surface \
+	lint-sensitive
 	@echo "✅ All checks passed (strict mode)."
 
 # Run shell syntax check and ShellCheck across all tracked .sh files (permissive)
@@ -264,6 +265,7 @@ check-exec-surface:
 			! -name '*.nft' \
 			! -name '*.html' \
 			! -name '*.c' \
+			! -name '*.sh' \
 	); \
 	if [ -n "$$violations" ]; then \
 		echo "❌ Unexpected executable files detected:"; \
@@ -294,3 +296,7 @@ lint-no-recursive-make:
 		exit 1; \
 	fi; \
 	echo "✅ No recursive make misuse detected"
+
+.PHONY: lint-sensitive
+lint-sensitive: /usr/local/bin/secrets-check.sh
+	@/usr/local/bin/secrets-check.sh
