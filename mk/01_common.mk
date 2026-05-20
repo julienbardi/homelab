@@ -319,7 +319,6 @@ define apt_install_group
 	DEBIAN_FRONTEND=noninteractive $(run_as_root) apt-get install -y --no-install-recommends $$MISSING
 endef
 
-
 # $(call ensure_service_enabled,<service>,<human-name>)
 # $(call ensure_service_enabled,<service>,<human-name>)
 define ensure_service_enabled

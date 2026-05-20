@@ -18,38 +18,39 @@ DHCP_AGGREGATE = for v in $$(compgen -A variable | grep '^dhcp_static_'); do pri
 
 .PHONY: router-dhcp-static-validate
 router-dhcp-static-validate: secrets-ready
-	@echo "🔍 Validating STATIC_DHCP entries"
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		entries="$$( $(DHCP_AGGREGATE) )"; \
 		if [ -z "$$entries" ]; then \
 			echo "⚠️ STATIC_DHCP is empty — nothing to validate"; \
 			exit 0; \
 		fi; \
-		ips=$$(printf "%s\n" $$entries | tr ' ' '\n' | awk -F'=' '{print $$2}'); \
-		if echo "$$ips" | grep -Eq '\.1$$'; then \
+		ips=$$(printf "%s\n" $$entries | tr " " "\n" | awk -F"=" "{print \$$2}"); \
+		if echo "$$ips" | grep -Eq "\.1$$"; then \
 			echo "❌ ERROR: STATIC_DHCP contains forbidden IP ending in .1"; \
-			echo "$$ips" | grep '\.1$$'; \
+			echo "$$ips" | grep "\.1$$"; \
 			exit 1; \
 		fi; \
-		if echo "$$ips" | awk -F. '$$4 > $(DHCP_STATIC_MAX) {print}' | grep -q .; then \
-			echo "❌ ERROR: STATIC_DHCP contains IPs >= .$$(($(DHCP_STATIC_MAX)+1)) (reserved for dynamic pool)"; \
-			echo "$$ips" | awk -F. '$$4 > $(DHCP_STATIC_MAX)'; \
+		if echo "$$ips" | awk -F. "\$$4 > $(DHCP_STATIC_MAX) {print}" | grep -q .; then \
+			echo "❌ ERROR: STATIC_DHCP contains IPs >= .$$(($(DHCP_STATIC_MAX)+1))"; \
+			echo "$$ips" | awk -F. "\$$4 > $(DHCP_STATIC_MAX)"; \
 			exit 1; \
 		fi; \
 		dups=$$(printf "%s\n" $$ips | sort | uniq -d); \
 		if [ -n "$$dups" ]; then \
-			echo "❌ ERROR: Duplicate IPs detected in STATIC_DHCP"; \
+			echo "❌ ERROR: Duplicate IPs detected"; \
 			echo "$$dups"; \
 			exit 1; \
 		fi; \
-		macs=$$(printf "%s\n" $$entries | tr ' ' '\n' | awk -F'=' '{print $$1}'); \
+		macs=$$(printf "%s\n" $$entries | tr " " "\n" | awk -F"=" "{print \$$1}"); \
 		mac_dups=$$(printf "%s\n" $$macs | sort | uniq -d); \
 		if [ -n "$$mac_dups" ]; then \
-			echo "❌ ERROR: Duplicate MAC addresses detected in STATIC_DHCP"; \
+			echo "❌ ERROR: Duplicate MACs detected"; \
 			echo "$$mac_dups"; \
 			exit 1; \
 		fi; \
-		echo "🟢 STATIC_DHCP validation passed"
+		echo "🟢 STATIC_DHCP validation passed"; \
+	')
+
 
 # ------------------------------------------------------------
 # DHCP pool range (dynamic leases)
@@ -101,35 +102,31 @@ router-dhcp-range-ensure: secrets-ready | ensure-router-ula
 router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-router-ula
 	@echo "🛡️ Enforcing DHCP static leases via NVRAM"
 
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		desired="$$( $(DHCP_AGGREGATE) )"; \
 		if [ -z "$$desired" ]; then \
 			echo "⚠️ STATIC_DHCP is empty — skipping enforcement"; \
 			exit 0; \
 		fi; \
-		ssh -p "$$ROUTER_SSH_PORT" \
-			"$$SSH_USER_ROUTER@$$ROUTER_ADDR" \
-			'set -e; \
-				current="$$(nvram get dhcp_staticlist 2>/dev/null || echo)"; \
-				desired="'"$$desired"'"; \
-				if [ -z "$$desired" ]; then \
-					echo "⚠️ STATIC_DHCP is empty — skipping enforcement"; \
-					exit 0; \
-				fi; \
-				if [ "$$current" != "$$desired" ]; then \
-					echo "🔧 Updating dhcp_staticlist"; \
-					nvram set dhcp_staticlist="$$desired"; \
-					nvram commit; \
-					echo "🔄 Restarting dnsmasq"; \
-					if command -v service >/dev/null 2>&1 && service restart_dnsmasq >/dev/null 2>&1; then \
-						true; \
-					else \
-						killall -HUP dnsmasq 2>/dev/null || /etc/init.d/dnsmasq restart 2>/dev/null || true; \
-					fi; \
-					echo "🟢 DHCP static leases updated"; \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" \
+			"set -e; \
+			current=\$$(nvram get dhcp_staticlist 2>/dev/null || echo); \
+			desired=\"$$desired\"; \
+			if [ \"\$$current\" != \"\$$desired\" ]; then \
+				echo \"🔧 Updating dhcp_staticlist\"; \
+				nvram set dhcp_staticlist=\"\$$desired\"; \
+				nvram commit; \
+				echo \"🔄 Restarting dnsmasq\"; \
+				if command -v service >/dev/null 2>&1 && service restart_dnsmasq >/dev/null 2>&1; then \
+					true; \
 				else \
-					echo "ℹ️ DHCP static leases already converged"; \
-				fi'
+					killall -HUP dnsmasq 2>/dev/null || /etc/init.d/dnsmasq restart 2>/dev/null || true; \
+				fi; \
+				echo \"🟢 DHCP static leases updated\"; \
+			else \
+				echo \"ℹ️ DHCP static leases already converged\"; \
+			fi" \
+	')
 
 
 # ------------------------------------------------------------
@@ -227,22 +224,24 @@ router-ddns: ensure-router-ula
 	@echo "📡 Deploying DDNS configuration to router"
 
 	@# Generate DDNS confidential file inline (no separate target)
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		umask 077; \
 		printf "%s\n%s\n%s\n" \
-			"DNS_TOPDOMAIN_NAME='$$ddns_topdomain'" \
-			"DDNSUSERNAME='$$ddns_username'" \
-			"DDNSPASSWORD='$$ddns_password'" \
-			> "$(TMP_DDNS_CONF)"
+			"DNS_TOPDOMAIN_NAME='\$$ddns_topdomain'" \
+			"DDNSUSERNAME='\$$ddns_username'" \
+			"DDNSPASSWORD='\$$ddns_password'" \
+			> "$(TMP_DDNS_CONF)"; \
+	')
 
 	@# Push to router
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 			$(INSTALL_FILE_IF_CHANGED) \
 				"" "" "$(TMP_DDNS_CONF)" \
 				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "/jffs/scripts/.ddns_confidential" \
 				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0600" \
-			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]
+			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
+	')
 
 	@echo "🔄 Executing DDNS update"
 	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
@@ -260,26 +259,28 @@ router-ddns: ensure-router-ula
 .PHONY: router-dhcp-list
 router-dhcp-list:
 	@echo "📋 Listing current DHCP clients on router:"
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		router_ssh="ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR"; \
-		$$router_ssh 'set -e; \
+		$$router_ssh "set -e; \
 			if [ -f /var/lib/misc/dnsmasq.leases ]; then \
 				cat /var/lib/misc/dnsmasq.leases; \
 			else \
-				echo "⚠️ dnsmasq.leases not found"; \
-			fi'
+				echo \"⚠️ dnsmasq.leases not found\"; \
+			fi"; \
+	')
 
 .PHONY: router-dhcp-list-static-format
 router-dhcp-list-static-format:
 	@echo "📋 DHCP clients in static NVRAM format:"
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		router_ssh="ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR"; \
-		$$router_ssh 'set -e; \
+		$$router_ssh "set -e; \
 			if [ -f /var/lib/misc/dnsmasq.leases ]; then \
-				awk "{print \$$2 \"=\" \$$3 \"=\" \$$4 \"=0\"}" /var/lib/misc/dnsmasq.leases; \
+				awk \"{print \$$2 \\\"=\\\" \$$3 \\\"=\\\" \$$4 \\\"=0\\\"}\" /var/lib/misc/dnsmasq.leases; \
 			else \
-				echo "⚠️ dnsmasq.leases not found"; \
-			fi'
+				echo \"⚠️ dnsmasq.leases not found\"; \
+			fi"; \
+	')
 
 # router-ssh-invariants:
 # Enforces LAN-only SSH by setting:

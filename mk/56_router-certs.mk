@@ -65,9 +65,11 @@ router-certs-deploy-script:
 
 .PHONY: router-certs-status
 router-certs-status: router-bootstrap router-certs-prepare
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		ROUTER_ADDR="$(ROUTER_ADDR)" \
 		ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
 		SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
 		SSH_OPTS="$(SSH_OPTS)" \
-		$(CERTS_DEPLOY) status router
+		$(CERTS_DEPLOY) status router \
+	')
+

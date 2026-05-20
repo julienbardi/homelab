@@ -4,30 +4,31 @@
 # ------------------------------------------------------------
 
 .PHONY: router-disable-asus-ca
-router-disable-asus-ca:
+router-disable-asus-ca: secrets-ready
 	@echo "🛡️ Disabling ASUS internal certificate generation"
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		router_ssh="ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR"; \
-		$$router_ssh 'set -e; \
-			cur_gen="$$(nvram get https_crt_gen 2>/dev/null || echo)"; \
-			cur_save="$$(nvram get https_crt_save 2>/dev/null || echo)"; \
+		$$router_ssh "set -e; \
+			cur_gen=\$$(nvram get https_crt_gen 2>/dev/null || echo); \
+			cur_save=\$$(nvram get https_crt_save 2>/dev/null || echo); \
 			changed=0; \
-			if [ "$$cur_gen" != "0" ]; then \
-				echo "🔧 Setting https_crt_gen=0"; \
+			if [ \"\$$cur_gen\" != \"0\" ]; then \
+				echo \"🔧 Setting https_crt_gen=0\"; \
 				nvram set https_crt_gen=0; \
 				changed=1; \
 			fi; \
-			if [ "$$cur_save" != "0" ]; then \
-				echo "🔧 Setting https_crt_save=0"; \
+			if [ \"\$$cur_save\" != \"0\" ]; then \
+				echo \"🔧 Setting https_crt_save=0\"; \
 				nvram set https_crt_save=0; \
 				changed=1; \
 			fi; \
-			if [ "$$changed" -eq 1 ]; then \
+			if [ \"\$$changed\" -eq 1 ]; then \
 				nvram commit; \
-				echo "✅ ASUS internal CA disabled"; \
+				echo \"✅ ASUS internal CA disabled\"; \
 			else \
-				echo "ℹ️ ASUS internal CA already converged"; \
-			fi'
+				echo \"ℹ️ ASUS internal CA already converged\"; \
+			fi" \
+	')
 
 .PHONY: check-tools
 check-tools:

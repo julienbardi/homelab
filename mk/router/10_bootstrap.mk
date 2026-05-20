@@ -78,22 +78,24 @@ endef
 
 .PHONY: ensure-default-gateway
 ensure-default-gateway: secrets-ready
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		if ! ip route show default | grep -q "$$ROUTER_ADDR"; then \
 			echo "⚠️ Default gateway missing! Restoring path to $$ROUTER_ADDR..."; \
 			$(run_as_root) ip route add default via "$$ROUTER_ADDR" dev $(LAN_IFACE) 2>/dev/null || true; \
 			echo "✅ Default gateway restored"; \
 		else \
 			echo "🟢 Default gateway OK"; \
-		fi
+		fi \
+	')
 
 .PHONY: router-bootstrap-run-as-root
 router-bootstrap-run-as-root: secrets-ready ensure-default-gateway
 	@echo "🛡️ Bootstrapping run-as-root on router"
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" \
-			'set -e; mkdir -p /jffs/scripts; cat > /jffs/scripts/run-as-root; chmod 0755 /jffs/scripts/run-as-root' \
-		< $(REPO_ROOT)/router/jffs/scripts/run-as-root.sh
+			"set -e; mkdir -p /jffs/scripts; cat > /jffs/scripts/run-as-root; chmod 0755 /jffs/scripts/run-as-root" \
+		< $(REPO_ROOT)/router/jffs/scripts/run-as-root.sh \
+	')
 	@echo "✅ run-as-root installed"
 
 ROUTER_ULA_FILE := /etc/homelab/router-ula
@@ -108,15 +110,16 @@ ensure-router-ula: secrets-ready router-bootstrap-run-as-root | $(INSTALL_FILES_
 	@echo "🧩 Ensuring router ULA ($(ROUTER_ULA_VALUE))"
 
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_ULA)", \
-		printf "%s\n" "$(ROUTER_ULA_VALUE)" > "$(TMP_ROUTER_ULA)"; \
-
-		$(WITH_SECRETS) \
+		TMPFILE="$(TMP_ROUTER_ULA)"; \
+		printf "%s\n" "$(ROUTER_ULA_VALUE)" > "$$TMPFILE"; \
+		$(call WITH_SECRETS, sh -c '\
 			env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 				$(INSTALL_FILE_IF_CHANGED) \
-					"" "" "$(TMP_ROUTER_ULA)" \
+					"" "" "'"$$TMPFILE"'" \
 					"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "$(ROUTER_ULA_FILE)" \
 					"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
-			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
+				|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
+		') \
 	)
 
 .PHONY: ensure-router-known-hosts

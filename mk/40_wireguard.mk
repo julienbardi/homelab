@@ -8,7 +8,7 @@ WG_FIREWALL := $(WG_OUTPUT_ROUTER)/wg-firewall.sh
 .PHONY: \
 	wg-clean-out wg-generate wg-install-router wg-install-nas \
 	wg-up-nas wg-down-router wg-down-nas \
-	wg-status wg-up wg-down router-ensure-wg-module \
+	wg-status wg-install wg-up wg-down router-ensure-wg-module \
 	router-wg-health-strict router-wg-audit \
 	wg-clean-state wg7-validate wg-router-ipv6-probe
 
@@ -60,8 +60,11 @@ $(WG_SUBNETS_MK): $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-sub
 -include $(WG_SUBNETS_MK)
 
 wg-generate: $(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh
-	@DNS_TOPDOMAIN_NAME="$$( $(WITH_SECRETS) sh -c 'echo "$$ddns_topdomain"' )" \
-	NAS_LAN_IP=$(NAS_LAN_IP) NAS_LAN_IP6=$(NAS_LAN_IP6) LAN_ROUTER=$(LAN_ROUTER) WG_ROOT=$(WG_ROOT) \
+	@DNS_TOPDOMAIN_NAME="$$( $(call WITH_SECRETS, sh -c 'echo "$$ddns_topdomain"') )" \
+	NAS_LAN_IP="$(NAS_LAN_IP)" \
+	NAS_LAN_IP6="$(NAS_LAN_IP6)" \
+	LAN_ROUTER="$(LAN_ROUTER)" \
+	WG_ROOT="$(WG_ROOT)" \
 	$(INSTALL_PATH)/wg-generate-configs.sh
 
 wg-clean-state:
@@ -177,7 +180,9 @@ wg-status: $(INSTALL_PATH)/wgctl.sh
 	NAS_CONTROL_PLANE=1 \
 	$(INSTALL_PATH)/wgctl.sh nas status || true
 
-wg-up: wg-install-router wg-up-nas
+wg-install: wg-install-router wg-install-nas
+
+wg-up: wg-install
 	@echo "🚀 WireGuard fully converged"
 
 wg-down: wg-down-router

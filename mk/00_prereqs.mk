@@ -46,7 +46,7 @@ else
 endif
 
 prereqs-public-dns-verify: | ensure-default-gateway
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		echo "🔍 Verifying public DNS CNAME for apt.bardi.ch"; \
 		out=$$(dig +short @$$PUBLIC_DNS apt.bardi.ch CNAME 2>&1); \
 		case "$$out" in \
@@ -61,7 +61,7 @@ prereqs-public-dns-verify: | ensure-default-gateway
 				echo "❌ DNS query to $$PUBLIC_DNS timed out"; \
 				exit 1;; \
 		esac; \
-		cname=$$(printf "%s" "$$out" | sed 's/\.$$//'); \
+		cname=$$(printf "%s" "$$out" | sed "s/\\.$$//"); \
 		if [ -z "$$cname" ]; then \
 			echo "❌ ERROR: No CNAME returned for apt.bardi.ch"; \
 			exit 1; \
@@ -72,7 +72,8 @@ prereqs-public-dns-verify: | ensure-default-gateway
 			echo "   Found:    $$cname"; \
 			exit 1; \
 		fi; \
-		echo "✅ Public DNS CNAME is correct"
+		echo "✅ Public DNS CNAME is correct"; \
+	')
 
 prereqs-tailscale-repo-verify: | ensure-default-gateway
 	@echo "🔍 Verifying Tailscale repo hygiene"
@@ -218,16 +219,17 @@ prereqs-operator-ssh-key:
 	fi
 
 install-ssh-config: prereqs-operator-ssh-key
-	@$(WITH_SECRETS) \
+	@$(call WITH_SECRETS, sh -c '\
 		U_NAME=$${operator_user:-$$(id -un)}; \
 		G_NAME=$${operator_group:-$$(id -gn)}; \
 		U_HOME=$${operator_home:-$$HOME}; \
-		if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
+		if [ -n "$$VERBOSE" ] && [ "$$VERBOSE" != "0" ]; then \
 			echo "🔧 Ensuring SSH config is up to date for $$U_NAME"; \
 		fi; \
 		sudo install -d -m 700 "$$U_HOME/.ssh"; \
 		sudo chown "$$U_NAME:$$G_NAME" "$$U_HOME/.ssh"; \
-		$(call install_file,$(REPO_ROOT)/config/ssh_config,$$U_HOME/.ssh/config,$$U_NAME,$$G_NAME,600)
+		$(call install_file,$(REPO_ROOT)/config/ssh_config,$$U_HOME/.ssh/config,$$U_NAME,$$G_NAME,600); \
+	')
 
 prereqs-python-venv-verify:
 	@python3 -c 'import venv' >/dev/null 2>&1 || { \

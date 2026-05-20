@@ -43,7 +43,7 @@ endef
 # DHCP static lease aggregation (non-secret, derived from secrets)
 # ----------------------------------------------------------------------------
 define LOAD_STATIC_DHCP
-STATIC_DHCP="$$( $(WITH_SECRETS) sh -c 'for v in $$(compgen -A variable | grep "^dhcp_static_"); do printf "%s" "$${!v}"; done' )"; export STATIC_DHCP
+STATIC_DHCP="$$( $(call WITH_SECRETS, sh -c 'for v in $$(compgen -A variable | grep "^dhcp_static_"); do printf "%s " "$${!v}"; done') )"; export STATIC_DHCP
 endef
 
 # ----------------------------------------------------------------------------
@@ -148,8 +148,11 @@ secrets-edit:
 	}
 
 secrets-ready:
-	@$(WITH_SECRETS) \
-		{ [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && echo "Secrets OK (router_addr=$$ROUTER_ADDR)"; } || true
+	@$(call WITH_SECRETS, sh -c '\
+		if [ -n "$$VERBOSE" ] && [ "$$VERBOSE" != "0" ]; then \
+			echo "Secrets OK (router_addr=$$ROUTER_ADDR)"; \
+		fi \
+	') || true
 
 .PHONY: check-age-key
 check-age-key: ensure-authorized-admin
