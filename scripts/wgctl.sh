@@ -79,8 +79,8 @@ do_up() {
             fi
         "
     else
-        for f in \"${NAS_WG_CONF}\"/*.conf; do
-            sudo wg-quick up \"\$f\" 2>/dev/null || true
+        for f in "${NAS_WG_CONF}"/*.conf; do
+            sudo wg-quick up "$f" 2>/dev/null || true
         done
     fi
 }
