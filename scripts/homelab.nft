@@ -46,67 +46,10 @@ table inet homelab_filter {
         # LAN/WG-only services (SMB and apt-cacher MUST not be internet-facing)
         iifname { "eth0", "wg+" } tcp dport { 445, 3142 } accept comment "sr:input-svc-lan-tcp"
 
-        # ------------------------------------------------------------
-        # DNS ENFORCEMENT (LAN + WG + Router)
-        # ------------------------------------------------------------
-
-        # Allow LAN clients to query NAS DNS (IPv4 + IPv6)
-        iifname "eth0" udp dport 53 accept comment "dns:lan-v4-udp"
-        iifname "eth0" tcp dport 53 accept comment "dns:lan-v4-tcp"
-        iifname "eth0" ip6 saddr fd89:7a3b:42c0::/64 udp dport 53 accept comment "dns:lan-v6-udp"
-        iifname "eth0" ip6 saddr fd89:7a3b:42c0::/64 tcp dport 53 accept comment "dns:lan-v6-tcp"
-
-        # Allow router to query NAS DNS
-        ip saddr 10.89.12.1 udp dport 53 accept comment "dns:router-v4-udp"
-        ip saddr 10.89.12.1 tcp dport 53 accept comment "dns:router-v4-tcp"
-        ip6 saddr fd89:7a3b:42c0::1 udp dport 53 accept comment "dns:router-v6-udp"
-        ip6 saddr fd89:7a3b:42c0::1 tcp dport 53 accept comment "dns:router-v6-tcp"
-
-        # Allow IPv6 DNS queries from:
-        #   - Link-local LAN clients (fe80::/10)
-        #   - Router ULA (::1)
-        #   - Any future LAN ULA clients (fd89:7a3b:42c0::/64)
-        # Block everything else (no global IPv6 on LAN)
-        iifname "eth0" ip6 saddr { fe80::/10, fd89:7a3b:42c0::/64, fd89:7a3b:42c0::1 } udp dport 53 accept comment "dns:lan-v6-udp"
-        iifname "eth0" ip6 saddr { fe80::/10, fd89:7a3b:42c0::/64, fd89:7a3b:42c0::1 } tcp dport 53 accept comment "dns:lan-v6-tcp"
-
-        # Allow WireGuard clients to query NAS DNS
-        iifname "wg+" udp dport 53 accept comment "dns:wg-udp"
-        iifname "wg+" tcp dport 53 accept comment "dns:wg-tcp"
-
-        # Block LAN clients from querying external DNS (IPv4)
-        iifname "eth0" ip daddr != 10.89.12.4 udp dport 53 drop comment "dns:block-external-v4-udp"
-        iifname "eth0" ip daddr != 10.89.12.4 tcp dport 53 drop comment "dns:block-external-v4-tcp"
-
-        # Block LAN clients from querying external DNS (IPv6)
-        iifname "eth0" ip6 daddr != fd89:7a3b:42c0::4 udp dport 53 drop comment "dns:block-external-v6-udp"
-        iifname "eth0" ip6 daddr != fd89:7a3b:42c0::4 tcp dport 53 drop comment "dns:block-external-v6-tcp"
-
-        # ------------------------------------------------------------
-        # DoH / DoT / QUIC BLOCKING (LAN ONLY)
-        # ------------------------------------------------------------
-
-        # Block DoT (DNS-over-TLS) for LAN clients
-        iifname "eth0" tcp dport 853 drop comment "doh:lan-dot-block"
-
-        # Block DoH-over-QUIC (UDP/443) for LAN clients
-        iifname "eth0" udp dport 443 drop comment "doh:lan-quic-block"
-
-        # Block DoH (DNS-over-HTTPS) to known resolvers (LAN only)
-        iifname "eth0" ip daddr {
-            1.1.1.1, 1.0.0.1,              # Cloudflare
-            8.8.8.8, 8.8.4.4,              # Google
-            9.9.9.9, 149.112.112.112,      # Quad9
-            208.67.222.222, 208.67.220.220,# OpenDNS
-            45.90.28.0, 45.90.30.0         # NextDNS
-        } tcp dport 443 drop comment "doh:lan-doh-block-v4"
-
-        # IPv6 DoH resolvers
-        iifname "eth0" ip6 daddr {
-            2606:4700::/32,                # Cloudflare
-            2001:4860::/32,                # Google
-            2620:fe::/48                   # Quad9
-        } tcp dport 443 drop comment "doh:lan-doh-block-v6"
+        # NOTE: DNS enforcement (blocking clients from using external resolvers, DoH,
+        # DoT) must live in the FORWARD chain, not INPUT. Rules in INPUT see only
+        # packets destined for the NAS itself - forwarded LAN->WAN DNS traffic is
+        # invisible here. Add FORWARD drop rules if DNS interception is required.
 
         # WireGuard Handshake Range
         iifname "eth0" udp dport 51420-51435 ct state new,established accept comment "sr:input-wg-hs-range"
