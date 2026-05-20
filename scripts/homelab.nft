@@ -25,8 +25,10 @@ table inet homelab_filter {
 
         # Host Access
         iifname "eth0" ip  saddr 10.89.12.0/24 accept comment "sr:input-lan-v4"
-        # Any IPv6 not in the internal ULA realm is treated as LAN/global
-        iifname "eth0" ip6 saddr != fd89:7a3b:42c0::/48 accept comment "sr:input-lan-v6"
+        # LAN IPv6: accept link-local (pre-RA) and ULA (post-RA homelab prefix).
+        # Global IPv6 from teh internet is NOT accepted here - established/related
+        # return traffic is already handled by the ct rule above.
+        iifname "eth0" ip6 saddr { fe80::/10, fd89:7a3b:42c0::/48 } accept comment "sr:input-lan-v6"
         ip protocol icmp accept comment "sr:input-icmp-v4"
         ip6 nexthdr icmpv6 accept comment "sr:input-icmp-v6"
 
@@ -363,7 +365,7 @@ table ip6 homelab_nat6 {
 
         # NAT LAN replies to wg7 clients (IPv6)
         oifname "wg7" ip6 saddr fd89:7a3b:42c0::/64 masquerade comment "sr:nat-wg7-lan-v6"
-        
+
         # Any ULA from fd89:7a3b:42c0::/48 leaving via eth0 is NAT66'd
         oifname "eth0" ip6 saddr fd89:7a3b:42c0::/48 masquerade comment "sr:nat-wg-inet-v6"
     }
