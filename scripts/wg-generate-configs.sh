@@ -207,7 +207,7 @@ EOF
 [Interface]
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}/128
-DNS = ${LAN_NAS}, ${LAN6_NAS}
+DNS = ${LAN_NAS}, ${LAN6_NAS}, ${LAN_ROUTER}
 $( [[ "$os" == "windows" ]] && echo "Table = auto" )
 
 [Peer]
