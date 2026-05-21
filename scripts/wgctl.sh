@@ -99,14 +99,14 @@ do_down() {
 
 do_status() {
     local wg_bin="wg"
-    local remote_cmd
+    local -a remote_cmd  # array so each token is a separate word
     local now=$(date +%s)
 
     if [[ "$TARGET" == "router" ]]; then
-        remote_cmd="ssh -i $ROUTER_IDENTITY -p $ROUTER_SSH_PORT $ROUTER_HOST"
+        remote_cmd=(ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST")
         local header_name="• PEER NAME [router]"
     else
-        remote_cmd="sudo"
+        remote_cmd=(sudo)
         local header_name="• PEER NAME [nas]"
     fi
 
@@ -115,42 +115,44 @@ do_status() {
     # --- PLATINUM OPTIMIZATION: ONE-SHOT DATA GATHERING ---
     # Get all handshakes and all interfaces in just two remote calls
     local all_handshakes
-    all_handshakes=$($remote_cmd "$wg_bin" show all latest-handshakes 2>/dev/null || echo "")
+    all_handshakes=$("${remote_cmd[@]}" "$wg_bin" show all latest-handshakes 2>/dev/null || echo "")
     local active_ifaces
-    active_ifaces=$($remote_cmd "$wg_bin" show interfaces 2>/dev/null || echo "")
+    active_ifaces=$("${remote_cmd[@]}" "$wg_bin" show interfaces 2>/dev/null || echo "")
     # ------------------------------------------------------
 
-	# --- Determine dynamic width for the PEER NAME column ---
-	max_peer_len=$(awk -F'\t' 'NR>1 {print length($2)}' "$PEER_MAP" | sort -n | tail -1)
-	((max_peer_len < 12)) && max_peer_len=12
+    # --- Determine dynamic width for the PEER NAME column ---
+    max_peer_len=$(awk -F'\t' 'NR>1 {print length($2)}' "$PEER_MAP" | sort -n | tail -1)
+    ((max_peer_len < 12)) && max_peer_len=12
 
-	# Header
-	printf "• %-*s  %-5s %-15s %-26s %-14s %-3s\n" \
-		"$max_peer_len" "PEER NAME" "IF" "VPN IPv4" "VPN IPv6" "ACCESS" "LAN"
+    # Header
+    printf "• %-*s  %-5s %-15s %-26s %-14s %-3s\n" \
+        "$max_peer_len" "PEER NAME" "IF" "VPN IPv4" "VPN IPv6" "ACCESS" "LAN"
 
-	printf "%0.s-" $(seq 1 $((max_peer_len + 80)))
-	echo
+    printf "%0.s-" $(seq 1 $((max_peer_len + 80)))
+    echo
 
-	# Rows
-	while IFS=$'\t' read -r pk nm iface v4 v6 acc lan || [[ -n "$pk" ]]; do
-		[[ "$pk" == "pubkey" || "$pk" == "#"* || -z "$pk" ]] && continue
-		[[ " $active_ifaces " =~ " $iface " ]] || continue
+    # Rows
+    while IFS=$'\t' read -r pk nm iface v4 v6 acc lan || [[ -n "$pk" ]]; do
+        [[ "$pk" == "pubkey" || "$pk" == "#"* || -z "$pk" ]] && continue
+        [[ " $active_ifaces " =~ " $iface " ]] || continue
 
-		local handshake
-		handshake=$(echo "$all_handshakes" | grep "$pk" | awk '{print $3}' || echo "0")
-		[[ -z "$handshake" ]] && handshake=0
+        local handshake
+        # -F treats $pk as a fixed string, not a regex (pubkeys contain +/=)
+        handshake=$(echo "$all_handshakes" | grep -F "$pk" | awk '{print $3}' || echo "0")
+        [[ -z "$handshake" ]] && handshake=0
 
-		local icon="○"
-		if [[ "$handshake" -gt 0 ]]; then
-			[[ $((now - handshake)) -lt 150 ]] && icon="●" || icon="◌"
-		fi
+        local icon="○"
+        if [[ "$handshake" -gt 0 ]]; then
+            [[ $((now - handshake)) -lt 150 ]] && icon="●" || icon="◌"
+        fi
 
-		local disp_v4="${v4%/*}"
-		local disp_v6="${v6%/*}"
+        local disp_v4="${v4%/*}"
+        local disp_v6="${v6%/*}"
 
-		printf "○ %-*s  %-5s %-15s %-26s %-14s %-3s\n" \
-			"$max_peer_len" "$nm" "$iface" "$disp_v4" "$disp_v6" "$acc" "$lan"
-	done < "$PEER_MAP"
+        # use $icon computed above, not hardcoded ○
+        printf "%s %-*s  %-5s %-15s %-26s %-14s %-3s\n" "$icon" \
+            "$max_peer_len" "$nm" "$iface" "$disp_v4" "$disp_v6" "$acc" "$lan"
+    done < "$PEER_MAP"
 
 }
 

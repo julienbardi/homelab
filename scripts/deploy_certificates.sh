@@ -388,7 +388,7 @@ status_router() {
         ssh \
             -p "$ROUTER_SSH_PORT" \
             -o BatchMode=yes \
-            -o StrictHostKeyChecking=accept-new \
+            -o StrictHostKeyChecking=yes \
             -F "$HOME/.ssh/config" \
             -i "$HOME/.ssh/id_ed25519" \
             ${SSH_USER_ROUTER}@${ROUTER_ADDR} \
@@ -400,7 +400,7 @@ status_router() {
         ssh \
             -p "$ROUTER_SSH_PORT" \
             -o BatchMode=yes \
-            -o StrictHostKeyChecking=accept-new \
+            -o StrictHostKeyChecking=yes \
             -F "$HOME/.ssh/config" \
             -i "$HOME/.ssh/id_ed25519" \
             ${SSH_USER_ROUTER}@${ROUTER_ADDR} \
