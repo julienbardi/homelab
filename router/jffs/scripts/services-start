@@ -9,21 +9,43 @@
 # 2) Caddy binary + config paths
 CADDY_BIN="/jffs/bin/caddy"
 CADDY_CFG="/jffs/etc/caddy/Caddyfile"
-CADDY_LOG="/jffs/var/log/caddy.log"
+CADDY_LOG="/tmp/var/log/caddy.log"
 
-# 3) Start Caddy only if binary + config exist
+# 3) Ensure RAM log directory exists
+mkdir -p /tmp/var/log
+
+# 4) Prevent runaway log growth (>1MB) using BusyBox-safe wc
+if [ -f "$CADDY_LOG" ]; then
+    if [ "$(wc -c < "$CADDY_LOG")" -gt 1048576 ]; then
+        : > "$CADDY_LOG"
+    fi
+fi
+
+# 5) Wait for network stack (max 5s)
+for i in 1 2 3 4 5; do
+    if ifconfig br0 >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+# 6) Sanitize environment
+umask 022
+
+# 7) Start Caddy only if binary + config exist
 if [ -x "$CADDY_BIN" ] && [ -f "$CADDY_CFG" ]; then
-    echo "🌐 Starting Caddy (services-start)" >> "$CADDY_LOG" 2>&1
+    echo "Starting Caddy (services-start)" >> "$CADDY_LOG" 2>&1
 
     # Avoid double-start if watchdog or manual start already running
     if ! pgrep -f "$CADDY_BIN" >/dev/null 2>&1; then
-        "$CADDY_BIN" run --config "$CADDY_CFG" >> "$CADDY_LOG" 2>&1 &
-        echo "🟢 Caddy started" >> "$CADDY_LOG"
+        "$CADDY_BIN" run --config "$CADDY_CFG" < /dev/null >> "$CADDY_LOG" 2>&1 &
+        sleep 1
+        echo "Caddy background process initialized" >> "$CADDY_LOG"
     else
-        echo "ℹ️ Caddy already running — skipping" >> "$CADDY_LOG"
+        echo "Caddy already running — skipping" >> "$CADDY_LOG"
     fi
 else
-    echo "❌ Caddy binary or config missing — not starting" >> "$CADDY_LOG"
+    echo "Caddy binary or config missing — not starting" >> "$CADDY_LOG"
 fi
 
 exit 0

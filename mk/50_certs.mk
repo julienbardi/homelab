@@ -245,8 +245,9 @@ validate-qnap-todebug-fails:
 	$(call validate_with_status,qnap)
 
 validate-ac86u:
-	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443"
-	@success=0; \
+	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443"; \
+	sleep 0.3; \
+	success=0; \
 	for i in 1 2 3 4 5 6 7 8 9 10; do \
 		remote_fp=$$(openssl s_client \
 			-connect $(LAN_AC86U):8443 \
