@@ -16,31 +16,38 @@ HOMELAB_ENV="/volume1/homelab/homelab.env"
 TRUSTED_GROUP="admin"
 
 if [[ -f "$HOMELAB_ENV" ]]; then
-    # Safety: refuse to source if teh file is not owned by root or the current user
-	# or if it is world-writable. This prevents accidental privilege escalation via a
-	# worldwritable env file being sourced by a root-run script.
-	_env_owner=$(stat -c "%u" "$HOMELAB_ENV")
-	_env_group=$(stat -c "%g" "$HOMELAB_ENV")
-	_env_mode=$(stat -c "%a" "$HOMELAB_ENV")
+    _env_owner=$(stat -c "%u" "$HOMELAB_ENV")
+    _env_group=$(stat -c "%g" "$HOMELAB_ENV")
+    _env_mode=$(stat -c "%a" "$HOMELAB_ENV")
 
-	current_uid=$(id -u)
-	current_gid=$(id -g)
-	trusted_gid=$(getent group admin | cut -d: -f3)
+    current_uid=$(id -u)
+    current_gid=$(id -g)
+    trusted_gid=$(getent group "$TRUSTED_GROUP" | cut -d: -f3)
 
-	if [[ "$_env_owner" != "0" && "$_env_owner" != "$current_uid" && "$_env_group" != "$trusted_gid" ]]; then
-		echo "[common.sh] WARNING: $HOMELAB_ENV owner/group not trusted — skipping source" >&2
-	elif (( (10#$_env_mode & 002) != 0 )); then
-		echo "[common.sh] WARNING: $HOMELAB_ENV is world-writable ($_env_mode) - skipping source" >&2
-	elif (( (10#$_env_mode & 020) != 0 && _env_group != trusted_gid )); then
-		echo "[common.sh] WARNING: $HOMELAB_ENV is group-writable by untrusted group ($_env_mode) - skipping source" >&2
-	else
-		set +a; set +u; set -a
-		source "$HOMELAB_ENV"
-		set +a; set -u
-	fi
+    # If trusted_gid is empty, treat as untrusted
+    if [[ -z "$trusted_gid" ]]; then
+        echo "[common.sh] WARNING: trusted group '$TRUSTED_GROUP' not found — skipping source" >&2
+    elif [[ "$_env_owner" != "0" && "$_env_owner" != "$current_uid" && "$_env_group" != "$trusted_gid" ]]; then
+        echo "[common.sh] WARNING: $HOMELAB_ENV owner/group not trusted — skipping source" >&2
+    elif (( (10#$_env_mode & 002) != 0 )); then
+        echo "[common.sh] WARNING: $HOMELAB_ENV is world-writable ($_env_mode) — skipping source" >&2
+    elif (( (10#$_env_mode & 020) != 0 )) && [[ "$_env_group" != "$trusted_gid" ]]; then
+        echo "[common.sh] WARNING: $HOMELAB_ENV is group-writable by untrusted group ($_env_mode) — skipping source" >&2
+    else
+        set +a; set +u; set -a
+        source "$HOMELAB_ENV"
+        set +a; set -u
 
-	unset _env_owner _env_mode
+        # Safety: restore PATH if env file modified it
+        case ":$PATH:" in
+            *:/usr/local/sbin:*|*:/usr/local/bin:*|*:/usr/sbin:*|*:/usr/bin:*|*:/sbin:*|*:/bin:*) ;;
+            *) PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" ;;
+        esac
+    fi
+
+    unset _env_owner _env_group _env_mode
 fi
+
 
 # Set derived router connection string if not already set
 : "${ROUTER_SSH:=ssh -p${ROUTER_SSH_PORT:-2222} ${ROUTER_HOST:-}}"
@@ -115,21 +122,26 @@ reload_service() {
     local svc="$1"
     local config="$2"
 
-    # Try caddy reload with timeout
-    if sudo timeout 10 caddy reload --config "${config}" --force; then
-        log "${svc} reloaded via caddy CLI"
-        return 0
+    # Caddy has its own graceful reload CLI; use it only for Caddy itself.
+    # Passing a non-Caddy config path to `caddy reload` is incorrect and can
+    # silently reload Caddy with wrong configuration.
+    if [[ "$svc" == "caddy" ]]; then
+        if sudo timeout 10 caddy reload --config "${config}" --force; then
+            log "${svc} reloaded via caddy CLI"
+            return 0
+        fi
+        log "${svc} caddy CLI reload failed, falling back to systemctl..."
     fi
 
-    log "${svc} reload via CLI failed, trying systemctl..."
-
-    # Fallback: systemctl reload with timeout
+    # systemctl reload sends SIGHUP (supported by most daemons)
     if sudo timeout 10 systemctl reload "${svc}"; then
         log "${svc} reloaded via systemctl"
         return 0
     fi
 
-    # Final fallback: systemctl restart with timeout
+    log "${svc} reload not supported, restarting..."
+
+    # Final fallback: full restart
     if sudo timeout 10 systemctl restart "${svc}"; then
         log "${svc} restarted via systemctl"
         return 0

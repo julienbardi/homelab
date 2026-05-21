@@ -7,8 +7,8 @@
 [ -d /jffs ] || exit 0
 
 # 2) Caddy binary + config paths
-CADDY_BIN="/jffs/bin/caddy"
-CADDY_CFG="/jffs/etc/caddy/Caddyfile"
+CADDY_BIN="/tmp/mnt/sda/router/bin/caddy"
+CADDY_CFG="/jffs/caddy/Caddyfile"
 CADDY_LOG="/tmp/var/log/caddy.log"
 
 # 3) Ensure RAM log directory exists
