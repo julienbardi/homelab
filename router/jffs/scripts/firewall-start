@@ -137,3 +137,13 @@ if ! ip6tables -S FORWARD | grep -q -- "^-A FORWARD -o wg\+ -j WGSF6"; then
 fi
 
 log "IPv6 WireGuard FORWARD scoping enforced"
+
+# ------------------------------------------------------------
+# 5. DNS SOVEREIGNTY ENFORCER
+# ------------------------------------------------------------
+if [ -x /jffs/scripts/dns-enforcer.sh ]; then
+    log "running dns-enforcer"
+    /jffs/scripts/dns-enforcer.sh
+else
+    log "dns-enforcer.sh missing; DNS enforcement skipped"
+fi

@@ -1,0 +1,1 @@
+alias dnslogs='tail -f /tmp/syslog.log | grep dns-enforcer'

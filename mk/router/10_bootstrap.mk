@@ -155,7 +155,8 @@ ROUTER_SCRIPT_FILES := \
 	firewall-start \
 	install-cert.sh \
 	wan-event \
-	services-start
+	services-start \
+	dns-enforcer.sh
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-run-as-root
