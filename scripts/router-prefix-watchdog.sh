@@ -19,7 +19,18 @@ LOGTAG="router-prefix-watchdog"
 # REPO_ROOT must be exported by systemd service
 : "${REPO_ROOT:?REPO_ROOT must be exported by systemd unit}"
 
+[[ -d "$REPO_ROOT" ]] || {
+    logger -t "$LOGTAG" "ERROR: REPO_ROOT does not exist: $REPO_ROOT"
+    exit 1
+}
+
 logger -t "$LOGTAG" "Starting watchdog (repo: $REPO_ROOT)"
+
+# Prevent log from growing beyond 1MB
+if [[ -f /var/log/router-prefix-watchdog.log ]] && \
+   [[ $(wc -c < /var/log/router-prefix-watchdog.log) -gt 1048576 ]]; then
+    : > /var/log/router-prefix-watchdog.log
+fi
 
 while true; do
     if [[ -f "$MARKER" ]]; then
