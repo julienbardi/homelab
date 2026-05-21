@@ -314,3 +314,18 @@ router-ssh-invariants:
 		else \
 			echo "✔️ SSH invariants already satisfied"; \
 		fi'
+
+.PHONY: router-lan-domain
+router-lan-domain: | router-ssh-check
+	@LAN_DOMAIN="$$( $(call WITH_SECRETS, sh -c 'echo "$$ddns_topdomain"' ) )"; \
+	ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" '\
+		cur="$$(nvram get lan_domain 2>/dev/null || true)"; \
+		if [ "$$cur" = "'"$$LAN_DOMAIN"'" ]; then \
+			echo "🌐 LAN domain already set to '"$$LAN_DOMAIN"'"; \
+			exit 0; \
+		fi; \
+		nvram set lan_domain="'"$$LAN_DOMAIN"'"; \
+		nvram commit; \
+		service restart_dnsmasq; \
+		echo "🌐 LAN domain set to '"$$LAN_DOMAIN"'"; \
+	'

@@ -242,9 +242,9 @@ Full architecture diagram:
 Key invariants:
 
 - NAS is the authoritative control plane (TSVs, keys, generation, deployment)
-- Router is a runtime-only node (wg + ip, no wg-quick, no router-side scripts)
+- Router is a runtime-only node (wg + ip, no wg-quick, no WG-specific router-side scripts)
 - Router kernel module is guaranteed via:
-  - router-ensure-wg-module (boot-time autoload)
+  - router-ensure-wg-module — ensures WireGuard kernel module is available (no script mutation)
   - wg-router-preflight (runtime modprobe)
 - All interfaces marked enabled in wg-interfaces.tsv are generated
 - Only wgs1 (router) and wg7 (NAS) are deployed by default
@@ -267,7 +267,7 @@ Key invariants:
 - `make wg-install-router` — Installs the router WireGuard config and ensures the router is module-ready.
   Includes:
 
-  - router-ensure-wg-module — append `modprobe wireguard` to `/jffs/scripts/services-start` (idempotent)
+  - router-ensure-wg-module — ensures WireGuard kernel module is available (no script mutation)
   - wg-router-preflight — load module immediately (`modprobe wireguard`)
   - Deploy `output/router/wgs1.conf` → `/jffs/etc/wireguard/wgs1.conf`
 
@@ -322,7 +322,7 @@ This is the canonical entrypoint.
 - Router module loading is now fully autonomous:
   - Boot-time: router-ensure-wg-module
   - Runtime: wg-router-preflight
-- No router-side scripts are used except `/jffs/scripts/services-start`
+- services-start is canonical, version-controlled, and deployed by router-install-scripts (never mutated)
 - No iptables WG chains are created
 - All deployment is atomic via install_file_if_changed_v2.sh
 - All state is intent-driven from TSV input

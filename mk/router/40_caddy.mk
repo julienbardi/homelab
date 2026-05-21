@@ -201,16 +201,10 @@ router-caddy-check: | router-ssh-check router-require-arm64
 
 .PHONY: router-caddy-enable
 router-caddy-enable: | router-ssh-check router-require-run-as-root
-	@echo "⚙️  Enabling Caddy autostart on router"
+	@echo "⚙️  Ensuring Caddy autostart (canonical services-start)"
 	@$(call WITH_SECRETS, \
 		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" '\
-			set -e; \
-			mkdir -p /jffs/scripts; \
-			touch /jffs/scripts/services-start; \
-			chmod 0755 /jffs/scripts/services-start; \
-			if ! grep -q "/jffs/scripts/caddy-reload.sh" /jffs/scripts/services-start; then \
-				echo "/jffs/scripts/caddy-reload.sh" >> /jffs/scripts/services-start; \
-			fi; \
+			echo "services-start is managed by homelab and deployed via router-install-scripts"; \
 		' \
 	)
-	@echo "✅ Caddy autostart enabled"
+	@echo "🟢 Caddy autostart ensured by canonical services-start"

@@ -154,7 +154,8 @@ ROUTER_SCRIPT_FILES := \
 	gen-client-cert-wrapper.sh generate-client-cert.sh \
 	firewall-start \
 	install-cert.sh \
-	wan-event
+	wan-event \
+	services-start
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-run-as-root

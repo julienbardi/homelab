@@ -1,0 +1,29 @@
+#!/bin/sh
+# services-start — homelab router bootstrap
+# Ensures Caddy is started on every router boot.
+# DO NOT EDIT MANUALLY — managed by homelab.
+
+# 1) Ensure jffs is mounted
+[ -d /jffs ] || exit 0
+
+# 2) Caddy binary + config paths
+CADDY_BIN="/jffs/bin/caddy"
+CADDY_CFG="/jffs/etc/caddy/Caddyfile"
+CADDY_LOG="/jffs/var/log/caddy.log"
+
+# 3) Start Caddy only if binary + config exist
+if [ -x "$CADDY_BIN" ] && [ -f "$CADDY_CFG" ]; then
+    echo "🌐 Starting Caddy (services-start)" >> "$CADDY_LOG" 2>&1
+
+    # Avoid double-start if watchdog or manual start already running
+    if ! pgrep -f "$CADDY_BIN" >/dev/null 2>&1; then
+        "$CADDY_BIN" run --config "$CADDY_CFG" >> "$CADDY_LOG" 2>&1 &
+        echo "🟢 Caddy started" >> "$CADDY_LOG"
+    else
+        echo "ℹ️ Caddy already running — skipping" >> "$CADDY_LOG"
+    fi
+else
+    echo "❌ Caddy binary or config missing — not starting" >> "$CADDY_LOG"
+fi
+
+exit 0

@@ -262,7 +262,8 @@ router-all: sanity router-bootstrap router-converge router-verify \
 			router-install-scripts \
 			router-dnsmasq-conf \
 			router-nat-install \
-			router-firewall-started
+			router-firewall-started \
+			router-caddy
 	@echo "🎯 Router bootstrap + converge + verify complete"
 
 router-configure:
