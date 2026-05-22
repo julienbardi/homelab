@@ -116,7 +116,7 @@ COMMON_SRC        := $(REPO_ROOT)/scripts/common.sh
 export run_as_root                 := $(INSTALL_SBIN_PATH)/run-as-root.sh
 export INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
 export INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v2.sh
-export INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/inst
+export INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_changed.sh
 
 # ----------------------------------------------------------------------------
 # 7. Build Invariants
