@@ -5,7 +5,7 @@ set +u
 # Always retrieve IPv6 prefix from router
 ipv6_prefix=""
 for i in 1 2 3; do
-    ipv6_prefix="$(ssh -p 2222 julie@10.89.12.1 'nvram get ipv6_prefix' 2>/dev/null || true)"
+    ipv6_prefix="$(ssh -p "$ROUTER_SSH_PORT" "$ROUTER_USER@$ROUTER_ADDR" 'nvram get ipv6_prefix' 2>/dev/null || true)"
     [[ -n "$ipv6_prefix" ]] && break
     sleep 0.2
 done

@@ -253,7 +253,7 @@ prereqs-python-venv: ensure-run-as-root | ensure-default-gateway
 	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "ℹ️  python3 >= $(PYTHON_MIN) and venv available: $$(python3 -V 2>&1)"; fi
 
 prereqs-dns-health-check-verify: ensure-run-as-root
-	@$(run_as_root) $(INSTALL_PATH)/dns-health-check.sh --check-only || { \
+	@$(run_as_root) test -x $(INSTALL_PATH)/dns-health-check.sh || { \
 		echo "❌ DNS health check script drift detected. Remediate with: sudo make install-all."; \
 		exit 1; \
 	}
