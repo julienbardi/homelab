@@ -11,7 +11,7 @@ router-dnsmasq-conf: secrets-ready ensure-default-gateway router-bootstrap-run-a
 		$(INSTALL_FILE_IF_CHANGED) \
 			"" "" "$(LOCAL_DNSMASQ_CONF)" \
 			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$(ROUTER_DNSMASQ_CONF)" \
-			"root" "root" "0644"; \
+			"0" "0" "0644"; \
 	RC=$$?; \
 	if [ $$RC -eq 1 ] || [ $$RC -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsmasq.conf.add changed → restarting dnsmasq + radvd"; \

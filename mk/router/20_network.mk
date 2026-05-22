@@ -160,14 +160,14 @@ router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-boo
 
 
 # ------------------------------------------------------------
-# IPv6 ULA / NVRAM provisioning
+# IPv6 ULA / NVRAM provisioning (static, deterministic)
 # ------------------------------------------------------------
 
 .PHONY: router-provision-nvram
 router-provision-nvram: secrets-ready | ensure-router-ula
-	@echo "🛡️ Syncing Router NVRAM (ULA/RDNSS) using SSOT"
+	@echo "🛡️ Syncing Router NVRAM (ULA only — DNS handled by dns-enforcer)"
 
-	@# Compute ULA prefix (fail-fast if invalid)
+	@# Compute ULA prefix (/48) from NAS_LAN_IP6 (fail-fast if invalid)
 	@ULA_PREFIX_NVRAM="$$( \
 		if [ -n "$(NAS_LAN_IP6)" ]; then \
 			printf "%s" "$(NAS_LAN_IP6)" | sed -n 's/::[0-9a-fA-F]*$$/::\/48/p'; \
@@ -184,10 +184,10 @@ router-provision-nvram: secrets-ready | ensure-router-ula
 		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
 		'set -e; \
 			cur_prefix="$$(nvram get ipv6_ula_prefix 2>/dev/null || echo)"; \
-			cur_dns1="$$(nvram get ipv6_dns1 2>/dev/null || echo)"; \
-			cur_dns61="$$(nvram get ipv6_dns61_x 2>/dev/null || echo)"; \
+			cur_lan_addr="$$(nvram get ipv6_lan_addr 2>/dev/null || echo)"; \
 			changed=0; \
 			\
+			# Enforce ULA prefix (/48)
 			if [ "$$cur_prefix" != "'"$$ULA_PREFIX_NVRAM"'" ]; then \
 				echo "🔧 ipv6_ula_prefix → '"$$ULA_PREFIX_NVRAM"'"; \
 				nvram set ipv6_ula_prefix="'"$$ULA_PREFIX_NVRAM"'"; \
@@ -195,17 +195,16 @@ router-provision-nvram: secrets-ready | ensure-router-ula
 				changed=1; \
 			fi; \
 			\
-			if [ "$$cur_dns1" != "$(ROUTER_ULA_IP6)" ]; then \
-				echo "🔧 ipv6_dns1 → $(ROUTER_ULA_IP6)"; \
-				nvram set ipv6_dns1="$(ROUTER_ULA_IP6)"; \
+			# Enforce router's own ULA LAN address (::1)
+			if [ "$$cur_lan_addr" != "$(ROUTER_ULA_IP6)" ]; then \
+				echo "🔧 ipv6_lan_addr → $(ROUTER_ULA_IP6)"; \
+				nvram set ipv6_lan_addr="$(ROUTER_ULA_IP6)"; \
+				nvram set ipv6_lan_prefix="48"; \
 				changed=1; \
 			fi; \
 			\
-			if [ "$$cur_dns61" != "$(ROUTER_ULA_IP6)" ]; then \
-				echo "🔧 ipv6_dns61_x → $(ROUTER_ULA_IP6)"; \
-				nvram set ipv6_dns61_x="$(ROUTER_ULA_IP6)"; \
-				changed=1; \
-			fi; \
+			# IMPORTANT: Do NOT set ipv6_dns1 here.
+			# DNS advertisement is dynamic and handled by dns-enforcer.sh.
 			\
 			if [ "$$changed" -eq 1 ]; then \
 				nvram commit; \
@@ -213,6 +212,7 @@ router-provision-nvram: secrets-ready | ensure-router-ula
 			else \
 				echo "ℹ️ NVRAM already converged"; \
 			fi'
+
 
 
 # ------------------------------------------------------------
