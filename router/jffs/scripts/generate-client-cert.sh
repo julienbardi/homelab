@@ -11,6 +11,16 @@ if [ -z "$CN" ]; then
     exit 2
 fi
 
+# Validate CN: allow only chars safe for filenames and cert subjects (alphanumeric, dot, underscore, hyphen)
+# This prevents directory-transversal (../), shell metacharacter injection into
+# the openssl -subj string, and crafted TMPDIR paths.
+case "$CN" in
+	*[!a-zA-Z0-9._-]*)
+		echo "[err] '$CN' contains illegal characters (allowed: a-z A-Z 0-9 . _ -)" >&2
+		exit 1
+		;;
+esac
+
 CA_KEY="/jffs/ssl/private/ca/homelab_bardi_CA.key"
 CA_PUB="/jffs/ssl/canonical/ca.cer"
 OUT_DIR="/jffs/ssl/caddy/clients"

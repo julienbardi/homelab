@@ -34,15 +34,14 @@ if [[ -f "$HOMELAB_ENV" ]]; then
     elif (( (10#$_env_mode & 020) != 0 )) && [[ "$_env_group" != "$trusted_gid" ]]; then
         echo "[common.sh] WARNING: $HOMELAB_ENV is group-writable by untrusted group ($_env_mode) — skipping source" >&2
     else
+        # Save PATH before sourcing so homelab.env cannot hijack it
+        _saved_path="$PATH"
         set +a; set +u; set -a
         source "$HOMELAB_ENV"
         set +a; set -u
-
-        # Safety: restore PATH if env file modified it
-        case ":$PATH:" in
-            *:/usr/local/sbin:*|*:/usr/local/bin:*|*:/usr/sbin:*|*:/usr/bin:*|*:/sbin:*|*:/bin:*) ;;
-            *) PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" ;;
-        esac
+		PATH="$_saved_path"
+		export PATH
+        unset _saved_path
     fi
 
     unset _env_owner _env_group _env_mode

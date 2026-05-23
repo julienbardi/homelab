@@ -26,11 +26,6 @@ SOPS         ?= /usr/local/bin/sops
 SECRETS_FILE ?= $(REPO_ROOT)/secrets.enc.yaml
 export SECRETS_FILE
 
-# THE FIX: Decrypt to a shell-compatible format and source it in-line.
-# We use 'env' output from SOPS, which is naturally 'VAR=VAL'
-# Legacy stub — do not use
-WITH_SECRETS_LEGACY = export $$( $(SOPS) -d $(SECRETS_FILE) | awk -F': ' '/: / {gsub(/"/, "", $$2); print $$1 "=" $$2}' );
-
 # Load non-secret config
 include $(REPO_ROOT)/mk/config.mk
 

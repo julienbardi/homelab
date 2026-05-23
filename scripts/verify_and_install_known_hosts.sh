@@ -121,11 +121,13 @@ for ((idx=0; idx<${#HOST_META[@]}; idx+=2)); do
     continue
   fi
 
-  # Atomic User Update (Copy + Append + Sort + Replace)
+  # Atomic User Update: Copy + Append -> sort a NEW + Replace
   u_tmp="$(mktemp -p /run homelab.XXXXXX)"
+  u_sorted="$(mktemp -p /run homelab.XXXXXX)"
   cp "$KNOWN_HOSTS" "$u_tmp"
   for k in "${KEYS[@]}"; do printf "%s\n" "$k" >> "$u_tmp"; done
-  sort -u "$u_tmp" > "$KNOWN_HOSTS"
+  sort -u "$u_tmp" > "$u_sorted"
+  mv "$u_sorted" "$KNOWN_HOSTS"
   rm -f "$u_tmp"
 
   # Root update disabled by design (Julien’s homelab contract)

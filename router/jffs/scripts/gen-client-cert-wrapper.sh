@@ -21,4 +21,4 @@ if [ ! -x "$GEN_CLIENT_CERT" ]; then
     exit 1
 fi
 
-exec $RUN_AS_ROOT "$GEN_CLIENT_CERT" "$CN" $FORCE_FLAG
+exec "$RUN_AS_ROOT" "$GEN_CLIENT_CERT" "$CN" ${FORCE_FLAG:+"$FORCE_FLAG"}
