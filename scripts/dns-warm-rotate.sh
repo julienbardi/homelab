@@ -15,7 +15,6 @@ STATE_FILE="/var/lib/dns-warm/state.csv"
 WORKERS=$(( 2 * ($(nproc) - 1) ))
 [ "$WORKERS" -lt 1 ] && WORKERS=1
 
-WORKERS=10      # legacy only
 # Use arguments passed by Systemd/Makefile
 # Argument 1: Resolver IP
 # Argument 2: Domains per run, recommended: 2000 domains every 10s (12,000/min). Higher values caused SERVFAIL in benchmarks.

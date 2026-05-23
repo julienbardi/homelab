@@ -1,6 +1,11 @@
 #!/bin/bash
-set -eo pipefail
-set +u
+set -euo pipefail
+: "${ROUTER_SSH_PORT:?ROUTER_SSH_PORT must be set in environment}"
+: "${ROUTER_USER:?ROUTER_USER must be set in environment}"
+: "${ROUTER_ADDR:?ROUTER_ADDR must be set in environment}"
+: "${LAN_NAS:?LAN_NAS must be set in environment}"
+: "${LAN6_NAS:?LAN6_NAS must be set in environment}"
+: "${LAN_ROUTER:?LAN_ROUTER must be set in environment}"
 
 # Always retrieve IPv6 prefix from router
 ipv6_prefix=""
