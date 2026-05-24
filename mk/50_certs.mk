@@ -15,8 +15,7 @@
 
 # Installed certificate helpers (authoritative execution surface)
 CERTS_CREATE        := $(INSTALL_PATH)/certs-create.sh
-#CERTS_DEPLOY        := $(INSTALL_PATH)/certs-deploy.sh
-CERTS_DEPLOY := $(INSTALL_PATH)/deploy_certificates.sh
+CERTS_DEPLOY        := $(INSTALL_PATH)/deploy_certificates.sh
 GEN_CLIENT_CERT     := $(INSTALL_PATH)/generate-client-cert.sh
 GEN_CLIENT_WRAPPER  := $(INSTALL_PATH)/gen-client-cert-wrapper.sh
 
@@ -29,19 +28,16 @@ CANON_CA          := $(SSL_CANONICAL_DIR)/ca.cer
 # Service deployment targets
 CADDY_DEPLOY_DIR ?= /etc/ssl/caddy
 
-#$(CERTS_DEPLOY): $(REPO_ROOT)/scripts/certs-deploy.sh $(INSTALL_FILE_IF_CHANGED)
-#	@$(call install_file,$<,$@,root,root,0755)
-
 # --------------------------------------------------------------------
 # Internal CA lifecycle (authoritative, idempotent)
 # --------------------------------------------------------------------
-.PHONY: certs-deploy certs-ensure certs-status
+.PHONY: certs-create certs-deploy certs-ensure certs-status certs-expiry \
+		certs-rotate certs-rotate-dangerous gen-client-cert
 
 # Create CA (idempotent). Uses EC P-384 by default.
 certs-create: ensure-run-as-root $(CERTS_CREATE)
 	@$(run_as_root) $(CERTS_CREATE)
 
-.PHONY: gen-client-cert
 gen-client-cert: ensure-run-as-root $(GEN_CLIENT_WRAPPER) $(GEN_CLIENT_CERT)
 	@if [ -z "$(CN)" ]; then \
 	  echo "[make] usage: make gen-client-cert CN=<name> [FORCE=1]"; exit 1; \
@@ -66,7 +62,6 @@ certs-status:
 	@echo "Client store: /etc/ssl/caddy/clients"; ls -l /etc/ssl/caddy/clients || true
 
 # Check CA expiry (prints human-readable expiry and days left)
-.PHONY: certs-expiry
 certs-expiry: ensure-run-as-root
 	@if [ -f "$(CA_PUB)" ]; then \
 	  echo "🔍 CA public cert: $(CA_PUB)"; \
@@ -81,30 +76,20 @@ certs-expiry: ensure-run-as-root
 
 # --------------------------------------------------------------------
 # ⚠️ ️DESTRUCTIVE OPERATION — CA ROTATION
-#
-# - Invalidates ALL existing client certificates
-# - Requires manual confirmation
-# - Must never be called implicitly
-# - Safe only when operator is present
 # --------------------------------------------------------------------
-.PHONY: certs-rotate-dangerous
 certs-rotate-dangerous: certs-rotate
 
-.PHONY: certs-rotate
 certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CERT) $(GEN_CLIENT_WRAPPER)
 	@echo "🔥 ROTATE CA - this will create a new CA and invalidate existing client certs"; \
 	read -p "Type YES to ROTATE THE CA: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1); \
 	@echo "⚠️   Proceeding with CA rotation — this cannot be undone"; \
-	# exclusive lock to avoid concurrent runs
 	$(run_as_root) bash -c 'exec 9>/var/lock/certs-rotate.lock || exit 1; flock -n 9 || { echo "another certs-rotate is running"; exit 1; }; \
 	set -euo pipefail; \
-	# vars
 	CA_KEY="$(CA_KEY)"; CA_PUB="$(CA_PUB)"; CANON_CA="$(CANON_CA)"; CLIENT_DIR="/etc/ssl/caddy/clients"; BACKUP_DIR="/root/ca-backups"; TAG="certs-rotate"; \
 	mkdir -p "$$BACKUP_DIR"; chmod 0700 "$$BACKUP_DIR"; \
 	ts=$$(date -u +"%Y%m%dT%H%M%SZ"); \
 	backup_plain="$$BACKUP_DIR/homelab_bardi_CA.$$ts.tar.gz"; \
 	logger -t "$$TAG" -p user.info "Starting CA rotation; creating backup if present"; \
-	# backup existing CA files if present
 	if [ -f "$$CA_KEY" ] || [ -f "$$CA_PUB" ]; then \
 	  tar -czf "$$backup_plain" --absolute-names --warning=no-file-changed "$$CA_KEY" "$$CA_PUB" 2>/dev/null || true; \
 	  chmod 0600 "$$backup_plain" || true; \
@@ -112,19 +97,15 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 	else \
 	  logger -t "$$TAG" -p user.info "No existing CA files found to backup"; \
 	fi; \
-	# move originals aside into backup dir
 	if [ -f "$$CA_KEY" ]; then mv -f "$$CA_KEY" "$$BACKUP_DIR/homelab_bardi_CA.key.$$ts"; fi; \
 	if [ -f "$$CA_PUB" ]; then mv -f "$$CA_PUB" "$$BACKUP_DIR/homelab_bardi_CA.pem.$$ts"; fi; \
 	logger -t "$$TAG" -p user.info "Old CA files moved to $$BACKUP_DIR"; \
-	# create and deploy new CA via existing make targets
 	logger -t "$$TAG" -p user.info "Creating new CA"; \
 	$(run_as_root) $(CERTS_CREATE) || { logger -t "$$TAG" -p user.err "certs-create failed"; exit 1; }; \
 	$(run_as_root) $(CERTS_DEPLOY) || { logger -t "$$TAG" -p user.err "certs-deploy failed"; exit 1; }; \
 	logger -t "$$TAG" -p user.info "New CA created and deployed"; \
-	# list affected clients
 	clients=$$(ls -1 "$$CLIENT_DIR"/*.p12 2>/dev/null | xargs -n1 basename 2>/dev/null | sed "s/\.p12$$//") || true; \
 	if [ -z "$$clients" ]; then logger -t "$$TAG" -p user.info "No client .p12 files found (no reissue needed)"; else logger -t "$$TAG" -p user.info "Clients to reissue: $$clients"; fi; \
-	# offer automatic reissue if helper exists
 	if [ -n "$$clients" ]; then \
 	  if [ ! -x "$(GEN_CLIENT_CERT)" ]; then \
 		logger -t "$$TAG" -p user.err "generate-client-cert.sh not found or not executable; cannot reissue automatically"; \
@@ -139,7 +120,6 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 		logger -t "$$TAG" -p user.info "Automatic reissue complete; admin must securely deliver new .p12 files to users"; \
 	  fi; \
 	fi; \
-	# install expiry monitor (journal) using secure temp files under /root
 	read -p "Install CA expiry monitor (weekly -> systemd journal)? Type YES to install: " m && [ "$$m" = "YES" ] || { logger -t "$$TAG" -p user.info "Expiry monitor not installed"; exit 0; }; \
 	logger -t "$$TAG" -p user.info "Installing expiry monitor (script + systemd timer -> journal)"; \
 	tmp_script=$$(mktemp -p /run homelab.XXXXXX.sh); \
@@ -165,45 +145,35 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 	systemctl daemon-reload; systemctl enable --now certs-expiry-check.timer; \
 	logger -t "$$TAG" -p user.info "Expiry monitor installed and enabled (weekly -> journal)"; \
 	logger -t "$$TAG" -p user.info "View logs: journalctl -t certs-expiry-check --no-pager"; \
-	# flock released on shell exit; exit 0'
-# --------------------------------------------------------------------
-# End of internal CA lifecycle
-# --------------------------------------------------------------------
+	'
 
 # --------------------------------------------------------------------
 # ACME / service certificate workflow
 # --------------------------------------------------------------------
-# NOTE:
-# - ACME certificates are derived artifacts
-# - They depend on the internal CA being present
-# - They must never mutate CA material
 .PHONY: renew prepare \
-	deploy-caddy deploy-headscale deploy-dnsdist deploy-diskstation deploy-qnap deploy-dsm \
-	validate-caddy validate-headscale validate-diskstation validate-qnap validate-dsm validate-ac86u \
-	all-caddy all-headscale all-router all-diskstation all-qnap all-ac86u\
-	all-remote \
-	setup-cert-watch-% setup-cert-watch-all \
-	deploy-cert-watch-% deploy-cert-watch-all \
-	bootstrap-caddy bootstrap-headscale bootstrap-diskstation bootstrap-qnap \
-	bootstrap-all
+		deploy-caddy deploy-headscale deploy-dnsdist deploy-diskstation deploy-qnap deploy-dsm \
+		validate-caddy validate-headscale validate-diskstation validate-qnap validate-dsm validate-ac86u \
+		all-caddy all-headscale all-router all-diskstation all-qnap all-ac86u \
+		all-remote \
+		setup-cert-watch-% setup-cert-watch-all \
+		deploy-cert-watch-% deploy-cert-watch-all \
+		bootstrap-caddy bootstrap-headscale bootstrap-diskstation bootstrap-qnap \
+		bootstrap-all deploy-ac86u
 
 # Base actions
-# Update the renew target dependencies
 renew: ensure-run-as-root install-helpers
 	@$(run_as_root) $(CERTS_DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE)
 
-# Cleaner: Let the dependency graph do the work
 install-helpers: $(INSTALL_PATH)/common.sh $(INSTALL_FILE_IF_CHANGED) $(INSTALL_PATH)/deploy_certificates.sh
 	@echo "🛠️ Helpers verified and synced"
 
-# Ensure the pointer is explicitly linked to the source if not handled in common.mk
 $(INSTALL_PATH)/deploy_certificates.sh: $(REPO_ROOT)/scripts/deploy_certificates.sh | $(BOOTSTRAP_FILES)
 	$(call install_script,$<,$(notdir $@))
 
 prepare: ensure-run-as-root renew $(CERTS_DEPLOY)
 	@$(run_as_root) $(CERTS_DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
 
-# Deploy targets
+# Deploy helpers
 define deploy_with_status
 	@$(run_as_root) $(CERTS_DEPLOY) deploy $(1) 2>/dev/null
 	@echo "🔄 Certificate deploy requested -> $(1)"
@@ -224,7 +194,7 @@ deploy-diskstation: prepare deploy-dsm
 deploy-qnap: prepare
 	$(call deploy_with_status,qnap)
 
-# Validate targets
+# Validate helpers
 define validate_with_status
 	@$(run_as_root) $(CERTS_DEPLOY) validate $(1)
 	@echo "🔄 $(1) validation OK"
@@ -232,8 +202,10 @@ endef
 
 validate-caddy:
 	$(call validate_with_status,caddy)
+
 validate-headscale:
 	$(call validate_with_status,headscale)
+
 validate-diskstation: validate-dsm
 	@echo "🔄 DiskStation validation OK"
 
@@ -243,6 +215,10 @@ validate-qnap:
 
 validate-qnap-todebug-fails:
 	$(call validate_with_status,qnap)
+
+validate-dsm:
+	@echo "⚠️ [validate][dsm] Temporarily disabled — DSM certificate not validated"
+	@exit 0
 
 validate-ac86u:
 	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443"; \
@@ -269,7 +245,7 @@ validate-ac86u:
 		exit 0; \
 	fi
 
-# All-in-one targets (pattern rule: renew + prepare + deploy + validate)
+# All-in-one targets
 all-caddy:       renew prepare deploy-caddy       validate-caddy
 all-headscale:   renew prepare deploy-headscale   validate-headscale
 all-router:      renew prepare deploy-router
@@ -343,75 +319,22 @@ deploy-dsm:
 	@echo "⚠️ [deploy][dsm] Run manual DSM cert import from GUI if needed"
 	@exit 0
 
-deploy-dsm-ko-todebug:
-	@echo "🔐 [deploy][dsm] Deploying certificate to Synology DSM…"
-
-	# Login to DSM and capture session ID
-	SESSION_ID=$$($(run_as_root) curl -sk \
-		"https://10.89.12.2:5001/webapi/auth.cgi?api=SYNO.API.Auth&method=Login&version=6&account=$(DSM_USER)&passwd=$(DSM_PASS)&session=core&format=sid" \
-		| jq -r '.data.sid'); \
-	if [ -z "$$SESSION_ID" ] || [ "$$SESSION_ID" = "null" ]; then \
-		echo "❌ DSM login failed"; exit 1; \
-	fi; \
-	echo "ℹ️ DSM session acquired: $$SESSION_ID"; \
-
-	# Upload certificate + key
-	$(run_as_root) curl -sk -X POST \
-		-F "key=@$(SSL_CANONICAL_DIR)/privkey.pem" \
-		-F "cert=@$(SSL_CANONICAL_DIR)/fullchain.pem" \
-		"https://10.89.12.2:5001/webapi/entry.cgi?api=SYNO.Core.Certificate&method=import&version=1&sid=$$SESSION_ID&name=bardi.ch" \
-		| jq . ; \
-
-	# Logout
-	$(run_as_root) curl -sk \
-		"https://10.89.12.2:5001/webapi/auth.cgi?api=SYNO.API.Auth&method=Logout&version=6&session=core" >/dev/null
-
-	@echo "⚙️ [deploy][dsm] DSM certificate imported"
-	@echo "✅ [deploy][dsm] DSM deployment complete"
-
-validate-dsm:
-	@echo "⚠️ [validate][dsm] Temporarily disabled — DSM certificate not validated"
-	@exit 0
-
-validate-dsm-to-reintroduce-when-deploy-is-ok:
-	@echo "🔍 [validate][dsm] Checking certificate on 10.89.12.2:5001"
-	@remote_fp=$$(openssl s_client \
-		-connect 10.89.12.2:5001 \
-		-servername $(DOMAIN) \
-		-tls1_2 -showcerts </dev/null 2>/dev/null \
-		| openssl x509 -noout -fingerprint -sha256 2>/dev/null); \
-	if [ -z "$$remote_fp" ]; then \
-		echo "❌ No certificate received from DSM"; \
-		exit 1; \
-	fi; \
-	echo "ℹ️ Remote Fingerprint: $$remote_fp"
-
 deploy-ac86u: prepare
 	@echo "🔐 [deploy][ac86u] Deploying certificate to AC86U ($(LAN_AC86U))…"
-
 	@if [ -z "$(SSH_USER_AC86U)" ] || [ -z "$(LAN_AC86U)" ]; then \
 		echo "❌ AC86U variables missing: SSH_USER_AC86U='$(SSH_USER_AC86U)' LAN_AC86U='$(LAN_AC86U)'"; \
 		exit 1; \
 	fi
-
-	# Upload ECC fullchain
 	cat $(SSL_CANONICAL_DIR)/fullchain_ecc.pem | \
 		ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
 			"cat > /tmp/fullchain.pem"
-
-	# Upload ECC privkey
 	cat $(SSL_CANONICAL_DIR)/privkey_ecc.pem | \
 		ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
 			"cat > /tmp/privkey.pem"
-
-	# Install into /jffs/ssl and restart HTTPD
 	ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
 		"mkdir -p /jffs/ssl && \
 		mv /tmp/fullchain.pem /jffs/ssl/fullchain.pem && \
 		mv /tmp/privkey.pem   /jffs/ssl/privkey.pem && \
 		chmod 0600 /jffs/ssl/privkey.pem && \
 		service restart_httpd"
-
 	@echo "✅ [deploy][ac86u] AC86U certificate deployed and HTTPS reloaded"
-
-
