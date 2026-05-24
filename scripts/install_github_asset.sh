@@ -14,6 +14,15 @@ BASENAME="$(basename "$DEST")"
 mkdir -p "$(dirname "$DEST")"
 mkdir -p "$(dirname "$STAMP")"
 
+TMP_ASSET=""
+WORK=""
+cleanup() {
+    set +e
+    [ -n "$TMP_ASSET" ] && rm -f "$TMP_ASSET" || true
+    [ -n "$WORK" ] && rm -rf "$WORK" || true
+}
+trap cleanup EXIT
+
 # ------------------------------------------------------------
 # Fast-path skip: stamp + dest + hash match
 # ------------------------------------------------------------
@@ -28,7 +37,7 @@ fi
 # ------------------------------------------------------------
 # Download asset
 # ------------------------------------------------------------
-TMP_ASSET="$(mktemp -p /run homelab.XXXXXX)"
+TMP_ASSET="$(mktemp)"
 curl -fsSL "$URL" -o "$TMP_ASSET"
 
 # ------------------------------------------------------------
@@ -56,7 +65,8 @@ esac
 # Handle raw binary
 # ------------------------------------------------------------
 if [ "$TYPE" = "raw" ]; then
-    install -m 0755 "$TMP_ASSET" "$DEST"
+    MODE="$(stat -c '%a' "$TMP_ASSET" 2>/dev/null || echo 755)"
+    install -m "$MODE" "$TMP_ASSET" "$DEST"
     echo "$SHA256_EXPECTED" > "$STAMP"
     echo "🚀 Installed raw binary: $DEST"
     exit 0
@@ -65,7 +75,7 @@ fi
 # ------------------------------------------------------------
 # Extract archive
 # ------------------------------------------------------------
-WORK="$(mktemp -p /run -d homelab.XXXXXX)"
+WORK="$(mktemp -d)"
 
 if [ "$TYPE" = "tar" ]; then
     tar -xzf "$TMP_ASSET" -C "$WORK"
@@ -102,9 +112,6 @@ install -m 0755 "$MATCHES" "$DEST"
 # ------------------------------------------------------------
 echo "$SHA256_EXPECTED" > "$STAMP"
 
-# ------------------------------------------------------------
-# Cleanup
-# ------------------------------------------------------------
-rm -rf "$TMP_ASSET" "$WORK"
+# Cleanup is performed by the EXIT trap
 
 echo "🚀 Installed/updated $DEST"

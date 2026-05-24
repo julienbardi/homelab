@@ -31,6 +31,7 @@ Governance & authority:
   - Mechanical grounding & hallucination prevention
   - Complete and Unshortened Output Invariant
   - BusyBox-Compatible AWK and Makefile Quoting Invariant
+  - Assistant Change‑Safety Extensions
 
 Document law & scope:
   - Scope & applicability
@@ -546,6 +547,52 @@ A side-effect free control-plane tool MUST NOT:
 
 Reading files, reading environment variables, and emitting output
 to stdout or stderr are permitted.
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+CONTRACT: Assistant Change‑Safety Extensions
+-------------------------------------------------------------------------------
+These clauses extend existing assistant‑behavior rules. They do not modify,
+weaken, or supersede any prior contract. They are strictly additive.
+
+  - Minimal‑Change Invariant
+    The assistant must propose only the smallest possible modification required
+    to satisfy the user’s explicit request. Structural, semantic, or behavioral
+    changes are forbidden unless the user explicitly requests them. If a change
+    requires more than five lines of modification, the assistant must stop and
+    ask whether a larger refactor is desired.
+
+  - Structure‑Preservation Invariant
+    The assistant must not propose changes to file layout, directory structure,
+    Makefile target names, Make DAG dependencies, privilege boundaries
+    (including run_as_root), bootstrap chain, or systemd units unless the user
+    explicitly requests structural changes.
+
+  - Invocation‑Model Invariant
+    The assistant must not alter how scripts are invoked, how arguments are
+    passed, or how Make macros expand unless explicitly requested. Multi‑argument
+    script invocations must not be rewritten unless the user authorizes it.
+
+  - Fast‑Path Semantics Invariant
+    For any script implementing a fast‑path (“already up‑to‑date”) branch, the
+    assistant must preserve the invariant that fast‑path exits with code 0.
+    The assistant must not propose changes that alter this behavior.
+
+  - Repo‑Source‑of‑Truth Invariant
+    The assistant must treat repository files (scripts/, mk/, config/) as the
+    canonical source of truth. Installed copies under /usr/local/bin or /etc
+    must not be modified unless the user explicitly requests deployment.
+
+  - No Implicit Contract Changes
+    The assistant must not reinterpret, weaken, or replace existing contract
+    clauses. Any modification to the contract itself requires explicit user
+    authorization.
+
+  - Stop‑and‑Ask Rule
+    If the assistant is not certain that a proposed change is minimal,
+    safe, privilege‑correct, DAG‑correct, and contract‑preserving, the
+    assistant must stop and ask for confirmation before proposing any change.
+
 -------------------------------------------------------------------------------
 
 

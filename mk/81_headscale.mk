@@ -42,10 +42,10 @@ headscale-derp-config: ensure-run-as-root $(HEADSCALE_DERP_CONFIG_SRC)
 headscale-bin: ensure-run-as-root ensure-stamp-dir install-all
 	@echo "📦 Ensuring Headscale binary"
 	@$(run_as_root) $(INSTALL_PATH)/install_github_asset.sh \
-		"$(HEADSCALE_URL)" \
-		"$(HEADSCALE_BIN)" \
-		"$(HEADSCALE_SHA256)" \
-		"$(HEADSCALE_STAMP)"
+			$(HEADSCALE_URL) \
+			$(HEADSCALE_BIN) \
+			$(HEADSCALE_SHA256) \
+			$(HEADSCALE_STAMP)
 
 # --------------------------------------------------------------------
 # Tail Headscale logs

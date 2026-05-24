@@ -17,8 +17,42 @@ set -euo pipefail
 
 HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
 
+_henv="/volume1/homelab/homelab.env"
+
+# Existence check
+if [[ ! -f "$_henv" ]]; then
+    echo "❌ homelab.env not found at $_henv" >&2
+    exit 1
+fi
+
+# Permission + owner checks
+_henv_mode=$(stat -c "%a" "$_henv")
+_henv_owner=$(stat -c "%u" "$_henv")
+_henv_group=$(stat -c "%g" "$_henv")
+_admin_gid=$(getent group admin | cut -d: -f3)
+
+# Extract octal digits (POSIX-safe, BusyBox-safe)
+group=${_henv_mode:1:1}
+other=${_henv_mode:2:1}
+
+# Reject group-write or other-write
+if (( group >= 2 )) || (( other >= 2 )); then
+    echo "❌ homelab.env is writable by group/others — refusing to source" >&2
+    exit 1
+fi
+
+# Owner must be root OR a member of group admin
+if [[ "$_henv_owner" -ne 0 && "$_henv_group" -ne "$_admin_gid" ]]; then
+    echo "❌ homelab.env owner must be root or a member of group 'admin'" >&2
+    exit 1
+fi
+
+unset _henv_mode _henv_owner _henv_group _admin_gid
+
 # shellcheck disable=SC1091
-source "/volume1/homelab/homelab.env"
+source "$_henv"
+unset "$_henv"
+
 # shellcheck disable=SC1091
 source "/usr/local/bin/common.sh"
 SCRIPT_NAME=""

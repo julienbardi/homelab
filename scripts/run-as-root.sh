@@ -33,4 +33,5 @@ if ! command -v sudo >/dev/null 2>&1; then
 fi
 
 # 5. Exec sudo with preserved env and clear semantics
-exec sudo --preserve-env="$PRESERVE_ENV" -- "$@"
+sudo --preserve-env="$PRESERVE_ENV" -- "$@"
+exit $?

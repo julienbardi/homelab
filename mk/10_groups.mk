@@ -61,10 +61,10 @@ enforce-known-hosts: ensure-authorized-admin ensure-run-as-root
 			continue; \
 		fi; \
 		kh="$$homedir/.ssh/known_hosts"; \
-		[ ! -d "$$homedir/.ssh" ] && { mkdir -p "$$homedir/.ssh"; chmod 700 "$$homedir/.ssh"; chown $$u: "$$homedir/.ssh"; }; \
-		touch "$$kh"; chown $$u: "$$kh"; chmod 644 "$$kh"; \
+		[ ! -d "$$homedir/.ssh" ] && { mkdir -p "$$homedir/.ssh"; chmod 700 "$$homedir/.ssh"; chown "$$u":"$(id -gn "$$u")" "$$homedir/.ssh"; }; \
+		touch "$$kh"; chown "$$u":"$(id -gn "$$u")" "$$kh"; chmod 644 "$$kh"; \
 		{ \
-			flock -x 9; \
+			flock -xn 9 || { echo "⚠️ Lock busy for $$u, skipping"; continue; }; \
 			for hp in $(KNOWN_HOSTS); do \
 				host=$${hp%:*}; port=$${hp#*:}; \
 				target="[$$host]:$$port"; \
@@ -84,5 +84,5 @@ enforce-known-hosts: ensure-authorized-admin ensure-run-as-root
 					echo "$$keyline" >> "$$kh"; \
 				fi; \
 			done; \
-		} 9>"$$kh.lock"; \
+		} 9>"$$kh.lock"; chmod 600 "$$kh.lock"; \
 	done

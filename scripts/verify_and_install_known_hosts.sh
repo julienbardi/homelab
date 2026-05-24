@@ -122,8 +122,8 @@ for ((idx=0; idx<${#HOST_META[@]}; idx+=2)); do
   fi
 
   # Atomic User Update: Copy + Append -> sort a NEW + Replace
-  u_tmp="$(mktemp -p /run homelab.XXXXXX)"
-  u_sorted="$(mktemp -p /run homelab.XXXXXX)"
+  u_tmp="$(mktemp -p /run -m 600 homelab.XXXXXX)"
+  u_sorted="$(mktemp -p /run -m 600 homelab.XXXXXX)"
   cp "$KNOWN_HOSTS" "$u_tmp"
   for k in "${KEYS[@]}"; do printf "%s\n" "$k" >> "$u_tmp"; done
   sort -u "$u_tmp" > "$u_sorted"
