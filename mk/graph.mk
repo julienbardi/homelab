@@ -77,7 +77,6 @@ include $(REPO_ROOT)/mk/40_nas-caddy.mk
 include $(REPO_ROOT)/mk/40_wireguard.mk
 include $(REPO_ROOT)/mk/50_certs.mk
 include $(REPO_ROOT)/mk/55_router-certs.mk
-include $(REPO_ROOT)/mk/56_router-certs.mk
 include $(REPO_ROOT)/mk/60_unbound.mk
 include $(REPO_ROOT)/mk/65_dnsmasq.mk
 include $(REPO_ROOT)/mk/70_dnsdist.mk
