@@ -63,7 +63,12 @@ fi
 # Download asset securely to transient file (WAN execution)
 # ------------------------------------------------------------
 TMP_ASSET="$(mktemp 2>/dev/null || mktemp -t 'asset')"
-curl -fsSL "$URL" -o "$TMP_ASSET"
+curl -fsSL \
+	--connect-timeout 5 \
+	--max-time 30 \
+	--retry 3 \
+	--retry-delay 1 \
+	"$URL" -o "$TMP_ASSET"
 
 # ------------------------------------------------------------
 # Verify SHA256 integrity of the downloaded payload
@@ -155,7 +160,9 @@ fi
 # Install discovered binary safely via transactional move
 # ------------------------------------------------------------
 # Staged on the target volume directory to ensure an instantaneous rename operation.
-TMP_DEST="$(mktemp "$(dirname "$DEST")/tmp.XXXXXX" 2>/dev/null || mktemp -p "$(dirname "$DEST")")"
+TMP_DEST="$(mktemp "$(dirname "$DEST")/tmp.XXXXXX" 2>/dev/null \
+	|| mktemp -p "$(dirname "$DEST")" tmp.XXXXXX)"
+
 install -m 0755 "$MATCHES" "$TMP_DEST"
 mv -f "$TMP_DEST" "$DEST"
 

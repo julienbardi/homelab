@@ -1,0 +1,22 @@
+[Unit]
+Description=Prometheus Monitoring
+Documentation=https://prometheus.io/docs/introduction/overview/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/usr/bin/prometheus \
+    --config.file=/etc/prometheus/prometheus.yml \
+    --storage.tsdb.path=/var/lib/prometheus \
+    --web.console.templates=/usr/share/prometheus/consoles \
+    --web.console.libraries=/usr/share/prometheus/console_libraries
+
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
