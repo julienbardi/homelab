@@ -78,6 +78,9 @@ terraform.tfstate*
 .terraform/
 *.service.deployed
 *.service.d/
+# Allow repo-owned systemd drop-ins
+!config/systemd/**/
+!config/systemd/**/*.conf
 
 # === Component Specific: Router (ASUSWRT-Merlin) ===
 router/archive/
