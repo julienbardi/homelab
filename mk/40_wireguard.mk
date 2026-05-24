@@ -1,9 +1,25 @@
+# --------------------------------------------------------------------
 # mk/40_wireguard.mk — WireGuard Control Plane
-# Orchestrates lifecycle (intent → gen → deploy → up) for NAS & Router.
+# --------------------------------------------------------------------
+# CONTRACT:
+# - Orchestrates lifecycle (intent → gen → deploy → up) for NAS & Router.
+# - Configuration updates MUST trigger a local state tracking stamp.
+# - Subshell execution loops MUST be explicitly guarded against failure.
+# - Operations MUST handle Asuswrt-Merlin vs NAS paths deterministically.
+# - All userland commands MUST respect system database home configurations.
+# --------------------------------------------------------------------
 
 WG_OUTPUT_ROUTER := $(WG_ROOT)/output/router
+WG_FIREWALL      := $(WG_OUTPUT_ROUTER)/wg-firewall.sh
 
-WG_FIREWALL := $(WG_OUTPUT_ROUTER)/wg-firewall.sh
+# Persistent state tracking markers
+WG_STAMP_DIR        := $(SYSTEM_STATE_DIR)/stamps
+WG_ROUTER_DIRTY_STAMP := $(WG_STAMP_DIR)/wg_router_dirty.stamp
+WG_NAS_DIRTY_STAMP    := $(WG_STAMP_DIR)/wg_nas_dirty.stamp
+
+# Explicit interface inventory managed by the control plane
+WG_INTERFACES_NAS    := wg0 wg1 wg2 wg3 wg4 wg5 wg6 wg7 wg8 wg9 wg10 wg11 wg12 wg13 wg14 wg15
+WG_INTERFACES_ROUTER := wgs1
 
 .PHONY: \
 	wg-clean-out wg-generate wg-install-router wg-install-nas \
@@ -32,8 +48,7 @@ WG_ENV = \
 	ROUTER_WG_DIR="$(ROUTER_WG_DIR)" \
 	WG_ROOT="$(WG_ROOT)"
 
-# Define the unified sudo wrapper for homelab root operations
-# This ensures Root inherits Julie's SSH tunnel and identity context
+# Unified sudo wrapper for homelab root operations
 WG_SUDO := sudo --preserve-env=ROUTER_HOST,ROUTER_ADDR,ROUTER_SSH_PORT,ROUTER_WG_DIR,WG_ROOT,WG_SUBNETS_MK,SSH_AUTH_SOCK,ROUTER_IDENTITY,SSH_CONTROL_PATH
 
 run_as_root_router := ssh -p $(ROUTER_SSH_PORT) \
@@ -50,28 +65,35 @@ WG_SUBNETS_MK := $(SYSTEM_STATE_DIR)/wg-subnets.mk
 # --------------------------------------------------------------------
 # Generated subnet map (router + NAS WG subnets)
 # --------------------------------------------------------------------
-
 $(WG_SUBNETS_MK): $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-subnets.sh | ensure-stamp-dir
 	@echo "🌐 Generating WireGuard subnet map"
 	@WG_ROOT="$(WG_ROOT)" WG_SUBNETS_MK="$(WG_SUBNETS_MK)" \
-	  $(WG_SUDO) $(INSTALL_PATH)/wg-plan-subnets.sh
+		$(WG_SUDO) $(INSTALL_PATH)/wg-plan-subnets.sh
 
 # Load the generated subnet map into the DAG (optional: tolerate first-run absence)
 -include $(WG_SUBNETS_MK)
 
 wg-generate: $(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh
-	@DNS_TOPDOMAIN_NAME="$$( $(call WITH_SECRETS, sh -c 'echo "$$ddns_topdomain"') )" \
+	@echo "🔍 Staging configuration hash states before generation execution"
+	@ROUTER_OLD_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_OLD_HASH=""; \
+	DNS_TOPDOMAIN_NAME="$$( $(call WITH_SECRETS, sh -c 'echo "$$ddns_topdomain"') )" \
 	NAS_LAN_IP="$(NAS_LAN_IP)" \
 	NAS_LAN_IP6="$(NAS_LAN_IP6)" \
 	LAN_ROUTER="$(LAN_ROUTER)" \
 	WG_ROOT="$(WG_ROOT)" \
-	$(INSTALL_PATH)/wg-generate-configs.sh
+	$(INSTALL_PATH)/wg-generate-configs.sh; \
+	ROUTER_NEW_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_NEW_HASH=""; \
+	if [ "$$ROUTER_OLD_HASH" != "$$ROUTER_NEW_HASH" ]; then \
+		echo "⚠️  WireGuard configuration mutation caught — marking runtime topologies dirty"; \
+		mkdir -p "$(WG_STAMP_DIR)"; \
+		touch "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"; \
+	fi
 
 wg-clean-state:
 	@$(WG_SUDO) rm -f $(WG_SUBNETS_MK)
+	@rm -f "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"
 
 # --- Router Setup ---
-
 router-ensure-wg-module: router-install-scripts
 	@if [ -z "$(ROUTER_WG_DIR)" ]; then echo "ERROR: ROUTER_WG_DIR undefined"; exit 1; fi
 	@echo "🛡️ [router] Ensuring WireGuard kernel module on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)..."
@@ -89,7 +111,7 @@ router-bootstrap-wg-keys:
 		fi; \
 		echo "🔐 Generating new WireGuard identity for wgs1 in NVRAM..."; \
 		wgs1_priv="$$(wg genkey)"; \
-		wgs1_pub="$$(printf '%s' "$$wgs1_priv" | wg pubkey)";
+		wgs1_pub="$$(printf "%s" "$$wgs1_priv" | wg pubkey)"; \
 		nvram set wgs1_priv="$$wgs1_priv"; \
 		nvram set wgs1_pub="$$wgs1_pub"; \
 		nvram commit; \
@@ -98,7 +120,6 @@ router-bootstrap-wg-keys:
 	'
 
 # --- File Operations ---
-
 define PUSH_WG_SCRIPT
 	$(call install_script,$(1),$(notdir $(2)))
 endef
@@ -116,69 +137,97 @@ wg-clean-out: wg-down-router wg-down-nas wg-clean-state
 	@echo "🧹 Cleaning remote router scripts"
 	@$(run_as_root_router) "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
 
-# --- Deployment --
-
+# --- Deployment ---
 router-firewall: wg-generate
 	@echo "🛡️ [router] Installing firewall for WireGuard..."
-
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_WG_FIREWALL)", \
 		umask 077; \
 		trap 'rm -f "$(TMP_ROUTER_WG_FIREWALL)"' EXIT; \
 		cat "$(WG_FIREWALL)" > "$(TMP_ROUTER_WG_FIREWALL)"; \
-
 		FEC=0; \
 		SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
 		$(INSTALL_FILE_IF_CHANGED) "-q" \
 			"" "" "$(TMP_ROUTER_WG_FIREWALL)" \
-			"$(ROUTER_HOST)" $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
+			$(ROUTER_HOST) $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
 			"0" "0" "0755" || FEC=$$?; \
 		if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi; \
 		if [ "$$FEC" = "0" ]; then \
 			$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
-		fi
+		fi \
 	)
 
 wg-install-router: router-ensure-wg-module \
-	$(INSTALL_PATH)/wgctl.sh wg-generate $(INSTALL_FILE_IF_CHANGED) router-firewall
-	@EC=0; \
-	SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
-	$(WG_ENV) \
-	ROUTER_CONTROL_PLANE=1 \
-	$(INSTALL_PATH)/wgctl.sh router install-up || EC=$$?; \
-	if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi
+    $(INSTALL_PATH)/wgctl.sh wg-generate $(INSTALL_FILE_IF_CHANGED) router-firewall
+	@EXECUTE_DEPLOY=0; \
+	if [ -f "$(WG_ROUTER_DIRTY_STAMP)" ]; then EXECUTE_DEPLOY=1; fi; \
+	for iface in $(WG_INTERFACES_ROUTER); do \
+		if ! [ -f "$(WG_OUTPUT_ROUTER)/$$iface.conf" ]; then continue; fi; \
+		EXPECTED_GEN=$$(grep -E '^#[[:space:]]*WG_GENERATION:' "$(WG_OUTPUT_ROUTER)/$$iface.conf" | awk '{print $$3}' 2>/dev/null || echo "0"); \
+		if ! $(REPO_ROOT)/bin/wg-readiness-probe.sh "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)"; then \
+			echo "⚠️  Kernel link drift verified on router interface $$iface"; \
+			EXECUTE_DEPLOY=1; \
+		fi; \
+	done; \
+	if [ "$$EXECUTE_DEPLOY" -eq 1 ]; then \
+		echo "🚀 Executing router control plane tunnel provision..."; \
+		EC=0; \
+		SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
+		$(WG_ENV) \
+		ROUTER_CONTROL_PLANE=1 \
+		$(INSTALL_PATH)/wgctl.sh router install-up || EC=$$?; \
+		if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi; \
+		rm -f "$(WG_ROUTER_DIRTY_STAMP)"; \
+	else \
+		echo "✨ Router interfaces match runtime kernel cryptographic and routing expectations (skipping processing)"; \
+	fi
 
-wg-install-nas: $(INSTALL_PATH)/wgctl.sh $(INSTALL_FILE_IF_CHANGED)
+wg-install-nas: $(INSTALL_PATH)/wgctl.sh $(INSTALL_FILE_IF_CHANGED) wg-generate
 	@echo "📦 [nas   ] Installing WireGuard configurations..."
-	@EC=0; \
-	$(WG_ENV) \
-	NAS_CONTROL_PLANE=1 \
-	$(WG_SUDO) $(INSTALL_PATH)/wgctl.sh nas install-up || EC=$$?; \
-	if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi
+	@EXECUTE_DEPLOY=0; \
+	if [ -f "$(WG_NAS_DIRTY_STAMP)" ]; then EXECUTE_DEPLOY=1; fi; \
+	for iface in $(WG_INTERFACES_NAS); do \
+		if ! [ -f "$(WG_OUTPUT_ROUTER)/$$iface.conf" ]; then continue; fi; \
+		EXPECTED_GEN=$$(grep -E '^#[[:space:]]*WG_GENERATION:' "$(WG_OUTPUT_ROUTER)/$$iface.conf" | awk '{print $$3}' 2>/dev/null || echo "0"); \
+		if ! $(REPO_ROOT)/bin/wg-readiness-probe.sh "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)"; then \
+			echo "⚠️  Kernel link drift verified on NAS interface $$iface"; \
+			EXECUTE_DEPLOY=1; \
+		fi; \
+	done; \
+	if [ "$$EXECUTE_DEPLOY" -eq 1 ]; then \
+		echo "🚀 Executing NAS control plane tunnel provision..."; \
+		EC=0; \
+		$(WG_ENV) \
+		NAS_CONTROL_PLANE=1 \
+		$(WG_SUDO) $(INSTALL_PATH)/wgctl.sh nas install-up || EC=$$?; \
+		if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi; \
+		rm -f "$(WG_NAS_DIRTY_STAMP)"; \
+	else \
+		echo "✨ NAS interfaces match runtime kernel cryptographic and routing expectations (skipping processing)"; \
+	fi
 
 # --- Lifecycle Management ---
-
 wg-up-nas: wg-install-nas
 	@true
 
 wg-down-nas: $(INSTALL_PATH)/wgctl.sh
 	@$(WG_SUDO) \
-	$(WG_ENV) \
-	NAS_CONTROL_PLANE=1 \
-	$(INSTALL_PATH)/wgctl.sh nas down
+		$(WG_ENV) \
+		NAS_CONTROL_PLANE=1 \
+		$(INSTALL_PATH)/wgctl.sh nas down
 
 wg-down-router: wg-down-nas
 	@SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
-	$(WG_ENV) \
-	ROUTER_CONTROL_PLANE=1 \
-	$(INSTALL_PATH)/wgctl.sh router down
+		$(WG_ENV) \
+		ROUTER_CONTROL_PLANE=1 \
+		$(INSTALL_PATH)/wgctl.sh router down
 
 wg-status: $(INSTALL_PATH)/wgctl.sh
 	@$(WG_ENV) \
-	ROUTER_CONTROL_PLANE=1 \
-	$(INSTALL_PATH)/wgctl.sh router status || true
+		ROUTER_CONTROL_PLANE=1 \
+		$(INSTALL_PATH)/wgctl.sh router status || true
 	@$(WG_ENV) \
-	NAS_CONTROL_PLANE=1 \
-	$(INSTALL_PATH)/wgctl.sh nas status || true
+		NAS_CONTROL_PLANE=1 \
+		$(INSTALL_PATH)/wgctl.sh nas status || true
 
 wg-install: wg-install-router wg-install-nas
 
@@ -206,22 +255,9 @@ router-wg-audit:
 		echo "📝 Routing table:"; \
 		ip route show table all | grep -E "wgs1|wg"; \
 	'
-# --------------------------------------------------------------------
 
-# wg7-validate — End-to-end sanity for the NAS-terminated wg7 interface
 # --------------------------------------------------------------------
-# Tests:
-#   1. wg7 interface present on NAS
-#   2. NAS can reach wg7 server address (IPv4 self-ping)
-#   3. NAS eth0 has a global IPv6 from router RA (prerequisite for NAT66)
-#   4. nftables NAT66 masquerade rule loaded (table ip6 homelab_nat6)
-#   5. Outbound IPv6 internet reachability from NAS (curl -6)
-#
-# IPv6 internet for wg7 clients flows:
-#   client ::/0 → wg7 tunnel → NAS → homelab_nat6 masquerade → eth0 → internet
-# NAT66 source: global IPv6 from router RA on NAS eth0 (NOT router ip6tables nat)
-# Asus Merlin lacks CONFIG_IP6_NF_NAT — that dead end is irrelevant for wg7.
-# Client configs include ::/0 in AllowedIPs for full-tunnel / location privacy.
+# wg7-validate — End-to-end sanity for the NAS-terminated wg7 interface
 # --------------------------------------------------------------------
 wg7-validate:
 	@echo "🔍 [wg7] Step 1/5 — checking wg7 interface on NAS..."
