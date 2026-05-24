@@ -100,7 +100,7 @@ fi
 if [ -z "$DST_HOST" ]; then
     DST_HASH=$(sudo sha256sum "$DST_PATH" 2>/dev/null | awk '{print $1}') || DST_HASH="none"
 else
-    DST_HASH=$(ssh -p "$DST_PORT" -o BatchMode=yes "$DST_HOST" "sha256sum '$DST_PATH'" 2>/dev/null | awk '{print $1}') || DST_HASH="none"
+    DST_HASH=$(ssh -p "$DST_PORT" -o BatchMode=yes "$DST_HOST" "openssl dgst -sha256 -r '$DST_PATH'" 2>/dev/null | awk '{print $1}') || DST_HASH="none"
 fi
 
 if [ "$SRC_HASH" = "$DST_HASH" ]; then
@@ -147,7 +147,7 @@ if [ -z "$DST_HOST" ]; then
         #1b. Re-verify buffer hash inside privileged context to close TOCTOU window
 		# (between user-space BUF_HASH check above ans this sudo sh -c, an attacker
 		# could swap teh buffer; re-hashing here under root closes that window)
-		_actual=\$(sha256sum '$BUFFER' 2>/dev/null | awk '{print \$1}')
+		_actual=\$(/usr/bin/sha256sum '$BUFFER' 2>/dev/null | awk '{print \$1}')
 		if [ "\$_actual" != '$SRC_HASH' ]; then
             echo '❌ IFC: Buffer tampered between verification and install (TOCTOU)' >&2
             rm -rf '$LOCK'
@@ -229,7 +229,7 @@ else
             echo '[IFC][REMOTE] ERROR: temp file missing'
             exit 1
         fi
-        H=\$(sha256sum \"\$T\" | awk '{print \$1}')
+        H=\$(openssl dgst -sha256 -r \"\$T\" | awk '{print \$1}')
         [ \"\$H\" = \"\$SRC_HASH_REMOTE\" ] || {
             echo '[IFC][REMOTE] ERROR: hash mismatch'
             exit 1

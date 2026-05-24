@@ -321,20 +321,21 @@ deploy-dsm:
 
 deploy-ac86u: prepare
 	@echo "🔐 [deploy][ac86u] Deploying certificate to AC86U ($(LAN_AC86U))…"
-	@if [ -z "$(SSH_USER_AC86U)" ] || [ -z "$(LAN_AC86U)" ]; then \
-		echo "❌ AC86U variables missing: SSH_USER_AC86U='$(SSH_USER_AC86U)' LAN_AC86U='$(LAN_AC86U)'"; \
-		exit 1; \
-	fi
-	cat $(SSL_CANONICAL_DIR)/fullchain_ecc.pem | \
-		ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
-			"cat > /tmp/fullchain.pem"
-	cat $(SSL_CANONICAL_DIR)/privkey_ecc.pem | \
-		ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
-			"cat > /tmp/privkey.pem"
-	ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) \
-		"mkdir -p /jffs/ssl && \
-		mv /tmp/fullchain.pem /jffs/ssl/fullchain.pem && \
-		mv /tmp/privkey.pem   /jffs/ssl/privkey.pem && \
-		chmod 0600 /jffs/ssl/privkey.pem && \
-		service restart_httpd"
-	@echo "✅ [deploy][ac86u] AC86U certificate deployed and HTTPS reloaded"
+	@$(run_as_root) sh -c '\
+		if [ -z "$(SSH_USER_AC86U)" ] || [ -z "$(LAN_AC86U)" ]; then \
+			echo "❌ AC86U variables missing: SSH_USER_AC86U=\"$(SSH_USER_AC86U)\" LAN_AC86U=\"$(LAN_AC86U)\""; \
+			exit 1; \
+		fi; \
+		FEC1=3; FEC2=3; \
+		$(INSTALL_FILE_IF_CHANGED) "-q" "" "" "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" "$(LAN_AC86U)" "$(ROUTER_SSH_PORT)" "/jffs/ssl/fullchain.pem" "0" "0" "0644" || FEC1=$$?; \
+		$(INSTALL_FILE_IF_CHANGED) "-q" "" "" "$(SSL_CANONICAL_DIR)/privkey_ecc.pem" "$(LAN_AC86U)" "$(ROUTER_SSH_PORT)" "/jffs/ssl/privkey.pem" "0" "0" "0600" || FEC2=$$?; \
+		if [ "$$FEC1" != "0" ] && [ "$$FEC1" != "3" ]; then exit "$$FEC1"; fi; \
+		if [ "$$FEC2" != "0" ] && [ "$$FEC2" != "3" ]; then exit "$$FEC2"; fi; \
+		if [ "$$FEC1" = "0" ] || [ "$$FEC2" = "0" ]; then \
+			echo "🔄 Changes detected — reloading AC86U HTTPS daemon..."; \
+			ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) "service restart_httpd"; \
+			echo "✅ [deploy][ac86u] AC86U certificate deployed and HTTPS reloaded"; \
+		else \
+			echo "✨ AC86U TLS infrastructure matches current canonical state (skipping reload)"; \
+		fi \
+	'
