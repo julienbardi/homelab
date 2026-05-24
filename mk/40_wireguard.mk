@@ -172,7 +172,7 @@ wg-install-router: router-ensure-wg-module \
 		if ! [ -f "$(WG_OUTPUT_ROUTER)/$$iface.conf" ]; then continue; fi; \
 		EXPECTED_GEN=$$(grep -E '^#[[:space:]]*WG_GENERATION:' "$(WG_OUTPUT_ROUTER)/$$iface.conf" | awk '{print $$3}' 2>/dev/null || echo "0"); \
 		if [ -x "$(INSTALL_PATH)/wg-readiness-probe.sh" ]; then \
-			if ! "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)"; then \
+			if ! ROUTER_HOST="$(ROUTER_HOST)" ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" ROUTER_IDENTITY="$(ROUTER_IDENTITY)" "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)" "router"; then \
 				echo "⚠️  Kernel link drift verified on router interface $$iface"; \
 				EXECUTE_DEPLOY=1; \
 			fi; \
