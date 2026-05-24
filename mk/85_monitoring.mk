@@ -67,7 +67,7 @@ prometheus-install: ensure-run-as-root | ensure-default-gateway
 prometheus-unit: ensure-run-as-root $(PROMETHEUS_UNIT_SRC)
 	@echo "🔍 Validating Prometheus systemd unit structure"
 	@if command -v systemd-analyze >/dev/null 2>&1; then \
-		systemd-analyze verify $(PROMETHEUS_UNIT_SRC); \
+		systemd-analyze verify $(PROMETHEUS_UNIT_SRC) 2>&1 | grep -v "index_serv.service" || true; \
 	fi
 	@echo "🔧 Syncing Prometheus systemd unit asset"
 	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \

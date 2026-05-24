@@ -207,14 +207,14 @@ install-systemd: ensure-run-as-root
 	@$(run_as_root) sh -c '\
 		mkdir -p $(SYSTEMD_DIR); \
 		mkdir -p $(SYSTEMD_DIR)/unbound-ctl-fix.service.d; \
-		mkdir -p /etc/systemd/system/unbound.service.d; \
+		mkdir -p $(SYSTEMD_DIR)/unbound.service.d; \
 		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service; \
 		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path; \
 		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf; \
 		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf; \
 		\
 		# --- fix vendor-broken index_serv.service --- \
-		mkdir -p /etc/systemd/system/index_serv.service.d; \
+		mkdir -p $(SYSTEMD_DIR)/index_serv.service.d; \
 		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/index_serv.service.d/10-fix-output.conf \
 			/etc/systemd/system/index_serv.service.d/10-fix-output.conf; \
 		\
