@@ -127,12 +127,16 @@ endef
 $(INSTALL_PATH)/wgctl.sh: $(REPO_ROOT)/scripts/wgctl.sh | $(BOOTSTRAP_FILES)
 	$(call PUSH_WG_SCRIPT,$<,$@)
 
+$(INSTALL_PATH)/wg-readiness-probe.sh: $(REPO_ROOT)/scripts/wg-readiness-probe.sh | $(BOOTSTRAP_FILES)
+	$(call PUSH_WG_SCRIPT,$<,$@)
+
 $(INSTALL_PATH)/wg-generate-configs.sh: $(REPO_ROOT)/scripts/wg-generate-configs.sh | $(BOOTSTRAP_FILES)
 	$(call PUSH_WG_SCRIPT,$<,$@)
 
+# Change this target block:
 wg-clean-out: wg-down-router wg-down-nas wg-clean-state
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🧹 Cleaning local scripts & SSH sockets"; fi
-	@sudo rm -f "$(INSTALL_PATH)/wgctl.sh" "$(INSTALL_PATH)/wg-generate-configs.sh"
+	@sudo rm -f "$(INSTALL_PATH)/wgctl.sh" "$(INSTALL_PATH)/wg-generate-configs.sh" "$(INSTALL_PATH)/wg-readiness-probe.sh"
 	@rm -f $(SSH_SOCK_FILE)
 	@echo "🧹 Cleaning remote router scripts"
 	@$(run_as_root_router) "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
@@ -157,14 +161,23 @@ router-firewall: wg-generate
 	)
 
 wg-install-router: router-ensure-wg-module \
-    $(INSTALL_PATH)/wgctl.sh wg-generate $(INSTALL_FILE_IF_CHANGED) router-firewall
+    $(INSTALL_PATH)/wgctl.sh \
+    $(INSTALL_PATH)/wg-readiness-probe.sh \
+	wg-generate \
+	$(INSTALL_FILE_IF_CHANGED) \
+	router-firewall
 	@EXECUTE_DEPLOY=0; \
 	if [ -f "$(WG_ROUTER_DIRTY_STAMP)" ]; then EXECUTE_DEPLOY=1; fi; \
 	for iface in $(WG_INTERFACES_ROUTER); do \
 		if ! [ -f "$(WG_OUTPUT_ROUTER)/$$iface.conf" ]; then continue; fi; \
 		EXPECTED_GEN=$$(grep -E '^#[[:space:]]*WG_GENERATION:' "$(WG_OUTPUT_ROUTER)/$$iface.conf" | awk '{print $$3}' 2>/dev/null || echo "0"); \
-		if ! $(REPO_ROOT)/bin/wg-readiness-probe.sh "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)"; then \
-			echo "⚠️  Kernel link drift verified on router interface $$iface"; \
+		if [ -x "$(INSTALL_PATH)/wg-readiness-probe.sh" ]; then \
+			if ! "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)"; then \
+				echo "⚠️  Kernel link drift verified on router interface $$iface"; \
+				EXECUTE_DEPLOY=1; \
+			fi; \
+		else \
+			echo "⚠️  Readiness probe missing or non-executable at $(INSTALL_PATH)/wg-readiness-probe.sh — forcing execution pass"; \
 			EXECUTE_DEPLOY=1; \
 		fi; \
 	done; \
@@ -181,15 +194,23 @@ wg-install-router: router-ensure-wg-module \
 		echo "✨ Router interfaces match runtime kernel cryptographic and routing expectations (skipping processing)"; \
 	fi
 
-wg-install-nas: $(INSTALL_PATH)/wgctl.sh $(INSTALL_FILE_IF_CHANGED) wg-generate
+wg-install-nas: $(INSTALL_PATH)/wgctl.sh \
+	$(INSTALL_PATH)/wg-readiness-probe.sh \
+	$(INSTALL_FILE_IF_CHANGED) \
+	wg-generate
 	@echo "📦 [nas   ] Installing WireGuard configurations..."
 	@EXECUTE_DEPLOY=0; \
 	if [ -f "$(WG_NAS_DIRTY_STAMP)" ]; then EXECUTE_DEPLOY=1; fi; \
 	for iface in $(WG_INTERFACES_NAS); do \
 		if ! [ -f "$(WG_OUTPUT_ROUTER)/$$iface.conf" ]; then continue; fi; \
 		EXPECTED_GEN=$$(grep -E '^#[[:space:]]*WG_GENERATION:' "$(WG_OUTPUT_ROUTER)/$$iface.conf" | awk '{print $$3}' 2>/dev/null || echo "0"); \
-		if ! $(REPO_ROOT)/bin/wg-readiness-probe.sh "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)"; then \
-			echo "⚠️  Kernel link drift verified on NAS interface $$iface"; \
+		if [ -x "$(INSTALL_PATH)/wg-readiness-probe.sh" ]; then \
+			if ! "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)"; then \
+				echo "⚠️  Kernel link drift verified on NAS interface $$iface"; \
+				EXECUTE_DEPLOY=1; \
+			fi; \
+		else \
+			echo "⚠️  Readiness probe missing or non-executable at $(INSTALL_PATH)/wg-readiness-probe.sh — forcing execution pass"; \
 			EXECUTE_DEPLOY=1; \
 		fi; \
 	done; \

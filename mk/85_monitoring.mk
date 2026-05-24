@@ -18,101 +18,97 @@ PROMETHEUS_UNIT_SRC := $(REPO_ROOT)/config/systemd/prometheus.service
 PROMETHEUS_UNIT_DST := /etc/systemd/system/prometheus.service
 
 PROMETHEUS_ADDR := $(NAS_LAN_IP):9090
-
 PROMETHEUS_SERVICE := prometheus.service
+
+# Tracking flags
 PROMETHEUS_CHANGED_STAMP := $(STAMP_DIR)/prometheus_config_changed.stamp
 PROMETHEUS_UNIT_CHANGED_STAMP := $(STAMP_DIR)/prometheus_unit_changed.stamp
+
+# Absolute Fast-Path Shadow Targets
+PROMETHEUS_CONFIG_SHADOW := $(STAMP_DIR)/prometheus_config.shadow
+PROMETHEUS_UNIT_SHADOW := $(STAMP_DIR)/prometheus_unit.shadow
 
 .PHONY: \
     monitoring \
     prometheus \
     prometheus-install \
-    prometheus-unit \
-    prometheus-config \
     prometheus-enable \
     prometheus-restart \
     prometheus-status
 
 # --------------------------------------------------------------------
-# Top-level monitoring entrypoint
+# Entrypoints
 # --------------------------------------------------------------------
 monitoring: prometheus
 	@echo "📊 Monitoring stack ready"
 
-# --------------------------------------------------------------------
-# Install Prometheus (explicit, opt-in)
-# --------------------------------------------------------------------
 prometheus: \
     prometheus-install \
-    prometheus-unit \
-    prometheus-config \
+    $(PROMETHEUS_UNIT_SHADOW) \
+    $(PROMETHEUS_CONFIG_SHADOW) \
     prometheus-enable \
     prometheus-restart
 	@echo "📊 Prometheus UI reachable at: http://$(PROMETHEUS_ADDR)"
-	@echo "📊 Targets page shows both jobs UP at: http://$(PROMETHEUS_ADDR)/targets"
 	@echo "🚀 Prometheus observability ready"
 
+# --------------------------------------------------------------------
+# Installation (Gated by binary existence to bypass apt completely)
+# --------------------------------------------------------------------
 prometheus-install: ensure-run-as-root | ensure-default-gateway
 	@if ! command -v prometheus >/dev/null 2>&1; then \
 		echo "📦 Installing Prometheus via package toolchain..."; \
 		$(call apt_update_if_needed); \
 		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends prometheus; \
-	else \
-		echo "⏩ Prometheus binary already present (skipping package manager invocation)"; \
-	fi
+	  fi
 
 # --------------------------------------------------------------------
-# Sync Prometheus systemd unit (repo-owned)
+# Systemd Unit Deployment via Shadow Invariant Check
 # --------------------------------------------------------------------
-prometheus-unit: ensure-run-as-root $(PROMETHEUS_UNIT_SRC)
-	@echo "🔍 Validating Prometheus systemd unit structure"
-	@if command -v systemd-analyze >/dev/null 2>&1; then \
-		systemd-analyze verify $(PROMETHEUS_UNIT_SRC) 2>&1 | grep -v "index_serv.service" || true; \
-	fi
-	@echo "🔧 Syncing Prometheus systemd unit asset"
+$(PROMETHEUS_UNIT_SHADOW): $(PROMETHEUS_UNIT_SRC) | prometheus-install
 	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
-	$(call install_file,$(PROMETHEUS_UNIT_SRC),$(PROMETHEUS_UNIT_DST),$(ROOT_UID),$(ROOT_GID),0644); \
-	NEW_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_DST)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
+	NEW_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
-		echo "⚠️  Prometheus unit drift detected"; \
+		echo "🔍 Validating Prometheus systemd unit structure"; \
+		if command -v systemd-analyze >/dev/null 2>&1; then \
+			systemd-analyze verify $(PROMETHEUS_UNIT_SRC) 2>&1 | grep -v "index_serv.service" || true; \
+		fi; \
+		echo "🔧 Syncing Prometheus systemd unit asset"; \
+		$(call install_file,$(PROMETHEUS_UNIT_SRC),$(PROMETHEUS_UNIT_DST),$(ROOT_UID),$(ROOT_GID),0644); \
 		touch "$(PROMETHEUS_UNIT_CHANGED_STAMP)"; \
-	fi
+	  fi
+	@touch "$@"
 
 # --------------------------------------------------------------------
-# Install Prometheus configuration (repo-owned)
+# Configuration Deployment via Shadow Invariant Check
 # --------------------------------------------------------------------
-prometheus-config: ensure-run-as-root $(PROMETHEUS_CONFIG_SRC)
-	@echo "🔍 Validating Prometheus configuration"
-	@if ! command -v promtool >/dev/null 2>&1; then \
-		echo "ERROR: promtool not found in PATH. Ensure prometheus-install has executed successfully." >&2; \
-		exit 1; \
-	fi
-	@promtool check config $(PROMETHEUS_CONFIG_SRC)
-	@echo "📦 Syncing Prometheus configuration"
+$(PROMETHEUS_CONFIG_SHADOW): $(PROMETHEUS_CONFIG_SRC) | prometheus-install
 	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_CONFIG_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
-	$(call install_file,$(PROMETHEUS_CONFIG_SRC),$(PROMETHEUS_CONFIG_DST),$(ROOT_UID),$(ROOT_GID),0644); \
-	NEW_HASH=$$(sha256sum "$(PROMETHEUS_CONFIG_DST)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
+	NEW_HASH=$$(sha256sum "$(PROMETHEUS_CONFIG_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
-		echo "⚠️  Prometheus config drift detected"; \
+		echo "🔍 Validating Prometheus configuration"; \
+		if ! command -v promtool >/dev/null 2>&1; then \
+			echo "ERROR: promtool not found in PATH. Ensure prometheus-install has executed successfully." >&2; \
+			exit 1; \
+		fi; \
+		promtool check config $(PROMETHEUS_CONFIG_SRC); \
+		echo "📦 Syncing Prometheus configuration"; \
+		$(call install_file,$(PROMETHEUS_CONFIG_SRC),$(PROMETHEUS_CONFIG_DST),$(ROOT_UID),$(ROOT_GID),0644); \
 		touch "$(PROMETHEUS_CHANGED_STAMP)"; \
-	fi
+	  fi
+	@touch "$@"
 
 # --------------------------------------------------------------------
-# Manage service execution state
+# Enable and State Management
 # --------------------------------------------------------------------
 prometheus-enable: ensure-run-as-root
-	@if ! $(run_as_root) systemctl is-enabled --quiet $(PROMETHEUS_SERVICE); then \
+	@if ! $(run_as_root) systemctl is-enabled --quiet $(PROMETHEUS_SERVICE) 2>/dev/null; then \
 		echo "⚙️ Enabling Prometheus service"; \
 		$(run_as_root) systemctl enable $(PROMETHEUS_SERVICE); \
-	else \
-		echo "✨ Prometheus service already enabled"; \
-	fi
-	@if ! $(run_as_root) systemctl is-active --quiet $(PROMETHEUS_SERVICE); then \
-		echo "🚀 Starting Prometheus service"; \
-		$(run_as_root) systemctl start $(PROMETHEUS_SERVICE); \
-		touch "$(PROMETHEUS_CHANGED_STAMP)"; \
-	fi
+	  fi
 
+# --------------------------------------------------------------------
+# Service Recycles (Strictly Conditional on Flags)
+# --------------------------------------------------------------------
 prometheus-restart: ensure-run-as-root
 	@NEED_RELOAD=0; NEED_RESTART=0; \
 	if [ -f "$(PROMETHEUS_UNIT_CHANGED_STAMP)" ]; then NEED_RELOAD=1; NEED_RESTART=1; fi; \
@@ -121,19 +117,15 @@ prometheus-restart: ensure-run-as-root
 		echo "🔄 Prometheus unit changed — executing daemon-reload"; \
 		$(run_as_root) systemctl daemon-reload; \
 		rm -f "$(PROMETHEUS_UNIT_CHANGED_STAMP)"; \
-	fi; \
+	  fi; \
 	if [ "$$NEED_RESTART" -eq 1 ]; then \
 		echo "🔄 Prometheus state modification verified — restarting service"; \
 		$(run_as_root) systemctl restart $(PROMETHEUS_SERVICE); \
 		rm -f "$(PROMETHEUS_CHANGED_STAMP)"; \
-	else \
-		echo "✨ Prometheus configuration and unit match active daemon state (skipping restart)"; \
-	fi
+	  fi
 
 # --------------------------------------------------------------------
-# Status helper
-# --------------------------------------------------------------------
-# This allows quick interactive queries of the live monitoring daemon.
+# Status Helper
 # --------------------------------------------------------------------
 prometheus-status: ensure-run-as-root
 	@$(run_as_root) systemctl status $(PROMETHEUS_SERVICE) --no-pager

@@ -262,10 +262,17 @@ prereqs-dns-health-check-verify: ensure-run-as-root
 # Helper scripts
 # ------------------------------------------------------------
 
+# ------------------------------------------------------------
+# Helper scripts
+# ------------------------------------------------------------
+
 prereqs-helper-scripts: ensure-run-as-root
 	@$(run_as_root) sh -c '\
 		VERBOSE="$(VERBOSE)"; \
 		if [ -n "$$VERBOSE" ] && [ "$$VERBOSE" != "0" ]; then echo "📦 Ensuring helper scripts are installed"; fi; \
 		install -d -o root -g root -m 0755 "$(INSTALL_PATH)"; \
 		install -o root -g root -m 0755 "$(REPO_ROOT)/scripts/ensure_dir.sh" "$(INSTALL_PATH)/ensure_dir.sh"; \
+		if [ -f "$(REPO_ROOT)/scripts/wg-readiness-probe.sh" ]; then \
+			install -o root -g root -m 0755 "$(REPO_ROOT)/scripts/wg-readiness-probe.sh" "$(INSTALL_PATH)/wg-readiness-probe.sh"; \
+		fi; \
 	'
