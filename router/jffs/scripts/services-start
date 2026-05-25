@@ -51,4 +51,7 @@ fi
 # 8) Ensure dns-enforcer cron job is installed
 cru a dns_enforcer "*/1 * * * * /jffs/scripts/dns-enforcer.sh"
 
+# 9) IPv6 watchdof requesting an IPv6 prefix if none is received
+cru a ipv6_watchdog "*/5 * * * * /jffs/scripts/ipv6-watchdog.sh"
+
 exit 0

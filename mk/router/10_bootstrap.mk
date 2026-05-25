@@ -159,7 +159,8 @@ ROUTER_SCRIPT_FILES := \
 	install-cert.sh \
 	wan-event \
 	services-start \
-	dns-enforcer.sh
+	dns-enforcer.sh \
+	ipv6-watchdog.sh
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-run-as-root

@@ -259,6 +259,10 @@ table inet homelab_filter {
         ct state established,related accept comment "sr:output-ct"
         ip6 nexthdr icmpv6 accept comment "sr:output-icmpv6"
 
+        # Allow Unbound to reach upstream DNS resolvers (IPv4)
+        oifname "eth0" udp dport 53 accept comment "sr:output-unbound-dns-udp"
+        oifname "eth0" tcp dport 53 accept comment "sr:output-unbound-dns-tcp"
+
         # Unbound replies
         iifname "lo" udp sport 5335 accept comment "sr:output-lo-dns-udp"
         iifname "lo" tcp sport 5335 accept comment "sr:output-lo-dns-tcp"
