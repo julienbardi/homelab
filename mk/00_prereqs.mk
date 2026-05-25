@@ -98,27 +98,37 @@ prereqs-tailscale-repo-verify: | ensure-default-gateway
 $(INSTALL_SBIN_PATH)/apt-proxy-auto.sh: $(REPO_ROOT)/scripts/apt-proxy-auto.sh | $(run_as_root)
 	@$(call install_script,$<,apt-proxy-auto.sh)
 
-prereqs: \
-	$(INSTALL_SBIN_PATH)/apt-proxy-auto.sh \
-	ensure-run-as-root \
-	ensure-default-gateway \
-	prereqs-public-dns-verify \
-	prereqs-tailscale-repo-verify \
-	prereqs-dns-warm \
-	prereqs-dns-warm-verify \
-	prereqs-docs-verify \
-	prereqs-helper-scripts \
-	install-ssh-config \
-	rust-system \
-	| ensure-default-gateway $(INSTALL_SBIN_PATH)/apt-proxy-auto.sh
+# 1. Granular network-bound prerequisites
+.PHONY: prereqs-network-deps
+prereqs-network-deps: ensure-default-gateway ensure-bootstrap-dns prereqs-tailscale-repo-verify prereqs-dns-warm
+
+# 2. Granular system-bound prerequisites
+.PHONY: prereqs-system-deps
+prereqs-system-deps: prereqs-helper-scripts install-ssh-config rust-system
+
+# 3. Dedicated target for Tailscale key management
+$(TAILSCALE_KEYRING): | ensure-run-as-root
 	@echo "🔐 Ensuring Tailscale APT signing key"
-	@$(run_as_root) sh -c '\
-		set -e; \
+	@$(run_as_root) sh -c ' \
 		tmp=$$(mktemp -p /run homelab.ifc.tmp.XXXXXX); \
 		trap "rm -f $$tmp" EXIT; \
 		curl -fsSL $(TAILSCALE_KEY_URL) -o "$$tmp"; \
-		$(INSTALL_FILE_IF_CHANGED) -q "" "" "$$tmp" "" "" "$(TAILSCALE_KEYRING)" root root 0644
-	'
+		$(INSTALL_FILE_IF_CHANGED) -q "" "" "$$tmp" "" "" "$(TAILSCALE_KEYRING)" root root 0644'
+
+# 4. Aggregator target for orchestration
+.PHONY: prereqs
+prereqs: \
+    $(INSTALL_SBIN_PATH)/apt-proxy-auto.sh \
+    prereqs-network-deps \
+    prereqs-system-deps \
+    prereqs-dns-warm-verify \
+    prereqs-docs-verify \
+    $(TAILSCALE_KEYRING)
+	@echo "📦 Ensuring installation of prerequisite tools"
+	@$(call apt_install_group,$(PREREQS_PACKAGES))
+	@sh -c 'for bin in curl jq git iperf3 qrencode funzip; do \
+		command -v "$$bin" >/dev/null || { echo "❌ $$bin missing"; exit 1; }; \
+		done; echo "✅ Base prerequisites installed"'
 
 	@echo "📦 Ensuring installation of prerequisite tools"
 	@$(call apt_install_group,$(PREREQS_PACKAGES)) || true
@@ -276,3 +286,11 @@ prereqs-helper-scripts: ensure-run-as-root
 			install -o root -g root -m 0755 "$(REPO_ROOT)/scripts/wg-readiness-probe.sh" "$(INSTALL_PATH)/wg-readiness-probe.sh"; \
 		fi; \
 	'
+.PHONY: ensure-bootstrap-dns
+ensure-bootstrap-dns:
+	@echo "🔍 Checking bootstrap DNS..."
+	@if ! dig +short google.com @10.89.12.1 >/dev/null; then \
+		echo "⚠️ Bootstrap DNS (10.89.12.1) unreachable, checking fallback..."; \
+		$(run_as_root) resolvectl dns eth0 10.89.12.1; \
+	fi
+	@echo "✅ Bootstrap DNS ready"

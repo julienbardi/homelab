@@ -299,16 +299,29 @@ nft-install-rollback: ensure-run-as-root
 		echo "✅ nft rollback units installed"; \
 	'
 
+# The root of the DAG
 .PHONY: homelab-all
-homelab-all: \
-	nft-install \
-	nft-apply \
-	nft-confirm \
-	converge-network \
-	tailscaled \
-	monitoring \
-	wg-install-router \
-	wg-up-nas \
-	install-router-prefix-watchdog \
-	all-remote
-	@echo "🎉 Homelab fully converged (router + NAS + DNS + firewall + WireGuard + Tailnet + Monitoring + Remote Certs)"
+homelab-all: nft-apply-phase wg-network-phase service-phase
+	@echo "🎉 Homelab fully converged."
+
+# Phase 1: Security/Firewall (Foundational, must run sequentially)
+.PHONY: nft-apply-phase
+nft-apply-phase: nft-install nft-apply nft-confirm
+
+# Phase 2: Network Infrastructure (Parallel branches)
+.PHONY: wg-network-phase
+wg-network-phase: | nft-confirm
+wg-network-phase: converge-network tailscaled-dependencies-met wg-install-router wg-up-nas
+
+# Phase 3: Services (Independent of each other)
+.PHONY: service-phase
+service-phase: | nft-confirm
+service-phase: monitoring install-router-prefix-watchdog enable-unbound verify-internal-dns all-remote
+
+# Sub-groupings
+tailscaled-dependencies-met: headscale-stack tailscaled
+
+# Force sequential order only where necessary using order-only prerequisites (|)
+# Example: Ensure nft is confirmed BEFORE we touch WireGuard
+wg-install-router: | nft-confirm
+wg-up-nas: | nft-confirm

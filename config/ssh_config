@@ -19,9 +19,9 @@ Host *
 
 
 # ============================================================
-# ROUTER — Asus RT‑AX86U Pro
+# ROUTER — Asus RT-AX86U Pro
 # ============================================================
-Host router 10.89.12.1
+Host router
     HostName 10.89.12.1
     Port 2222
     User julie
@@ -30,7 +30,7 @@ Host router 10.89.12.1
 # ============================================================
 # DISKSTATION — Synology DS218play
 # ============================================================
-Host diskstation 10.89.12.2
+Host diskstation
     HostName 10.89.12.2
     Port 2222
     User julie
@@ -39,7 +39,7 @@ Host diskstation 10.89.12.2
 # ============================================================
 # QNAP — TS210 (legacy OpenSSH)
 # ============================================================
-Host qnap 10.89.12.3
+Host qnap
     HostName 10.89.12.3
     Port 2222
     User admin
@@ -47,9 +47,9 @@ Host qnap 10.89.12.3
 
 # ============================================================
 # NAS — Ugreen DXP4800+
-# Requires PQ‑KEX suppression
+# Requires PQ-KEX suppression
 # ============================================================
-Host nas 10.89.12.4
+Host nas
     HostName 10.89.12.4
     Port 2222
     User julie
@@ -57,11 +57,9 @@ Host nas 10.89.12.4
 
 
 # ============================================================
-# ACCESS POINT — Asus RT‑AC86U
+# ACCESS POINT — Asus RT-AC86U
 # ============================================================
-Host ac86u 10.89.12.6
+Host ac86u
     HostName 10.89.12.6
     Port 2222
     User admin
-    IdentityFile ~/.ssh/id_ed25519
-    IdentitiesOnly yes

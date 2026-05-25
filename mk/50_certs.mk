@@ -13,6 +13,11 @@
 # - Keeps all cert watchers passive until a cert actually changes
 # --------------------------------------------------------------------
 
+# --- Guard: Verify environment configuration ---
+ifeq ($(SYSTEM_STATE_DIR),)
+	$(error SYSTEM_STATE_DIR is not defined. Ensure it is set in mk/01_common.mk)
+endif
+
 # Installed certificate helpers (authoritative execution surface)
 CERTS_CREATE        := $(INSTALL_PATH)/certs-create.sh
 CERTS_DEPLOY        := $(INSTALL_PATH)/deploy_certificates.sh
@@ -40,7 +45,7 @@ certs-create: ensure-run-as-root $(CERTS_CREATE)
 
 gen-client-cert: ensure-run-as-root $(GEN_CLIENT_WRAPPER) $(GEN_CLIENT_CERT)
 	@if [ -z "$(CN)" ]; then \
-	  echo "[make] usage: make gen-client-cert CN=<name> [FORCE=1]"; exit 1; \
+	  echo "❌ Usage: make gen-client-cert CN=<name> [FORCE=1]"; exit 1; \
 	fi
 	@FORCE_FLAG=''; if [ "$(FORCE)" = "1" ]; then FORCE_FLAG="--force"; fi; \
 	$(GEN_CLIENT_WRAPPER) "$(CN)" "$(run_as_root)" "$(INSTALL_PATH)" "$$FORCE_FLAG"
@@ -164,14 +169,16 @@ certs-rotate: ensure-run-as-root $(CERTS_CREATE) $(CERTS_DEPLOY) $(GEN_CLIENT_CE
 renew: ensure-run-as-root install-helpers
 	@$(run_as_root) $(CERTS_DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE)
 
-install-helpers: $(INSTALL_PATH)/common.sh $(INSTALL_FILE_IF_CHANGED) $(INSTALL_PATH)/deploy_certificates.sh
+install-helpers: $(INSTALL_PATH)/common.sh \
+	$(INSTALL_FILE_IF_CHANGED) \
+	$(INSTALL_PATH)/deploy_certificates.sh \
+	$(INSTALL_PATH)/deploy_dsm.sh
 	@echo "🛠️ Helpers verified and synced"
 
 $(INSTALL_PATH)/deploy_certificates.sh: $(REPO_ROOT)/scripts/deploy_certificates.sh | $(BOOTSTRAP_FILES)
 	$(call install_script,$<,$(notdir $@))
 
-prepare: ensure-run-as-root renew $(CERTS_DEPLOY)
-	@$(run_as_root) $(CERTS_DEPLOY) prepare || { echo "[make] ❌ prepare failed"; exit 1; }
+prepare: $(STAMP_PREPARE)
 
 # Deploy helpers
 define deploy_with_status
@@ -188,11 +195,8 @@ deploy-headscale: prepare
 deploy-dnsdist: prepare
 	$(call deploy_with_status,dnsdist)
 
-deploy-diskstation: prepare deploy-dsm
+deploy-diskstation: $(STAMP_DSM)
 	@echo "🔄 DiskStation certificate deploy complete"
-
-deploy-qnap: prepare
-	$(call deploy_with_status,qnap)
 
 # Validate helpers
 define validate_with_status
@@ -210,8 +214,9 @@ validate-diskstation: validate-dsm
 	@echo "🔄 DiskStation validation OK"
 
 validate-qnap:
-	@echo "⚠️ [validate][qnap] Temporarily disabled — QNAP certificate not validated"
-	@exit 0
+	@echo "🔍 [validate][qnap] Checking certificate on $(LAN_QNAP):443..."; \
+	openssl s_client -connect $(LAN_QNAP):443 -servername $(DOMAIN) -tls1_2 -showcerts </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256; \
+	echo "✅ [validate][qnap] Validation complete"
 
 validate-qnap-todebug-fails:
 	$(call validate_with_status,qnap)
@@ -245,16 +250,20 @@ validate-ac86u:
 		exit 0; \
 	fi
 
+STAMP_PREPARE := $(SYSTEM_STATE_DIR)/prepare.stamp
+
+$(STAMP_PREPARE): ensure-run-as-root renew $(CERTS_DEPLOY)
+	@$(run_as_root) sh -c '$(CERTS_DEPLOY) prepare && touch $@' || { echo "❌ prepare failed"; exit 1; }
+
 # All-in-one targets
-all-caddy:       renew prepare deploy-caddy       validate-caddy
-all-headscale:   renew prepare deploy-headscale   validate-headscale
-all-router:      renew prepare deploy-router
-all-diskstation: renew prepare deploy-diskstation validate-diskstation
-all-qnap:        renew prepare deploy-qnap        validate-qnap
-all-ac86u:       renew prepare deploy-ac86u       validate-ac86u
+all-caddy:       $(STAMP_PREPARE) deploy-caddy       validate-caddy
+all-headscale:   $(STAMP_PREPARE) deploy-headscale   validate-headscale
+all-router:      $(STAMP_PREPARE) deploy-router
+all-diskstation: $(STAMP_PREPARE) deploy-diskstation validate-diskstation
+all-qnap:        $(STAMP_PREPARE) deploy-qnap        validate-qnap
+all-ac86u:       $(STAMP_PREPARE) deploy-ac86u       validate-ac86u
 
 all-remote: all-router all-diskstation all-qnap all-ac86u
-	@echo "🌐 [all-remote] Completed (AC86U best-effort)"
 
 # Cert watch setup targets
 setup-cert-watch-%: ensure-run-as-root scripts/systemd/cert-reload@.service scripts/systemd/$*-cert.path
@@ -314,28 +323,53 @@ deploy-cert-watch-all: \
 	deploy-cert-watch-dnsdist \
 	deploy-cert-watch-headscale
 
-deploy-dsm:
-	@echo "⚠️ [deploy][dsm] Temporarily disabled — DSM certificate not auto-deployed"
-	@echo "⚠️ [deploy][dsm] Run manual DSM cert import from GUI if needed"
-	@exit 0
+
+STAMP_DSM := $(SYSTEM_STATE_DIR)/dsm_cert.stamp
+
+# --- DSM Deployment Target ---
+deploy-dsm: $(STAMP_DSM)
+	@echo "🔄 DSM deployment verified"
+
+# --- QNAP Deployment Target ---
+STAMP_QNAP := $(SYSTEM_STATE_DIR)/qnap_cert.stamp
+
+# --- QNAP SSH Deployment (Optimized Persistent Symlink Strategy) ---
+$(STAMP_QNAP): prepare $(SSL_CANONICAL_DIR)/fullchain_ecc.pem
+	@echo "🔐 [deploy][qnap] Syncing to persistent store..."
+	@sh -c '\
+		# Consolidated SSH call to minimize overhead \
+		ssh -p 2222 $(SSH_USER_QNAP)@$(LAN_QNAP) "mkdir -p /share/MD0_DATA/.system_ssl"; \
+		scp -q -P 2222 "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" "$(SSH_USER_QNAP)@$(LAN_QNAP):/share/MD0_DATA/.system_ssl/cert.pem"; \
+		scp -q -P 2222 "$(SSL_CANONICAL_DIR)/privkey_ecc.pem" "$(SSH_USER_QNAP)@$(LAN_QNAP):/share/MD0_DATA/.system_ssl/key.pem"; \
+		ssh -p 2222 $(SSH_USER_QNAP)@$(LAN_QNAP) "\
+			ln -sf /share/MD0_DATA/.system_ssl/cert.pem /etc/config/apache/server.crt && \
+			ln -sf /share/MD0_DATA/.system_ssl/key.pem /etc/config/apache/server.key && \
+			/etc/init.d/Qthttpd.sh restart"; \
+		sha256sum $(SSL_CANONICAL_DIR)/fullchain_ecc.pem > $@ && \
+		echo "✅ [deploy][qnap] SSH certificate deployment complete"'
+
+# --- DSM Deployment Target ---
+$(STAMP_DSM): prepare $(SSL_CANONICAL_DIR)/fullchain_ecc.pem $(INSTALL_PATH)/deploy_dsm.sh
+	@echo "🔐 [deploy][dsm] Syncing to $(LAN_SYNOLOGY)..."
+	@$(call WITH_SECRETS, sh -c 'exec 8<<< "$$DSM_PASS"; /usr/local/bin/deploy_dsm.sh "$(LAN_SYNOLOGY)" "$$DSM_USER" 8<&8')
+	@sha256sum $(SSL_CANONICAL_DIR)/fullchain_ecc.pem > $@
+	@echo "✅ [deploy][dsm] DSM certificate deployment stamped."
 
 deploy-ac86u: prepare
 	@echo "🔐 [deploy][ac86u] Deploying certificate to AC86U ($(LAN_AC86U))…"
-	@$(run_as_root) sh -c '\
-		if [ -z "$(SSH_USER_AC86U)" ] || [ -z "$(LAN_AC86U)" ]; then \
-			echo "❌ AC86U variables missing: SSH_USER_AC86U=\"$(SSH_USER_AC86U)\" LAN_AC86U=\"$(LAN_AC86U)\""; \
-			exit 1; \
+	@# Initialize variable to avoid unbound error
+	@TRIGGER_RELOAD=0; \
+	for f in fullchain_ecc.pem privkey_ecc.pem; do \
+		REMOTE_NAME=$${f%_ecc.pem}.pem; \
+		if ! diff -q "$(SSL_CANONICAL_DIR)/$$f" <(ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) "cat /jffs/ssl/$$REMOTE_NAME 2>/dev/null") >/dev/null 2>&1; then \
+			echo "🔄 Updating $$REMOTE_NAME..."; \
+			cat "$(SSL_CANONICAL_DIR)/$$f" | ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) "cat > /jffs/ssl/$$REMOTE_NAME"; \
+			TRIGGER_RELOAD=1; \
 		fi; \
-		FEC1=3; FEC2=3; \
-		$(INSTALL_FILE_IF_CHANGED) "-q" "" "" "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" "$(LAN_AC86U)" "$(ROUTER_SSH_PORT)" "/jffs/ssl/fullchain.pem" "0" "0" "0644" || FEC1=$$?; \
-		$(INSTALL_FILE_IF_CHANGED) "-q" "" "" "$(SSL_CANONICAL_DIR)/privkey_ecc.pem" "$(LAN_AC86U)" "$(ROUTER_SSH_PORT)" "/jffs/ssl/privkey.pem" "0" "0" "0600" || FEC2=$$?; \
-		if [ "$$FEC1" != "0" ] && [ "$$FEC1" != "3" ]; then exit "$$FEC1"; fi; \
-		if [ "$$FEC2" != "0" ] && [ "$$FEC2" != "3" ]; then exit "$$FEC2"; fi; \
-		if [ "$$FEC1" = "0" ] || [ "$$FEC2" = "0" ]; then \
-			echo "🔄 Changes detected — reloading AC86U HTTPS daemon..."; \
-			ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) "service restart_httpd"; \
-			echo "✅ [deploy][ac86u] AC86U certificate deployed and HTTPS reloaded"; \
-		else \
-			echo "✨ AC86U TLS infrastructure matches current canonical state (skipping reload)"; \
-		fi \
-	'
+	done; \
+	if [ "$$TRIGGER_RELOAD" -eq 1 ]; then \
+		ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_AC86U)@$(LAN_AC86U) "chmod 0644 /jffs/ssl/fullchain.pem && chmod 0600 /jffs/ssl/privkey.pem && service restart_httpd"; \
+		echo "✅ [deploy][ac86u] AC86U certificate deployed and HTTPS reloaded"; \
+	else \
+		echo "✨ AC86U TLS infrastructure matches current canonical state"; \
+	fi

@@ -56,17 +56,13 @@ deploy-unbound-sysctl: ensure-run-as-root
 # ------------------------------------------------------------
 # Root hints (pure)
 # ------------------------------------------------------------
-update-root-hints: ensure-default-gateway ensure-run-as-root
-	@echo "🌐 Updating root hints -> /var/lib/unbound/root.hints"
+# Installs the static root.hints file tracked in the repository.
+# This ensures a deterministic, offline-capable deployment.
+update-root-hints: ensure-run-as-root
+	@echo "🌐 Installing static root hints from repository"
 	@$(run_as_root) install -d -m 0770 -o root -g unbound /var/lib/unbound
-	tmp=$$(mktemp -p /run homelab.unbound.tmp.XXXXXX); \
-	if curl -fsSL --connect-timeout 10 --max-time 20 https://www.internic.net/domain/named.root -o $$tmp; then \
-		$(run_as_root) install -m 0644 -o root -g unbound $$tmp /var/lib/unbound/root.hints; \
-		echo "✅ root hints updated"; \
-	else \
-		echo "⚠️ root hints download failed — keeping existing file"; \
-	fi; \
-	rm -f $$tmp
+	@$(run_as_root) install -m 0644 -o root -g unbound $(REPO_ROOT)/config/unbound/root.hints /var/lib/unbound/root.hints
+	@echo "✅ root hints installed"
 
 # ------------------------------------------------------------
 # Trust anchor (pure ensure)
@@ -147,6 +143,7 @@ install-unbound-systemd-dropin: ensure-run-as-root
 # ------------------------------------------------------------
 # Pure deploy (no restart, no runtime state)
 # ------------------------------------------------------------
+# consider removing dependency on update-root-hints
 deploy-unbound: \
 	deploy-unbound-sysctl \
 	update-root-hints \
@@ -161,7 +158,7 @@ deploy-unbound: \
 # ------------------------------------------------------------
 # Single restart point
 # ------------------------------------------------------------
-enable-unbound: ensure-default-gateway ensure-run-as-root deploy-unbound
+enable-unbound: ensure-default-gateway ensure-run-as-root deploy-unbound | deploy-unbound-config deploy-unbound-local-internal
 	@if [ -f "$(UNBOUND_RESTART_STAMP)" ]; then \
 		echo "🔄 Restarting Unbound"; \
 		$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true; \
@@ -197,3 +194,11 @@ setup-unbound-control: ensure-run-as-root
 
 unbound-status: ensure-run-as-root
 	@$(run_as_root) systemctl status unbound --no-pager --lines=0
+
+.PHONY: verify-internal-dns
+verify-internal-dns:
+	@echo "🔍 Verifying internal DNS (apt.bardi.ch)..."
+	@if [ "$$(dig +short @10.89.12.4 apt.bardi.ch CNAME)" != "nas.bardi.ch." ]; then \
+		echo "❌ DNS resolution failed"; exit 1; \
+	fi
+	@echo "✅ Internal DNS verified"

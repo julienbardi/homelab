@@ -142,7 +142,7 @@ wg-clean-out: wg-down-router wg-down-nas wg-clean-state
 	@$(run_as_root_router) "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
 
 # --- Deployment ---
-router-firewall: wg-generate
+router-firewall: | wg-generate
 	@echo "🛡️ [router] Installing firewall for WireGuard..."
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_WG_FIREWALL)", \
 		umask 077; \
@@ -163,7 +163,9 @@ router-firewall: wg-generate
 wg-install-router: router-ensure-wg-module \
     $(INSTALL_PATH)/wgctl.sh \
     $(INSTALL_PATH)/wg-readiness-probe.sh \
-	wg-generate \
+	$(INSTALL_FILE_IF_CHANGED) \
+	router-firewall \
+	| wg-generate \
 	$(INSTALL_FILE_IF_CHANGED) \
 	router-firewall
 	@EXECUTE_DEPLOY=0; \
@@ -197,7 +199,7 @@ wg-install-router: router-ensure-wg-module \
 wg-install-nas: $(INSTALL_PATH)/wgctl.sh \
 	$(INSTALL_PATH)/wg-readiness-probe.sh \
 	$(INSTALL_FILE_IF_CHANGED) \
-	wg-generate
+	| wg-generate
 	@echo "📦 [nas   ] Installing WireGuard configurations..."
 	@EXECUTE_DEPLOY=0; \
 	if [ -f "$(WG_NAS_DIRTY_STAMP)" ]; then EXECUTE_DEPLOY=1; fi; \
