@@ -1,6 +1,7 @@
 # mk/60_unbound.mk — Unbound orchestration (no recursive make, pure DAG)
 
 UNBOUND_RESTART_STAMP := $(STAMP_DIR)/unbound.restart
+STAMP_UNBOUND_ANCHOR  := $(STAMP_DIR)/unbound_anchor.sha256
 
 SYSCTL_UNBOUND_SRC := $(REPO_ROOT)/config/sysctl/99-unbound-buffers.conf
 SYSCTL_UNBOUND_DST := /etc/sysctl.d/99-unbound-buffers.conf
@@ -65,15 +66,30 @@ update-root-hints: ensure-run-as-root
 	@echo "✅ root hints installed"
 
 # ------------------------------------------------------------
-# Trust anchor (pure ensure)
+# Trust anchor (stamp-driven, fast-path, single run_as_root)
 # ------------------------------------------------------------
-ensure-dnssec-trust-anchor: ensure-run-as-root
-	@echo "🔑 Ensuring DNSSEC trust anchor -> /var/lib/unbound/root.key"
-	@$(run_as_root) install -d -m 0770 -o root -g unbound /var/lib/unbound
-	@if [ ! -f /var/lib/unbound/root.key ]; then \
-		$(run_as_root) unbound-anchor -a /var/lib/unbound/root.key; \
-	fi
+ensure-dnssec-trust-anchor: ensure-run-as-root $(STAMP_UNBOUND_ANCHOR)
 	@echo "✅ root key present"
+
+$(STAMP_UNBOUND_ANCHOR):
+	@echo "🔑 Ensuring DNSSEC trust anchor -> /var/lib/unbound/root.key"
+	@$(run_as_root) sh -c '\
+		set -euo pipefail; \
+		install -d -m 0770 -o root -g unbound /var/lib/unbound; \
+		# Fast-path: if root.key exists AND stamp exists AND hashes match → skip \
+		if [ -f /var/lib/unbound/root.key ] && [ -f "$(STAMP_UNBOUND_ANCHOR)" ]; then \
+			if sha256sum /var/lib/unbound/root.key | awk "{print \$$1}" | cmp -s - "$(STAMP_UNBOUND_ANCHOR)"; then \
+				echo "ℹ️ DNSSEC trust anchor up-to-date"; \
+				exit 0; \
+			fi; \
+		fi; \
+		echo "🔄 Updating DNSSEC trust anchor..."; \
+		unbound-anchor -a /var/lib/unbound/root.key; \
+		sha256sum /var/lib/unbound/root.key | awk "{print \$$1}" > "$(STAMP_UNBOUND_ANCHOR)"; \
+		echo "🔐 DNSSEC trust anchor updated"; \
+	'
+
+
 
 # ------------------------------------------------------------
 # Config deployment (pure)

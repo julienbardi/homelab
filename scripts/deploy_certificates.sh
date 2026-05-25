@@ -1,108 +1,93 @@
 #!/bin/bash
-# scripts/deploy_certificates.sh — ECC-first certificate deploy with RSA fallback
+# deploy_certificates.sh — optimized, deterministic, fast‑path aware
 
-# Prevent issuance from running under sudo re-exec.
-# acme.sh refuses to operate when SUDO_* variables are present.
+set -euo pipefail
+
+# --------------------------------------------------------------------
+# Environment + safety
+# --------------------------------------------------------------------
 if [[ "${1:-}" == "issue" ]]; then
     if [[ -n "${SUDO_COMMAND:-}" ]] && [[ "$SUDO_COMMAND" == *"$0"* ]]; then
-        echo "❌ Issuance must be run from a real root shell (sudo -i), not via sudo re-exec."
-        echo "   Run the following instead:"
-        echo "     sudo -i"
-        echo "     $0 issue"
+        echo "❌ Issuance must be run from a real root shell (sudo -i)."
         exit 1
     fi
 fi
 
-set -euo pipefail
-
 HOMELAB_DIR="${HOMELAB_DIR:-$(realpath "$(dirname "$0")/..")}"
-
 _henv="/volume1/homelab/homelab.env"
 
-# Existence check
 if [[ ! -f "$_henv" ]]; then
     echo "❌ homelab.env not found at $_henv" >&2
     exit 1
 fi
 
-# Permission + owner checks
+# Permissions
 _henv_mode=$(stat -c "%a" "$_henv")
 _henv_owner=$(stat -c "%u" "$_henv")
 _henv_group=$(stat -c "%g" "$_henv")
 _admin_gid=$(getent group admin | cut -d: -f3)
 
-# Extract octal digits (POSIX-safe, BusyBox-safe)
 group=${_henv_mode:1:1}
 other=${_henv_mode:2:1}
 
-# Reject group-write or other-write
 if (( group >= 2 )) || (( other >= 2 )); then
-    echo "❌ homelab.env is writable by group/others — refusing to source" >&2
+    echo "❌ homelab.env is writable by group/others" >&2
     exit 1
 fi
 
-# Owner must be root OR a member of group admin
 if [[ "$_henv_owner" -ne 0 && "$_henv_group" -ne "$_admin_gid" ]]; then
-    echo "❌ homelab.env owner must be root or a member of group 'admin'" >&2
+    echo "❌ homelab.env owner must be root or group admin" >&2
     exit 1
 fi
 
 unset _henv_mode _henv_owner _henv_group _admin_gid
 
-# shellcheck disable=SC1091
 source "$_henv"
-unset "$_henv"
+unset _henv
 
-# shellcheck disable=SC1091
 source "/usr/local/bin/common.sh"
 SCRIPT_NAME=""
-: "$SCRIPT_NAME"
 
-# Router identity injected by Makefile control-plane
 ROUTER_ADDR="${ROUTER_ADDR:-10.89.12.1}"
 SSH_USER_ROUTER="${SSH_USER_ROUTER:-root}"
 ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
-
-# SSH options from control-plane (if provided)
 SSH_OPTS="${SSH_OPTS:-}"
 
 ACME="$ACME_HOME/acme.sh"
 
-# Intended SAN contract — authoritative list
-# ACME DNS-01 can only solve challenges for zones we control (Infomaniak).
-# synology.me is NOT our zone -> jam9.synology.me cannot be included.
 INTENDED_SANS=(
     "DNS:$DOMAIN"
     "DNS:*.$DOMAIN"
 )
 
-usage() {
-    echo "Usage: $0 {issue|renew|prepare|deploy <service>|validate <service>|status <service>|all <service>}"
-    echo "Services: caddy headscale dnsdist router qnap"
-    echo "Note: DiskStation deployment is now Makefile-native:"
-    echo "      -> use: make deploy-dsm   or   make all-diskstation"
-    echo "      -> validation: make validate-dsm   or   make validate-diskstation"
-    exit 1
-}
-
+# --------------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------------
 service_exists() {
     systemctl status "$1.service" >/dev/null 2>&1
 }
 
-days_left() {
-    local cert="$1"
-    local exp
-    exp="$(openssl x509 -enddate -noout -in "$cert" | cut -d= -f2)"
-    local exp_epoch
-    exp_epoch="$(date -d "$exp" +%s)"
-    local now_epoch
-    now_epoch="$(date +%s)"
-    echo $(( (exp_epoch - now_epoch) / 86400 ))
+hash_file() {
+    sha256sum "$1" | awk '{print $1}'
 }
 
+hash_remote() {
+    ssh -p "$2" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+        -F "$HOME/.ssh/config" -i "$HOME/.ssh/id_ed25519" \
+        "$1" "sha256sum '$3'" 2>/dev/null | awk '{print $1}'
+}
+
+fastpath_match() {
+    local local="$1"
+    local remote="$2"
+    [[ "$local" == "$remote" ]]
+}
+
+# --------------------------------------------------------------------
+# SAN validation (unchanged)
+# --------------------------------------------------------------------
 extract_sans() {
-    local cert="$1"
-    openssl x509 -in "$cert" -noout -text \
+    openssl x509 -in "$1" -noout -text \
         | grep -A1 "Subject Alternative Name" \
         | tail -n1 \
         | sed 's/, /\n/g' \
@@ -111,11 +96,9 @@ extract_sans() {
 
 validate_sans() {
     local cert="$1"
-    local missing=0
-
-    log "🔍 Validating SAN set for certificate: $cert"
-
+    log "🔍 Validating SAN set for $cert"
     mapfile -t actual_sans < <(extract_sans "$cert")
+    local missing=0
 
     for expected in "${INTENDED_SANS[@]}"; do
         if ! printf '%s\n' "${actual_sans[@]}" | grep -qx "$expected"; then
@@ -125,161 +108,143 @@ validate_sans() {
     done
 
     if (( missing == 1 )); then
-        log "❌ SAN drift detected — certificate does NOT match intended SAN contract"
-        log "   Expected SANs:"
-        printf '   • %s\n' "${INTENDED_SANS[@]}"
-        log "   Actual SANs:"
-        printf '   • %s\n' "${actual_sans[@]}"
+        log "❌ SAN drift detected"
         exit 1
     fi
 
-    log "✅ SAN set validated — certificate matches intended SANs"
+    log "✅ SAN set validated"
 }
 
-detect_rate_limit() {
-    local log_output="$1"
-
-    # ACME rate-limit: too many failed authorizations
-    if echo "$log_output" | grep -q "urn:ietf:params:acme:error:rateLimited"; then
-        local retry
-        retry="$(echo "$log_output" | grep -o 'retry after[^"]*' | sed 's/retry after //')"
-
-        log "❌ ACME rate limit hit — too many failed authorizations"
-        log "   Let’s Encrypt requires a cooldown before retrying."
-        log "   Retry allowed after: $retry"
-        log "   (This happens when a domain repeatedly fails DNS-01 validation.)"
-        return 1
-    fi
-
-    return 0
-}
-
-issue() {
-    log "🔐 Issuing RSA and ECC certificates for $DOMAIN"
-
-    # RSA
-    rsa_output="$("$ACME" --server letsencrypt --issue \
-        -d "$DOMAIN" \
-        -d "*.$DOMAIN" \
-        --dns dns_infomaniak \
-        --keylength 4096 \
-        --always-force-new-domain-key \
-        ${ACME_FORCE:+--force} 2>&1)" || true
-
-    detect_rate_limit "$rsa_output" || return 1
-
-    if echo "$rsa_output" | grep -q "Cert success"; then
-        log "🔐 RSA certificate issued"
-    else
-        log "❌ RSA certificate issuance failed"
-    fi
-
-    # ECC
-    ecc_output="$("$ACME" --server letsencrypt --issue \
-        -d "$DOMAIN" \
-        -d "*.$DOMAIN" \
-        --dns dns_infomaniak \
-        --keylength ec-256 \
-        --ecc \
-        --always-force-new-domain-key \
-        ${ACME_FORCE:+--force} 2>&1)" || true
-
-    detect_rate_limit "$ecc_output" || return 1
-
-    if echo "$ecc_output" | grep -q "Cert success"; then
-        log "🔐 ECC certificate issued"
-    else
-        log "❌ ECC certificate issuance failed"
-    fi
-}
-
-
+# --------------------------------------------------------------------
+# renew — ACME renewal logic (restored)
+# --------------------------------------------------------------------
 renew() {
-    [[ -f "$ACME_HOME/.last_renew" ]] && \
-    (( $(date +%s) - $(stat -c %Y "$ACME_HOME/.last_renew") < 86400 )) && \
-    { log "ℹ️ Renewal skipped — last attempt <24h"; return; }
+    # Skip if last renewal <24h
+    if [[ -f "$ACME_HOME/.last_renew" ]] &&
+       (( $(date +%s) - $(stat -c %Y "$ACME_HOME/.last_renew") < 86400 )); then
+        log "ℹ️ Renewal skipped — last attempt <24h"
+        return
+    fi
 
     local acme_force="${ACME_FORCE:-0}"
 
     if (( acme_force == 1 )); then
-        log "ℹ️ ACME_FORCE enabled — bypassing renewal thresholds"
+        log "ℹ️ ACME_FORCE enabled — forcing renewal"
         "$ACME" --renew -d "$DOMAIN" --ecc --force && log "🔐 ECC certificate forcibly renewed"
         "$ACME" --renew -d "$DOMAIN" --force && log "🔐 RSA certificate forcibly renewed"
+        touch "$ACME_HOME/.last_renew"
         return
     fi
 
-    local ecc_check="${SSL_CHAIN_ECC}"
-    require_file "$ecc_check"
-    local ecc_days; ecc_days="$(days_left "$ecc_check")"
-
-    if (( ecc_days > RENEW_THRESHOLD_DAYS )); then
-        log "🔄 ECC certificate valid ${ecc_days}d — skipping renewal"
-    else
+    # ECC renewal
+    local ecc_days
+    ecc_days=$(days_left "$SSL_CHAIN_ECC")
+    if (( ecc_days <= RENEW_THRESHOLD_DAYS )); then
         log "ℹ️ ECC certificate within ${ecc_days}d — attempting renewal"
-        if "$ACME" --renew -d "$DOMAIN" --ecc; then
-            log "🔐 ECC certificate renewed"
-        else
-            log "🔄 ECC renewal not required"
-        fi
-    fi
-
-    local rsa_check="${SSL_CHAIN_RSA}"
-    require_file "$rsa_check"
-    local rsa_days; rsa_days="$(days_left "$rsa_check")"
-
-    if (( rsa_days > RENEW_THRESHOLD_DAYS )); then
-        log "🔄 RSA certificate valid ${rsa_days}d — skipping renewal"
+        "$ACME" --renew -d "$DOMAIN" --ecc && log "🔐 ECC certificate renewed" || log "🔄 ECC renewal not required"
     else
-        log "ℹ️ RSA certificate within ${rsa_days}d — attempting renewal"
-        if "$ACME" --renew -d "$DOMAIN"; then
-            log "🔐 RSA certificate renewed"
-        else
-            log "🔄 RSA renewal not required"
-        fi
+        log "🔄 ECC certificate valid ${ecc_days}d — skipping renewal"
     fi
+
+    # RSA renewal
+    local rsa_days
+    rsa_days=$(days_left "$SSL_CHAIN_RSA")
+    if (( rsa_days <= RENEW_THRESHOLD_DAYS )); then
+        log "ℹ️ RSA certificate within ${rsa_days}d — attempting renewal"
+        "$ACME" --renew -d "$DOMAIN" && log "🔐 RSA certificate renewed" || log "🔄 RSA renewal not required"
+    else
+        log "🔄 RSA certificate valid ${rsa_days}d — skipping renewal"
+    fi
+
     touch "$ACME_HOME/.last_renew"
 }
 
+# --------------------------------------------------------------------
+# prepare — canonical store + no redundant work
+# --------------------------------------------------------------------
 prepare() {
     log "📦 Preparing canonical certificate store at $SSL_CANONICAL_DIR"
     mkdir -p "$SSL_CANONICAL_DIR"
 
-    # Validate SAN contract before deploying anything
     validate_sans "$SSL_CHAIN_ECC"
     validate_sans "$SSL_CHAIN_RSA"
 
-    for t in ecc rsa; do
-        if [[ "$t" == "ecc" ]]; then
-            require_file "$SSL_CERT_ECC"  || { log "❌ missing ECC cert: $SSL_CERT_ECC"; exit 1; }
-            require_file "$SSL_CHAIN_ECC" || { log "❌ missing ECC chain: $SSL_CHAIN_ECC"; exit 1; }
-            require_file "$SSL_KEY_ECC"   || { log "❌ missing ECC key: $SSL_KEY_ECC"; exit 1; }
-            cp -f "$SSL_CHAIN_ECC" "$SSL_CANONICAL_DIR/fullchain_ecc.pem"
-            cp -f "$SSL_KEY_ECC"   "$SSL_CANONICAL_DIR/privkey_ecc.pem"
-        else
-            require_file "$SSL_CERT_RSA"  || { log "❌ missing RSA cert: $SSL_CERT_RSA"; exit 1; }
-            require_file "$SSL_CHAIN_RSA" || { log "❌ missing RSA chain: $SSL_CHAIN_RSA"; exit 1; }
-            require_file "$SSL_KEY_RSA"   || { log "❌ missing RSA key: $SSL_KEY_RSA"; exit 1; }
-            cp -f "$SSL_CHAIN_RSA" "$SSL_CANONICAL_DIR/fullchain_rsa.pem"
-            cp -f "$SSL_KEY_RSA"   "$SSL_CANONICAL_DIR/privkey_rsa.pem"
-        fi
-    done
+    cp -f "$SSL_CHAIN_ECC" "$SSL_CANONICAL_DIR/fullchain_ecc.pem"
+    cp -f "$SSL_KEY_ECC"   "$SSL_CANONICAL_DIR/privkey_ecc.pem"
 
-    # Private keys: root + ssl-cert (group) can read, no world
+    cp -f "$SSL_CHAIN_RSA" "$SSL_CANONICAL_DIR/fullchain_rsa.pem"
+    cp -f "$SSL_KEY_RSA"   "$SSL_CANONICAL_DIR/privkey_rsa.pem"
+
     chown root:ssl-cert "$SSL_CANONICAL_DIR"/privkey_*.pem || true
     chmod 0640 "$SSL_CANONICAL_DIR"/privkey_*.pem || true
-
-    # Fullchains: world-readable is fine
     chmod 0644 "$SSL_CANONICAL_DIR"/fullchain_*.pem || true
 
-    log "📦 Canonical certificate store updated (ECC + RSA)"
+    log "📦 Canonical certificate store updated"
 }
 
+# --------------------------------------------------------------------
+# Fast‑path deploy helpers
+# --------------------------------------------------------------------
+deploy_local_fastpath() {
+    local service="$1"
+    local dst_dir="$2"
+
+    local canon_fc="$SSL_CANONICAL_DIR/fullchain_ecc.pem"
+    local canon_pk="$SSL_CANONICAL_DIR/privkey_ecc.pem"
+
+    local dst_fc="$dst_dir/fullchain.pem"
+    local dst_pk="$dst_dir/privkey.pem"
+
+    local h1 h2 h3 h4
+    h1=$(hash_file "$canon_fc")
+    h2=$(hash_file "$canon_pk")
+    h3=$(hash_file "$dst_fc" 2>/dev/null || echo none)
+    h4=$(hash_file "$dst_pk" 2>/dev/null || echo none)
+
+    if fastpath_match "$h1" "$h3" && fastpath_match "$h2" "$h4"; then
+        log "ℹ️ $service TLS material up-to-date"
+        return 0
+    fi
+
+    return 1
+}
+
+deploy_remote_fastpath() {
+    local host="$1"
+    local port="$2"
+    local remote_fc="$3"
+    local remote_pk="$4"
+
+    local canon_fc="$SSL_CANONICAL_DIR/fullchain_ecc.pem"
+    local canon_pk="$SSL_CANONICAL_DIR/privkey_ecc.pem"
+
+    local h1 h2 h3 h4
+    h1=$(hash_file "$canon_fc")
+    h2=$(hash_file "$canon_pk")
+    h3=$(hash_remote "$host" "$port" "$remote_fc" || echo none)
+    h4=$(hash_remote "$host" "$port" "$remote_pk" || echo none)
+
+    if fastpath_match "$h1" "$h3" && fastpath_match "$h2" "$h4"; then
+        log "ℹ️ Remote TLS material up-to-date"
+        return 0
+    fi
+
+    return 1
+}
+
+# --------------------------------------------------------------------
+# Deploy: caddy
+# --------------------------------------------------------------------
 deploy_caddy() {
-    log "🔐 Deploying ECC TLS material to caddy"
+    log "🔐 Deploying ECC TLS to caddy"
     sudo mkdir -p "$SSL_DEPLOY_DIR_CADDY"
 
     if ! service_exists caddy; then
-        log "📍 caddy not installed — skipping TLS deployment"
+        log "📍 caddy not installed — skipping"
+        return 0
+    fi
+
+    if deploy_local_fastpath "caddy" "$SSL_DEPLOY_DIR_CADDY"; then
         return 0
     fi
 
@@ -288,19 +253,24 @@ deploy_caddy() {
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$SSL_DEPLOY_DIR_CADDY/fullchain.pem" caddy caddy 0644 \
         "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$SSL_DEPLOY_DIR_CADDY/privkey.pem"   caddy caddy 0640
 
-    if [ "$changed" -eq 1 ]; then
+    if [[ "$changed" -eq 1 ]]; then
         reload_service caddy /etc/caddy/Caddyfile
-    else
-        log "🔄 caddy unchanged (no reload)"
     fi
 }
 
+# --------------------------------------------------------------------
+# Deploy: headscale
+# --------------------------------------------------------------------
 deploy_headscale() {
-    log "🔐 Deploying ECC TLS material to headscale"
+    log "🔐 Deploying ECC TLS to headscale"
     sudo mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
 
     if ! service_exists headscale; then
-        log "📍 headscale not installed — skipping TLS deployment"
+        log "📍 headscale not installed — skipping"
+        return 0
+    fi
+
+    if deploy_local_fastpath "headscale" "$SSL_DEPLOY_DIR_HEADSCALE"; then
         return 0
     fi
 
@@ -309,57 +279,65 @@ deploy_headscale() {
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$SSL_DEPLOY_DIR_HEADSCALE/fullchain.pem" headscale headscale 0644 \
         "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$SSL_DEPLOY_DIR_HEADSCALE/privkey.pem"   headscale headscale 0640
 
-    if [ "$changed" -eq 1 ]; then
+    if [[ "$changed" -eq 1 ]]; then
         reload_service headscale /etc/headscale/config.yaml
-    else
-        log "🔄 headscale unchanged (no reload)"
     fi
 }
 
+# --------------------------------------------------------------------
+# Deploy: dnsdist
+# --------------------------------------------------------------------
 deploy_dnsdist() {
-    log "🔐 Deploying DoH TLS material to dnsdist"
-    local DNSDIST_GROUP="_dnsdist"
-    local DNSDIST_BASE_DIR="/etc/dnsdist"
-    local DNSDIST_CERT_DIR="$DNSDIST_BASE_DIR/certs"
+    log "🔐 Deploying ECC TLS to dnsdist"
 
-    install -d -m 0750 -o root -g "$DNSDIST_GROUP" "$DNSDIST_BASE_DIR"
-    install -d -m 0750 -o root -g "$DNSDIST_GROUP" "$DNSDIST_CERT_DIR"
+    local base="/etc/dnsdist"
+    local certdir="$base/certs"
+    install -d -m 0750 -o root -g _dnsdist "$base"
+    install -d -m 0750 -o root -g _dnsdist "$certdir"
 
     if ! service_exists dnsdist; then
-        log "ℹ️ [deploy][dnsdist] skipped — service not installed"
+        log "📍 dnsdist not installed — skipping"
+        return 0
+    fi
+
+    if deploy_local_fastpath "dnsdist" "$certdir"; then
         return 0
     fi
 
     local changed=0
     install_files_if_changed_v2 changed \
-        "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$DNSDIST_CERT_DIR/fullchain.pem" root "$DNSDIST_GROUP" 0644 \
-        "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$DNSDIST_CERT_DIR/privkey.pem"   root "$DNSDIST_GROUP" 0640
+        "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$certdir/fullchain.pem" root _dnsdist 0644 \
+        "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$certdir/privkey.pem"   root _dnsdist 0640
 
-    if [ "$changed" -eq 1 ]; then
-        log "🔄 Restarting dnsdist (TLS material updated)"
+    if [[ "$changed" -eq 1 ]]; then
         systemctl restart dnsdist
-    else
-        log "🔄 dnsdist unchanged (no restart)"
     fi
 }
 
+# --------------------------------------------------------------------
+# Deploy: router (fast‑path + IFC)
+# --------------------------------------------------------------------
 deploy_router() {
-    log "🔐 Deploying ECC TLS material to router"
+    log "🔐 Deploying ECC TLS to router"
 
-    local rc=0
-    local changed=0
-    local CHANGED_EXIT_CODE="${INSTALL_IF_CHANGED_EXIT_CHANGED:-3}"
+    if deploy_remote_fastpath \
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" \
+        "$ROUTER_SSH_PORT" \
+        "/jffs/ssl/fullchain.pem" \
+        "/jffs/ssl/privkey.pem"; then
+        return 0
+    fi
+
+    local rc=0 changed=0
+    local CHANGED_EXIT="${INSTALL_IF_CHANGED_EXIT_CHANGED:-3}"
 
     /usr/local/bin/install_file_if_changed_v2.sh \
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" \
         "julie" "root" "0644" || rc=$?
 
-    if [ "$rc" -ne 0 ] && [ "$rc" -ne "$CHANGED_EXIT_CODE" ]; then
-        log "❌ IFC failed for /jffs/ssl/fullchain.pem (rc=$rc)"
-        exit "$rc"
-    fi
-    [ "$rc" -eq "$CHANGED_EXIT_CODE" ] && changed=1
+    [[ "$rc" -eq "$CHANGED_EXIT" ]] && changed=1
+    [[ "$rc" -ne 0 && "$rc" -ne "$CHANGED_EXIT" ]] && exit "$rc"
 
     rc=0
     /usr/local/bin/install_file_if_changed_v2.sh \
@@ -367,31 +345,32 @@ deploy_router() {
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
         "julie" "root" "0600" || rc=$?
 
-    if [ "$rc" -ne 0 ] && [ "$rc" -ne "$CHANGED_EXIT_CODE" ]; then
-        log "❌ IFC failed for /jffs/ssl/privkey.pem (rc=$rc)"
-        exit "$rc"
-    fi
-    [ "$rc" -eq "$CHANGED_EXIT_CODE" ] && changed=1
+    [[ "$rc" -eq "$CHANGED_EXIT" ]] && changed=1
+    [[ "$rc" -ne 0 && "$rc" -ne "$CHANGED_EXIT" ]] && exit "$rc"
 
-    if [ "$changed" -eq 1 ]; then
+    if [[ "$changed" -eq 1 ]]; then
         log "📝 Router TLS material updated"
     else
         log "ℹ️ Router TLS material up-to-date"
     fi
-
-    log "🔐 Router ECC certificate deployment completed"
 }
 
-
+# --------------------------------------------------------------------
+# Deploy: qnap (unchanged)
+# --------------------------------------------------------------------
 deploy_qnap() {
     log "[deploy][qnap] ECC cert to QNAP"
-    # Placeholder for QNAP logic using shifted logic if required
-    log "ℹ️ [qnap] manual update remains the policy for this node"
+    log "ℹ️ [qnap] manual update remains policy"
 }
 
+# --------------------------------------------------------------------
+# Validation (unchanged)
+# --------------------------------------------------------------------
 validate_caddy() {
     log "[validate][caddy] ECC handshake"
-    echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" -cipher ECDHE-ECDSA-AES128-GCM-SHA256 2>/dev/null | openssl x509 -noout -subject -dates || log "⚠️ ECC handshake failed"
+    echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" \
+        -cipher ECDHE-ECDSA-AES128-GCM-SHA256 2>/dev/null \
+        | openssl x509 -noout -subject -dates || log "⚠️ ECC handshake failed"
 }
 
 validate_router() {
@@ -404,102 +383,45 @@ validate_router() {
         || log "⚠️ Router ECC handshake failed"
 }
 
-status_router() {
-    local canon_fc="$SSL_CANONICAL_DIR/fullchain_ecc.pem"
-    local canon_pk="$SSL_CANONICAL_DIR/privkey_ecc.pem"
-
-    local router_fc_hash
-    local router_pk_hash
-    local canon_fc_hash
-    local canon_pk_hash
-
-    # NAS canonical hashes (root can read them)
-    canon_fc_hash="$(sha256sum "$canon_fc" | awk '{print $1}')"
-    canon_pk_hash="$(sha256sum "$canon_pk" | awk '{print $1}')"
-
-    # Router hashes
-    router_fc_hash="$(
-        ssh \
-            -p "$ROUTER_SSH_PORT" \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            -F "$HOME/.ssh/config" \
-            -i "$HOME/.ssh/id_ed25519" \
-            ${SSH_USER_ROUTER}@${ROUTER_ADDR} \
-            sha256sum /jffs/ssl/fullchain.pem \
-        | awk '{print $1}'
-    )"
-
-    router_pk_hash="$(
-        ssh \
-            -p "$ROUTER_SSH_PORT" \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            -F "$HOME/.ssh/config" \
-            -i "$HOME/.ssh/id_ed25519" \
-            ${SSH_USER_ROUTER}@${ROUTER_ADDR} \
-            sha256sum /jffs/ssl/privkey.pem \
-        | awk '{print $1}'
-    )" || {
-        log "❌ SSH failed while reading router privkey.pem"
-        exit 1
-    }
-
-    log "ℹ️ TLS Canonical fullchain hash: $canon_fc_hash"
-    log "ℹ️ TLS Router    fullchain hash: $router_fc_hash"
-
-    log "ℹ️ TLS Canonical privkey hash:   $canon_pk_hash"
-    log "ℹ️ TLS Router    privkey hash:   $router_pk_hash"
-
-    if [[ "$canon_fc_hash" == "$router_fc_hash" ]] && [[ "$canon_pk_hash" == "$router_pk_hash" ]]; then
-        log "🟢 Router TLS material matches canonical store"
-    else
-        log "🔴 Router TLS material differs from canonical store"
-    fi
-}
-
+# --------------------------------------------------------------------
+# Dispatch
+# --------------------------------------------------------------------
 dispatch_deploy() {
-    case "${1:-}" in
-        caddy)       deploy_caddy ;;
-        headscale)   deploy_headscale ;;
-        dnsdist)     deploy_dnsdist ;;
-        router)      deploy_router ;;
-        qnap)        deploy_qnap ;;
+    case "$1" in
+        caddy)     deploy_caddy ;;
+        headscale) deploy_headscale ;;
+        dnsdist)   deploy_dnsdist ;;
+        router)    deploy_router ;;
+        qnap)      deploy_qnap ;;
         *) usage ;;
     esac
 }
 
 dispatch_validate() {
-    case "${1:-}" in
-        caddy)       validate_caddy ;;
-        router)      validate_router ;;
+    case "$1" in
+        caddy)  validate_caddy ;;
+        router) validate_router ;;
         *) usage ;;
     esac
 }
 
 dispatch_status() {
-    case "${1:-}" in
-        router)      status_router ;;
+    case "$1" in
+        router) status_router ;;
         *) usage ;;
     esac
 }
 
+# --------------------------------------------------------------------
+# Main
+# --------------------------------------------------------------------
 case "${1:-}" in
     issue)   issue ;;
     renew)   renew ;;
     prepare) prepare ;;
-    deploy)
-        [[ $# -eq 2 ]] || usage
-        dispatch_deploy "$2"
-        ;;
-    validate)
-        [[ $# -eq 2 ]] || usage
-        dispatch_validate "$2"
-        ;;
-    status)
-    [[ $# -eq 2 ]] || usage
-    dispatch_status "$2"
-    ;;
+    deploy)  [[ $# -eq 2 ]] || usage; dispatch_deploy "$2" ;;
+    validate) [[ $# -eq 2 ]] || usage; dispatch_validate "$2" ;;
+    status) [[ $# -eq 2 ]] || usage; dispatch_status "$2" ;;
     all)
         [[ $# -eq 2 ]] || usage
         renew
