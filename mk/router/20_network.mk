@@ -273,14 +273,20 @@ router-dhcp-list:
 router-dhcp-list-static-format:
 	@echo "📋 DHCP clients in static NVRAM format:"
 	@$(call WITH_SECRETS, sh -c '\
-		router_ssh="ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR"; \
-		$$router_ssh "set -e; \
-			if [ -f /var/lib/misc/dnsmasq.leases ]; then \
-				awk \"{print \$$2 \\\"=\\\" \$$3 \\\"=\\\" \$$4 \\\"=0\\\"}\" /var/lib/misc/dnsmasq.leases; \
-			else \
+		ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR "\
+			set -e; \
+			if [ ! -f /var/lib/misc/dnsmasq.leases ]; then \
 				echo \"⚠️ dnsmasq.leases not found\"; \
-			fi"; \
+				exit 0; \
+			fi; \
+			while read -r expiry mac ip host rest; do \
+				[ \"\$$expiry\" = \"duid\" ] && continue; \
+				[ -z \"\$$mac\" ] && continue; \
+				echo \"\$$mac=\$$ip=\$$host=0\"; \
+			done < /var/lib/misc/dnsmasq.leases \
+		" \
 	')
+
 
 # router-ssh-invariants:
 # Enforces LAN-only SSH by setting:
@@ -329,3 +335,20 @@ router-lan-domain: | router-ssh-check
 		service restart_dnsmasq; \
 		echo "🌐 LAN domain set to '"$$LAN_DOMAIN"'"; \
 	'
+
+router-dhcp-static-export-secrets:
+	@$(call WITH_SECRETS_v2, \
+		tmp=$$(mktemp); \
+		trap "rm -f $$tmp" EXIT INT TERM; \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" \
+			"nvram get dhcp_staticlist 2>/dev/null || true" \
+			> "$$tmp"; \
+		printf "DHCP static leases (paste into secrets.enc.yaml):\n\n"; \
+		tr " " "\n" < "$$tmp" \
+		| sed -n "s/^<\\([^>]*\\)>\\([^>]*\\)>>\$$/\\1=\\2==0/p" \
+		| nl -w1 -s" " \
+		| awk "{printf \"dhcp_static_%d=\\\"%s\\\"\\n\", $$1, $$2}"; \
+		printf "\nDone\n"; \
+	)
+
+

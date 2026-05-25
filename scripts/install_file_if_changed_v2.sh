@@ -201,14 +201,14 @@ else
         exit 1
     fi
 
-    # Transfer raw bytes safely
-    scp -q -O \
+    # Transfer raw bytes safely using ssh + cat (scp-free, BusyBox/Dropbear-safe)
+    ssh -p "$DST_PORT" \
       -o PreferredAuthentications=publickey \
       -o PubkeyAuthentication=yes \
       -o PasswordAuthentication=no \
       -o IdentityFile="$SSH_IDENTITY" \
-      -P "$DST_PORT" "$BUFFER" "$DST_HOST:~/.ifc_rem_${IFC_ID}" || {
-        echo "❌ IFC: SCP transfer failed" >&2
+      "$DST_HOST" "cat > ~/.ifc_rem_${IFC_ID}" < "$BUFFER" || {
+        echo "❌ IFC: Remote stream transfer failed" >&2
         rm -f "$BUFFER"
         exit 1
     }

@@ -1,0 +1,31 @@
+#!/bin/sh
+# dhcp6c-state
+IF="br0"
+
+PREFIX="$(nvram get ipv6_prefix)"
+PLEN="$(nvram get ipv6_prefix_length)"
+
+# Always flush old GUAs from br0
+ip -6 addr flush dev "$IF"
+
+# If no prefix, leave br0 with only link-local
+if [ -z "$PREFIX" ] || [ -z "$PLEN" ]; then
+    logger -t ipv6-lan "No IPv6 prefix in nvram, skipping GUA config on $IF"
+    service restart_dnsmasq
+    exit 0
+fi
+
+# Normalize prefix to have trailing ::
+case "$PREFIX" in
+  *::) ;;
+  *) PREFIX="${PREFIX}::" ;;
+esac
+
+LAN_ADDR="${PREFIX%::*}::1"
+
+logger -t ipv6-lan "Configuring $IF with ${LAN_ADDR}/${PLEN}"
+
+ip -6 addr add "${LAN_ADDR}/${PLEN}" dev "$IF"
+
+# Restart dnsmasq so RA/DHCPv6 see the new prefix
+service restart_dnsmasq

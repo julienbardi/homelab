@@ -1,44 +1,61 @@
 #!/bin/sh
 
 # ipv6-watchdog.sh
-# Router-side IPv6 PD watchdog for AsusWRT-Merlin.
-# - Checks for global IPv6 on WAN
-# - If missing for N consecutive runs, restarts dhcp6c
-# - Designed to be called periodically via cru (cron)
+# Ensures WAN IPv6 stays healthy.
+# Tiered escalation:
+#   1. Restart dhcp6c after N failures
+#   2. Full WAN reset if kernel IPv6 stack is broken
 
-STATE_FILE="/jffs/ipv6-watchdog.state"
-MIN_FAILS=3   # how many consecutive failures before action
-LOG_TAG="ipv6-watchdog"
+WAN_RESET="/jffs/scripts/wan-reset.sh"
+STATE_FILE="/jffs/scripts/.ipv6_watchdog_state"
+FAIL_THRESHOLD=3
 
-wan_if="$(nvram get wan0_ifname)"
+log() {
+    logger -t ipv6-watchdog "$1"
+}
 
-if [ -z "$wan_if" ]; then
-  logger -t "$LOG_TAG" "wan0_ifname is empty, aborting"
-  exit 1
+# Detect WAN IPv6 GUA
+WAN_GUA=$(ip -6 addr show eth0 | awk '/global/ {print $2}')
+
+# Detect kernel-level IPv6 failure
+BROKEN=0
+grep -q "Failed to send RS" /tmp/syslog.log && BROKEN=1
+grep -q "Cannot assign requested address" /tmp/syslog.log && BROKEN=1
+
+if [ "$BROKEN" -eq 1 ]; then
+    log "Kernel IPv6 stack broken — escalating to WAN reset"
+    [ -x "$WAN_RESET" ] && "$WAN_RESET"
+    exit 0
 fi
 
-# Does WAN have a global IPv6 address?
-if ip -6 addr show dev "$wan_if" | grep -q "scope global"; then
-  # IPv6 OK → reset failure counter
-  echo 0 > "$STATE_FILE"
-  exit 0
+# If WAN IPv6 is healthy → reset failure counter
+if [ -n "$WAN_GUA" ]; then
+    echo 0 > "$STATE_FILE"
+    log "WAN IPv6 healthy"
+    exit 0
 fi
 
-# No global IPv6 → increment failure counter
-fails=0
-if [ -f "$STATE_FILE" ]; then
-  fails="$(cat "$STATE_FILE" 2>/dev/null || echo 0)"
+# WAN IPv6 missing → increment failure counter
+FAILS=0
+[ -f "$STATE_FILE" ] && FAILS=$(cat "$STATE_FILE")
+FAILS=$((FAILS + 1))
+echo "$FAILS" > "$STATE_FILE"
+
+log "WAN IPv6 missing ($FAILS consecutive failures)"
+
+# Tier 1: restart dhcp6c
+if [ "$FAILS" -lt "$FAIL_THRESHOLD" ]; then
+    log "Restarting dhcp6c"
+    killall dhcp6c 2>/dev/null
+    sleep 1
+    dhcp6c -c /tmp/dhcp6c.conf -p /var/run/dhcp6c.pid eth0
+    exit 0
 fi
 
-fails=$((fails + 1))
-echo "$fails" > "$STATE_FILE"
+# Tier 2: escalate to WAN reset
+log "Failure threshold reached — escalating to WAN reset"
+[ -x "$WAN_RESET" ] && "$WAN_RESET"
 
-if [ "$fails" -lt "$MIN_FAILS" ]; then
-  logger -t "$LOG_TAG" "No WAN IPv6 (fail $fails/$MIN_FAILS), waiting"
-  exit 0
-fi
-
-logger -t "$LOG_TAG" "No WAN IPv6 for $fails consecutive checks, restarting dhcp6c"
+# Reset counter after escalation
 echo 0 > "$STATE_FILE"
-
-/usr/sbin/service restart_dhcp6c
+exit 0

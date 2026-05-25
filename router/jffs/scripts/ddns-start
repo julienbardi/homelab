@@ -3,7 +3,8 @@
 # https://faq.infomaniak.com/2376
 
 CONF_FILE="/jffs/scripts/.ddns_confidential"
-FAQ_URL="https://faq.infomaniak.com/2376"
+STATE_FILE="/jffs/scripts/.ddns_ipv6_state"
+STALE_TIMEOUT=$((24 * 3600))   # 24 hours
 
 # Load secrets
 if [ -r "$CONF_FILE" ]; then
@@ -14,6 +15,18 @@ else
     exit 1
 fi
 
+record_ipv6_ok() {
+    date +%s > "$STATE_FILE"
+}
+
+is_ipv6_stale() {
+    [ ! -f "$STATE_FILE" ] && return 1
+    last=$(cat "$STATE_FILE")
+    now=$(date +%s)
+    age=$((now - last))
+    [ "$age" -gt "$STALE_TIMEOUT" ]
+}
+
 update_ip() {
     BASE_URL="https://infomaniak.com/nic/update"
     AUTH="-u ${DDNSUSERNAME}:${DDNSPASSWORD}"
@@ -21,17 +34,53 @@ update_ip() {
     IPV4=$(curl -4 -s --fail https://icanhazip.com | tr -d '\n')
     IPV6=$(curl -6 -s --fail https://icanhazip.com | tr -d '\n')
 
-    status4=$(curl -s $AUTH "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip=${IPV4}" | cut -d' ' -f1)
-    status6=$(curl -s $AUTH "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip=${IPV6}" | cut -d' ' -f1)
+    # --- IPv4 update ------------------------------------------------------
+    status4=$(curl -s $AUTH \
+        "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip=${IPV4}" \
+        | cut -d' ' -f1)
 
+    # --- IPv6 update (skip or stale-delete) -------------------------------
+    if [ -z "$IPV6" ]; then
+        if is_ipv6_stale; then
+            # IPv6 missing for >24h → disable AAAA
+            raw6=$(curl -s $AUTH \
+                "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip6=0.0.0.0")
+            status6=$(printf "%s" "$raw6" | cut -d' ' -f1)
+            echo "⚠️  IPv6 stale → disabling AAAA record ($status6)"
+        else
+            status6="skipped"
+            echo "ℹ️  IPv6 missing → skipping update (not stale yet)"
+        fi
+    else
+        # IPv6 present → update AAAA normally
+        raw6=$(curl -s $AUTH \
+            "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip6=${IPV6}")
+
+        case "$raw6" in
+            *"<html>"*|*"<HTML>"*)
+                status6="html-error"
+                ;;
+            *)
+                status6=$(printf "%s" "$raw6" | cut -d' ' -f1)
+                ;;
+        esac
+
+        # If IPv6 update succeeded → refresh timestamp
+        if [ "$status6" = "good" ] || [ "$status6" = "nochg" ]; then
+            record_ipv6_ok
+        fi
+    fi
+
+    # --- Final decision ---------------------------------------------------
     if { [ "$status4" = "good" ] || [ "$status4" = "nochg" ]; } &&
-       { [ "$status6" = "good" ] || [ "$status6" = "nochg" ]; }; then
-		echo "✅ DynDNS update successful for ${DNS_TOPDOMAIN_NAME}: IPv4=$IPV4 ($status4) | IPv6=$IPV6 ($status6)"
+       { [ "$status6" = "good" ] || [ "$status6" = "nochg" ] || [ "$status6" = "skipped" ]; }; then
+
+        echo "✅ DynDNS update successful for ${DNS_TOPDOMAIN_NAME}: IPv4=$IPV4 ($status4) | IPv6=$IPV6 ($status6)"
         /sbin/ddns_custom_updated 1
     else
-		echo "❌ DynDNS update failed for ${DNS_TOPDOMAIN_NAME}: IPv4=$IPV4 ($status4) | IPv6=$IPV6 ($status6)"
+        echo "❌ DynDNS update failed for ${DNS_TOPDOMAIN_NAME}: IPv4=$IPV4 ($status4) | IPv6=$IPV6 ($status6)"
         /sbin/ddns_custom_updated 0
-		exit 1
+        exit 1
     fi
 }
 

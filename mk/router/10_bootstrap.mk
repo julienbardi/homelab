@@ -39,14 +39,14 @@ define PUSH_ROUTER_SCRIPTS_BATCH
 				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)"; \
 		rc=$$?; \
 		if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+			echo "📝 Router script updated: $$f"; \
 			rc=0; \
 		fi; \
 		if [ $$rc -ne 0 ]; then \
 			echo "❌ Failed to push $$f to $$ROUTER_ADDR (rc=$$rc)"; \
 			exit $$rc; \
 		fi; \
-	done; \
-	exit 0
+	done
 endef
 
 
@@ -160,7 +160,10 @@ ROUTER_SCRIPT_FILES := \
 	wan-event \
 	services-start \
 	dns-enforcer.sh \
-	ipv6-watchdog.sh
+	ipv6-watchdog.sh \
+	dhcp6c-state \
+	ddns-start \
+	wan-reset.sh
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-run-as-root
@@ -175,12 +178,9 @@ router-install-%: | router-bootstrap-run-as-root
 router-install-scripts: install-ssh-config \
 	router-bootstrap-run-as-root \
 	ensure-router-known-hosts | ensure-router-ula
-	@echo "📤 Deploying router scripts to $(ROUTER_ADDR):$(ROUTER_SCRIPTS)"
-	@echo "   Files: $(words $(ROUTER_SCRIPT_FILES))"
-
+	@echo "📤 Deploying $(words $(ROUTER_SCRIPT_FILES)) router scripts to $(ROUTER_ADDR):$(ROUTER_SCRIPTS)"
 	@{ $(call PUSH_ROUTER_SCRIPTS_BATCH); } || true
-
-	@echo "🟢 Router scripts installed — $(words $(ROUTER_SCRIPT_FILES)) files deployed"
+	@#echo "🟢 Installed $(words $(ROUTER_SCRIPT_FILES)) router scripts to $(ROUTER_ADDR):$(ROUTER_SCRIPTS)"
 
 # ------------------------------------------------------------
 # NO ORCHESTRATION BELOW THIS LINE

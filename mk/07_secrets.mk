@@ -187,3 +187,11 @@ check-age-key: ensure-authorized-admin
 		echo "🟢 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$pub user=$(OPERATOR_USER)"; \
 	}
 
+define WITH_SECRETS_v2
+	( export $$($(SOPS) -d $(REPO_ROOT)/secrets.enc.yaml \
+		| awk -F': ' '/: / {gsub(/"/, "", $$2); printf "%s=%q\n", $$1, $$2}'); \
+	$(1) )
+endef
+
+
+
