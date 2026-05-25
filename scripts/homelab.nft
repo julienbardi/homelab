@@ -54,7 +54,10 @@ table inet homelab_filter {
         # WireGuard Handshake Range
         iifname "eth0" udp dport 51420-51435 ct state new,established accept comment "sr:input-wg-hs-range"
 
-        # --- WireGuard: host access rules + per-iface handshake ports (wg1..wg15) ---
+        # --- WireGuard: host access rules + per-iface handshake ports (wg0..wg15) ---
+        iifname "wg0"  ip  saddr 10.0.0.0/16  accept comment "sr:input-wg0-host-v4"
+        iifname "eth0" udp dport 51420 ct state new,established accept comment "sr:input-wg0-hs"
+
         iifname "wg1"  ip  saddr 10.1.0.0/16  accept comment "sr:input-wg1-host-v4"
         iifname "eth0" udp dport 51421 ct state new,established accept comment "sr:input-wg1-hs"
 
@@ -100,6 +103,7 @@ table inet homelab_filter {
         iifname "wg15" ip  saddr 10.15.0.0/16 accept comment "sr:input-wg15-host-v4"
         iifname "eth0" udp dport 51435 ct state new,established accept comment "sr:input-wg15-hs"
 
+        iifname "wg0"  ip6 saddr fd89:7a3b:42c0:0::/64  accept comment "sr:input-wg0-host-ula-v6"
         iifname "wg1"  ip6 saddr fd89:7a3b:42c0:1::/64  accept comment "sr:input-wg1-host-ula-v6"
         iifname "wg2"  ip6 saddr fd89:7a3b:42c0:2::/64  accept comment "sr:input-wg2-host-ula-v6"
         iifname "wg3"  ip6 saddr fd89:7a3b:42c0:3::/64  accept comment "sr:input-wg3-host-ula-v6"
@@ -220,7 +224,9 @@ table inet homelab_filter {
         # the router delegates a prefix. No change to the NAT rule required at that point.
         #
         # wg4/wg5/wg6: dns-only or lan-only profiles - reject is intentional (no inet bit)
+        # wg0: dns-only profile (index 0, no bits set) - also reject inet
         # wg7+: accept for interfaces with the IPv6 internet bit set
+        iifname "wg0"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:0::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter reject with icmpv6 type no-route comment "sr:forward-wg0-inet-ula-v6"
         iifname "wg4"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:4::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter reject with icmpv6 type no-route comment "sr:forward-wg4-inet-ula-v6"
         iifname "wg5"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:5::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter reject with icmpv6 type no-route comment "sr:forward-wg5-inet-ula-v6"
         iifname "wg6"  oifname "eth0" ip6 saddr fd89:7a3b:42c0:6::/64  ip6 daddr != fd89:7a3b:42c0::/64 counter reject with icmpv6 type no-route comment "sr:forward-wg6-inet-ula-v6"

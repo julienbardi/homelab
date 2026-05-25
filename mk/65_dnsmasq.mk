@@ -31,8 +31,9 @@ enable-dnsmasq: \
 	@echo "🔍 Testing DNS resolution (user context)"
 	@dig @127.0.0.1 google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ Loopback DNS fail"; exit 1)
 	@dig @$(NAS_LAN_IP) google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ LAN IPv4 DNS fail"; exit 1)
+ifdef NAS_LAN_IP6
 	@dig @$(NAS_LAN_IP6) google.com AAAA +short +tries=1 +time=2 >/dev/null || (echo "❌ ULA IPv6 DNS fail"; exit 1)
-
+endif
 	@echo "✅ dnsmasq healthy"
 
 # --- Installation ---
