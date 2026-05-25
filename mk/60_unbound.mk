@@ -143,7 +143,6 @@ install-unbound-systemd-dropin: ensure-run-as-root
 # ------------------------------------------------------------
 # Pure deploy (no restart, no runtime state)
 # ------------------------------------------------------------
-# consider removing dependency on update-root-hints
 deploy-unbound: \
 	deploy-unbound-sysctl \
 	update-root-hints \
@@ -158,7 +157,7 @@ deploy-unbound: \
 # ------------------------------------------------------------
 # Single restart point
 # ------------------------------------------------------------
-enable-unbound: ensure-default-gateway ensure-run-as-root deploy-unbound | deploy-unbound-config deploy-unbound-local-internal
+enable-unbound: ensure-default-gateway ensure-run-as-root | deploy-unbound
 	@if [ -f "$(UNBOUND_RESTART_STAMP)" ]; then \
 		echo "🔄 Restarting Unbound"; \
 		$(run_as_root) systemctl enable --now unbound >/dev/null 2>&1 || true; \

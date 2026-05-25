@@ -89,12 +89,15 @@ ensure-default-gateway: secrets-ready
 	')
 
 .PHONY: router-bootstrap-run-as-root
-router-bootstrap-run-as-root: secrets-ready ensure-default-gateway
+router-bootstrap-run-as-root: secrets-ready ensure-default-gateway | $(INSTALL_FILES_IF_CHANGED)
 	@echo "🛡️ Bootstrapping run-as-root on router"
 	@$(call WITH_SECRETS, sh -c '\
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" \
-			"set -e; mkdir -p /jffs/scripts; cat > /jffs/scripts/run-as-root; chmod 0755 /jffs/scripts/run-as-root" \
-		< $(REPO_ROOT)/router/jffs/scripts/run-as-root.sh \
+		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+			$(INSTALL_FILE_IF_CHANGED) \
+				"" "" "$(REPO_ROOT)/router/jffs/scripts/run-as-root.sh" \
+				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "/jffs/scripts/run-as-root" \
+				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0755" \
+		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ] \
 	')
 	@echo "✅ run-as-root installed"
 
