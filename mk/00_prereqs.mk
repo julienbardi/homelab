@@ -118,12 +118,12 @@ $(TAILSCALE_KEYRING): | ensure-run-as-root
 # 4. Aggregator target for orchestration
 .PHONY: prereqs
 prereqs: \
-    $(INSTALL_SBIN_PATH)/apt-proxy-auto.sh \
-    prereqs-network-deps \
-    prereqs-system-deps \
-    prereqs-dns-warm-verify \
-    prereqs-docs-verify \
-    $(TAILSCALE_KEYRING)
+	$(INSTALL_SBIN_PATH)/apt-proxy-auto.sh \
+	prereqs-network-deps \
+	prereqs-system-deps \
+	prereqs-dns-warm-verify \
+	prereqs-docs-verify \
+	$(TAILSCALE_KEYRING)
 	@echo "📦 Ensuring installation of prerequisite tools"
 	@$(call apt_install_group,$(PREREQS_PACKAGES))
 	@sh -c 'for bin in curl jq git iperf3 qrencode funzip; do \
@@ -289,8 +289,61 @@ prereqs-helper-scripts: ensure-run-as-root
 .PHONY: ensure-bootstrap-dns
 ensure-bootstrap-dns:
 	@echo "🔍 Checking bootstrap DNS..."
-	@if ! dig +short google.com @10.89.12.1 >/dev/null; then \
-		echo "⚠️ Bootstrap DNS (10.89.12.1) unreachable, checking fallback..."; \
-		$(run_as_root) resolvectl dns eth0 10.89.12.1; \
-	fi
-	@echo "✅ Bootstrap DNS ready"
+	@set -euo pipefail; \
+	\
+	# ------------------------------------------------------------ \
+	# Step 1: Try router DNS directly (10.89.12.1) \
+	# ------------------------------------------------------------ \
+	if dig @10.89.12.1 bardi.ch +short +tries=1 +time=2 >/dev/null 2>&1; then \
+		echo "✅ Bootstrap DNS reachable via router (10.89.12.1)"; \
+		exit 0; \
+	fi; \
+	\
+	echo "⚠️ Bootstrap DNS (10.89.12.1) unreachable, checking fallback..."; \
+	\
+	# ------------------------------------------------------------ \
+	# Step 2: If resolvectl exists → use systemd-resolved path \
+	# ------------------------------------------------------------ \
+	if command -v resolvectl >/dev/null 2>&1; then \
+		if resolvectl query bardi.ch >/dev/null 2>&1; then \
+			echo "✅ Fallback DNS OK via systemd-resolved"; \
+			exit 0; \
+		else \
+			echo "❌ Fallback DNS failed via systemd-resolved"; \
+			exit 1; \
+		fi; \
+	fi; \
+	\
+	# ------------------------------------------------------------ \
+	# Step 3: Portable fallback for UGOS / BusyBox systems \
+	# ------------------------------------------------------------ \
+	# Extract first nameserver \
+	ns="$$(awk '/^nameserver/ {print $$2}' /etc/resolv.conf | head -n1)"; \
+	\
+	# If no nameserver → inject router DNS temporarily \
+	if [ -z "$$ns" ]; then \
+		echo "⚠️  /etc/resolv.conf has no nameserver entry — injecting router DNS"; \
+		echo "nameserver 10.89.12.1" | $(run_as_root) tee /etc/resolv.conf >/dev/null; \
+		ns="10.89.12.1"; \
+	fi; \
+	\
+	# Try resolving using the detected or injected nameserver \
+	if dig @"$$ns" bardi.ch +short +tries=1 +time=2 >/dev/null 2>&1; then \
+		echo "✅ Fallback DNS OK via /etc/resolv.conf (ns=$$ns)"; \
+		exit 0; \
+	fi; \
+	\
+	# If router DNS is dead, inject Cloudflare IPv4 temporarily  \
+	if [ "$$ns" = "10.89.12.1" ]; then \
+		echo "⚠️  Router DNS unreachable — injecting Cloudflare DNS"; \
+		echo "nameserver 1.1.1.1" | $(run_as_root) tee /etc/resolv.conf >/dev/null; \
+		ns="1.1.1.1"; \
+		if dig @"$$ns" bardi.ch +short +tries=1 +time=2 >/dev/null 2>&1; then \
+			echo "✅ Fallback DNS OK via Cloudflare (ns=$$ns)"; \
+			exit 0; \
+		fi; \
+	fi; \
+	\
+	echo "❌ No working DNS resolver found (router + fallback failed)"; \
+	exit 1
+
