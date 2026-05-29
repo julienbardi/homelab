@@ -2,6 +2,48 @@
 # mk/70_dnsdist.mk — dnsdist orchestration (DNS over HTTPS)
 # ============================================================
 
+# ============================================================
+# dnsdist Listener Contract (UGOS NAS)
+# ============================================================
+#
+# UGOS ships dnsmasq bound to IPv4 port 53 on:
+#   - 0.0.0.0:53
+#   - 127.0.0.1:53
+#
+# This binding is mandatory and cannot be disabled or restricted.
+# Therefore:
+#
+#   ❌ dnsdist MUST NOT bind 127.0.0.1:53 (UDP or TCP)
+#   ❌ dnsdist MUST NOT bind 0.0.0.0:53
+#
+# dnsdist is responsible for:
+#   ✔ IPv6 plain DNS on loopback (::1:53)
+#   ✔ IPv6 plain DNS on all WireGuard gateway addresses
+#       fd89:7a3b:42c0:N::1:53  (N = 0..15)
+#
+#   ✔ DoH on IPv4 loopback (127.0.0.1:8053)
+#   ✔ DoH on IPv6 loopback ([::1]:8053)
+#   ✔ DoH on all WireGuard IPv4/IPv6 gateway addresses
+#
+# Required listeners for dnsdist:
+#
+#   Plain DNS (IPv6 only):
+#       udp [::1]:53
+#       tcp [::1]:53
+#
+#   DoH (loopback):
+#       tcp 127.0.0.1:8053
+#       tcp [::1]:8053
+#
+# WireGuard listeners are validated indirectly via:
+#   - presence of fd89:7a3b:42c0:N::1:53 (UDP/TCP)
+#   - presence of fd89:7a3b:42c0:N::1:8053 (TCP)
+#
+# Any validation logic MUST enforce only the above.
+# Any check for 127.0.0.1:53 MUST be removed.
+#
+# ============================================================
+
 # Paths & Binaries
 DEPLOY_CERTS         := $(INSTALL_PATH)/deploy_certificates.sh
 DNSDIST_BIN          := /usr/bin/dnsdist
@@ -51,7 +93,10 @@ DNSDIST_RESTART_CMD  := $(run_as_root) systemctl restart $(DNSDIST_UNIT)
 # --------------------------------------------------------------------
 
 install-kdig:
-	@$(call apt_install,kdig,dnsutils)
+	@$(call apt_install,kdig,knot-dnsutils) || \
+		echo "⚠️  kdig not installable on this platform (UGOS); curl will be used as DoH fallback"
+	@command -v kdig >/dev/null 2>&1 || \
+		echo "ℹ️  kdig absent; DoH validation targets will use curl"
 
 assert-dnsdist-certs: ensure-run-as-root
 	@$(run_as_root) sh -eu -c 'for f in "$(DNSDIST_CERT)" "$(DNSDIST_KEY)"; do \
@@ -115,7 +160,7 @@ $(CANONICAL_SUM): $(DEPLOY_CERTS)
 	  echo "⚠️  canonical store empty: $(CANONICAL_DIR)"; \
 	  tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
 	  $(run_as_root) sh -c 'printf "%s\n" "" > "$$1"' sh "$$tmp"; \
-      $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
+	  $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
 	  exit 0; \
 	fi; \
 	sum=$$($(run_as_root) sh -c "find '$(CANONICAL_DIR)' -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | cut -d' ' -f1"); \
@@ -127,7 +172,7 @@ $(CANONICAL_SUM): $(DEPLOY_CERTS)
 	  $(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(DEPLOY_CERTS) deploy dnsdist"; \
 	  tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
 	  $(run_as_root) sh -c 'printf "%s\n" "$$1" > "$$2"' sh "$$sum" "$$tmp"; \
-      $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
+	  $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
 	  echo "✅ deploy-dnsdist-certs complete"; \
 	fi
 
@@ -142,7 +187,7 @@ dnsdist-enable: deploy-dnsdist-certs ensure-run-as-root
 	@echo "⚙️  Enabling dnsdist service"
 	@$(run_as_root) systemctl enable $(DNSDIST_UNIT)
 
-check-dnsdist-doh-local: install-kdig ensure-run-as-root
+check-dnsdist-doh-local: ensure-run-as-root
 	@set -eu; \
 	[ -r "$(DOH_TLS_CA)" ] || { echo "❌ Missing CA bundle: $(DOH_TLS_CA)"; exit 1; }; \
 	KDIG_BIN=$$(command -v $(KDIG) 2>/dev/null || true); \
@@ -150,14 +195,26 @@ check-dnsdist-doh-local: install-kdig ensure-run-as-root
 		if $(run_as_root) $$KDIG_BIN @$(DOH_ADDR) -p $(DOH_PORT) $(DOH_TEST_NAME) $(KDIG_ARGS) >/dev/null 2>&1; then \
 			echo "✅ DoH resolution successful (kdig)"; \
 		else \
-			echo "❌ FATAL: DoH resolution failed (kdig). Diagnostic:"; \
+			echo "❌ DoH resolution failed (kdig). Diagnostic:"; \
 			$(run_as_root) $$KDIG_BIN @$(DOH_ADDR) -p $(DOH_PORT) $(DOH_TEST_NAME) $(KDIG_ARGS); \
 			exit 1; \
 		fi; \
 	else \
-		echo "⚠️  kdig not found; consider installing kdig or enabling curl fallback"; \
-		exit 1; \
+		echo "⚠️  kdig not found — using curl fallback"; \
+		if curl -s -o /dev/null --fail \
+			$(CURL_RESOLVE) \
+			--http2 \
+			--cacert "$(DOH_TLS_CA)" \
+			-H 'accept: application/dns-message' \
+			"https://$(DOH_HOST):$(DOH_PORT)/dns-query?dns=AAABAAEAAAAAAA=="; then \
+			echo "✅ DoH endpoint reachable (curl fallback)"; \
+		else \
+			echo "❌ DoH endpoint unreachable (curl fallback)"; \
+			exit 1; \
+		fi; \
 	fi
+
+
 
 # --------------------------------------------------------------------
 # Orchestration umbrella
@@ -166,7 +223,7 @@ check-dnsdist-doh-local: install-kdig ensure-run-as-root
 dnsdist: dnsdist-install dnsdist-systemd-dropin dnsdist-config \
 	dnsdist-enable deploy-dnsdist-certs dnsdist-validate \
 	assert-dnsdist-running check-dnsdist-doh-listener check-dnsdist-doh-local \
-	install-kdig
+	install-kdig check-dnsdist-listeners
 	@test -z "$(VERBOSE)" || echo "🚀 dnsdist DoH frontend ready"
 
 ci-doh-check:
@@ -206,3 +263,16 @@ check-dnsdist-doh-listener: ensure-run-as-root
 # assert depends on both checks; with `make -j` they can run in parallel
 assert-dnsdist-running: check-dnsdist-systemd check-dnsdist-doh-listener dnsdist-validate
 	@test -z "$(VERBOSE)" || echo "✅ dnsdist service and listener OK"
+
+.PHONY: dnsdist-pre-reboot-check
+dnsdist-pre-reboot-check:
+	@echo "🔍 Validating dnsdist before reboot"
+	@$(run_as_root) $(DNSDIST_BIN) --check-config
+	@$(run_as_root) ss -lntup | grep -q "127.0.0.1:53" \
+		|| { echo "❌ dnsdist not listening on 127.0.0.1:53"; exit 1; }
+	@echo "✅ dnsdist healthy"
+
+.PHONY: check-dnsdist-listeners
+check-dnsdist-listeners: $(INSTALL_PATH)/dnsdist-validate-listeners.sh ensure-run-as-root
+	@echo "🔍 Checking dnsdist listeners"
+	@$(run_as_root) $(INSTALL_PATH)/dnsdist-validate-listeners.sh

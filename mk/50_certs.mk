@@ -47,7 +47,9 @@ gen-client-cert: ensure-run-as-root $(GEN_CLIENT_WRAPPER) $(GEN_CLIENT_CERT)
 	$(GEN_CLIENT_WRAPPER) "$(CN)" "$(run_as_root)" "$(INSTALL_PATH)" "$$FORCE_FLAG"
 
 certs-deploy: ensure-run-as-root certs-create $(CERTS_DEPLOY)
-	@$(run_as_root) $(CERTS_DEPLOY)
+	@$(run_as_root) $(CERTS_DEPLOY) deploy caddy
+	@$(run_as_root) $(CERTS_DEPLOY) deploy dnsdist
+	@$(run_as_root) $(CERTS_DEPLOY) deploy router
 	@echo "🔐 Certificates deployed"
 
 certs-ensure: ensure-run-as-root certs-deploy

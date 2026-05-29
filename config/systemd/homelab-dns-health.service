@@ -1,0 +1,13 @@
+# homelab-dns-heath.service
+[Unit]
+Description=Homelab DNS Boot-Time Health Check
+After=network-online.target dnsdist.service homelab-unbound.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dns-suite.sh --boot-check
+TimeoutSec=20
+
+[Install]
+WantedBy=multi-user.target

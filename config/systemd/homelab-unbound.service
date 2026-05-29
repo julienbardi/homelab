@@ -1,0 +1,18 @@
+[Unit]
+Description=Homelab Unbound DNS Resolver (IGOS-safe)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+ExecStartPre=/usr/bin/install -d -m 0750 -o unbound -g unbound /var/lib/unbound
+ExecStart=/usr/sbin/unbound -d -c /etc/unbound/unbound.conf
+
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

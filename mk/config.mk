@@ -27,6 +27,9 @@ export SSH_USER_SYNOLOGY := julie
 export SSH_USER_QNAP     := admin
 export SSH_USER_AC86U    := admin
 
+# Bind ROUTER_USER for dns-suite
+export ROUTER_USER := $(SSH_USER_ROUTER)
+
 # Paths
 HOMELAB_DIR := /volume1/homelab
 WG_ROOT     := $(HOMELAB_DIR)/wireguard
@@ -95,7 +98,7 @@ ROUTER_SCRIPTS_GROUP := 0
 ROUTER_SCRIPTS_MODE  := 0755
 
 # Unbound
-UNBOUND_PORT := 5335
+UNBOUND_PORT := 15335
 
 # Role
 ROLE := service

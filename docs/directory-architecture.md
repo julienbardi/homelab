@@ -498,7 +498,6 @@ This diagram shows the complete DNS pipeline:
                           ┌──────────────────────────────────────────────┐
                           │              Deployment Layer                │
                           │  - install_file_if_changed_v2                │
-                          │  - unbound-control setup                     │
                           │  - dnsdist config validation                 │
                           │  - dns-warm timer activation                 │
                           └──────────────────────────────────────────────┘

@@ -83,6 +83,11 @@ fastpath_match() {
     [[ "$local" == "$remote" ]]
 }
 
+usage() {
+    echo "usage: deploy_certificates.sh {issue|renew|prepare|deploy <service>|validate <service>|status <service>|all <service>}" >&2
+    exit 1
+}
+
 # --------------------------------------------------------------------
 # SAN validation (unchanged)
 # --------------------------------------------------------------------
@@ -113,6 +118,16 @@ validate_sans() {
     fi
 
     log "✅ SAN set validated"
+}
+
+days_left() {
+    local cert="$1"
+    local expiry
+    expiry=$(openssl x509 -in "$cert" -noout -enddate | cut -d= -f2)
+    local expiry_ts now_ts
+    expiry_ts=$(date -d "$expiry" +%s)
+    now_ts=$(date +%s)
+    echo $(( (expiry_ts - now_ts) / 86400 ))
 }
 
 # --------------------------------------------------------------------

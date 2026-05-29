@@ -92,6 +92,7 @@ include $(REPO_ROOT)/mk/85_tailscaled.mk
 include $(REPO_ROOT)/mk/90_dns-health.mk
 include $(REPO_ROOT)/mk/90_help.mk
 include $(REPO_ROOT)/mk/90_converge.mk
+include $(REPO_ROOT)/mk/90_systemd.mk
 include $(REPO_ROOT)/mk/95_status.mk
 include $(REPO_ROOT)/mk/95_watchdog.mk
 include $(REPO_ROOT)/mk/99_lint.mk
@@ -193,65 +194,6 @@ tailscaled: \
 	@COMMIT_HASH=$$(git -C $(REPO_ROOT) rev-parse --short HEAD); \
 		echo "🧬 Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
-SYSTEMD_DIR = /etc/systemd/system
-REPO_SYSTEMD = config/systemd
-
-.PHONY: install-systemd enable-systemd uninstall-systemd verify-systemd
-
-install-systemd: ensure-run-as-root
-	@echo "🧩 Installing systemd units"
-	@if [ ! -d "$(REPO_ROOT)/$(REPO_SYSTEMD)" ]; then \
-		echo "ERROR: $(REPO_ROOT)/$(REPO_SYSTEMD) not found"; exit 1; \
-	fi
-	@$(run_as_root) sh -c '\
-		mkdir -p $(SYSTEMD_DIR); \
-		mkdir -p $(SYSTEMD_DIR)/unbound-ctl-fix.service.d; \
-		mkdir -p $(SYSTEMD_DIR)/unbound.service.d; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/unbound-ctl-fix.service $(SYSTEMD_DIR)/unbound-ctl-fix.service; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/unbound-ctl-fix.path $(SYSTEMD_DIR)/unbound-ctl-fix.path; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/limit.conf $(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/$(REPO_SYSTEMD)/unbound.service.d/99-fix-unbound-ctl.conf $(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf; \
-		\
-		# --- fix vendor-broken index_serv.service --- \
-		mkdir -p $(SYSTEMD_DIR)/index_serv.service.d; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/index_serv.service.d/10-fix-output.conf \
-			/etc/systemd/system/index_serv.service.d/10-fix-output.conf; \
-		\
-		systemctl daemon-reload; \
-	'
-
-enable-systemd: install-systemd ensure-run-as-root
-	@$(run_as_root) sh -c '\
-		echo "🚀 Enabling unbound fix units"; \
-		systemctl enable --now unbound-ctl-fix.path || true; \
-		systemctl reset-failed unbound-ctl-fix.service unbound-ctl-fix.path || true; \
-		systemctl start unbound-ctl-fix.service || true; \
-		systemctl restart unbound || true; \
-		systemctl status unbound --no-pager || true; \
-	'
-
-verify-systemd: ensure-run-as-root
-	@echo "🔍 Status and socket ownership:"
-	@$(run_as_root) systemctl status unbound --no-pager || true
-	@$(run_as_root) systemctl status unbound-ctl-fix.path unbound-ctl-fix.service --no-pager || true
-	@$(run_as_root) ls -l /run/unbound.ctl /var/run/unbound.ctl || true
-	@$(run_as_root) -u unbound sh -c 'unbound-control status' || true
-
-uninstall-systemd: ensure-run-as-root
-	@$(run_as_root) sh -c '\
-		echo "🧹 Removing systemd units"; \
-		systemctl stop --now unbound-ctl-fix.path unbound-ctl-fix.service >/dev/null 2>&1 || true; \
-		systemctl disable unbound-ctl-fix.path >/dev/null 2>&1 || true; \
-		rm -f $(SYSTEMD_DIR)/unbound-ctl-fix.path \
-			$(SYSTEMD_DIR)/unbound-ctl-fix.service \
-			$(SYSTEMD_DIR)/unbound-ctl-fix.service.d/limit.conf \
-			$(SYSTEMD_DIR)/unbound.service.d/99-fix-unbound-ctl.conf || true; \
-		rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound-ctl-fix.service.d >/dev/null 2>&1 || true; \
-		rmdir --ignore-fail-on-non-empty $(SYSTEMD_DIR)/unbound.service.d >/dev/null 2>&1 || true; \
-		systemctl daemon-reload >/dev/null 2>&1; \
-		echo "✅ systemd units removed"; \
-	'
-
 .PHONY: install-nft-apply nft-apply nft-confirm nft-install nft-status nft-install nft-verify nft-install-rollback
 .NOTPARALLEL: nft-confirm nft-apply
 
@@ -316,7 +258,7 @@ wg-network-phase: converge-network tailscaled-dependencies-met wg-install-router
 # Phase 3: Services (Independent of each other)
 .PHONY: service-phase
 service-phase: | nft-confirm
-service-phase: monitoring install-router-prefix-watchdog enable-unbound verify-internal-dns all-remote
+service-phase: install-systemd enable-systemd deploy-unbound-config monitoring install-router-prefix-watchdog enable-unbound verify-internal-dns all-remote
 
 # Sub-groupings
 tailscaled-dependencies-met: headscale-stack tailscaled

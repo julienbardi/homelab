@@ -20,8 +20,14 @@ table inet homelab_filter {
         iifname "lo" accept comment "sr:input-lo"
 
         # DNS Queries to Unbound (preserved loopback logic)
-        iifname "lo" udp dport 5335 accept comment "sr:input-lo-dns-udp"
-        iifname "lo" tcp dport 5335 accept comment "sr:input-lo-dns-tcp"
+        iifname "lo" udp dport 15335 accept comment "sr:input-lo-dns-udp"
+        iifname "lo" tcp dport 15335 accept comment "sr:input-lo-dns-tcp"
+
+       # Allow dnsdist (sandboxed) to reach Unbound via LAN IPv4/IPv6
+       iifname "eth0" ip  daddr 10.89.12.4        tcp dport 15335 accept comment "sr:input-unbound-lan-v4-tcp"
+       iifname "eth0" ip  daddr 10.89.12.4        udp dport 15335 accept comment "sr:input-unbound-lan-v4-udp"
+       iifname "eth0" ip6 daddr fd89:7a3b:42c0::4 tcp dport 15335 accept comment "sr:input-unbound-lan-v6-tcp"
+       iifname "eth0" ip6 daddr fd89:7a3b:42c0::4 udp dport 15335 accept comment "sr:input-unbound-lan-v6-udp"
 
         # Host Access
         iifname "eth0" ip  saddr 10.89.12.0/24 accept comment "sr:input-lan-v4"
@@ -41,7 +47,7 @@ table inet homelab_filter {
 
         # Essential Services - reacheable from all internal interfaces
         iifname { "lo", "eth0", "wg+", "tailscale0" } tcp dport { 22, 443, 2222, 9443, 9999 } accept comment "sr:input-svc-tcp"
-        iifname { "lo", "eth0", "wg+", "tailscale0" } udp dport { 53, 1900, 3702, 5335 } accept comment "sr:input-svc-udp"
+        iifname { "lo", "eth0", "wg+", "tailscale0" } udp dport { 53, 1900, 3702, 15335 } accept comment "sr:input-svc-udp"
 
         # LAN/WG-only services (SMB and apt-cacher MUST not be internet-facing)
         iifname { "eth0", "wg+" } tcp dport { 445, 3142 } accept comment "sr:input-svc-lan-tcp"
@@ -270,8 +276,8 @@ table inet homelab_filter {
         oifname "eth0" tcp dport 53 accept comment "sr:output-unbound-dns-tcp"
 
         # Unbound replies
-        iifname "lo" udp sport 5335 accept comment "sr:output-lo-dns-udp"
-        iifname "lo" tcp sport 5335 accept comment "sr:output-lo-dns-tcp"
+        iifname "lo" udp sport 15335 accept comment "sr:output-lo-dns-udp"
+        iifname "lo" tcp sport 15335 accept comment "sr:output-lo-dns-tcp"
     }
 }
 

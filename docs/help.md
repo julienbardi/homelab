@@ -87,8 +87,6 @@
 - `make dns-watch`
 - `make dns-health`
 - `make dns-runtime-check`
-- `make setup-unbound-control`
-- `make reset-unbound-control`
 
 ### dnsmasq (local forwarder)
 - `make enable-dnsmasq`

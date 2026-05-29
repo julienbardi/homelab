@@ -7,7 +7,7 @@
 # - Intended for steady-state convergence, not first-time setup
 
 .NOTPARALLEL: dns enable-unbound deploy-unbound-config deploy-unbound-local-internal \
-			  deploy-unbound-service deploy-unbound-control-config \
+			  deploy-unbound-service \
 			  dns-runtime \
 			  runtime-snapshot-before runtime-snapshot-after runtime-diff \
 			  wg-converge-runtime \

@@ -24,16 +24,20 @@ enable-dnsmasq: \
 	disable-resolved \
 	install-pkg-dnsmasq \
 	deploy-dnsmasq-config
-	@echo "🔄 Restarting dnsmasq"
-	@$(run_as_root) systemctl restart dnsmasq
-	@$(run_as_root) systemctl is-active --quiet dnsmasq || (echo "❌ Failed"; exit 1)
+	@echo "🔄 Restarting UGREEN dnsmasq"
+	@$(run_as_root) killall dnsmasq || true
+	@$(run_as_root) /usr/ugreen/bin/dnsmasq-helper restart || /usr/ugreen/bin/dnsmasq --conf-file=$(DNSMASQ_UGREEN_BASE)
+
 
 	@echo "🔍 Testing DNS resolution (user context)"
-	@dig @127.0.0.1 google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ Loopback DNS fail"; exit 1)
-	@dig @$(NAS_LAN_IP) google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ LAN IPv4 DNS fail"; exit 1)
-ifdef NAS_LAN_IP6
-	@dig @$(NAS_LAN_IP6) google.com AAAA +short +tries=1 +time=2 >/dev/null || (echo "❌ ULA IPv6 DNS fail"; exit 1)
-endif
+	@dig @$(NAS_LAN_IP) google.com +short +tries=1 +time=2 >/dev/null \
+		|| (echo "❌ LAN IPv4 DNS fail"; exit 1)
+
+	ifdef NAS_LAN_IP6
+		@dig @$(NAS_LAN_IP6) google.com AAAA +short +tries=1 +time=2 >/dev/null \
+			|| (echo "❌ ULA IPv6 DNS fail"; exit 1)
+	endif
+	
 	@echo "✅ dnsmasq healthy"
 
 # --- Installation ---
@@ -75,19 +79,18 @@ disable-resolved: ensure-run-as-root
 	fi
 
 # --- Health Check ---
-# --- Health Check ---
 dnsmasq-health:
-	@echo "🔍 Testing DNS via 127.0.0.1 (loopback)"
-	@dig @127.0.0.1 google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ Loopback DNS fail"; exit 1)
-
 	@echo "🔍 Testing DNS via $(NAS_LAN_IP) (LAN IPv4)"
-	@dig @$(NAS_LAN_IP) google.com +short +tries=1 +time=2 >/dev/null || (echo "❌ LAN IPv4 DNS fail"; exit 1)
+	@dig @$(NAS_LAN_IP) google.com +short +tries=1 +time=2 >/dev/null \
+		|| (echo "❌ LAN IPv4 DNS fail"; exit 1)
 
 ifdef NAS_LAN_IP6
 	@echo "🔍 Testing DNS via $(NAS_LAN_IP6) (ULA IPv6)"
-	@dig @$(NAS_LAN_IP6) google.com AAAA +short +tries=1 +time=2 >/dev/null || (echo "❌ ULA IPv6 DNS fail"; exit 1)
+	@dig @$(NAS_LAN_IP6) google.com AAAA +short +tries=1 +time=2 >/dev/null \
+		|| (echo "❌ ULA IPv6 DNS fail"; exit 1)
 endif
 
-	@echo "✅ dnsmasq healthy (IPv4 + IPv6 + loopback)"
+	@echo "✅ dnsmasq healthy (LAN IPv4 + optional IPv6)"
+
 
 

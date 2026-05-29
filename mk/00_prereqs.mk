@@ -18,7 +18,8 @@ PREREQS_PACKAGES := \
 	ndppd \
 	wireguard-tools \
 	unzip \
-	qrencode
+	qrencode \
+	ldnsutils
 
 .PHONY: all help \
 		prereqs prereqs-network prereqs-network-verify \
