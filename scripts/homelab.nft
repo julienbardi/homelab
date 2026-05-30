@@ -19,9 +19,15 @@ table inet homelab_filter {
         ct state established,related counter accept comment "sr:input-ct"
         iifname "lo" accept comment "sr:input-lo"
 
-        # DNS Queries to Unbound (preserved loopback logic)
+        # DNS Queries to Unbound (loopback + LAN-IP for dnsdist)
         iifname "lo" udp dport 15335 accept comment "sr:input-lo-dns-udp"
         iifname "lo" tcp dport 15335 accept comment "sr:input-lo-dns-tcp"
+
+        # dnsdist sends from 127.0.0.1 to 10.89.12.4 → must be allowed
+        iifname "lo" ip daddr 10.89.12.4 udp dport 15335 accept comment "sr:input-lo-to-lanip-dns-udp"
+        iifname "lo" ip daddr 10.89.12.4 tcp dport 15335 accept comment "sr:input-lo-to-lanip-dns-tcp"
+        iifname "lo" ip6 daddr fd89:7a3b:42c0::4 udp dport 15335 accept comment "sr:input-lo-to-lanip-dns-v6-udp"
+        iifname "lo" ip6 daddr fd89:7a3b:42c0::4 tcp dport 15335 accept comment "sr:input-lo-to-lanip-dns-v6-tcp"
 
        # Allow dnsdist (sandboxed) to reach Unbound via LAN IPv4/IPv6
        iifname "eth0" ip  daddr 10.89.12.4        tcp dport 15335 accept comment "sr:input-unbound-lan-v4-tcp"
@@ -268,17 +274,51 @@ table inet homelab_filter {
     chain output {
         type filter hook output priority 0; policy accept;
 
+        # Allow established traffic
         ct state established,related accept comment "sr:output-ct"
+
+        # Allow ICMPv6 (PMTUD)
         ip6 nexthdr icmpv6 accept comment "sr:output-icmpv6"
 
-        # Allow Unbound to reach upstream DNS resolvers (IPv4)
-        oifname "eth0" udp dport 53 accept comment "sr:output-unbound-dns-udp"
-        oifname "eth0" tcp dport 53 accept comment "sr:output-unbound-dns-tcp"
+        # -------------------------------
+        # UNBOUND → INTERNET (CRITICAL)
+        # -------------------------------
 
-        # Unbound replies
+        # Classic DNS (UDP/TCP 53)
+        oifname "eth0" udp dport 53  accept comment "sr:output-unbound-dns-udp"
+        oifname "eth0" tcp dport 53  accept comment "sr:output-unbound-dns-tcp"
+
+        # DNS-over-TLS (TCP 853)
+        oifname "eth0" tcp dport 853 accept comment "sr:output-unbound-dot"
+
+        # DNS-over-HTTPS bootstrap (TCP 443)
+        oifname "eth0" tcp dport 443 accept comment "sr:output-unbound-doh"
+
+        # DNSSEC timing (NTP)
+        oifname "eth0" udp dport 123 accept comment "sr:output-unbound-ntp"
+
+        # Allow Unbound to send ANY response packets
+        oifname "eth0" udp sport 15335 accept comment "sr:output-unbound-any-udp"
+        oifname "eth0" tcp sport 15335 accept comment "sr:output-unbound-any-tcp"
+
+        # -------------------------------
+        # ALL PROCESSES → DNS (IPv4/IPv6)
+        # -------------------------------
+
+        oifname "eth0" udp dport 53 accept comment "sr:output-any-dns-udp"
+        oifname "eth0" tcp dport 53 accept comment "sr:output-any-dns-tcp"
+
+        oifname "eth0" ip6 nexthdr udp udp dport 53 accept comment "sr:output-any-dns-v6-udp"
+        oifname "eth0" ip6 nexthdr tcp tcp dport 53 accept comment "sr:output-any-dns-v6-tcp"
+
+        # -------------------------------
+        # UNBOUND → dnsdist replies
+        # -------------------------------
+
         iifname "lo" udp sport 15335 accept comment "sr:output-lo-dns-udp"
         iifname "lo" tcp sport 15335 accept comment "sr:output-lo-dns-tcp"
     }
+
 }
 
 # -----------------------------------------------------------------------------

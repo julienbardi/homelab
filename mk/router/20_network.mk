@@ -228,7 +228,6 @@ router-ra-policy: router-bootstrap-run-as-root
 			echo "✔️ RA policy already enforced (ipv6_accept_ra=0)"; \
 		fi'
 
-
 # ------------------------------------------------------------
 # DDNS deploy + execution
 # ------------------------------------------------------------
@@ -386,3 +385,49 @@ router-dnsmasq-conf: secrets-ready ensure-default-gateway router-bootstrap-run-a
 	else \
 		echo "✔️ dnsmasq.conf.add up-to-date"; \
 	fi
+# ------------------------------------------------------------
+# Router LAN IPv6 convergence (ULA + PD prefix)
+# ------------------------------------------------------------
+
+.PHONY: router-lan-ipv6
+router-lan-ipv6: ensure-router-ula
+	@echo "🛡️ [router-lan-ipv6] START"
+	@echo "🛡️ Enforcing router LAN IPv6 (ULA + PD prefix)"
+	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" 'set -e; \
+		# Derive current PD prefix from WAN GUA on eth0 \
+		WAN="$$(ip -6 addr show dev eth0 | awk "/scope global/ && !/deprecated/ {print \$$2; exit}")"; \
+		if [ -z "$$WAN" ]; then \
+			echo "❌ No global IPv6 on eth0 — cannot derive PD prefix"; \
+			exit 1; \
+		fi; \
+		# Strip /length \
+		BASE="$$(printf "%s" "$$WAN" | cut -d/ -f1)"; \
+		# Remove last hextet (BusyBox‑safe) \
+		PD_RAW="$$(printf "%s" "$$BASE" | sed "s/:[0-9a-fA-F]\{1,4\}\$$/:/")"; \
+		# Normalize any accidental ':::' → '::' \
+		PD="$$(printf "%s" "$$PD_RAW" | sed "s/:::/::/")"; \
+		echo "ℹ️ WAN GUA: $$WAN"; \
+		echo "ℹ️ Derived PD prefix: $$PD"; \
+		# Update NVRAM PD prefix to match reality \
+		cur_pd="$$(nvram get ipv6_prefix || echo)"; \
+		if [ "$$cur_pd" != "$$PD" ]; then \
+			echo "🔧 ipv6_prefix → $$PD"; \
+			nvram set ipv6_prefix="$$PD"; \
+			nvram set ipv6_prefix_length=64; \
+			nvram commit; \
+		else \
+			echo "ℹ️ ipv6_prefix already $$PD"; \
+		fi; \
+		# Remove existing global addresses on br0 \
+		ip -6 addr show dev br0 | awk "/scope global/ {print \$$2}" | \
+			while read p; do \
+				echo "🔧 Removing old prefix $$p from br0"; \
+				ip -6 addr del $$p dev br0 || true; \
+			done; \
+		# Add ULA (::1) \
+		echo "🔧 Adding ULA fd89:7a3b:42c0::1/64 to br0"; \
+		ip -6 addr add fd89:7a3b:42c0::1/64 dev br0 || true; \
+		# Add PD prefix (::1) \
+		echo "🔧 Adding PD $${PD}1/64 to br0"; \
+		ip -6 addr add "$${PD}1/64" dev br0 || true; \
+	'

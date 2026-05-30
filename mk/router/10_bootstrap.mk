@@ -88,18 +88,49 @@ ensure-default-gateway: secrets-ready
 		fi \
 	')
 
-.PHONY: router-bootstrap-run-as-root
-router-bootstrap-run-as-root: secrets-ready ensure-default-gateway | $(INSTALL_FILES_IF_CHANGED)
-	@echo "🛡️ Bootstrapping run-as-root on router"
+.PHONY: router-ensure-scripts-dir
+router-ensure-scripts-dir:
 	@$(call WITH_SECRETS, sh -c '\
-		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-			$(INSTALL_FILE_IF_CHANGED) \
-				"" "" "$(REPO_ROOT)/router/jffs/scripts/run-as-root.sh" \
-				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "/jffs/scripts/run-as-root" \
-				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0755" \
-		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ] \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "\
+			mkdir -p /jffs/scripts && \
+			chown 0:0 /jffs/scripts && \
+			chmod 755 /jffs/scripts" \
 	')
-	@echo "✅ run-as-root installed"
+
+.PHONY: router-bootstrap-primitives
+router-bootstrap-primitives: router-ensure-scripts-dir secrets-ready ensure-default-gateway
+	@echo "🛡️ Bootstrapping router primitives (run-as-root + install-cert.sh)"
+	@$(call WITH_SECRETS, sh -c '\
+		# Stream run-as-root.sh
+		cat "$(REPO_ROOT)/router/jffs/scripts/run-as-root.sh" | \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "\
+			umask 022; \
+			cat > /jffs/scripts/run-as-root && \
+			chown 0:0 /jffs/scripts/run-as-root && \
+			chmod 0755 /jffs/scripts/run-as-root" ; \
+		\
+		# Stream install-cert.sh
+		cat "$(REPO_ROOT)/router/jffs/scripts/install-cert.sh" | \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "\
+			umask 022; \
+			cat > /jffs/scripts/install-cert.sh && \
+			chown 0:0 /jffs/scripts/install-cert.sh && \
+			chmod 0755 /jffs/scripts/install-cert.sh" ; \
+	')
+	@echo "✅ Router primitives installed"
+
+.PHONY: router-install-router-reset
+router-install-router-reset: router-bootstrap-primitives
+	@echo "📌 Installing reset-router.sh (autonomous script)"
+	@$(call WITH_SECRETS, sh -c '\
+		cat "$(REPO_ROOT)/router/jffs/scripts/reset-router.sh" | \
+		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "\
+			umask 022; \
+			cat > /jffs/scripts/reset-router.sh && \
+			chown 0:0 /jffs/scripts/reset-router.sh && \
+			chmod 0755 /jffs/scripts/reset-router.sh" \
+	')
+	@echo "✅ reset-router.sh installed"
 
 ROUTER_ULA_FILE := /etc/homelab/router-ula
 ROUTER_ULA_VALUE := fd89:7a3b:42c0::1
@@ -109,7 +140,7 @@ ROUTER_ULA_VALUE := fd89:7a3b:42c0::1
 	@printf "%s\n" "$(ROUTER_ULA_VALUE)" > .tmp/router-ula
 
 .PHONY: ensure-router-ula
-ensure-router-ula: secrets-ready router-bootstrap-run-as-root | $(INSTALL_FILES_IF_CHANGED)
+ensure-router-ula: secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)
 	@echo "🧩 Ensuring router ULA ($(ROUTER_ULA_VALUE))"
 
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_ULA)", \
@@ -126,7 +157,7 @@ ensure-router-ula: secrets-ready router-bootstrap-run-as-root | $(INSTALL_FILES_
 	)
 
 .PHONY: ensure-router-known-hosts
-ensure-router-known-hosts: router-bootstrap-run-as-root
+ensure-router-known-hosts: router-bootstrap-primitives
 	@echo "🔐 Ensuring NAS host key is trusted on router"
 
 	# Generate NAS host key line on NAS
@@ -151,12 +182,20 @@ ensure-router-known-hosts: router-bootstrap-run-as-root
 # ------------------------------------------------------------
 # SCRIPT DEPLOYMENT ONLY, no generated scripts like nat-start
 # ------------------------------------------------------------
-
+# ROUTER_SCRIPT_FILES contains ONLY scripts managed by IFC.
+# DO NOT include bootstrap primitives here:
+#   - run-as-root.sh
+#   - install-cert.sh
+#   - reset-router.sh
+#
+# These two scripts are installed atomically by router-bootstrap-primitives
+# and MUST NOT be updated by IFC because IFC itself depends on them.
+#
+# All other scripts listed below are safe for IFC to deploy/update.
 ROUTER_SCRIPT_FILES := \
 	caddy-reload.sh certs-create.sh certs-deploy.sh common.sh \
 	gen-client-cert-wrapper.sh generate-client-cert.sh \
 	firewall-start \
-	install-cert.sh \
 	wan-event \
 	services-start \
 	dns-enforcer.sh \
@@ -166,7 +205,7 @@ ROUTER_SCRIPT_FILES := \
 	wan-reset.sh
 
 .PHONY: router-install-%
-router-install-%: | router-bootstrap-run-as-root
+router-install-%: | router-bootstrap-primitives
 	@src=$(REPO_ROOT)/router/jffs/scripts/$*; \
 	if [ ! -f "$$src" ]; then \
 	  echo "⚠️ Skipping $* — source $$src not found"; \
@@ -176,7 +215,8 @@ router-install-%: | router-bootstrap-run-as-root
 
 .PHONY: router-install-scripts
 router-install-scripts: install-ssh-config \
-	router-bootstrap-run-as-root \
+	router-bootstrap-primitives \
+	router-install-router-reset \
 	ensure-router-known-hosts | ensure-router-ula
 	@echo "📤 Deploying $(words $(ROUTER_SCRIPT_FILES)) router scripts to $(ROUTER_ADDR):$(ROUTER_SCRIPTS)"
 	@{ $(call PUSH_ROUTER_SCRIPTS_BATCH); } || true
