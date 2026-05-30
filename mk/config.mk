@@ -27,6 +27,9 @@ export SSH_USER_SYNOLOGY := julie
 export SSH_USER_QNAP     := admin
 export SSH_USER_AC86U    := admin
 
+# SSH host aliases (for ControlMaster reuse)
+export SSH_HOST_ROUTER := router
+
 # Bind ROUTER_USER for dns-suite
 export ROUTER_USER := $(SSH_USER_ROUTER)
 
