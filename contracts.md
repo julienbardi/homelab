@@ -1141,7 +1141,7 @@ Rules:
         Forbidden examples:
           $(MAKE) target
           make target
-          @$(MAKE) $(1)
+          #$(MAKE) $(1)
           sh -c "make ..."
 
   - Rationale: Recursive Make destroys the single-pass DAG evaluation model,
@@ -1166,12 +1166,12 @@ Rules:
     dependency to guarantee the wrapper exists before invocation and to
     prevent race conditions under parallel or incremental builds.
   - Any recipe containing more than one command MUST use a single-shell block:
-        @{ ... ; }
+        #{ ... ; }
     to prevent multi-shell fragmentation, environment loss, and inconsistent
     error propagation.
   - Macros may contain raw shell fragments, but recipes MUST NOT rely on
     implicit shell chaining. All multi-step logic MUST be inside a single
-    @{ ... ; } block.
+    #{ ... ; } block.
   - All recipe lines MUST begin with a tab character; space-indented recipes
     are forbidden.
   - Multi-line recipes MUST form a single shell block unless explicitly
@@ -2415,6 +2415,160 @@ Rationale:
 
 Enforcement status:
   enforceable (wg-generate-configs.sh hardcodes DNS_TOPDOMAIN_NAME as endpoint)
+
+
+## Router Control‑Plane Contracts
+
+This document defines the **authoritative, non‑negotiable contracts** governing the router converge pipeline.
+It is the single source of truth for:
+
+- Convergence semantics
+- Drift detection boundaries
+- Exit‑code guarantees
+- Lifecycle separation
+- Privilege boundaries
+- Atomicity rules
+
+Any commit violating these contracts must be rejected.
+
+## 1. Control‑Plane DAG
+
+                                     ┌──────────────────────────────┐
+                                     │  secrets-ready               │
+                                     └──────────────┬───────────────┘
+                                                    │
+                                                    ▼
+                                     ┌──────────────────────────────┐
+                                     │ ensure-default-gateway       │
+                                     └──────────────┬───────────────┘
+                                                    │
+                                                    ▼
+                                     ┌──────────────────────────────┐
+                                     │ router-bootstrap-primitives  │
+                                     │  • run-as-root               │
+                                     │  • install-cert.sh           │
+                                     │  • reset-router.sh           │
+                                     └──────────────┬───────────────┘
+                                                    │
+                                                    ▼
+                                     ┌──────────────────────────────┐
+                                     │ ensure-router-ula            │
+                                     └──────────────┬───────────────┘
+                                                    │
+                                                    ▼
+                                     ┌──────────────────────────────┐
+                                     │ ensure-router-known-hosts    │
+                                     └──────────────┬───────────────┘
+                                                    │
+                                                    ▼
+                          ┌──────────────────────────────────────────────────────┐
+                          │ router-install-scripts                               │
+                          │  (vectorized IFC: global drift detection)            │
+                          └──────────────────────────────────────────────────────┘
+
+Manual override path:
+router-install-%  →  single-file IFC (local drift detection)
+
+## 2. Control‑Plane Contract Table
+
+Node: secrets-ready
+- Convergence Strategy: Precondition
+- Drift Detection Scope: N/A
+- Primary Contract Responsibility: Ensure SOPS + ephemeral decrypt pipeline is active
+- Exit Code Semantics: 0 success, non‑zero failure
+
+Node: ensure-default-gateway
+- Convergence Strategy: Sequential
+- Drift Detection Scope: Local
+- Primary Contract Responsibility: Guarantee router reachability before SSH converge
+- Exit Code Semantics: Always 0
+
+Node: router-bootstrap-primitives
+- Convergence Strategy: Sequential (3× single‑file IFC)
+- Drift Detection Scope: Local
+- Primary Contract Responsibility: Install/repair run-as-root, install-cert.sh, reset-router.sh
+- Exit Code Semantics: 0 no change, 3 changed, non‑zero failure
+
+Node: ensure-router-ula
+- Convergence Strategy: Atomic (single‑file IFC)
+- Drift Detection Scope: Local
+- Primary Contract Responsibility: Maintain /etc/homelab/router-ula
+- Exit Code Semantics: 0 no change, 3 changed, non‑zero failure
+
+Node: ensure-router-known-hosts
+- Convergence Strategy: Sequential
+- Drift Detection Scope: Local
+- Primary Contract Responsibility: Ensure NAS host key exists in /root/.ssh/known_hosts
+- Exit Code Semantics: Always 0
+
+Node: router-install-scripts
+- Convergence Strategy: Atomic batch (vectorized IFC)
+- Drift Detection Scope: Global
+- Primary Contract Responsibility: Converge all router scripts via batched drift detection
+- Exit Code Semantics: 0 no drift, 3 changed, non‑zero failure
+
+Node: router-install-%
+- Convergence Strategy: Atomic (single‑file IFC)
+- Drift Detection Scope: Local
+- Primary Contract Responsibility: Manual override: install exactly one script
+- Exit Code Semantics: 0 no change, 3 changed, non‑zero failure
+
+## 3. Control‑Plane Invariants
+
+INV‑01 — Atomicity Boundary
+- Multi‑file operations must be batch‑atomic.
+- Single‑file operations must be single‑file atomic.
+- No converge step may leave a partial state.
+
+INV‑02 — Drift Detection Scope
+- Global drift detection is reserved exclusively for router-install-scripts.
+- Single‑file converge must never influence global drift state.
+
+INV‑03 — Exit‑Code Purity
+- All IFC nodes must strictly adhere to:
+  - 0 = no change
+  - 3 = changed
+  - non‑zero = failure
+
+INV‑04 — Bootstrap Priority
+- Bootstrap primitives must execute before any operational converge.
+- They are the root of the DAG.
+
+INV‑05 — Lifecycle Separation
+- Infrastructure lifecycle (bootstrap, ULA, known_hosts) must remain separate from operational lifecycle (script converge).
+
+INV‑06 — Privilege Boundary Integrity
+- No converge step may bypass run-as-root.
+- No implicit privilege escalation is allowed.
+
+INV‑07 — Deterministic Hash Inputs
+- Drift detection must hash only file contents, never filenames or metadata.
+- Hash order must be sorted before combining.
+
+INV‑08 — No Hidden State
+- All dependencies must be explicit in the DAG.
+- No converge step may rely on implicit state.
+
+INV‑09 — Idempotency Guarantee
+- Every converge step must be idempotent.
+- Running the same target twice must produce the same result.
+
+INV‑10 — SSH Boundary Discipline
+- Remote operations must use a single SSH boundary per converge step.
+- Vectorized IFC must use exactly one SSH call for drift detection.
+
+## 4. Contract Stability
+
+This document defines stable, versioned, enforceable contracts.
+Any modification must:
+
+- Strengthen invariants
+- Preserve atomicity
+- Preserve drift‑detection boundaries
+- Preserve exit‑code semantics
+- Preserve DAG structure
+
+Breaking changes require explicit contract evolution.
 
 ===============================================================================
 End of contracts.inc
