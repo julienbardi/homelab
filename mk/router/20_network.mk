@@ -133,7 +133,7 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 # dnsmasq templating + sync
 # ------------------------------------------------------------
 
-router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-run-as-root ensure-router-ula
+router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-run-as-root ensure-router-ula router-ra-policy
 	@echo "📡 Templating and Syncing DNS configuration for $(DOMAIN)..."
 
 	$(call TMPFILE_BLOCK,"$(TMP_DNSMASQ_ADD) $(TMP_DNSMASQ_HOSTS)", \
@@ -213,6 +213,20 @@ router-provision-nvram: secrets-ready | ensure-router-ula
 				echo "ℹ️ NVRAM already converged"; \
 			fi'
 
+.PHONY: router-ra-policy
+router-ra-policy: router-bootstrap-run-as-root
+	@echo "🛡️ Enforcing router RA policy (disable default route in RA)"
+	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" 'set -e; \
+		cur="$$(nvram get ipv6_accept_ra || echo unset)"; \
+		if [ "$$cur" != "0" ]; then \
+			echo "🔧 ipv6_accept_ra → 0"; \
+			nvram set ipv6_accept_ra=0; \
+			nvram commit; \
+			echo "🔄 Restarting radvd"; \
+			service restart_radvd; \
+		else \
+			echo "✔️ RA policy already enforced (ipv6_accept_ra=0)"; \
+		fi'
 
 
 # ------------------------------------------------------------
@@ -351,4 +365,24 @@ router-dhcp-static-export-secrets:
 		printf "\nDone\n"; \
 	)
 
+# Deploy dnsmasq.conf.add using IFC v2 (constant‑driven, contract‑correct)
 
+ROUTER_DNSMASQ_CONF := /jffs/configs/dnsmasq.conf.add
+LOCAL_DNSMASQ_CONF  := $(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add
+
+.PHONY: router-dnsmasq-conf
+router-dnsmasq-conf: secrets-ready ensure-default-gateway router-bootstrap-run-as-root ensure-router-ula router-lan-domain router-ra-policy
+	@echo "🔧 Installing dnsmasq.conf.add..."
+	@set -e; \
+	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+		$(INSTALL_FILE_IF_CHANGED) \
+			"" "" "$(LOCAL_DNSMASQ_CONF)" \
+			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$(ROUTER_DNSMASQ_CONF)" \
+			"0" "0" "0644"; \
+	RC=$$?; \
+	if [ $$RC -eq 1 ] || [ $$RC -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		echo "🔄 dnsmasq.conf.add changed → restarting dnsmasq + radvd"; \
+		$(ROUTER_SSH) "service restart_dnsmasq; service restart_radvd"; \
+	else \
+		echo "✔️ dnsmasq.conf.add up-to-date"; \
+	fi

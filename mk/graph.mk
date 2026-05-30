@@ -50,7 +50,6 @@ include $(REPO_ROOT)/mk/router/05_ssh.mk
 # Step 4 — Router modules
 include $(REPO_ROOT)/mk/router/10_bootstrap.mk
 include $(REPO_ROOT)/mk/router/20_network.mk
-include $(REPO_ROOT)/mk/router/30_dnsmasq.mk
 include $(REPO_ROOT)/mk/router/40_caddy.mk
 include $(REPO_ROOT)/mk/router/40_control.mk
 include $(REPO_ROOT)/mk/router/40_firewall.mk
@@ -78,7 +77,6 @@ include $(REPO_ROOT)/mk/40_wireguard.mk
 include $(REPO_ROOT)/mk/50_certs.mk
 include $(REPO_ROOT)/mk/55_router-certs.mk
 include $(REPO_ROOT)/mk/60_unbound.mk
-include $(REPO_ROOT)/mk/65_dnsmasq.mk
 include $(REPO_ROOT)/mk/70_dnsdist.mk
 include $(REPO_ROOT)/mk/71_dns-warm.mk
 include $(REPO_ROOT)/mk/70_apt_proxy_auto.mk
@@ -253,7 +251,7 @@ nft-apply-phase: nft-install nft-apply nft-confirm
 # Phase 2: Network Infrastructure (Parallel branches)
 .PHONY: wg-network-phase
 wg-network-phase: | nft-confirm
-wg-network-phase: converge-network tailscaled-dependencies-met wg-install-router wg-up-nas
+wg-network-phase: converge-network router-ra-policy tailscaled-dependencies-met wg-install-router wg-up-nas
 
 # Phase 3: Services (Independent of each other)
 .PHONY: service-phase

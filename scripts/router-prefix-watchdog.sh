@@ -12,7 +12,6 @@
 # --------------------------------------------------------------------
 set -euo pipefail
 
-
 MARKER="/var/lib/homelab/router-prefix.changed"
 LOGTAG="router-prefix-watchdog"
 
@@ -43,6 +42,35 @@ while true; do
             logger -t "$LOGTAG" "router-all failed"
 
         logger -t "$LOGTAG" "router-all completed"
+
+        #
+        # --- NAS IPv6 HEAL BLOCK -----------------------------------------
+        #
+        logger -t "$LOGTAG" "Running NAS IPv6 heal block"
+
+        logger -t "$LOGTAG" "Checking NAS IPv6 reachability after prefix change..."
+
+        ROUTER_ULA="fd89:7a3b:42c0::1"
+
+        if ping6 -c1 -W1 "$ROUTER_ULA" >/dev/null 2>&1; then
+            logger -t "$LOGTAG" "IPv6 to router OK — no heal needed"
+        else
+            logger -t "$LOGTAG" "IPv6 to router broken — healing NAS IPv6 stack"
+
+            ip -6 addr flush dev eth0
+            ip -6 route flush default
+            systemctl restart homelab-network || true
+            sleep 3
+
+            if ping6 -c1 -W2 "$ROUTER_ULA" >/dev/null 2>&1; then
+                logger -t "$LOGTAG" "IPv6 to router restored successfully"
+            else
+                logger -t "$LOGTAG" "IPv6 still broken after heal attempt"
+            fi
+        fi
+        #
+        # -----------------------------------------------------------------
+
     fi
 
     sleep 5

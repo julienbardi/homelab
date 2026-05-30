@@ -13,19 +13,13 @@ install-dns-health: ensure-run-as-root
 		$(REPO_ROOT)/$(REPO_SYSTEMD)/homelab-dns-health.service \
 		$(SYSTEMD_DIR)/homelab-dns-health.service
 
-.PHONY: install-dnsmasq
-install-dnsmasq: ensure-run-as-root
-	@$(run_as_root) install -m 0644 -o root -g root \
-		$(REPO_ROOT)/$(REPO_SYSTEMD)/homelab-dnsmasq.service \
-		$(SYSTEMD_DIR)/homelab-dnsmasq.service
-
 # ------------------------------------------------------------
 # Umbrella systemd installer
 # ------------------------------------------------------------
 
 .PHONY: install-systemd enable-systemd verify-systemd uninstall-systemd
 
-install-systemd: ensure-run-as-root install-dns-health install-dnsmasq
+install-systemd: ensure-run-as-root install-dns-health
 	@echo "🧩 Installing systemd units"
 	@if [ ! -d "$(REPO_ROOT)/$(REPO_SYSTEMD)" ]; then \
 		echo "ERROR: $(REPO_ROOT)/$(REPO_SYSTEMD) not found"; exit 1; \
@@ -48,7 +42,6 @@ install-systemd: ensure-run-as-root install-dns-health install-dnsmasq
 
 enable-systemd: install-systemd ensure-run-as-root
 	@$(run_as_root) sh -c '\
-		systemctl enable --now homelab-dnsmasq.service || true; \
 		systemctl restart homelab-unbound.service || true; \
 		systemctl status homelab-unbound.service --no-pager || true; \
 	'
@@ -59,7 +52,6 @@ enable-systemd: install-systemd ensure-run-as-root
 
 verify-systemd: ensure-run-as-root
 	@echo "🔍 Status and socket ownership:"
-	@$(run_as_root) systemctl status homelab-dnsmasq --no-pager || true
 	@$(run_as_root) systemctl status unbound --no-pager || true
 
 # ------------------------------------------------------------

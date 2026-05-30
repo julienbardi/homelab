@@ -106,14 +106,17 @@ for entry in "${RESOLVERS[@]}"; do
   IFS='|' read -r rec_ok rrsig_ok ad_ok <<<"$result"
 
   if [[ "$rec_ok" == true && "$rrsig_ok" == true ]]; then
-    if [[ "$ad_ok" == true ]]; then
-      echo "🟩 $name (recursion OK, RRSIG OK, AD OK)"
-    else
-      echo "🟨 $name (recursion OK, RRSIG OK, AD missing)"
-    fi
+      if [[ "$ad_ok" == true ]]; then
+          echo "🟩 $name (recursion OK, RRSIG OK, AD OK)"
+      else
+          echo "🟩 $name (recursion OK, RRSIG OK, IGOS: AD suppressed)"
+      fi
+  elif [[ "$rec_ok" == true ]]; then
+      echo "🟨 $name (recursion OK, but RRSIG missing)"
+      overall_ok=false
   else
-    echo "❌ $name (rec=$rec_ok rrsig=$rrsig_ok ad=$ad_ok)"
-    overall_ok=false
+      echo "❌ $name (rec=$rec_ok rrsig=$rrsig_ok ad=$ad_ok)"
+      overall_ok=false
   fi
 done
 
