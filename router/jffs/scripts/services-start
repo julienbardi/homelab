@@ -34,6 +34,11 @@ if ! ip -6 addr show dev br0 | grep -q "fd89:7a3b:42c0::1/64"; then
     ip -6 addr add fd89:7a3b:42c0::1/64 dev br0 2>/dev/null || true
 fi
 
+# 5c) Ensure dnsmasq loads JFFS configs (critical invariant)
+if ! grep -q "conf-dir=/jffs/configs" /etc/dnsmasq.conf 2>/dev/null; then
+    echo "conf-dir=/jffs/configs" >> /etc/dnsmasq.conf
+fi
+
 # 6) Sanitize environment
 umask 022
 
@@ -57,6 +62,16 @@ fi
 cru a dns_enforcer "*/1 * * * * /jffs/scripts/dns-enforcer.sh"
 
 # 9) IPv6 watchdof requesting an IPv6 prefix if none is received
+cru d ipv6-watchdog
 cru a ipv6_watchdog "*/5 * * * * /jffs/scripts/ipv6-watchdog.sh"
+
+# Ensure IPv6 RA acceptance is correct (Merlin bugfix)
+echo 2 > /proc/sys/net/ipv6/conf/all/accept_ra
+echo 2 > /proc/sys/net/ipv6/conf/eth0/accept_ra
+
+# Ensure IPv6 forwarding is always enabled
+echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
+echo 1 > /proc/sys/net/ipv6/conf/br0/forwarding
+echo 1 > /proc/sys/net/ipv6/conf/eth0/forwarding
 
 exit 0

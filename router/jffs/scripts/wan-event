@@ -1,6 +1,14 @@
 #!/bin/sh
-# Detect IPv6 prefix change and notify NAS (router-side)
+# Ensure IPv6 RA acceptance is correct BEFORE dhcp6c and RA processing
+echo 2 > /proc/sys/net/ipv6/conf/all/accept_ra
+echo 2 > /proc/sys/net/ipv6/conf/eth0/accept_ra
 
+# Ensure IPv6 forwarding is correct BEFORE routing engine initializes
+echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
+echo 1 > /proc/sys/net/ipv6/conf/br0/forwarding
+echo 1 > /proc/sys/net/ipv6/conf/eth0/forwarding
+
+# Detect IPv6 prefix change and notify NAS (router-side)
 PREFIX_STATE="/jffs/prefix-current"
 LOG="/jffs/prefix-change.log"
 

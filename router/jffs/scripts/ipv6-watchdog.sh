@@ -3,59 +3,114 @@
 # ipv6-watchdog.sh
 # Ensures WAN IPv6 stays healthy.
 # Tiered escalation:
-#   1. Restart dhcp6c after N failures
-#   2. Full WAN reset if kernel IPv6 stack is broken
+#   1. Fix forwarding + RA resync
+#   2. Restart WAN IPv6
+#   3. Full WAN reset if kernel IPv6 stack is broken
 
 WAN_RESET="/jffs/scripts/wan-reset.sh"
 STATE_FILE="/jffs/scripts/.ipv6_watchdog_state"
 FAIL_THRESHOLD=3
+WAN_IF="eth0"
 
 log() {
     logger -t ipv6-watchdog "$1"
 }
 
 # Detect WAN IPv6 GUA
-WAN_GUA=$(ip -6 addr show eth0 | awk '/global/ {print $2}')
+WAN_GUA=$(ip -6 addr show "$WAN_IF" | awk '/global/ {print $2}')
+
+# Detect LAN IPv6 GUA
+LAN_GUA=$(ip -6 addr show br0 | awk '/global/ {print $2}')
+
+# Detect delegated prefix on br0 (Merlin-safe)
+PREFIX_OK=0
+ip -6 route | grep -qE "^[0-9a-fA-F:]+:/64 .* dev br0" && PREFIX_OK=1
+
+# Detect default route (Merlin-safe)
+DEFRT_OK=0
+ip -6 route | grep -q "^default " && DEFRT_OK=1
 
 # Detect kernel-level IPv6 failure
 BROKEN=0
 grep -q "Failed to send RS" /tmp/syslog.log && BROKEN=1
 grep -q "Cannot assign requested address" /tmp/syslog.log && BROKEN=1
+grep -q "no default router" /tmp/syslog.log && BROKEN=1
 
+# Forwarding flags
+fix_forwarding() {
+    echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
+    echo 1 > /proc/sys/net/ipv6/conf/br0/forwarding
+    echo 1 > /proc/sys/net/ipv6/conf/"$WAN_IF"/forwarding
+}
+
+forwarding_ok() {
+    [ "$(cat /proc/sys/net/ipv6/conf/all/forwarding 2>/dev/null)" = "1" ] &&
+    [ "$(cat /proc/sys/net/ipv6/conf/br0/forwarding 2>/dev/null)" = "1" ] &&
+    [ "$(cat /proc/sys/net/ipv6/conf/$WAN_IF/forwarding 2>/dev/null)" = "1" ]
+}
+
+# RA resync
+resync_ra() {
+    echo 0 > /proc/sys/net/ipv6/conf/"$WAN_IF"/accept_ra
+    sleep 1
+    echo 2 > /proc/sys/net/ipv6/conf/"$WAN_IF"/accept_ra
+}
+
+# Tier 3: full WAN reset
 if [ "$BROKEN" -eq 1 ]; then
     log "Kernel IPv6 stack broken — escalating to WAN reset"
     [ -x "$WAN_RESET" ] && "$WAN_RESET"
     exit 0
 fi
 
-# If WAN IPv6 is healthy → reset failure counter
-if [ -n "$WAN_GUA" ]; then
+# Fix forwarding if needed
+if ! forwarding_ok; then
+    log "Forwarding flags incorrect — fixing"
+    fix_forwarding
+fi
+
+# If all invariants OK → healthy
+if [ -n "$WAN_GUA" ] && [ -n "$LAN_GUA" ] && \
+   [ "$PREFIX_OK" -eq 1 ] && [ "$DEFRT_OK" -eq 1 ]; then
     echo 0 > "$STATE_FILE"
+    chmod 600 "$STATE_FILE" 2>/dev/null || true
     log "WAN IPv6 healthy"
     exit 0
 fi
 
-# WAN IPv6 missing → increment failure counter
+log "IPv6 invariants failed: wan_gua=${WAN_GUA:+1} lan_gua=${LAN_GUA:+1} prefix=$PREFIX_OK defrt=$DEFRT_OK"
+
+# Tier 1: RA resync if WAN GUA exists but no default route
+if [ -n "$WAN_GUA" ] && [ "$DEFRT_OK" -eq 0 ]; then
+    log "Have WAN GUA but no default route — forcing RA resync"
+    resync_ra
+    sleep 5
+    ip -6 route | grep -q "^default " && {
+        log "Default route restored via RA"
+        exit 0
+    }
+fi
+
+# Tier 2: WAN restart if any core invariant missing
 FAILS=0
 [ -f "$STATE_FILE" ] && FAILS=$(cat "$STATE_FILE")
 FAILS=$((FAILS + 1))
 echo "$FAILS" > "$STATE_FILE"
+chmod 600 "$STATE_FILE" 2>/dev/null || true
 
-log "WAN IPv6 missing ($FAILS consecutive failures)"
+log "IPv6 invariants missing ($FAILS consecutive failures)"
 
-# Tier 1: restart dhcp6c
 if [ "$FAILS" -lt "$FAIL_THRESHOLD" ]; then
-    log "Restarting dhcp6c"
-    killall dhcp6c 2>/dev/null
-    sleep 1
-    dhcp6c -c /tmp/dhcp6c.conf -p /var/run/dhcp6c.pid eth0
+    log "Restarting WAN for IPv6 recovery"
+    service restart_wan_if 2>/dev/null || true
+    service restart_wan
     exit 0
 fi
 
-# Tier 2: escalate to WAN reset
+# Tier 3: escalate to WAN reset
 log "Failure threshold reached — escalating to WAN reset"
 [ -x "$WAN_RESET" ] && "$WAN_RESET"
 
-# Reset counter after escalation
 echo 0 > "$STATE_FILE"
+chmod 600 "$STATE_FILE" 2>/dev/null || true
 exit 0
