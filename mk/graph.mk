@@ -256,7 +256,7 @@ wg-network-phase: converge-network router-ra-policy tailscaled-dependencies-met 
 # Phase 3: Services (Independent of each other)
 .PHONY: service-phase
 service-phase: | nft-confirm
-service-phase: install-systemd enable-systemd deploy-unbound-config monitoring install-router-prefix-watchdog enable-unbound verify-internal-dns all-remote
+service-phase: install-systemd enable-systemd deploy-unbound-config monitoring install-router-prefix-watchdog install-nas-prefix-watchdog enable-unbound verify-internal-dns all-remote
 
 # Sub-groupings
 tailscaled-dependencies-met: headscale-stack tailscaled

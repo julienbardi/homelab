@@ -287,6 +287,7 @@ prereqs-helper-scripts: ensure-run-as-root
 			install -o root -g root -m 0755 "$(REPO_ROOT)/scripts/wg-readiness-probe.sh" "$(INSTALL_PATH)/wg-readiness-probe.sh"; \
 		fi; \
 	'
+
 .PHONY: ensure-bootstrap-dns
 ensure-bootstrap-dns:
 	@echo "🔍 Checking bootstrap DNS..."
@@ -348,3 +349,8 @@ ensure-bootstrap-dns:
 	echo "❌ No working DNS resolver found (router + fallback failed)"; \
 	exit 1
 
+
+.PHONY: ensure-dnsmasq-ready
+ensure-dnsmasq-ready:
+	@echo "⏳ Waiting for dnsmasq to become ready..."
+	@ssh $(SSH_HOST_ROUTER) '/jffs/scripts/dnsmasq-ready.sh'

@@ -13,6 +13,21 @@ install-dns-health: ensure-run-as-root
 		$(REPO_ROOT)/$(REPO_SYSTEMD)/homelab-dns-health.service \
 		$(SYSTEMD_DIR)/homelab-dns-health.service
 
+.PHONY: install-nas-prefix-watchdog
+install-nas-prefix-watchdog: ensure-run-as-root
+	@echo "🧩 Installing NAS IPv6 prefix watchdog"
+
+	# Install script
+	$(run_as_root) install -m 755 $(REPO_ROOT)/scripts/homelab-prefix-converge.sh /usr/local/bin/
+
+	# Install systemd unit + timer
+	$(run_as_root) install -m 644 $(REPO_ROOT)/config/systemd/homelab-prefix-converge.service /etc/systemd/system/
+	$(run_as_root) install -m 644 $(REPO_ROOT)/config/systemd/homelab-prefix-converge.timer /etc/systemd/system/
+
+	# Reload systemd and enable timer
+	$(run_as_root) systemctl daemon-reload
+	$(run_as_root) systemctl enable --now homelab-prefix-converge.timer
+
 # ------------------------------------------------------------
 # Umbrella systemd installer
 # ------------------------------------------------------------

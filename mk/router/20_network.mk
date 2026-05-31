@@ -187,16 +187,16 @@ router-provision-nvram: secrets-ready | ensure-router-ula
 
 .PHONY: router-ra-policy
 router-ra-policy: router-bootstrap-primitives
-	@echo "🛡️ Enforcing router RA policy (disable default route in RA) (no commit, no restart)"
+	@echo "🛡️ Enforcing router RA policy (enable default route in RA) (no commit, no restart)"
 	@ssh $(SSH_HOST_ROUTER) 'set -e; \
 cur="$$(nvram get ipv6_accept_ra || echo unset)"; \
-if [ "$$cur" != "0" ]; then \
-	echo "🔧 ipv6_accept_ra → 0"; \
-	nvram set ipv6_accept_ra=0; \
+if [ "$$cur" != "2" ]; then \
+	echo "🔧 ipv6_accept_ra → 2"; \
+	nvram set ipv6_accept_ra=2; \
 	echo "🟢 RA policy NVRAM updated (pending commit)"; \
 	touch /jffs/homelab_nvram_dirty; \
 else \
-	echo "✔️ RA policy already enforced (ipv6_accept_ra=0)"; \
+	echo "✔️ RA policy already enforced (ipv6_accept_ra=2)"; \
 fi'
 
 # ------------------------------------------------------------
@@ -360,10 +360,24 @@ router-dnsmasq-conf: secrets-ready ensure-default-gateway router-bootstrap-primi
 	RC=$$?; \
 	if [ $$RC -eq 1 ] || [ $$RC -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsmasq.conf.add changed (pending restart)"; \
-		ssh $(SSH_HOST_ROUTER) "touch /jffs/homelab_nvram_dirty"; \
+		ssh $(SSH_HOST_ROUTER) "touch /jffs/homelab_dnsmasq_changed"; \
 	else \
 		echo "✔️ dnsmasq.conf.add up-to-date"; \
 	fi
+
+	@echo "🔍 Checking if dnsmasq restart is required"
+	@ssh $(SSH_HOST_ROUTER) '\
+		if [ -f /jffs/homelab_nvram_dirty ] || [ -f /jffs/homelab_dnsmasq_changed ]; then \
+			echo "🔄 dnsmasq config changed — restarting dnsmasq"; \
+			rm -f /jffs/homelab_nvram_dirty /jffs/homelab_dnsmasq_changed; \
+			killall -HUP dnsmasq 2>/dev/null || service restart_dnsmasq; \
+			echo "🟢 dnsmasq restarted"; \
+		else \
+			echo "✔️ dnsmasq config unchanged — no restart needed"; \
+		fi \
+	'
+
+
 
 
 # ------------------------------------------------------------
@@ -432,3 +446,40 @@ router-dhcp6c-hook-converge:
 mv "$$tmp" /jffs/scripts/dhcp6c-state; \
 chmod 755 /jffs/scripts/dhcp6c-state; \
 '
+
+.PHONY: router-dnsmasq-invariants
+router-dnsmasq-invariants:
+	@echo "🛡️ Validating dnsmasq invariants on router"
+	@ssh $(SSH_HOST_ROUTER) '\
+		set -e; \
+		echo "🔍 Checking dnsmasq process"; \
+		pidof dnsmasq >/dev/null || { echo "❌ dnsmasq not running"; exit 1; }; \
+		\
+		echo "🔍 Checking dnsmasq is serving local domain"; \
+		nslookup router.lan.bardi.ch 127.0.0.1 >/dev/null 2>&1 || { \
+			echo "❌ dnsmasq not serving LAN domain"; exit 1; }; \
+		\
+		echo "🔍 Checking upstream resolvers"; \
+		grep -q "server=$(NAS_LAN_IP)#15335" /jffs/configs/dnsmasq.conf.add || { \
+			echo "❌ Missing IPv4 upstream to Unbound"; exit 1; }; \
+		grep -q "server=$(ROUTER_ULA_IP6)#15335" /jffs/configs/dnsmasq.conf.add || { \
+			echo "❌ Missing IPv6 upstream to Unbound"; exit 1; }; \
+		\
+		echo "🔍 Checking dnsmasq is reachable on LAN"; \
+		nc -z -u 10.89.12.1 53 || { echo "❌ dnsmasq UDP/53 unreachable"; exit 1; }; \
+		nc -z    10.89.12.1 53 || { echo "❌ dnsmasq TCP/53 unreachable"; exit 1; }; \
+		\
+		echo "🔍 Checking firewall allows router-local DNS"; \
+		iptables -L HOMELAB_INPUT -n | grep -q "udp dpt:53" || { \
+			echo "❌ Missing UDP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
+		iptables -L HOMELAB_INPUT -n | grep -q "tcp dpt:53" || { \
+			echo "❌ Missing TCP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
+		\
+		echo "🔍 Checking dnsmasq RA policy (ULA-only)"; \
+		if grep -q "constructor:br0" /jffs/configs/dnsmasq.conf.add; then \
+			echo "❌ Illegal RA constructor detected (global prefix leakage risk)"; \
+			exit 1; \
+		fi; \
+		\
+		echo "🟢 dnsmasq invariants satisfied"; \
+	'

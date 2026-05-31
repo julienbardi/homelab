@@ -214,7 +214,8 @@ router-install-scripts: install-ssh-config \
 		ipv6-watchdog.sh \
 		dhcp6c-state \
 		ddns-start \
-		wan-reset.sh; \
+		wan-reset.sh \
+		dnsmasq-ready.sh; \
 	do \
 		src="$(REPO_ROOT)/router/jffs/scripts/$$f"; \
 		dst="$(ROUTER_SCRIPTS)/$$f"; \
@@ -246,14 +247,37 @@ router-install-scripts: install-ssh-config \
 .PHONY: router-scripts-invariants
 router-scripts-invariants: | router-ssh-check
 	@echo "🛡️ Enforcing /jffs/scripts ownership + permissions invariants"
+
 	@ssh $(SSH_HOST_ROUTER) '\
 		set -e; \
 		if [ -d /jffs/scripts ]; then \
+			# Ownership invariant
 			/jffs/scripts/run-as-root chown -R julie:root /jffs/scripts; \
-			/jffs/scripts/run-as-root chmod -R 755 /jffs/scripts; \
+			\
+			# Hook scripts (executed by AsusWRT) → 755
+			for f in services-start firewall-start wan-event dnsmasq-ready.sh wg-firewall.sh; do \
+				if [ -f /jffs/scripts/$$f ]; then \
+					/jffs/scripts/run-as-root chmod 755 /jffs/scripts/$$f; \
+				fi; \
+			done; \
+			\
+			# Control-plane scripts → 700
+			for f in ipv6-watchdog.sh wan-reset.sh common.sh homelab-prefix-watchdog.sh; do \
+				if [ -f /jffs/scripts/$$f ]; then \
+					/jffs/scripts/run-as-root chmod 700 /jffs/scripts/$$f; \
+				fi; \
+			done; \
+			\
+			# State files → 600
+			for f in .ipv6_watchdog_state dhcp6c-state; do \
+				if [ -f /jffs/scripts/$$f ]; then \
+					/jffs/scripts/run-as-root chmod 600 /jffs/scripts/$$f; \
+				fi; \
+			done; \
 		fi; \
 		echo "🟢 /jffs/scripts invariants enforced"; \
 	'
+
 
 print-ROUTER_SCRIPT_FILES:
 	@printf '%q\n' $(ROUTER_SCRIPT_FILES)

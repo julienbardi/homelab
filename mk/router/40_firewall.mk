@@ -277,6 +277,7 @@ router-all: \
 	router-dnsmasq-conf \
 	router-nat-install \
 	router-firewall-started \
+	router-dnsmasq-invariants \
 	router-caddy
 	@echo "🎯 Router bootstrap + converge + verify complete"
 
