@@ -29,6 +29,11 @@ for i in 1 2 3 4 5; do
     sleep 1
 done
 
+# 5b) Ensure ULA IPv6 address on br0
+if ! ip -6 addr show dev br0 | grep -q "fd89:7a3b:42c0::1/64"; then
+    ip -6 addr add fd89:7a3b:42c0::1/64 dev br0 2>/dev/null || true
+fi
+
 # 6) Sanitize environment
 umask 022
 

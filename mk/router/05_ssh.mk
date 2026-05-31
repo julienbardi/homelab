@@ -33,8 +33,7 @@ router-ssh-check: install-ssh-config
 	@ssh -q \
 		-o BatchMode=yes \
 		-o ConnectTimeout=5 \
-		-p "$(ROUTER_SSH_PORT)" \
-		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
+		-p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
 		true >/dev/null 2>&1 || { \
 		echo "❌ SSH reachable but authentication failed for $(SSH_USER_ROUTER)"; \
 		exit 1; \
@@ -49,8 +48,7 @@ router-require-run-as-root: | router-ssh-check
 
 	@echo "🔎 Checking router run-as-root helper"
 
-	@ssh -p "$(ROUTER_SSH_PORT)" \
-		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
+	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
 		'test -x /jffs/scripts/run-as-root' >/dev/null 2>&1 || { \
 			echo "❌ run-as-root missing on router"; \
 			echo "ℹ️  Router helpers not installed"; \

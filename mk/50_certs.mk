@@ -156,8 +156,12 @@ validate-diskstation: validate-dsm
 
 validate-qnap:
 	@echo "🔍 [validate][qnap] Checking certificate on $(LAN_QNAP):443..."; \
-	openssl s_client -connect $(LAN_QNAP):443 -servername $(DOMAIN) -tls1_2 -showcerts </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256; \
-	echo "✅ [validate][qnap] Validation complete"
+	if ! openssl s_client -connect $(LAN_QNAP):443 -servername $(DOMAIN) -tls1_2 -showcerts </dev/null 2>/dev/null \
+		| openssl x509 -noout -fingerprint -sha256; then \
+		echo "⚠️ [validate][qnap] Validation failed (best-effort, non-fatal)"; \
+	else \
+		echo "✅ [validate][qnap] Validation complete"; \
+	fi
 
 validate-dsm:
 	@echo "⚠️ [validate][dsm] Temporarily disabled — DSM certificate not validated"

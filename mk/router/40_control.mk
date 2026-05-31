@@ -55,7 +55,7 @@ check-tools:
 # ------------------------------------------------------------
 
 .PHONY: router-ready
-router-ready: router-firewall-hardened router-dnsmasq-cache
+router-ready: router-firewall-hardened
 	@echo "🛡️ Router base services converged"
 
 .PHONY: router-prepare

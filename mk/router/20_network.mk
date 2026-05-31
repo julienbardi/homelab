@@ -53,54 +53,46 @@ router-dhcp-static-validate: secrets-ready
 
 
 # ------------------------------------------------------------
-# DHCP pool range (dynamic leases)
+# DHCP pool range (dynamic leases) — pure NVRAM setter
 # ------------------------------------------------------------
 
 .PHONY: router-dhcp-range-ensure
 router-dhcp-range-ensure: secrets-ready | ensure-router-ula
-	@echo "🛡️ Enforcing DHCP pool range via NVRAM"
+	@echo "🛡️ Enforcing DHCP pool range via NVRAM (no commit, no restart)"
 
-	@ssh -p "$(ROUTER_SSH_PORT)" \
-		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
-		'set -e; \
-			cur_start="$$(nvram get dhcp_start 2>/dev/null || echo)"; \
-			cur_end="$$(nvram get dhcp_end 2>/dev/null || echo)"; \
-			desired_start="$(DHCP_DYNAMIC_START)"; \
-			desired_end="$(DHCP_DYNAMIC_END)"; \
-			changed=0; \
-			\
-			if [ "$$cur_start" != "$$desired_start" ]; then \
-				echo "🔧 dhcp_start → $$desired_start"; \
-				nvram set dhcp_start="$$desired_start"; \
-				changed=1; \
-			fi; \
-			\
-			if [ "$$cur_end" != "$$desired_end" ]; then \
-				echo "🔧 dhcp_end → $$desired_end"; \
-				nvram set dhcp_end="$$desired_end"; \
-				changed=1; \
-			fi; \
-			\
-			if [ "$$changed" -eq 1 ]; then \
-				nvram commit; \
-				echo "🔄 Restarting dnsmasq"; \
-				if command -v service >/dev/null 2>&1 && service restart_dnsmasq >/dev/null 2>&1; then \
-					true; \
-				else \
-					killall -HUP dnsmasq 2>/dev/null || /etc/init.d/dnsmasq restart 2>/dev/null || true; \
-				fi; \
-				echo "🟢 DHCP pool updated"; \
-			else \
-				echo "ℹ️ DHCP pool already converged"; \
-			fi'
+	@ssh $(SSH_HOST_ROUTER) 'set -e; \
+cur_start="$$(nvram get dhcp_start 2>/dev/null || echo)"; \
+cur_end="$$(nvram get dhcp_end 2>/dev/null || echo)"; \
+desired_start="$(DHCP_DYNAMIC_START)"; \
+desired_end="$(DHCP_DYNAMIC_END)"; \
+changed=0; \
+\
+if [ "$$cur_start" != "$$desired_start" ]; then \
+	echo "🔧 dhcp_start → $$desired_start"; \
+	nvram set dhcp_start="$$desired_start"; \
+	changed=1; \
+fi; \
+\
+if [ "$$cur_end" != "$$desired_end" ]; then \
+	echo "🔧 dhcp_end → $$desired_end"; \
+	nvram set dhcp_end="$$desired_end"; \
+	changed=1; \
+fi; \
+\
+if [ "$$changed" -eq 1 ]; then \
+	echo "🟢 DHCP pool NVRAM updated (pending commit)"; \
+	touch /jffs/homelab_nvram_dirty; \
+else \
+	echo "ℹ️ DHCP pool already converged"; \
+fi'
 
 # ------------------------------------------------------------
-# DHCP static leases
+# DHCP static leases — pure NVRAM setter
 # ------------------------------------------------------------
 
 .PHONY: router-dhcp-static-ensure
 router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-router-ula
-	@echo "🛡️ Enforcing DHCP static leases via NVRAM"
+	@echo "🛡️ Enforcing DHCP static leases via NVRAM (no commit, no restart)"
 
 	@$(call WITH_SECRETS, sh -c '\
 		desired="$$( $(DHCP_AGGREGATE) )"; \
@@ -115,14 +107,8 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 			if [ \"\$$current\" != \"\$$desired\" ]; then \
 				echo \"🔧 Updating dhcp_staticlist\"; \
 				nvram set dhcp_staticlist=\"\$$desired\"; \
-				nvram commit; \
-				echo \"🔄 Restarting dnsmasq\"; \
-				if command -v service >/dev/null 2>&1 && service restart_dnsmasq >/dev/null 2>&1; then \
-					true; \
-				else \
-					killall -HUP dnsmasq 2>/dev/null || /etc/init.d/dnsmasq restart 2>/dev/null || true; \
-				fi; \
-				echo \"🟢 DHCP static leases updated\"; \
+				echo \"🟢 DHCP static leases NVRAM updated (pending commit)\"; \
+				touch /jffs/homelab_nvram_dirty; \
 			else \
 				echo \"ℹ️ DHCP static leases already converged\"; \
 			fi" \
@@ -130,10 +116,10 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 
 
 # ------------------------------------------------------------
-# dnsmasq templating + sync
+# dnsmasq templating + sync (files only, no restart)
 # ------------------------------------------------------------
 
-router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-run-as-root ensure-router-ula router-ra-policy
+router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-primitives
 	@echo "📡 Templating and Syncing DNS configuration for $(DOMAIN)..."
 
 	$(call TMPFILE_BLOCK,"$(TMP_DNSMASQ_ADD) $(TMP_DNSMASQ_HOSTS)", \
@@ -152,81 +138,66 @@ router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-boo
 			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
 
 		if [ "$$DNS_CHANGED" -eq 1 ]; then \
-			echo "🔄 DNS changed. Restarting service..."; \
-			$(ROUTER_SSH) 'killall -HUP dnsmasq 2>/dev/null || true'; \
-			echo "✅ DNS configuration synced"; \
+			echo "🔄 DNS configuration changed (pending restart)"; \
+			ssh $(SSH_HOST_ROUTER) "touch /jffs/homelab_dnsmasq_changed"; \
+		else \
+			echo "✔️ DNS configuration up-to-date (no restart needed)"; \
 		fi; \
 	)
 
 
 # ------------------------------------------------------------
-# IPv6 ULA / NVRAM provisioning (static, deterministic)
+# IPv6 ULA / NVRAM provisioning (static, deterministic) — pure setter
 # ------------------------------------------------------------
 
 .PHONY: router-provision-nvram
 router-provision-nvram: secrets-ready | ensure-router-ula
-	@echo "🛡️ Syncing Router NVRAM (ULA only — DNS handled by dns-enforcer)"
+	@echo "🛡️ Syncing Router NVRAM (ULA only — DNS handled by dns-enforcer) (no commit)"
 
-	@# Compute ULA prefix (/48) from NAS_LAN_IP6 (fail-fast if invalid)
-	@ULA_PREFIX_NVRAM="$$( \
-		if [ -n "$(NAS_LAN_IP6)" ]; then \
-			printf "%s" "$(NAS_LAN_IP6)" | sed -n 's/::[0-9a-fA-F]*$$/::\/48/p'; \
-		fi \
-	)"; \
-	if [ -z "$$ULA_PREFIX_NVRAM" ]; then \
-		echo "❌ ULA prefix undefined — NAS_LAN_IP6 missing or invalid"; \
-		exit 1; \
-	fi
+	@ULA_PREFIX_NVRAM="$(ULA_PREFIX_NVRAM)"; \
+	ROUTER_ULA_IP6="$(ROUTER_ULA_IP6)"; \
+	ssh $(SSH_HOST_ROUTER) 'set -e; \
+		cur_prefix=$$(nvram get ipv6_ula_prefix 2>/dev/null || echo); \
+		cur_lan_addr=$$(nvram get ipv6_lan_addr 2>/dev/null || echo); \
+		changed=0; \
+		\
+		echo "🔧 Using ULA_PREFIX_NVRAM='\$$ULA_PREFIX_NVRAM' (router ULA \$$ROUTER_ULA_IP6)"; \
+		\
+		if [ "$$cur_prefix" != "$$ULA_PREFIX_NVRAM" ]; then \
+			echo "🔧 ipv6_ula_prefix → $$ULA_PREFIX_NVRAM"; \
+			nvram set ipv6_ula_prefix="$$ULA_PREFIX_NVRAM"; \
+			nvram set ipv6_ula_enable=1; \
+			changed=1; \
+		fi; \
+		\
+		if [ "$$cur_lan_addr" != "$$ROUTER_ULA_IP6" ]; then \
+			echo "🔧 ipv6_lan_addr → $$ROUTER_ULA_IP6"; \
+			nvram set ipv6_lan_addr="$$ROUTER_ULA_IP6"; \
+			nvram set ipv6_lan_prefix=48; \
+			changed=1; \
+		fi; \
+		\
+		if [ "$$changed" -eq 1 ]; then \
+			echo "🟢 ULA NVRAM updated (pending commit)"; \
+			touch /jffs/homelab_nvram_dirty; \
+		else \
+			echo "ℹ️ ULA NVRAM already converged"; \
+		fi'
 
-	@echo "🔧 Using ULA_PREFIX_NVRAM='$$ULA_PREFIX_NVRAM'"
-
-	@ssh -p "$(ROUTER_SSH_PORT)" \
-		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
-		'set -e; \
-			cur_prefix="$$(nvram get ipv6_ula_prefix 2>/dev/null || echo)"; \
-			cur_lan_addr="$$(nvram get ipv6_lan_addr 2>/dev/null || echo)"; \
-			changed=0; \
-			\
-			# Enforce ULA prefix (/48)
-			if [ "$$cur_prefix" != "'"$$ULA_PREFIX_NVRAM"'" ]; then \
-				echo "🔧 ipv6_ula_prefix → '"$$ULA_PREFIX_NVRAM"'"; \
-				nvram set ipv6_ula_prefix="'"$$ULA_PREFIX_NVRAM"'"; \
-				nvram set ipv6_ula_enable=1; \
-				changed=1; \
-			fi; \
-			\
-			# Enforce router's own ULA LAN address (::1)
-			if [ "$$cur_lan_addr" != "$(ROUTER_ULA_IP6)" ]; then \
-				echo "🔧 ipv6_lan_addr → $(ROUTER_ULA_IP6)"; \
-				nvram set ipv6_lan_addr="$(ROUTER_ULA_IP6)"; \
-				nvram set ipv6_lan_prefix="48"; \
-				changed=1; \
-			fi; \
-			\
-			# IMPORTANT: Do NOT set ipv6_dns1 here.
-			# DNS advertisement is dynamic and handled by dns-enforcer.sh.
-			\
-			if [ "$$changed" -eq 1 ]; then \
-				nvram commit; \
-				echo "🟢 NVRAM updated"; \
-			else \
-				echo "ℹ️ NVRAM already converged"; \
-			fi'
 
 .PHONY: router-ra-policy
-router-ra-policy: router-bootstrap-run-as-root
-	@echo "🛡️ Enforcing router RA policy (disable default route in RA)"
-	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" 'set -e; \
-		cur="$$(nvram get ipv6_accept_ra || echo unset)"; \
-		if [ "$$cur" != "0" ]; then \
-			echo "🔧 ipv6_accept_ra → 0"; \
-			nvram set ipv6_accept_ra=0; \
-			nvram commit; \
-			echo "🔄 Restarting radvd"; \
-			service restart_radvd; \
-		else \
-			echo "✔️ RA policy already enforced (ipv6_accept_ra=0)"; \
-		fi'
+router-ra-policy: router-bootstrap-primitives
+	@echo "🛡️ Enforcing router RA policy (disable default route in RA) (no commit, no restart)"
+	@ssh $(SSH_HOST_ROUTER) 'set -e; \
+cur="$$(nvram get ipv6_accept_ra || echo unset)"; \
+if [ "$$cur" != "0" ]; then \
+	echo "🔧 ipv6_accept_ra → 0"; \
+	nvram set ipv6_accept_ra=0; \
+	echo "🟢 RA policy NVRAM updated (pending commit)"; \
+	touch /jffs/homelab_nvram_dirty; \
+else \
+	echo "✔️ RA policy already enforced (ipv6_accept_ra=0)"; \
+fi'
 
 # ------------------------------------------------------------
 # DDNS deploy + execution
@@ -257,13 +228,13 @@ router-ddns: ensure-router-ula
 	')
 
 	@echo "🔄 Executing DDNS update"
-	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
-		'$(ROUTER_SCRIPTS)/ddns-start'
+	@ssh $(SSH_HOST_ROUTER) '$(ROUTER_SCRIPTS)/ddns-start'
 
 	@echo "🧹 Cleaning up RAM-only local DDNS secrets"
 	@rm -f "$(TMP_DDNS_CONF)"
 
 	@echo "🟢 DDNS update complete"
+
 
 # ------------------------------------------------------------
 # DHCP inspection helpers
@@ -273,7 +244,7 @@ router-ddns: ensure-router-ula
 router-dhcp-list:
 	@echo "📋 Listing current DHCP clients on router:"
 	@$(call WITH_SECRETS, sh -c '\
-		router_ssh="ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR"; \
+		router_ssh="ssh $$SSH_HOST_ROUTER"; \
 		$$router_ssh "set -e; \
 			if [ -f /var/lib/misc/dnsmasq.leases ]; then \
 				cat /var/lib/misc/dnsmasq.leases; \
@@ -286,7 +257,7 @@ router-dhcp-list:
 router-dhcp-list-static-format:
 	@echo "📋 DHCP clients in static NVRAM format:"
 	@$(call WITH_SECRETS, sh -c '\
-		ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR "\
+		ssh $$SSH_HOST_ROUTER "\
 			set -e; \
 			if [ ! -f /var/lib/misc/dnsmasq.leases ]; then \
 				echo \"⚠️ dnsmasq.leases not found\"; \
@@ -310,7 +281,7 @@ router-dhcp-list-static-format:
 .PHONY: router-ssh-invariants
 router-ssh-invariants:
 	@echo "🛡️ Enforcing router SSH invariants (LAN-only SSH)"
-	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" 'set -e; \
+	@ssh $(SSH_HOST_ROUTER) 'set -e; \
 		changed=0; \
 		cur_wan="$$(nvram get ssh_wan || echo unset)"; \
 		cur_lan="$$(nvram get ssh_lan || echo unset)"; \
@@ -334,26 +305,31 @@ router-ssh-invariants:
 			echo "✔️ SSH invariants already satisfied"; \
 		fi'
 
+
+# ------------------------------------------------------------
+# LAN domain — pure NVRAM setter
+# ------------------------------------------------------------
+
 .PHONY: router-lan-domain
 router-lan-domain: | router-ssh-check
-	@LAN_DOMAIN="$$( $(call WITH_SECRETS, sh -c 'echo "$$ddns_topdomain"' ) )"; \
-	ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" '\
+	@LAN_DOMAIN="$$( $(call WITH_SECRETS, sh -c 'echo "$$lan_domain"' ) )"; \
+	ssh $(SSH_HOST_ROUTER) '\
 		cur="$$(nvram get lan_domain 2>/dev/null || true)"; \
 		if [ "$$cur" = "'"$$LAN_DOMAIN"'" ]; then \
-			echo "🌐 LAN domain already set to '"$$LAN_DOMAIN"'"; \
+			echo "🌐 LAN domain already set to '"$$LAN_DOMAIN"' (no commit, no restart)"; \
 			exit 0; \
 		fi; \
 		nvram set lan_domain="'"$$LAN_DOMAIN"'"; \
-		nvram commit; \
-		service restart_dnsmasq; \
-		echo "🌐 LAN domain set to '"$$LAN_DOMAIN"'"; \
+		echo "🌐 LAN domain NVRAM updated to '"$$LAN_DOMAIN"' (pending commit)"; \
+		touch /jffs/homelab_nvram_dirty; \
 	'
+
 
 router-dhcp-static-export-secrets:
 	@$(call WITH_SECRETS_v2, \
 		tmp=$$(mktemp); \
 		trap "rm -f $$tmp" EXIT INT TERM; \
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" \
+		ssh "$$SSH_HOST_ROUTER" \
 			"nvram get dhcp_staticlist 2>/dev/null || true" \
 			> "$$tmp"; \
 		printf "DHCP static leases (paste into secrets.enc.yaml):\n\n"; \
@@ -364,14 +340,17 @@ router-dhcp-static-export-secrets:
 		printf "\nDone\n"; \
 	)
 
-# Deploy dnsmasq.conf.add using IFC v2 (constant‑driven, contract‑correct)
+
+# ------------------------------------------------------------
+# dnsmasq.conf.add deploy (files only, marks dirty on change)
+# ------------------------------------------------------------
 
 ROUTER_DNSMASQ_CONF := /jffs/configs/dnsmasq.conf.add
 LOCAL_DNSMASQ_CONF  := $(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add
 
 .PHONY: router-dnsmasq-conf
-router-dnsmasq-conf: secrets-ready ensure-default-gateway router-bootstrap-run-as-root ensure-router-ula router-lan-domain router-ra-policy
-	@echo "🔧 Installing dnsmasq.conf.add..."
+router-dnsmasq-conf: secrets-ready ensure-default-gateway router-bootstrap-primitives ensure-router-ula router-lan-domain router-ra-policy
+	@echo "🔧 Installing dnsmasq.conf.add (no restart)"
 	@set -e; \
 	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 		$(INSTALL_FILE_IF_CHANGED) \
@@ -380,54 +359,76 @@ router-dnsmasq-conf: secrets-ready ensure-default-gateway router-bootstrap-run-a
 			"0" "0" "0644"; \
 	RC=$$?; \
 	if [ $$RC -eq 1 ] || [ $$RC -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		echo "🔄 dnsmasq.conf.add changed → restarting dnsmasq + radvd"; \
-		$(ROUTER_SSH) "service restart_dnsmasq; service restart_radvd"; \
+		echo "🔄 dnsmasq.conf.add changed (pending restart)"; \
+		ssh $(SSH_HOST_ROUTER) "touch /jffs/homelab_nvram_dirty"; \
 	else \
 		echo "✔️ dnsmasq.conf.add up-to-date"; \
 	fi
+
+
 # ------------------------------------------------------------
-# Router LAN IPv6 convergence (ULA + PD prefix)
+# Unified NVRAM + dnsmasq/radvd converge (dirty-flag based)
 # ------------------------------------------------------------
 
-.PHONY: router-lan-ipv6
-router-lan-ipv6: ensure-router-ula
-	@echo "🛡️ [router-lan-ipv6] START"
-	@echo "🛡️ Enforcing router LAN IPv6 (ULA + PD prefix)"
-	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" 'set -e; \
-		# Derive current PD prefix from WAN GUA on eth0 \
-		WAN="$$(ip -6 addr show dev eth0 | awk "/scope global/ && !/deprecated/ {print \$$2; exit}")"; \
-		if [ -z "$$WAN" ]; then \
-			echo "❌ No global IPv6 on eth0 — cannot derive PD prefix"; \
-			exit 1; \
-		fi; \
-		# Strip /length \
-		BASE="$$(printf "%s" "$$WAN" | cut -d/ -f1)"; \
-		# Remove last hextet (BusyBox‑safe) \
-		PD_RAW="$$(printf "%s" "$$BASE" | sed "s/:[0-9a-fA-F]\{1,4\}\$$/:/")"; \
-		# Normalize any accidental ':::' → '::' \
-		PD="$$(printf "%s" "$$PD_RAW" | sed "s/:::/::/")"; \
-		echo "ℹ️ WAN GUA: $$WAN"; \
-		echo "ℹ️ Derived PD prefix: $$PD"; \
-		# Update NVRAM PD prefix to match reality \
-		cur_pd="$$(nvram get ipv6_prefix || echo)"; \
-		if [ "$$cur_pd" != "$$PD" ]; then \
-			echo "🔧 ipv6_prefix → $$PD"; \
-			nvram set ipv6_prefix="$$PD"; \
-			nvram set ipv6_prefix_length=64; \
+.PHONY: router-nvram-converge
+router-nvram-converge: \
+	router-dhcp-range-ensure \
+	router-dhcp-static-ensure \
+	router-lan-domain \
+	router-provision-nvram \
+	router-ra-policy \
+	router-dnsmasq-sync \
+	router-dnsmasq-conf
+	@echo "🛡️ Committing NVRAM and restarting services (minimal restarts)"
+	@ssh $(SSH_HOST_ROUTER) '\
+		set -e; \
+		RESTART=0; \
+		\
+		# NVRAM commit if dirty
+		if [ -f /jffs/homelab_nvram_dirty ]; then \
+			echo "💾 NVRAM dirty → committing"; \
 			nvram commit; \
-		else \
-			echo "ℹ️ ipv6_prefix already $$PD"; \
+			rm -f /jffs/homelab_nvram_dirty; \
+			RESTART=1; \
 		fi; \
-		# Remove existing global addresses on br0 \
-		ip -6 addr show dev br0 | awk "/scope global/ {print \$$2}" | \
-			while read p; do \
-				echo "🔧 Removing old prefix $$p from br0"; \
-				ip -6 addr del $$p dev br0 || true; \
-			done; \
-		# Add ULA (::1) \
-		echo "🔧 Adding ULA fd89:7a3b:42c0::1/64 to br0"; \
-		ip -6 addr add fd89:7a3b:42c0::1/64 dev br0 || true; \
-		# Add PD prefix (::1) \
-		echo "🔧 Adding PD $${PD}1/64 to br0"; \
-		ip -6 addr add "$${PD}1/64" dev br0 || true; \
+		\
+		# dnsmasq-sync changed files?
+		if [ -f /jffs/homelab_dnsmasq_changed ]; then \
+			echo "🔄 dnsmasq-sync changed files"; \
+			rm -f /jffs/homelab_dnsmasq_changed; \
+			RESTART=1; \
+		fi; \
+		\
+		if [ "$$RESTART" -eq 1 ]; then \
+			echo "🔄 restart dnsmasq"; \
+			service restart_dnsmasq; \
+			echo "🔄 restart radvd"; \
+			service restart_radvd || true; \
+		else \
+			echo "✔️ No changes → no restarts"; \
+		fi; \
+		echo "🟢 router-nvram-converge complete"; \
 	'
+
+.PHONY: router-ipv6-converge
+router-ipv6-converge: router-nvram-converge router-dhcp6c-hook-converge
+	@echo "🛡️ IPv6 converge: ensuring PD hook + dnsmasq RA"
+	@ssh $(SSH_HOST_ROUTER) '\
+		echo "🔄 Forcing DHCPv6-PD refresh"; \
+		service start_dhcp6c || true; \
+	'
+
+.PHONY: router-dhcp6c-hook-converge
+router-dhcp6c-hook-converge:
+	@echo "🛡️ Ensuring dhcp6c-state hook exists"
+	@ssh $(SSH_HOST_ROUTER) 'set -e; \
+		mkdir -p /jffs/scripts; \
+		tmp="/tmp/dhcp6c-state.$$"; \
+		umask 077; \
+		printf "%s\n" \
+"#\!/bin/sh" \
+"# DHCPv6-PD hook — restart dnsmasq so RA stays consistent" \
+"service restart_dnsmasq" > "$$tmp"; \
+mv "$$tmp" /jffs/scripts/dhcp6c-state; \
+chmod 755 /jffs/scripts/dhcp6c-state; \
+'

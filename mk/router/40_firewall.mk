@@ -258,9 +258,9 @@ router-firewall-started: | router-install-scripts router-nat-install
 router: router-all
 
 .PHONY: router-all
-.PHONY: router-all
 router-all: \
 	sanity \
+	router-ipv6-converge \
 	router-bootstrap \
 	router-converge \
 	router-verify \
@@ -268,7 +268,6 @@ router-all: \
 	router-dnsmasq-conf \
 	router-nat-install \
 	router-firewall-started \
-	router-lan-ipv6 \
 	router-caddy
 	@echo "🎯 Router bootstrap + converge + verify complete"
 

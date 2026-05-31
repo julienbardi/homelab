@@ -63,8 +63,8 @@ unexport router_ssh_port
 export ROUTER_ADDR      := $(router_addr)
 export ROUTER_SSH_PORT  := $(router_ssh_port)
 
-export ula_prefix_nvram := fd89:7a3b:42c0::/48
-export router_ula_ip6   := fd89:7a3b:42c0::1
+export ULA_PREFIX_NVRAM := fd89:7a3b:42c0::/48
+export ROUTER_ULA_IP6   := fd89:7a3b:42c0::1
 
 # Certificates & Identity
 DOMAIN               := bardi.ch
@@ -96,8 +96,8 @@ ROUTER_CADDY_BIN         := /tmp/mnt/sda/router/bin/caddy
 ROUTER_CADDY_STAMP       := /jffs/.stamps/caddy.stamp
 
 # Tooling Metadata
-ROUTER_SCRIPTS_OWNER := 0
-ROUTER_SCRIPTS_GROUP := 0
+ROUTER_SCRIPTS_OWNER := julie
+ROUTER_SCRIPTS_GROUP := root
 ROUTER_SCRIPTS_MODE  := 0755
 
 # Unbound

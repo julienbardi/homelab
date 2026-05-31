@@ -52,7 +52,7 @@ router-health: router-ssh-check
 	'
 
 .PHONY: router-health-strict
-router-health-strict: router-health | router-ssh-check router-bootstrap-run-as-root
+router-health-strict: router-health | router-ssh-check router-bootstrap-primitives
 	@echo "🔒 Enforcing strict security invariants"
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
 		set -e; \

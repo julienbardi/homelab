@@ -79,7 +79,7 @@ router-certs-prepare: install-all router-certs-deploy-script router-require-run-
 # Namespaced deploy + validate
 # ------------------------------------------------------------
 .PHONY: router-certs-deploy
-router-certs-deploy: router-bootstrap-run-as-root install-all router-certs-prereqs-ssh router-certs-prepare
+router-certs-deploy: router-bootstrap-primitives install-all router-certs-prereqs-ssh router-certs-prepare
 	$(call router_deploy_with_status,router)
 
 .PHONY: router-certs-validate

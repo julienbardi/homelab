@@ -406,7 +406,7 @@ This diagram shows the complete lifecycle of router certificates:
                           ┌──────────────────────────────────────────────┐
                           │        Router Deployment Pipeline            │
                           │  make router-certs-deploy                    │
-                          │   → router-bootstrap-run-as-root             │
+                          │   → router-bootstrap-primitives              │
                           │   → install-all                              │
                           │   → router-certs-prereqs-ssh                 │
                           │   → router-certs-prepare                     │

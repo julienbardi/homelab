@@ -196,34 +196,72 @@ router-install-%: | router-bootstrap-primitives
 
 .PHONY: router-install-scripts
 router-install-scripts: install-ssh-config \
-	ensure-router-known-hosts | ensure-router-ula
-	@echo "🔍 Router script converge (vectorized IFC)"
+	ensure-router-known-hosts router-scripts-invariants | ensure-router-ula
+	@echo "🔍 Router script converge (non‑vectorized, deterministic)"
 
-	# Build argument list for vectorized IFC
-	ARGS=""
-	for f in $(ROUTER_SCRIPT_FILES); do \
+	@set -e; \
+	for f in \
+		caddy-reload.sh \
+		certs-create.sh \
+		certs-deploy.sh \
+		common.sh \
+		gen-client-cert-wrapper.sh \
+		generate-client-cert.sh \
+		firewall-start \
+		wan-event \
+		services-start \
+		dns-enforcer.sh \
+		ipv6-watchdog.sh \
+		dhcp6c-state \
+		ddns-start \
+		wan-reset.sh; \
+	do \
 		src="$(REPO_ROOT)/router/jffs/scripts/$$f"; \
 		dst="$(ROUTER_SCRIPTS)/$$f"; \
 		if [ ! -f "$$src" ]; then \
 			echo "⚠️ Skipping $$f — source $$src not found"; \
 			continue; \
 		fi; \
-		ARGS="$$ARGS '' '' $$src $$ROUTER_ADDR $$ROUTER_SSH_PORT $$dst $(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE)"; \
-	done; \
+		echo "➡️  Installing $$f"; \
+		rc=0; \
+		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+			$(INSTALL_FILE_IF_CHANGED) \
+				"" "" "$$src" \
+				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "$$dst" \
+				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)" \
+		|| rc=$$?; \
+		if [ "$$rc" -eq "$(INSTALL_IF_CHANGED_EXIT_CHANGED)" ]; then \
+			echo "📝 $$f updated"; \
+		elif [ "$$rc" -ne 0 ]; then \
+			echo "❌ Failed to install $$f (rc=$$rc)"; \
+			exit $$rc; \
+		else \
+			echo "🟢 $$f already up-to-date"; \
+		fi; \
+	done
 
-	# Call vectorized IFC wrapper ONCE
-	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-		$(INSTALL_FILES_IF_CHANGED) UPDATED $$ARGS
+	@echo "🟢 All router scripts processed"
 
-	rc=$$?
-	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		echo "📝 Router scripts updated"; \
-		exit 0; \
-	fi
 
-	if [ $$rc -ne 0 ]; then \
-		echo "❌ Vectorized IFC failed (rc=$$rc)"; \
-		exit $$rc; \
-	fi
+.PHONY: router-scripts-invariants
+router-scripts-invariants: | router-ssh-check
+	@echo "🛡️ Enforcing /jffs/scripts ownership + permissions invariants"
+	@ssh $(SSH_HOST_ROUTER) '\
+		set -e; \
+		if [ -d /jffs/scripts ]; then \
+			/jffs/scripts/run-as-root chown -R julie:root /jffs/scripts; \
+			/jffs/scripts/run-as-root chmod -R 755 /jffs/scripts; \
+		fi; \
+		echo "🟢 /jffs/scripts invariants enforced"; \
+	'
 
-	echo "🟢 Router scripts already up-to-date"
+print-ROUTER_SCRIPT_FILES:
+	@printf '%q\n' $(ROUTER_SCRIPT_FILES)
+print-ROUTER_SCRIPTS_OWNER:
+	@echo 'OWNER="$(ROUTER_SCRIPTS_OWNER)"'
+
+print-ROUTER_SCRIPTS_GROUP:
+	@echo 'GROUP="$(ROUTER_SCRIPTS_GROUP)"'
+
+print-ROUTER_SCRIPTS_MODE:
+	@echo 'MODE="$(ROUTER_SCRIPTS_MODE)"'
