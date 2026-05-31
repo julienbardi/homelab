@@ -44,6 +44,11 @@ iptables -t nat -F HOMELAB_NAT
 iptables -F HOMELAB_FWD
 iptables -F HOMELAB_INPUT
 
+# 2b. Allow LAN → WAN forwarding (restore baseline)
+iptables -A HOMELAB_FWD -i br0 -o eth0 -j ACCEPT
+iptables -A HOMELAB_FWD -i br0 -o ppp0 -j ACCEPT 2>/dev/null || true
+iptables -A HOMELAB_FWD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
 # 3. Hook chains into persistent Merlin structural vectors
 iptables -t nat -D VSERVER -j HOMELAB_NAT 2>/dev/null || true
 iptables -t nat -I VSERVER 1 -j HOMELAB_NAT
@@ -55,6 +60,10 @@ iptables -I INPUT 1 -j HOMELAB_INPUT
 # 4. Caddy HTTP/HTTPS (router-local)
 iptables -A HOMELAB_INPUT -p tcp --dport 80  -j ACCEPT
 iptables -A HOMELAB_INPUT -p tcp --dport 443 -j ACCEPT
+
+# 4b. Router-local DNS (dnsmasq)
+iptables -A HOMELAB_INPUT -p udp --dport 53 -j ACCEPT
+iptables -A HOMELAB_INPUT -p tcp --dport 53 -j ACCEPT
 
 $(if $(LAN_SYNOLOGY),$(ROUTER_NAT_SYNOLOGY))
 endef
