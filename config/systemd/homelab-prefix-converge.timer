@@ -1,0 +1,9 @@
+[Unit]
+Description=Monitor router prefix marker
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=5s
+
+[Install]
+WantedBy=timers.target

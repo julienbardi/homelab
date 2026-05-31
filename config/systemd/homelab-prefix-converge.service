@@ -1,0 +1,7 @@
+[Unit]
+Description=Homelab IPv6 Prefix Convergence
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/homelab-prefix-converge.sh
