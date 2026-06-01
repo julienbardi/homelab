@@ -40,4 +40,4 @@ fi
 # --- Footer logging ---
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 COMMIT_HASH=$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")
-log "DNS setup complete (dnsmasq -> unbound @ 127.0.0.1:5335). Commit=${COMMIT_HASH}"
+log "DNS setup complete (dnsmasq -> unbound @ 127.0.0.1:15335). Commit=${COMMIT_HASH}"
