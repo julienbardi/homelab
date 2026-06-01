@@ -69,16 +69,24 @@ if ! forwarding_ok; then
     fix_forwarding
 fi
 
-# If all invariants OK → healthy
-if [ -n "$WAN_GUA" ] && [ -n "$LAN_GUA" ] && \
-   [ "$PREFIX_OK" -eq 1 ] && [ "$DEFRT_OK" -eq 1 ]; then
+# If WAN IPv6 is healthy → no escalation needed.
+# LAN prefix delegation (LAN_GUA, PREFIX_OK) is non-fatal per network-contract:
+# internal hosts use ULA; delegated prefix is only needed for NAS NAT66 egress.
+# Do NOT restart WAN just because LAN IPv6 prefix delegation is absent.
+if [ -n "$WAN_GUA" ] && [ "$DEFRT_OK" -eq 1 ]; then
     echo 0 > "$STATE_FILE"
     chmod 600 "$STATE_FILE" 2>/dev/null || true
-    log "WAN IPv6 healthy"
+    if [ -z "$LAN_GUA" ] || [ "$PREFIX_OK" -eq 0 ]; then
+        log "WAN IPv6 healthy (LAN prefix delegation absent — non-fatal, NAS NAT66 may be limited)"
+    else
+        log "WAN IPv6 healthy"
+    fi
     exit 0
 fi
 
-log "IPv6 invariants failed: wan_gua=${WAN_GUA:+1} lan_gua=${LAN_GUA:+1} prefix=$PREFIX_OK defrt=$DEFRT_OK"
+if [ -z "$WAN_GUA" ] || [ "$DEFRT_OK" -eq 0 ]; then
+    log "WAN IPv6 invariants failed: wan_gua=${WAN_GUA:+1} defrt=$DEFRT_OK (lan_gua=${LAN_GUA:+1} prefix=$PREFIX_OK — informational)"
+fi
 
 # Tier 1: RA resync if WAN GUA exists but no default route
 if [ -n "$WAN_GUA" ] && [ "$DEFRT_OK" -eq 0 ]; then
