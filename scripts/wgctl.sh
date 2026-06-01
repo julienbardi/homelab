@@ -6,6 +6,7 @@ set -euo pipefail
 : "${ROUTER_SSH_PORT:?Missing ROUTER_SSH_PORT}"
 : "${ROUTER_WG_DIR:?Missing ROUTER_WG_DIR}"
 : "${WG_ROOT:?Missing WG_ROOT}"
+: "${ROUTER_IDENTITY:?Missing ROUTER_IDENTITY}"
 
 # Local paths for NAS/Server execution
 NAS_WG_CONF="/etc/wireguard"
@@ -84,8 +85,16 @@ do_up() {
 do_down() {
     log "Tearing down interfaces..."
     if [[ "$TARGET" == "router" ]]; then
-        ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" \
-            "for f in ${ROUTER_WG_DIR}/*.conf; do wg-quick down \"\$f\" 2>/dev/null || true; done"
+        # wgs1 was brought up manually (ip link add + wg setconf), not via wg-quick.
+        # wg-quick down requires a matching wg-quick up state and will silently fail here.
+        # Tear down correctly: flush peers, remove addresses, set link down, delete interface.
+        ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" '
+            if ip link show wgs1 >/dev/null 2>&1; then
+                ip addr flush dev wgs1 2>/dev/null || true
+                ip link set down dev wgs1 2>/dev/null || true
+                ip link del wgs1 2>/dev/null || true
+            fi
+        '
     else
         for f in "${NAS_WG_CONF}"/*.conf; do
             [[ -e "$f" ]] || continue
