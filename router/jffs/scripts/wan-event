@@ -12,7 +12,7 @@ echo 1 > /proc/sys/net/ipv6/conf/eth0/forwarding
 PREFIX_STATE="/jffs/prefix-current"
 LOG="/jffs/prefix-change.log"
 
-NAS="julie@10.89.12.4"
+NAS=julie@10.89.12.4
 NAS_MARKER="/var/lib/homelab/router-prefix.changed"
 NAS_STAMP="/var/lib/homelab/router-prefix.last"
 
@@ -27,6 +27,11 @@ CUR=$(ip -6 addr show dev eth0 \
 # Ignore empty or bogus prefixes
 case "$CUR" in
     ""|*::*::*) exit 0 ;;
+esac
+
+# Validate prefix is a sane hex:colon string before embedding in SSH commands
+case "$CUR" in
+    *[!0-9a-fA-F:]*) exit 0 ;;
 esac
 
 # Initialize state file if missing
