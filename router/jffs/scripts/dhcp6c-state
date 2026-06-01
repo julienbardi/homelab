@@ -5,8 +5,8 @@ IF="br0"
 PREFIX="$(nvram get ipv6_prefix)"
 PLEN="$(nvram get ipv6_prefix_length)"
 
-# Always flush old GUAs from br0
-ip -6 addr flush dev "$IF"
+# Flush only global/ULA addresses — preserve link-local (fe80::/10)
+ip -6 addr flush dev "$IF" scope global
 
 # If no prefix, leave br0 with only link-local
 if [ -z "$PREFIX" ] || [ -z "$PLEN" ]; then
