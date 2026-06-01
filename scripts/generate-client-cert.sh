@@ -65,7 +65,7 @@ if [ -n "${EXPORT_P12_PASS:-}" ]; then
     -name "$CN" -out "$P12TMP" -passout env:EXPORT_P12_PASS
 else
   openssl pkcs12 -export -inkey "$KEY" -in "$CRT" -certfile "$CA_PUB" \
-    -name "$CN" -out "$P12TMP"
+    -name "$CN" -out "$P12TMP" -passout pass:
 fi
 
 sudo install -m 0640 "$P12TMP" "$P12"
