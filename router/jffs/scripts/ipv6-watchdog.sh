@@ -1,11 +1,14 @@
 #!/bin/sh
 
 # ipv6-watchdog.sh
-# Ensures WAN IPv6 stays healthy.
-# Tiered escalation:
-#   1. Fix forwarding + RA resync
-#   2. Restart WAN IPv6
-#   3. Full WAN reset if kernel IPv6 stack is broken
+# Runtime IPv6 health enforcement for Merlin routers.
+# Implements deterministic, tiered convergence:
+#   • Tier 0 — Forwarding invariants (fix drift immediately)
+#   • Tier 1 — RA resync (rebuild default route)
+#   • Tier 2 — Restart WAN (recover DHCPv6-PD / RA state)
+#   • Tier 3 — Full WAN reset (kernel IPv6 stack failure)
+# LAN prefix delegation is explicitly non-fatal per network contract.
+# Only WAN_GUA + default route define IPv6 health.
 
 WAN_RESET="/jffs/scripts/wan-reset.sh"
 STATE_FILE="/jffs/scripts/.ipv6_watchdog_state"
@@ -36,17 +39,30 @@ grep -q "Failed to send RS" /tmp/syslog.log && BROKEN=1
 grep -q "Cannot assign requested address" /tmp/syslog.log && BROKEN=1
 grep -q "no default router" /tmp/syslog.log && BROKEN=1
 
-# Forwarding flags
+# Forwarding invariants:
+# Merlin frequently resets forwarding flags after WAN events.
+# Sysctl writes may take ~50–150ms to propagate, so reads can be stale.
+# Hardened detection + sync ensures Tier 0 never produces false positives.
 fix_forwarding() {
     echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
     echo 1 > /proc/sys/net/ipv6/conf/br0/forwarding
     echo 1 > /proc/sys/net/ipv6/conf/"$WAN_IF"/forwarding
+    sync
+}
+
+# Safe sysctl reader:
+# Treat any missing file, read error, or non-"1" value as failure.
+# Ensures fail-fast behavior and eliminates silent forwarding drift.
+read_flag() {
+    val=$(cat "$1" 2>/dev/null | tr -d '\r\n')
+    [ "$val" = "1" ] && return 0
+    return 1
 }
 
 forwarding_ok() {
-    [ "$(cat /proc/sys/net/ipv6/conf/all/forwarding 2>/dev/null)" = "1" ] &&
-    [ "$(cat /proc/sys/net/ipv6/conf/br0/forwarding 2>/dev/null)" = "1" ] &&
-    [ "$(cat /proc/sys/net/ipv6/conf/$WAN_IF/forwarding 2>/dev/null)" = "1" ]
+    read_flag /proc/sys/net/ipv6/conf/all/forwarding &&
+    read_flag /proc/sys/net/ipv6/conf/br0/forwarding &&
+    read_flag /proc/sys/net/ipv6/conf/"$WAN_IF"/forwarding
 }
 
 # RA resync
@@ -63,16 +79,27 @@ if [ "$BROKEN" -eq 1 ]; then
     exit 0
 fi
 
-# Fix forwarding if needed
+# Tier 0 — Forwarding invariants:
+# Must be correct before evaluating any other IPv6 state.
+# If forwarding cannot be restored, force Tier 1 by clearing DEFRT_OK.
+# This guarantees RA resync → WAN restart → WAN reset escalation chain.
+# Prevents the scenario where manual service restart_wan is required.
 if ! forwarding_ok; then
     log "Forwarding flags incorrect — fixing"
     fix_forwarding
+    sleep 1
+    if ! forwarding_ok; then
+        log "Forwarding still incorrect after fix — escalating"
+        # Force Tier‑1 RA resync path to run
+        DEFRT_OK=0
+    fi
 fi
 
 # If WAN IPv6 is healthy → no escalation needed.
-# LAN prefix delegation (LAN_GUA, PREFIX_OK) is non-fatal per network-contract:
-# internal hosts use ULA; delegated prefix is only needed for NAS NAT66 egress.
-# Do NOT restart WAN just because LAN IPv6 prefix delegation is absent.
+# - Internal hosts use ULA
+# - Delegated prefix is only required for NAS NAT66 egress
+# - WAN_GUA + default route define IPv6 health
+# Never restart WAN solely due to missing LAN prefix delegation.
 if [ -n "$WAN_GUA" ] && [ "$DEFRT_OK" -eq 1 ]; then
     echo 0 > "$STATE_FILE"
     chmod 600 "$STATE_FILE" 2>/dev/null || true

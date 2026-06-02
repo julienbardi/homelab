@@ -17,7 +17,22 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-HOSTS_FILE="${1:-known_hosts_to_check.txt}"
+# Generate ephemeral host list from authoritative Make variables
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache}"
+HOSTS_FILE="$(mktemp -p "$RUNTIME_DIR" homelab-known-hosts.XXXXXX)"
+trap 'rm -f "$HOSTS_FILE"' EXIT
+
+cat > "$HOSTS_FILE" <<EOF
+router      ${LAN_ROUTER}     ${ROUTER_SSH_PORT}
+diskstation ${LAN_SYNOLOGY}   2222
+qnap        ${LAN_QNAP}       2222
+nas         ${LAN_NAS}        2222
+localhost   127.0.0.1         2222
+vpn.bardi.ch   -              2222
+ssh.github.com -              443
+github.com     -              22
+EOF
+
 KNOWN_HOSTS="$HOME/.ssh/known_hosts"
 HOSTSCAN_TIMEOUT=1
 export LC_ALL=C
@@ -48,7 +63,7 @@ done < "$HOSTS_FILE"
 [ "$ALL_PRESENT" -eq 1 ] && exit 0
 
 # --- 2. FULL SCAN PREPARATION ---
-LOCKFILE="${XDG_RUNTIME_DIR:-$HOME/.cache}/locks/verify_known_hosts.lock"
+LOCKFILE="${RUNTIME_DIR}/locks/verify_known_hosts.lock"
 mkdir -p "$(dirname "$LOCKFILE")"
 
 TMPDIR_SCAN=""
@@ -61,7 +76,7 @@ trap cleanup EXIT INT TERM
 exec 9>"$LOCKFILE"
 flock -n 9 || exit 0
 
-TMPDIR_SCAN="$(mktemp -p /run -d homelab.XXXXXX)"
+TMPDIR_SCAN="$(mktemp -p "$RUNTIME_DIR" -d homelab.XXXXXX)"
 declare -a HOST_META=()
 
 scan_one_host() {
@@ -73,10 +88,10 @@ scan_one_host() {
   for t in "${tokens[@]}"; do
     [ "$found" -eq 1 ] && break
     if [ "$pt" != "22" ]; then
-      raw="$(ssh-keyscan -p "$pt" -T "$HOSTSCAN_TIMEOUT" "$t" 2>/dev/null || true)"
+      raw="$(ssh-keyscan -t ed25519 -p "$pt" -T "$HOSTSCAN_TIMEOUT" "$t" 2>/dev/null || true)"
       hosttok="[$t]:$pt"
     else
-      raw="$(ssh-keyscan -T "$HOSTSCAN_TIMEOUT" "$t" 2>/dev/null || true)"
+      raw="$(ssh-keyscan -t ed25519 -T "$HOSTSCAN_TIMEOUT" "$t" 2>/dev/null || true)"
       hosttok="$t"
     fi
 
@@ -122,8 +137,9 @@ for ((idx=0; idx<${#HOST_META[@]}; idx+=2)); do
   fi
 
   # Atomic User Update: Copy + Append -> sort a NEW + Replace
-  u_tmp="$(mktemp -p /run -m 600 homelab.XXXXXX)"
-  u_sorted="$(mktemp -p /run -m 600 homelab.XXXXXX)"
+  u_tmp="$(mktemp -p "$RUNTIME_DIR" homelab.XXXXXX)"
+  u_sorted="$(mktemp -p "$RUNTIME_DIR" homelab.XXXXXX)"
+  chmod 600 "$u_tmp" "$u_sorted"
   cp "$KNOWN_HOSTS" "$u_tmp"
   for k in "${KEYS[@]}"; do printf "%s\n" "$k" >> "$u_tmp"; done
   sort -u "$u_tmp" > "$u_sorted"

@@ -117,8 +117,7 @@ bootstrap: sanity security-bootstrap acme-bootstrap install-pkg-sops ensure-know
 # --------------------------------------------------------------------
 
 # Path to the interactive known_hosts installer
-KNOWN_HOSTS_FILE := $(REPO_ROOT)/known_hosts_to_check.txt
-KNOWN_HOSTS_SCRIPT := $(REPO_ROOT)/scripts/verify_and_install_known_hosts.sh
+KNOWN_HOSTS_SCRIPT := $(INSTALL_PATH)/verify_and_install_known_hosts.sh
 
 # Allow skipping in CI or when explicitly requested
 SKIP_KNOWN_HOSTS ?= 0
@@ -127,7 +126,7 @@ SKIP_KNOWN_HOSTS ?= 0
 ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
 	@echo "🔐 Ensuring known_hosts entries..."
 	@if [ "$(SKIP_KNOWN_HOSTS)" != "1" ]; then \
-		timeout 1.5 bash "$(KNOWN_HOSTS_SCRIPT)" "$(KNOWN_HOSTS_FILE)" || true; \
+		timeout 1.5 bash "$(KNOWN_HOSTS_SCRIPT)" || true; \
 	fi
 
 .PHONY: gitcheck update
