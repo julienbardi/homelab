@@ -46,14 +46,7 @@ fi
 OLD_STATE=""
 [ -f "${STATE_FILE}" ] && OLD_STATE="$(cat "${STATE_FILE}" 2>/dev/null || true)"
 
-if [ "${OLD_STATE}" != "${NEW_STATE}" ]; then
-    log "State change: ${OLD_STATE} → ${NEW_STATE} (IPv4=${TARGET4}, IPv6=[${TARGET6}]:${TARGET6_PORT})"
-    echo "${NEW_STATE}" > "${STATE_FILE}"
-else
-    log "State unchanged: ${NEW_STATE} (IPv4=${TARGET4}, IPv6=[${TARGET6}]:${TARGET6_PORT})"
-fi
-
-# --- Ensure IPv4 chain exists and is hooked ---
+# --- Ensure chains exist and are hooked (cheap, safe every run) ---
 iptables -t nat -L "${CHAIN4}" >/dev/null 2>&1 || {
     log "Creating IPv4 chain ${CHAIN4}"
     iptables -t nat -N "${CHAIN4}"
@@ -63,7 +56,6 @@ iptables -t nat -C PREROUTING -i "${LAN_IF}" -j "${CHAIN4}" >/dev/null 2>&1 || {
     iptables -t nat -A PREROUTING -i "${LAN_IF}" -j "${CHAIN4}"
 }
 
-# --- Ensure IPv6 chain exists and is hooked ---
 ip6tables -t nat -L "${CHAIN6}" >/dev/null 2>&1 || {
     log "Creating IPv6 chain ${CHAIN6}"
     ip6tables -t nat -N "${CHAIN6}"
@@ -73,36 +65,42 @@ ip6tables -t nat -C PREROUTING -i "${LAN_IF}" -j "${CHAIN6}" >/dev/null 2>&1 || 
     ip6tables -t nat -A PREROUTING -i "${LAN_IF}" -j "${CHAIN6}"
 }
 
-# --- Flush and repopulate IPv4 rules ---
-iptables -t nat -F "${CHAIN4}"
-iptables -t nat -A "${CHAIN4}" -p udp --dport 53 -j DNAT --to-destination "${TARGET4}:53"
-iptables -t nat -A "${CHAIN4}" -p tcp --dport 53 -j DNAT --to-destination "${TARGET4}:53"
+# --- Only mutate NAT + RDNSS on state change ---
+if [ "${OLD_STATE}" != "${NEW_STATE}" ]; then
+    log "State change: ${OLD_STATE} → ${NEW_STATE} (IPv4=${TARGET4}, IPv6=[${TARGET6}]:${TARGET6_PORT})"
+    echo "${NEW_STATE}" > "${STATE_FILE}"
 
-# --- Flush and repopulate IPv6 rules (REDIRECT) ---
-# Note: On AsusWRT, NAT66 REDIRECT is a no-op for LAN→router traffic.
-# We keep it for symmetry and future-proofing.
-ip6tables -t nat -F "${CHAIN6}"
-ip6tables -t nat -A "${CHAIN6}" -p udp --dport 53 -j REDIRECT --to-ports "${TARGET6_PORT}"
-ip6tables -t nat -A "${CHAIN6}" -p tcp --dport 53 -j REDIRECT --to-ports "${TARGET6_PORT}"
+    # Flush and repopulate IPv4 rules
+    iptables -t nat -F "${CHAIN4}"
+    iptables -t nat -A "${CHAIN4}" -p udp --dport 53 -j DNAT --to-destination "${TARGET4}:53"
+    iptables -t nat -A "${CHAIN4}" -p tcp --dport 53 -j DNAT --to-destination "${TARGET4}:53"
 
-# --- IPv6 RDNSS advertisement control (idempotent) ---
-CURRENT_RDNSS="$(nvram get ipv6_dns1)"
+    # Flush and repopulate IPv6 rules (REDIRECT)
+    ip6tables -t nat -F "${CHAIN6}"
+    ip6tables -t nat -A "${CHAIN6}" -p udp --dport 53 -j REDIRECT --to-ports "${TARGET6_PORT}"
+    ip6tables -t nat -A "${CHAIN6}" -p tcp --dport 53 -j REDIRECT --to-ports "${TARGET6_PORT}"
 
-if [ "${NEW_STATE}" = "NAS_UP" ]; then
-    DESIRED_RDNSS="${NAS_IP6}"
+    # IPv6 RDNSS advertisement control
+    CURRENT_RDNSS="$(nvram get ipv6_dns1)"
+    if [ "${NEW_STATE}" = "NAS_UP" ]; then
+        DESIRED_RDNSS="${NAS_IP6}"
+    else
+        DESIRED_RDNSS="${ROUTER_IP6}"
+    fi
+
+    if [ "${CURRENT_RDNSS}" != "${DESIRED_RDNSS}" ]; then
+        nvram set ipv6_dns1="${DESIRED_RDNSS}"
+        nvram set ipv6_dns2=""
+        nvram commit
+        service restart_ipv6
+        log "IPv6 RDNSS updated: advertising ${DESIRED_RDNSS}"
+    else
+        log "IPv6 RDNSS unchanged: still advertising ${CURRENT_RDNSS}"
+    fi
+
+    log "DNS enforcement updated: IPv4→${TARGET4}, IPv6→[${TARGET6}]:${TARGET6_PORT}"
 else
-    DESIRED_RDNSS="${ROUTER_IP6}"
+    log "State unchanged: ${NEW_STATE} (no NAT/RDNSS changes applied)"
 fi
 
-if [ "${CURRENT_RDNSS}" != "${DESIRED_RDNSS}" ]; then
-    nvram set ipv6_dns1="${DESIRED_RDNSS}"
-    nvram set ipv6_dns2=""
-    nvram commit
-    service restart_ipv6
-    log "IPv6 RDNSS updated: advertising ${DESIRED_RDNSS}"
-else
-    log "IPv6 RDNSS unchanged: still advertising ${CURRENT_RDNSS}"
-fi
-
-log "DNS enforcement active: IPv4→${TARGET4}, IPv6→[${TARGET6}]:${TARGET6_PORT}"
 exit 0
