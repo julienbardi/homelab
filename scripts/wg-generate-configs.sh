@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TMPDIR="${TMPDIR:-/run/user/$(id -u)/homelab}"
+TMPDIR="${TMPDIR:-${XDG_RUNTIME_DIR:-$HOME/.cache/homelab}}"
 mkdir -p "$TMPDIR"
 
 # --- 1. Environment Requirements ---
@@ -183,8 +183,14 @@ EOF
     done
 
     #
-    # --- CLIENT GENERATION (unchanged) ---
+    # --- CLIENT GENERATION ---
     #
+    # Ensure PSK directory exists (setgid + correct perms)
+    if [ ! -d "${WG_ROOT}/psk" ]; then
+        mkdir -p "${WG_ROOT}/psk"
+        chmod 2770 "${WG_ROOT}/psk"
+        chown root:"${OPERATOR_GROUP}" "${WG_ROOT}/psk"
+    fi
     while IFS=$'\t' read -r name dev os iface mode acc lan rest; do
         [[ -z "$name" || "$name" == "#"* || "$name" == "name" ]] && continue
 
@@ -202,12 +208,22 @@ EOF
 
         local host_id="${IF_HOST[$iface]}"
         # Endpoint MUST always be the bare domain (WAN IP, no split-horizon override).
-		# Using host_id.domain (e.g. router.bardi.ch) is wrong for LAN clients because
-		# Unbound's split-horizon returns the router's *internal* IP, causing the
-		# Wireguard handshake to target teh wrong host and silently black-hole.
-		local endpoint_host="${DNS_TOPDOMAIN_NAME}"
+        # Using host_id.domain (e.g. router.bardi.ch) is wrong for LAN clients because
+        # Unbound's split-horizon returns the router's *internal* IP, causing the
+        # Wireguard handshake to target teh wrong host and silently black-hole.
+        local endpoint_host="${DNS_TOPDOMAIN_NAME}"
+
+        PSK_FILE="${WG_ROOT}/psk/${name}.psk"
+        if [ ! -f "$PSK_FILE" ]; then
+            echo "🔐 Generating missing PSK for peer '$name'..."
+            ( umask 0007; wg genpsk > "${PSK_FILE}.tmp" )
+            mv -f "${PSK_FILE}.tmp" "$PSK_FILE"
+        fi
+        PSK_VALUE="$(cat "$PSK_FILE")"
+        # PSK_VALUE is now available for both router + client config blocks
 
         install_content "$OUT_CLIENTS/$name.conf" "0600" <<EOF
+# Rotate PSK: rm ${WG_ROOT}/psk/${name}.psk && make wg-generate && make wg-install-router && make wg-up-router
 [Interface]
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}/128
@@ -216,6 +232,7 @@ $( [[ "$os" == "windows" ]] && echo "Table = auto" )
 
 [Peer]
 PublicKey = $(<"$KEY_DIR/servers/$iface.pub")
+PresharedKey = $PSK_VALUE
 Endpoint = ${endpoint_host}:${IF_PORT[$iface]}
 AllowedIPs = $(
     if [[ "$os" == "windows" ]]; then
@@ -247,6 +264,7 @@ EOF
         SERVER_BUFFERS[$iface]+=$'\n\n'"[Peer]
 # $name
 PublicKey = $(<"$ck.pub")
+PresharedKey = $PSK_VALUE
 AllowedIPs = ${ipv4}/32, ${ipv6}/128"
 
         printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \

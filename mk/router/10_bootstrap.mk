@@ -183,7 +183,8 @@ ROUTER_SCRIPT_FILES := \
 	ipv6-watchdog.sh \
 	dhcp6c-state \
 	ddns-start \
-	wan-reset.sh
+	wan-reset.sh \
+	dns-watchdog.sh
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-primitives

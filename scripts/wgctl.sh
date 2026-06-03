@@ -60,18 +60,27 @@ do_up() {
     log "Bringing up interfaces..."
     if [[ "$TARGET" == "router" ]]; then
         ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" "
+            # Ensure WireGuard interface exists (idempotent)
+            if ! ip link show wgs1 >/dev/null 2>&1; then
+                ip link add wgs1 type wireguard
+            fi
+
+            # Bring interface up before applying config
+            echo 'Bringing wgs1 up'
+            ip link set wgs1 up
+
             # Apply WireGuard config
+            echo 'Applying WireGuard configuration'
             wg setconf wgs1 ${ROUTER_WG_DIR}/wgs1.conf
 
             # Assign IPv4 server address
             ip addr add 10.89.101.1/24 dev wgs1 2>/dev/null || true
 
-            # Attempt IPv6 server address - Asus Merlin may not support this.
+            # Attempt IPv6 server address
             if ip addr add fd89:7a3b:42c0:101::1/64 dev wgs1 2>/dev/null; then
                 echo 'wgs1: IPv6 address assigned (fd89:7a3b:42c0:101::1/64)'
             else
                 echo 'WARNING: wgs1 IPv6 address could not be assigned. IPv6 WG is not operational on this router.'
-                echo 'This is expected on Asus Merlin if IPv6 kernel support is incomplete.'
             fi
         "
     else
@@ -81,6 +90,7 @@ do_up() {
         done
     fi
 }
+
 
 do_down() {
     log "Tearing down interfaces..."

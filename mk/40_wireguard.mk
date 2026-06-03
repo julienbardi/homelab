@@ -229,6 +229,18 @@ wg-install-nas: $(INSTALL_PATH)/wgctl.sh \
 	fi
 
 # --- Lifecycle Management ---
+# --------------------------------------------------------------------
+# Bring up WireGuard on the router (creates wgs1, applies config)
+# --------------------------------------------------------------------
+wg-up-router:
+	SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
+	$(WG_ENV) \
+	ROUTER_CONTROL_PLANE=1 \
+	$(INSTALL_PATH)/wgctl.sh router up
+
+# --------------------------------------------------------------------
+# Bring up WireGuard on the NAS
+# --------------------------------------------------------------------
 wg-up-nas: wg-install-nas
 	@true
 

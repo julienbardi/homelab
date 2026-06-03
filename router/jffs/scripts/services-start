@@ -74,4 +74,8 @@ echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 echo 1 > /proc/sys/net/ipv6/conf/br0/forwarding
 echo 1 > /proc/sys/net/ipv6/conf/eth0/forwarding
 
+# 10) DNS watchdog: run every minute
+cru d dns_watchdog
+cru a dns_watchdog "*/1 * * * * /jffs/scripts/dns-watchdog.sh"
+
 exit 0
