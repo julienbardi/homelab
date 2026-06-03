@@ -293,21 +293,27 @@ ensure-bootstrap-dns:
 	@echo "🔍 Checking bootstrap DNS..."
 	@set -euo pipefail; \
 	\
-	# ------------------------------------------------------------ \
-	# Step 1: Try router DNS directly (10.89.12.1) \
-	# ------------------------------------------------------------ \
-	if dig @10.89.12.1 bardi.ch +short +tries=1 +time=2 >/dev/null 2>&1; then \
-		echo "✅ Bootstrap DNS reachable via router (10.89.12.1)"; \
+	# Step 1: Try router DNS directly ($(LAN_ROUTER)) with readiness wait
+	ready=0; \
+	for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if dig @$(LAN_ROUTER) "$(DOMAIN)" +short +tries=1 +time=1 >/dev/null 2>&1; then \
+			ready=1; \
+			break; \
+		fi; \
+		sleep 0.5; \
+	done; \
+	if [ "$$ready" -eq 1 ]; then \
+		echo "✅ Bootstrap DNS reachable via router ($(LAN_ROUTER))"; \
 		exit 0; \
 	fi; \
 	\
-	echo "⚠️ Bootstrap DNS (10.89.12.1) unreachable, checking fallback..."; \
+	echo "⚠️ Bootstrap DNS ($(LAN_ROUTER)) unreachable, checking fallback..."; \
 	\
 	# ------------------------------------------------------------ \
 	# Step 2: If resolvectl exists → use systemd-resolved path \
 	# ------------------------------------------------------------ \
 	if command -v resolvectl >/dev/null 2>&1; then \
-		if resolvectl query bardi.ch >/dev/null 2>&1; then \
+		if resolvectl query "$(DOMAIN)" >/dev/null 2>&1; then \
 			echo "✅ Fallback DNS OK via systemd-resolved"; \
 			exit 0; \
 		else \
@@ -325,22 +331,22 @@ ensure-bootstrap-dns:
 	# If no nameserver → inject router DNS temporarily \
 	if [ -z "$$ns" ]; then \
 		echo "⚠️  /etc/resolv.conf has no nameserver entry — injecting router DNS"; \
-		echo "nameserver 10.89.12.1" | $(run_as_root) tee /etc/resolv.conf >/dev/null; \
-		ns="10.89.12.1"; \
+		echo "nameserver $(LAN_ROUTER)" | $(run_as_root) tee /etc/resolv.conf >/dev/null; \
+		ns="$(LAN_ROUTER)"; \
 	fi; \
 	\
 	# Try resolving using the detected or injected nameserver \
-	if dig @"$$ns" bardi.ch +short +tries=1 +time=2 >/dev/null 2>&1; then \
+	if dig @"$$ns" "$(DOMAIN)" +short +tries=1 +time=2 >/dev/null 2>&1; then \
 		echo "✅ Fallback DNS OK via /etc/resolv.conf (ns=$$ns)"; \
 		exit 0; \
 	fi; \
 	\
 	# If router DNS is dead, inject Cloudflare IPv4 temporarily  \
-	if [ "$$ns" = "10.89.12.1" ]; then \
+	if [ "$$ns" = "$(LAN_ROUTER)" ]; then \
 		echo "⚠️  Router DNS unreachable — injecting Cloudflare DNS"; \
-		echo "nameserver 1.1.1.1" | $(run_as_root) tee /etc/resolv.conf >/dev/null; \
-		ns="1.1.1.1"; \
-		if dig @"$$ns" bardi.ch +short +tries=1 +time=2 >/dev/null 2>&1; then \
+		echo "nameserver $(PUBLIC_DNS)" | $(run_as_root) tee /etc/resolv.conf >/dev/null; \
+		ns="$(PUBLIC_DNS)"; \
+		if dig @"$$ns" "$(DOMAIN)" +short +tries=1 +time=2 >/dev/null 2>&1; then \
 			echo "✅ Fallback DNS OK via Cloudflare (ns=$$ns)"; \
 			exit 0; \
 		fi; \
