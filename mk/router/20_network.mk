@@ -8,7 +8,6 @@
 #   - DHCP inspection helpers
 # ------------------------------------------------------------
 
-
 # Shell-only aggregator for dhcp_static_* variables (RAM-only, WITH_SECRETS-scoped)
 DHCP_AGGREGATE = for v in $$(compgen -A variable | grep '^dhcp_static_'); do printf "%s " "$${!v}"; done
 
@@ -305,7 +304,6 @@ router-ssh-invariants:
 			echo "✔️ SSH invariants already satisfied"; \
 		fi'
 
-
 # ------------------------------------------------------------
 # LAN domain — pure NVRAM setter
 # ------------------------------------------------------------
@@ -324,7 +322,6 @@ router-lan-domain: | router-ssh-check
 		touch /jffs/homelab_nvram_dirty; \
 	'
 
-
 router-dhcp-static-export-secrets:
 	@$(call WITH_SECRETS_v2, \
 		tmp=$$(mktemp); \
@@ -339,7 +336,6 @@ router-dhcp-static-export-secrets:
 		| awk "{printf \"dhcp_static_%d=\\\"%s\\\"\\n\", $$1, $$2}"; \
 		printf "\nDone\n"; \
 	)
-
 
 # ------------------------------------------------------------
 # dnsmasq.conf.add deploy (files only, marks dirty on change)
@@ -358,26 +354,34 @@ router-dnsmasq-conf: secrets-ready ensure-default-gateway router-bootstrap-primi
 			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$(ROUTER_DNSMASQ_CONF)" \
 			"0" "0" "0644"; \
 	RC=$$?; \
-	if [ $$RC -eq 1 ] || [ $$RC -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+	if [ $$RC -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsmasq.conf.add changed (pending restart)"; \
 		ssh $(SSH_HOST_ROUTER) "touch /jffs/homelab_dnsmasq_changed"; \
-	else \
+	elif [ $$RC -eq 0 ]; then
 		echo "✔️ dnsmasq.conf.add up-to-date"; \
+	else \
+		exit 1; \
 	fi
 
 	@echo "🔍 Checking if dnsmasq restart is required"
 	@ssh $(SSH_HOST_ROUTER) '\
-		if [ -f /jffs/homelab_nvram_dirty ] || [ -f /jffs/homelab_dnsmasq_changed ]; then \
+		# Mark config as ready (prevents watchdog WAN restarts before deploy) \
+		touch /jffs/dnsmasq-config.ready; \
+		\
+		# Restart ONLY if dnsmasq.conf.add changed \
+		if [ -f /jffs/homelab_dnsmasq_changed ]; then \
 			echo "🔄 dnsmasq config changed — restarting dnsmasq"; \
-			rm -f /jffs/homelab_nvram_dirty /jffs/homelab_dnsmasq_changed; \
-			killall -HUP dnsmasq 2>/dev/null || service restart_dnsmasq; \
-			echo "🟢 dnsmasq restarted"; \
+			rm -f /jffs/homelab_dnsmasq_changed; \
+			\
+			# BusyBox-safe restart: avoid WAN restart chain \
+			killall dnsmasq 2>/dev/null; \
+			/usr/sbin/dnsmasq --log-async; \
+			\
+			echo "🟢 dnsmasq restarted cleanly"; \
 		else \
 			echo "✔️ dnsmasq config unchanged — no restart needed"; \
 		fi \
 	'
-
-
 
 
 # ------------------------------------------------------------
@@ -424,14 +428,6 @@ router-nvram-converge: \
 		echo "🟢 router-nvram-converge complete"; \
 	'
 
-.PHONY: router-ipv6-converge
-router-ipv6-converge: router-nvram-converge router-dhcp6c-hook-converge
-	@echo "🛡️ IPv6 converge: ensuring PD hook + dnsmasq RA"
-	@ssh $(SSH_HOST_ROUTER) '\
-		echo "🔄 Forcing DHCPv6-PD refresh"; \
-		service start_dhcp6c || true; \
-	'
-
 .PHONY: router-dhcp6c-hook-converge
 router-dhcp6c-hook-converge:
 	@echo "🛡️ Ensuring dhcp6c-state hook exists"
@@ -446,6 +442,14 @@ router-dhcp6c-hook-converge:
 mv "$$tmp" /jffs/scripts/dhcp6c-state; \
 chmod 755 /jffs/scripts/dhcp6c-state; \
 '
+
+.PHONY: router-ipv6-converge
+router-ipv6-converge: router-nvram-converge router-dhcp6c-hook-converge
+	@echo "🛡️ IPv6 converge: ensuring PD hook + dnsmasq RA"
+	@ssh $(SSH_HOST_ROUTER) '\
+		echo "🔄 Forcing DHCPv6-PD refresh"; \
+		service start_dhcp6c || true; \
+	'
 
 .PHONY: router-dnsmasq-invariants
 router-dnsmasq-invariants:

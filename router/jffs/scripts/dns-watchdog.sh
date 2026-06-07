@@ -75,6 +75,9 @@ apply_backoff_and_restart() {
         return
     fi
 
+    # Clear readiness stamp before restarting WAN/dnsmasq
+    rm -f /jffs/dnsmasq-config.ready
+
     # Restart WAN
     log "Restarting WAN (backoff OK)"
     service restart_wan
@@ -117,6 +120,21 @@ detect_dnsmasq_race() {
 }
 
 # -----------------------------
+# IFC v3: dnsmasq singleton invariant
+# -----------------------------
+invariant_dnsmasq_singleton() {
+    COUNT="$(ps | grep '[d]nsmasq' | wc -l)"
+
+    if [ "$COUNT" -ne 1 ]; then
+        log "INVARIANT FAIL: dnsmasq process count != 1 (count=$COUNT)"
+        detect_dnsmasq_race
+        return 1
+    fi
+
+    return 0
+}
+
+# -----------------------------
 # DNS tests
 # -----------------------------
 
@@ -154,6 +172,16 @@ check_upstream_dns_ipv6() {
 # -----------------------------
 
 main() {
+    # Suppress watchdog actions until homelab deploys dnsmasq config
+    if [ ! -f /jffs/dnsmasq-config.ready ]; then
+        log "dnsmasq-config.ready missing — suppressing watchdog actions"
+        exit 0
+    fi
+    # IFC mode: run only invariants, no watchdog logic
+    if [ "$1" = "--invariant" ]; then
+        invariant_dnsmasq_singleton
+        exit $?
+    fi
     if ! check_dnsmasq_proc; then
         FAILS="$(inc_fail)"
         log "FAIL $FAILS: dnsmasq process count != 1"

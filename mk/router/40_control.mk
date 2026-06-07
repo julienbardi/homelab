@@ -83,8 +83,18 @@ router-bootstrap: \
 	router-disable-asus-ca
 	@echo "🛠️ Router bootstrap complete — all base services provisioned"
 
+.PHONY: router-dnsmasq-invariant
+router-dnsmasq-invariant:
+	@echo "[ifc] Checking router dnsmasq singleton invariant..."
+	@if ! ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_ROUTER)@$(ROUTER_ADDR) "/jffs/scripts/dns-watchdog.sh --invariant"; then \
+		echo "[ifc] ERROR: dnsmasq singleton invariant failed — aborting converge"; \
+		exit 1; \
+	fi
+	@echo "[ifc] dnsmasq singleton invariant OK"
+
 .PHONY: router-converge
 router-converge: \
+	router-dnsmasq-invariant \
 	router-ssh-check \
 	router-bootstrap \
 	router-firewall-hardened \
