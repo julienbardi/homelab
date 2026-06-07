@@ -3,6 +3,7 @@
 This repository contains tab‑significant Makefiles and `.mk` includes.
 
 ## VS Code
+
 Editor behavior is enforced via `.vscode/settings.json`:
 - literal tabs
 - tabSize = 4

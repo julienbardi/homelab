@@ -271,7 +271,7 @@ Key invariants:
 
 #### NAS
 
-- `make wg-install-nas` — Installs NAS WireGuard configs using install_file_if_changed_v2.sh.
+- `make wg-install-nas` — Installs NAS WireGuard configs using install_file_if_changed_v3.sh.
   Copies:
 
   - output/server/wg7.conf → /etc/wireguard/wg7.conf
@@ -322,7 +322,7 @@ This is the canonical entrypoint.
   - Runtime: wg-router-preflight
 - services-start is canonical, version-controlled, and deployed by router-install-scripts (never mutated)
 - No iptables WG chains are created
-- All deployment is atomic via install_file_if_changed_v2.sh
+- All deployment is atomic via install_file_if_changed_v3.sh
 - All state is intent-driven from TSV input
 
 ## 📝 Notes

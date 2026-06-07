@@ -57,14 +57,14 @@ $(INSTALL_FILES_IF_CHANGED): $(IFC_V3_PLURAL_SRC) | $(INSTALL_FILE_IF_CHANGED_V3
 # Macros
 # ------------------------------------------------------------
 
-# Arguments for install_file_if_changed_v2.sh:
+# Arguments for install_file_if_changed_v3.sh:
 # 1: SRC_HOST, 2: SRC_PORT, 3: SRC_PATH, 4: DST_HOST, 5: DST_PORT, 6: DST_PATH
 # 7: OWNER, 8: GROUP, 9: MODE
 # ------------------------------------------------------------
 # Macros (Fixed for Shell Compatibility)
 # ------------------------------------------------------------
 
-# Arguments for install_file_if_changed_v2.sh:
+# Arguments for install_file_if_changed_v3.sh:
 # 1: SRC_PATH, 2: DST_PATH, 3: OWNER, 4: GROUP, 5: MODE
 define install_file
 	test -n "$(INSTALL_PATH)" || { echo "❌ Error: INSTALL_PATH is empty. Check mk/config.mk." >&2; exit 1; }; \
@@ -148,10 +148,9 @@ ALL_SCRIPTS := $(notdir $(wildcard $(REPO_ROOT)/scripts/*.sh))
 
 # Exclude bootstrap files and sbin files from the generic bin list
 EXCLUDE_LIST := $(SBIN_SCRIPTS) \
-				install_file_if_changed_v2.sh \
-				install_files_if_changed_v2.sh \
+				install_file_if_changed_v3.sh \
+				install_files_if_changed_v3.sh \
 				install_url_file_if_changed.sh \
-				install_file_if_changed.sh \
 				common.sh \
 				$(filter router-%.sh,$(ALL_SCRIPTS))
 

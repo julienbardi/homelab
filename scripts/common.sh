@@ -169,7 +169,7 @@ install_files_if_changed_v2() {
 
     echo "ARGCOUNT=$# ARGS=[${*}]" >&2
     # Precision check: Ensure the installer exists before processing the vector
-    require_file "/usr/local/bin/install_file_if_changed_v2.sh"
+    require_file "/usr/local/bin/install_file_if_changed_v3.sh"
 
     for (( i=1; i<=total_args; i+=9 )); do
         echo "VECTORIZED CALL: ${@:i:9}" >&2
@@ -184,7 +184,7 @@ install_files_if_changed_v2() {
             _changed_ref=1
         elif [[ "$rc" -ne 0 ]]; then
             local failed_arg="${@:i+2:1}"
-            log "❌ install_file_if_changed_v2.sh failed (rc=$rc) for ${failed_arg}"
+            log "❌ install_file_if_changed_v3.sh failed (rc=$rc) for ${failed_arg}"
             exit 1
         fi
     done

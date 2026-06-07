@@ -1,4 +1,5 @@
 # 📁 Homelab Directory Architecture
+
 **Authoritative separation of operator configuration vs system state**
 
 This document defines the canonical directory layout for the homelab.
@@ -17,11 +18,13 @@ This separation ensures:
 
 ---
 
-# 🧱 1. Operator Domain — `/volume1/homelab/`
+## 🧱 1. Operator Domain — `/volume1/homelab/`
+
 **Persistent, backed up, versioned, human‑authored.**
 This is the *source of truth* for the entire homelab.
 
 ## ✔️ Characteristics
+
 - Written by the operator
 - Backed up by Kopia
 - Survives SSD replacement
@@ -32,6 +35,7 @@ This is the *source of truth* for the entire homelab.
 ## ✔️ Contents
 
 ### 1.1 Root
+
 | Path | Purpose |
 |------|---------|
 | `/volume1/homelab/homelab.env` | Global operator configuration (env vars) |
@@ -40,6 +44,7 @@ This is the *source of truth* for the entire homelab.
 | `/volume1/homelab/secrets/`    | Encrypted or WITH_SECRETS‑protected material |
 
 ### 1.2 WireGuard (authoritative control plane)
+
 | Path | Purpose |
 |------|---------|
 | `/volume1/homelab/wireguard/input/`  | TSVs defining intent (clients, hosts, interfaces) |
@@ -51,16 +56,19 @@ This is the *source of truth* for the entire homelab.
 `wireguard/output/` stays here because it must survive SSD replacement and be backed up.
 
 ### 1.3 Git repository
+
 Your entire repo lives under `/volume1/homelab/`.
 This is the declarative configuration layer.
 
 ---
 
-# 🧩 2. System Domain — `/var/lib/homelab/`
+## 🧩 2. System Domain — `/var/lib/homelab/`
+
 **Ephemeral, root‑owned, auto‑generated, not backed up.**
 This is the *state directory* for automation.
 
 ## ✔️ Characteristics
+
 - Written by automation
 - Never edited manually
 - Safe to delete
@@ -72,18 +80,21 @@ This is the *state directory* for automation.
 ## ✔️ Contents
 
 ### 2.1 WireGuard (generated state)
+
 | Path | Purpose |
 |------|---------|
 | `/var/lib/homelab/wg-subnets.mk` | Generated subnets from wg-interfaces.tsv |
 | `/var/lib/homelab/peer-map.tsv`  | Generated peer mapping                   |
 
 ### 2.2 Firewall
+
 | Path | Purpose |
 |------|---------|
 | `/var/lib/homelab/nftables.applied.hash`   | Hash of applied ruleset    |
 | `/var/lib/homelab/nftables.last-run.stamp` | Timestamp of last converge |
 
 ### 2.3 Certificates
+
 | Path | Purpose |
 |------|---------|
 | `/var/lib/homelab/certs.last-renew.stamp`   | ACME renewal timestamp |
@@ -91,18 +102,21 @@ This is the *state directory* for automation.
 | `/var/lib/homelab/certs.last-prepare.stamp` | Pre-deploy timestamp   |
 
 ### 2.4 Headscale
+
 | Path | Purpose |
 |------|---------|
 | `/var/lib/homelab/headscale-acl.processed.json`   | Processed ACL policy     |
 | `/var/lib/homelab/headscale-acl.last-apply.stamp` | Last ACL apply timestamp |
 
 ### 2.5 Router deploy
+
 | Path | Purpose |
 |------|---------|
 | `/var/lib/homelab/router.last-deploy.stamp` | Router cert deploy timestamp |
 | `/var/lib/homelab/router.last-sync.stamp`   | Router helper sync timestamp |
 
 ### 2.6 General
+
 | Path | Purpose |
 |------|---------|
 | `/var/lib/homelab/*.stamp` | Any converge marker        |
@@ -125,20 +139,25 @@ This boundary is **non‑negotiable** for deterministic automation.
 # 🚀 4. Why this architecture matters
 
 ### ✔️ SSD replacement becomes trivial
+
 All operator data lives on `/volume1`.
 All system state is regenerated.
 
 ### ✔️ Backups become clean
+
 Kopia only captures what matters.
 
 ### ✔️ Make DAG becomes deterministic
+
 Generated state is isolated and predictable.
 
 ### ✔️ Privilege boundaries are enforced
+
 Operator writes config.
 Automation writes state.
 
 ### ✔️ No drift
+
 State is always regenerated from intent.
 
 ---
@@ -365,6 +384,7 @@ Everything flows from declarative inputs.
                           │  All components match declarative intent     │
                           └──────────────────────────────────────────────┘
 ```
+
 # 🔐 8. Router Certificate Lifecycle — Diagram
 
 This diagram shows the complete lifecycle of router certificates:
@@ -463,6 +483,7 @@ This diagram shows the complete lifecycle of router certificates:
                           │   No drift                                   │
                           └──────────────────────────────────────────────┘
 ```
+
 # 🌐 9. DNS Pipeline — Architecture Diagram
 
 This diagram shows the complete DNS pipeline:
@@ -497,7 +518,7 @@ This diagram shows the complete DNS pipeline:
                                         ▼
                           ┌──────────────────────────────────────────────┐
                           │              Deployment Layer                │
-                          │  - install_file_if_changed_v2                │
+                          │  - install_file_if_changed_v3                │
                           │  - dnsdist config validation                 │
                           │  - dns-warm timer activation                 │
                           └──────────────────────────────────────────────┘
@@ -641,6 +662,7 @@ This diagram shows the complete ACL lifecycle:
                           │  - Deterministic + reproducible              │
                           └──────────────────────────────────────────────┘
 ```
+
 # 🔥 11. NAS Firewall Pipeline — Architecture Diagram
 
 This diagram shows the complete NAS firewall lifecycle:
@@ -686,7 +708,7 @@ This diagram shows the complete NAS firewall lifecycle:
                                         ▼
                           ┌──────────────────────────────────────────────┐
                           │        Deployment to NAS Runtime             │
-                          │  - install_file_if_changed_v2                │
+                          │  - install_file_if_changed_v3                │
                           │  - /etc/wireguard/firewall-nas.sh            │
                           │  - root-owned, executable                    │
                           └──────────────────────────────────────────────┘
@@ -732,6 +754,7 @@ This diagram shows the complete NAS firewall lifecycle:
                           │  - Idempotent + drift-free                   │
                           └──────────────────────────────────────────────┘
 ```
+
 # 🏠 12. End‑to‑End Homelab Architecture — Diagram
 
 This diagram ties everything together:

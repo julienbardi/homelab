@@ -21,6 +21,7 @@ OUT_ROUTER="$OUTPUT_DIR/router"
 OUT_CLIENTS="$OUTPUT_DIR/clients"
 
 declare -A IF_HOST IF_PORT IF_ADDR_V4 IF_ADDR_V6 IF_ENABLED
+# shellcheck disable=SC1091
 source /usr/local/bin/common.sh
 
 # --- Canonical router SSH (authoritative, non‑drifting) ---
@@ -44,7 +45,7 @@ install_content() {
     set +e
     local op_group rc
     op_group="$(id -gn)"
-    run_as_root /usr/local/bin/install_file_if_changed_v2.sh -q \
+    run_as_root /usr/local/bin/install_file_if_changed_v3.sh -q \
         "" "22" "$tmp_src" \
         "" "22" "$target" \
         "root" "$op_group" "$mode"

@@ -346,7 +346,7 @@ deploy_router() {
     local rc=0 changed=0
     local CHANGED_EXIT="${INSTALL_IF_CHANGED_EXIT_CHANGED:-3}"
 
-    /usr/local/bin/install_file_if_changed_v2.sh \
+    /usr/local/bin/install_file_if_changed_v3.sh \
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" \
         "julie" "root" "0644" || rc=$?
@@ -355,7 +355,7 @@ deploy_router() {
     [[ "$rc" -ne 0 && "$rc" -ne "$CHANGED_EXIT" ]] && exit "$rc"
 
     rc=0
-    /usr/local/bin/install_file_if_changed_v2.sh \
+    /usr/local/bin/install_file_if_changed_v3.sh \
         "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
         "julie" "root" "0600" || rc=$?

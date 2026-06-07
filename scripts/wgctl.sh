@@ -10,7 +10,7 @@ set -euo pipefail
 
 # Local paths for NAS/Server execution
 NAS_WG_CONF="/etc/wireguard"
-INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed_v2.sh"
+INSTALL_FILE_IF_CHANGED="/usr/local/bin/install_file_if_changed_v3.sh"
 PEER_MAP="${WG_ROOT}/output/peer-map.tsv"
 
 # Swapped to match Makefile: wgctl.sh [TARGET] [MODE]

@@ -46,7 +46,7 @@ $(CODE_SERVER_SYSTEMD_OVERRIDE): \
 		$(run_as_root) install -m 644 /dev/stdin "$(CODE_SERVER_SYSTEMD_OVERRIDE).new"
 	@echo "🛠️ Syncing systemd override (IFC v2)"
 	@$(run_as_root) sh -c '\
-		/usr/local/bin/install_file_if_changed_v2.sh \
+		$(INSTALL_FILE_IF_CHANGED) \
 			"" "" "$(CODE_SERVER_SYSTEMD_OVERRIDE).new" \
 			"" "" "$(CODE_SERVER_SYSTEMD_OVERRIDE)" \
 			root root 644; \

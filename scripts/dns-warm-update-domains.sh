@@ -112,7 +112,7 @@ grep -E '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' "$tmp_all" | sort -u > "$tmp_final"
 
 # Execute without capturing stdout, just capture the exit code
 rc=0
-timeout 10 /usr/local/bin/install_file_if_changed_v2.sh -q \
+timeout 10 /usr/local/bin/install_file_if_changed_v3.sh -q \
     "" "" "$tmp_final" \
     "" "" "$DOMAINS_FILE" \
     root root 0644 || rc=$?

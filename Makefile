@@ -36,8 +36,7 @@ include $(REPO_ROOT)/mk/graph.mk
 sanity: assert-sanity
 
 .PHONY: all
-all: sanity repo-preflight homelab-all
-.NOTPARALLEL: homelab-all
+all: homelab-all
 
 .PHONY: debug-vars
 debug-vars:

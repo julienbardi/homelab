@@ -240,7 +240,7 @@ nft-install-rollback: ensure-run-as-root
 
 # The root of the DAG
 .PHONY: homelab-all
-homelab-all: nft-apply-phase wg-network-phase service-phase
+homelab-all: sanity repo-preflight nft-apply-phase wg-network-phase service-phase
 	@echo "🎉 Homelab fully converged."
 
 # Phase 1: Security/Firewall (Foundational, must run sequentially)
@@ -251,11 +251,13 @@ nft-apply-phase: nft-install nft-apply nft-confirm
 .PHONY: wg-network-phase
 wg-network-phase: | nft-confirm
 wg-network-phase: converge-network router-ra-policy tailscaled-dependencies-met wg-up
+wg-network-phase: nft-apply-phase
 
 # Phase 3: Services (Independent of each other)
 .PHONY: service-phase
 service-phase: | nft-confirm
 service-phase: install-systemd enable-systemd deploy-unbound-config monitoring install-router-prefix-watchdog install-nas-prefix-watchdog enable-unbound verify-internal-dns all-remote
+service-phase: wg-network-phase
 
 # Sub-groupings
 tailscaled-dependencies-met: headscale-stack tailscaled

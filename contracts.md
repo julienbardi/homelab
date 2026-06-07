@@ -1068,7 +1068,7 @@ Rules:
   - Derived secret artifacts (e.g. ddns.conf) MUST be generated only in RAM
     (e.g. /tmp) and MUST NOT persist across reboots.
   - Any secret-derived file MUST be deployed to remote systems exclusively via
-    install_file_if_changed_v2.sh using the 9‑argument signature.
+    install_file_if_changed_v3.sh using the 9‑argument signature.
   - No recipe may log, echo, hash, diff, or otherwise expose secret values.
     Only non-sensitive metadata (e.g. “Secrets OK”, object SHA) may be logged.
   - No recipe may embed decrypted values into homelab.env or any other
