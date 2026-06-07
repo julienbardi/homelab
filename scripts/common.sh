@@ -39,8 +39,8 @@ if [[ -f "$HOMELAB_ENV" ]]; then
         set +a; set +u; set -a
         source "$HOMELAB_ENV"
         set +a; set -u
-		PATH="$_saved_path"
-		export PATH
+        PATH="$_saved_path"
+        export PATH
         unset _saved_path
     fi
 
@@ -167,16 +167,19 @@ install_files_if_changed_v2() {
     shift
     local total_args=$#
 
+    echo "ARGCOUNT=$# ARGS=[${*}]" >&2
     # Precision check: Ensure the installer exists before processing the vector
     require_file "/usr/local/bin/install_file_if_changed_v2.sh"
 
     for (( i=1; i<=total_args; i+=9 )); do
-        #echo "IFC CALL: ${@:i:9}" >&2
+        echo "VECTORIZED CALL: ${@:i:9}" >&2
         set +e
-        /usr/local/bin/install_file_if_changed_v2.sh "${@:i:9}"
-        local rc=$?
+        (
+            set +e
+            "$INSTALL_FILE_IF_CHANGED" "${@:i:9}"
+        )
+        rc=$?
         set -e
-
         if [[ "$rc" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]]; then
             _changed_ref=1
         elif [[ "$rc" -ne 0 ]]; then

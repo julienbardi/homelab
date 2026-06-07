@@ -104,7 +104,7 @@ else
 fi
 
 if [ "$SRC_HASH" = "$DST_HASH" ]; then
-    [ "$quiet" -eq 0 ] && log "ℹ️ $DST_PATH up-to-date"
+    [ "$quiet" -eq 0 ] && log "🟢 already up-to-date: $DST_PATH"
     exit 0
 fi
 

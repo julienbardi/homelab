@@ -57,8 +57,12 @@ install-systemd: ensure-run-as-root install-dns-health
 
 enable-systemd: install-systemd ensure-run-as-root
 	@$(run_as_root) sh -c '\
-		systemctl restart homelab-unbound.service || true; \
-		systemctl status homelab-unbound.service --no-pager || true; \
+		if systemctl is-active --quiet homelab-unbound.service; then \
+			echo "🟢 homelab-unbound.service already running and converged"; \
+		else \
+			echo "🚀 Starting homelab-unbound.service (was not active)"; \
+			systemctl start homelab-unbound.service || true; \
+		fi; \
 	'
 
 # ------------------------------------------------------------

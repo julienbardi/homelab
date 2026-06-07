@@ -1,4 +1,5 @@
 #!/bin/sh
+# homelab-prefix-converge.sh
 set -eu
 
 MARKER="/var/lib/homelab/router-prefix.changed"
@@ -58,7 +59,7 @@ log "RESTARTING systemd-networkd (post-route-flush)"
 systemctl restart systemd-networkd || log "WARN: systemd-networkd restart (2nd) failed"
 
 # 7. Verify prefix is actually present on interface
-if ip -6 addr show dev "$IFACE" | grep -q "$NEW_PREFIX"; then
+if ip -6 addr show dev "$IFACE" | grep -q "${NEW_PREFIX}"; then
     log "OK: New prefix present on $IFACE"
 else
     log "ERROR: New prefix NOT present on $IFACE"
@@ -93,6 +94,58 @@ else
     log "INFO: dig not available, skipping DNS IPv6 verification"
 fi
 
-# 12. Clear marker
+# 12. Assign global IPv6 to all NAS-hosted, enabled WG interfaces. Source of truth: wg-interfaces.tsv
+TSV="/volume1/homelab/wireguard/input/wg-interfaces.tsv"
+ULA_BASE="fd89:7a3b:42c0"
+WG_PREFIX_BASE=$(printf '%s' "$NEW_PREFIX" | sed 's/::$//')  # e.g. 2a01:8b81:4800:9c
+
+# Extract enabled NAS interfaces
+WG_LIST=$(awk '
+    $1 ~ /^wg[0-9]+$/ && $2=="nas" && $7==1 {print $1}
+' "$TSV")
+
+for IF in $WG_LIST; do
+    IDX=$(echo "$IF" | sed 's/wg//')
+    HEX_SUFFIX=$(printf "%02x" "$IDX")
+
+    WG_IF="$IF"
+    ULA_PREFIX="${ULA_BASE}:${IDX}::"
+    WG_GUA="${WG_PREFIX_BASE}${HEX_SUFFIX}::1/64"
+
+    log "WG${IDX}: desired global = $WG_GUA"
+
+    # Skip if interface does not exist
+    ip link show "$WG_IF" >/dev/null 2>&1 || {
+        log "WG${IDX}: interface missing, skipping"
+        continue
+    }
+
+    # Remove stale globals (keep ULA + desired GUA)
+    ip -6 addr show dev "$WG_IF" scope global \
+      | awk '/inet6/ {print $2}' \
+      | while read -r addr; do
+            case "$addr" in
+                ${ULA_PREFIX}*/64) ;;   # keep ULA
+                "$WG_GUA") ;;           # keep desired GUA
+                *)
+                    log "WG${IDX}: removing stale global $addr"
+                    ip -6 addr del "$addr" dev "$WG_IF" 2>/dev/null || true
+                    ;;
+            esac
+        done
+
+    # Ensure desired GUA present (match without CIDR)
+    if ! ip -6 addr show dev "$WG_IF" scope global | grep -q "${WG_GUA%/*}"; then
+        log "WG${IDX}: adding global $WG_GUA"
+        ip -6 addr add "$WG_GUA" dev "$WG_IF" 2>/dev/null || \
+            log "WG${IDX}: WARN: failed to add $WG_GUA"
+    else
+        log "WG${IDX}: global already present"
+    fi
+
+    log "WG${IDX}: dual-stack converge complete (ULA + GUA)"
+done
+
+# 13. Clear marker
 rm -f "$MARKER"
 log "DONE: marker cleared, converge cycle complete"

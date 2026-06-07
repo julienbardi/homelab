@@ -1,6 +1,5 @@
 #!/bin/sh
-
-# ipv6-watchdog.sh
+# /jffs/scripts/ipv6-watchdog.sh
 # Runtime IPv6 health enforcement for Merlin routers.
 # Implements deterministic, tiered convergence:
 #   • Tier 0 — Forwarding invariants (fix drift immediately)

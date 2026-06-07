@@ -76,8 +76,18 @@ LOCAL_COMBINED_HASH="$(
 # 5. Compute remote combined hash in ONE SSH call
 # --------------------------------------------------------------------
 # All HOST/PORT are identical by contract, so use the first group.
+if (( ${#args[@]} < 5 )); then
+    echo "❌ No file tuples passed to vectorized IFC" >&2
+    exit 1
+fi
+
 first_host="${args[3]}"
 first_port="${args[4]}"
+
+# Default SSH port if empty
+if [ -z "$first_port" ]; then
+    first_port=22
+fi
 
 # Build remote hash script
 remote_script="cd / && ("

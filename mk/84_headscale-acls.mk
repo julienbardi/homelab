@@ -14,12 +14,20 @@ ACL_DST ?= /etc/headscale/acl.json
 .PHONY: headscale-acls
 headscale-acls: ensure-run-as-root $(ACL_SRC)
 	@echo "🛂 Validating and Installing headscale ACL policy..."
-	@# Optional: Use a JSON linter if available, or rely on Headscale's own check
-	@$(run_as_root) headscale configtest --config /etc/headscale/config.yaml || { echo "❌ ACL validation failed via configtest"; exit 1; }
-	@$(run_as_root) env CHANGED_EXIT_CODE=3 \
+	@# Corrected flag from --policy to --file
+	@$(run_as_root) headscale policy check --file $(ACL_SRC) || { echo "❌ ACL validation failed"; exit 1; }
+	@# Install with change tracking
+	@$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 		$(INSTALL_FILE_IF_CHANGED) -q \
 		"" "" "$(ACL_SRC)" \
 		"" "" "$(ACL_DST)" \
-		root headscale 0640 \
-		|| [ $$? -eq 3 ]
+		root headscale 0640; \
+		RC=$$?; \
+		if [ $$RC -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+			echo "🔄 ACL policy changed — flagging restart"; \
+			touch "$(HEADSCALE_CHANGED_STAMP)"; \
+		elif [ $$RC -ne 0 ]; then \
+			echo "❌ ACL installation failed"; \
+			exit $$RC; \
+		fi
 	@echo "✅ Headscale ACL policy processed and validated"

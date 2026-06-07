@@ -159,8 +159,6 @@ generate_configs() {
 
         local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
 
-        #
-        # *** CRITICAL FIX ***
         # Router gets RAW wg config (NO Address=)
         # NAS/server keeps wg-quick config (WITH Address=)
         #
@@ -176,6 +174,7 @@ EOF
 [Interface]
 Address = ${IF_ADDR_V4[$iface]}, ${v6_prefix}::1/64
 ListenPort = ${IF_PORT[$iface]}
+Table = off
 PrivateKey = $priv
 EOF
 )
@@ -260,13 +259,22 @@ AllowedIPs = $(
 )
 PersistentKeepalive = 25
 EOF
+    # -------------------------------
+    # Compute router AllowedIPs safely
+    # -------------------------------
+    if [[ "$os" == "windows" && "$acc" == "full" ]]; then
+        # Full tunnel Windows client
+        ROUTER_ALLOWEDIPS="${ipv4}/32, ${ipv6}/128, 10.89.12.0/24, fd89:7a3b:42c0::/64"
+    else
+        # Default restricted client
+        ROUTER_ALLOWEDIPS="${ipv4}/32, ${ipv6}/128"
+    fi
 
-        SERVER_BUFFERS[$iface]+=$'\n\n'"[Peer]
+    SERVER_BUFFERS[$iface]+=$'\n\n'"[Peer]
 # $name
 PublicKey = $(<"$ck.pub")
 PresharedKey = $PSK_VALUE
-AllowedIPs = ${ipv4}/32, ${ipv6}/128"
-
+AllowedIPs = ${ROUTER_ALLOWEDIPS}"
         printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
             "$(<"$ck.pub")" "$name" "$iface" "$ipv4" "$ipv6" "$acc" "$lan" >> "$peer_map_tmp"
     done < "$CLIENTS_TSV"

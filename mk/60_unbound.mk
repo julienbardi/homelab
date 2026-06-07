@@ -13,13 +13,13 @@ UNBOUND_LOCAL_INTERNAL_SRC := $(REPO_ROOT)/config/unbound/unbound.conf.d/local-i
 UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
 
 .PHONY: \
-	deploy-unbound \
-	deploy-unbound-sysctl \
-	update-root-hints \
-	ensure-dnssec-trust-anchor \
-	deploy-unbound-config \
-	deploy-unbound-local-internal \
-	unbound-health
+    deploy-unbound \
+    deploy-unbound-sysctl \
+    update-root-hints \
+    ensure-dnssec-trust-anchor \
+    deploy-unbound-config \
+    deploy-unbound-local-internal \
+    unbound-health
 
 # ------------------------------------------------------------
 # Sysctl (safe: kernel tuning only)
@@ -78,13 +78,22 @@ deploy-unbound-config: ensure-run-as-root
 		*) exit "$$rc" ;; \
 	esac; \
 	if [ $$changed -eq 1 ]; then \
-		echo "🔄 unbound.conf updated — restarting homelab-unbound.service"; \
-		$(run_as_root) systemctl restart homelab-unbound.service; \
+		echo "🔄 unbound.conf updated — scheduling restart"; \
+		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
 	fi
 
-
 deploy-unbound-local-internal: ensure-run-as-root
-	@$(run_as_root) install -m 0644 -o root -g root $(UNBOUND_LOCAL_INTERNAL_SRC) $(UNBOUND_LOCAL_INTERNAL_DST)
+	@changed=0; rc=0; \
+	$(call install_file,$(UNBOUND_LOCAL_INTERNAL_SRC),$(UNBOUND_LOCAL_INTERNAL_DST),root,root,0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
+	if [ $$changed -eq 1 ]; then \
+		echo "🔄 local-internal.conf updated — scheduling restart"; \
+		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
+	fi
 
 # ------------------------------------------------------------
 # Unbound health (IGOS-safe, read-only, no lifecycle control)
@@ -111,7 +120,7 @@ unbound-health: ensure-run-as-root
 	# 3. PID file check
 	@if [ -f /var/lib/unbound/unbound.pid ]; then \
 		echo "   • ✅ pid file: present"; \
-	else \
+		else \
 		echo "   • ❌ pid file: missing (/var/lib/unbound/unbound.pid)"; \
 		exit 1; \
 	fi
@@ -138,15 +147,36 @@ unbound-health: ensure-run-as-root
 
 enable-homelab-unbound: ensure-run-as-root
 	@echo "🚀 Enabling homelab-unbound.service"
-	@$(run_as_root) systemctl daemon-reload
-	@$(run_as_root) systemctl enable --now homelab-unbound.service
+	@if ! systemctl is-enabled --quiet homelab-unbound.service 2>/dev/null; then \
+		$(run_as_root) systemctl enable homelab-unbound.service; \
+	fi
+	@if ! systemctl is-active --quiet homelab-unbound.service; then \
+		$(run_as_root) systemctl start homelab-unbound.service; \
+	fi
 	@echo "🟢 homelab-unbound enabled and started"
 
-deploy-homelab-unbound-service:
-	@$(run_as_root) install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-unbound.service /etc/systemd/system/homelab-unbound.service
-	@$(run_as_root) systemctl daemon-reload
+deploy-homelab-unbound-service: ensure-run-as-root
+	@changed=0; rc=0; \
+	$(call install_file,$(REPO_ROOT)/config/systemd/homelab-unbound.service,/etc/systemd/system/homelab-unbound.service,root,root,0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
+	if [ $$changed -eq 1 ]; then \
+		echo "🔄 homelab-unbound.service unit updated — reloading systemd context"; \
+		$(run_as_root) systemctl daemon-reload; \
+		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
+	fi
 
 deploy-unbound: deploy-unbound-config deploy-unbound-local-internal deploy-homelab-unbound-service
+	@if [ -f "$(UNBOUND_RESTART_STAMP)" ]; then \
+		echo "🔄 Executing deferred restart for homelab-unbound.service due to configuration drift"; \
+		$(run_as_root) systemctl restart homelab-unbound.service; \
+		$(run_as_root) rm -f $(UNBOUND_RESTART_STAMP); \
+	else \
+		echo "🟢 Unbound configuration layout holds no drift"; \
+	fi
 
 .PHONY: enable-unbound
 enable-unbound: enable-homelab-unbound

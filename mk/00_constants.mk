@@ -109,6 +109,10 @@ DOCS_DIR = $(INSTALL_PATH)/docs
 RUN_ROOT_SRC      := $(REPO_ROOT)/scripts/run-as-root.sh
 IFC_V2_SINGLE_SRC := $(REPO_ROOT)/scripts/install_file_if_changed_v2.sh
 IFC_V2_PLURAL_SRC := $(REPO_ROOT)/scripts/install_files_if_changed_v2.sh
+# IFC v3 — portable, zero-bootstrap (blueprints only; may be used in-place or installed)
+IFC_V3_SINGLE_SRC := $(REPO_ROOT)/scripts/install_file_if_changed_v3.sh
+IFC_V3_PLURAL_SRC := $(REPO_ROOT)/scripts/install_files_if_changed_v3.sh
+
 IFC_URL_SRC       := $(REPO_ROOT)/scripts/install_url_file_if_changed.sh
 COMMON_SRC        := $(REPO_ROOT)/scripts/common.sh
 
@@ -116,6 +120,11 @@ COMMON_SRC        := $(REPO_ROOT)/scripts/common.sh
 export run_as_root                 := $(INSTALL_SBIN_PATH)/run-as-root.sh
 export INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
 export INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v2.sh
+
+# Optional: installed v3 artifacts (kept separate from v2 for clean coexistence)
+export INSTALL_FILE_IF_CHANGED_V3  := $(INSTALL_PATH)/install_file_if_changed_v3.sh
+export INSTALL_FILES_IF_CHANGED_V3 := $(INSTALL_PATH)/install_files_if_changed_v3.sh
+
 export INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_changed.sh
 
 # ----------------------------------------------------------------------------
@@ -203,7 +212,7 @@ TMP_ROUTER_ULA := /run/user/$(shell id -u)/homelab/.router_ula_$$PPID
 # $(file …) bypasses the shell, so $PPID never expands and the NAT script path must not depend on it
 TMP_ROUTER_NAT := /run/user/$(shell id -u)/homelab/.router_nat
 
-
+EMPTY :=
 
 print-ssh-user-router:
 	@echo "SSH_USER_ROUTER='$(SSH_USER_ROUTER)'"

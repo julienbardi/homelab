@@ -53,6 +53,17 @@ $(INSTALL_FILES_IF_CHANGED): $(IFC_V2_PLURAL_SRC) | $(INSTALL_FILE_IF_CHANGED)
 	@echo "🚀 Bootstrapping Vector Engine..."
 	@sudo install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 "$<" "$@"
 
+# 4. Singular V3 Engine (portable, zero-bootstrap)
+$(INSTALL_FILE_IF_CHANGED_V3): $(IFC_V3_SINGLE_SRC)
+	@echo "🚀 Bootstrapping IFC v3 (portable engine)..."
+	@sudo mkdir -p $(INSTALL_PATH)
+	@sudo install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 "$<" "$@"
+
+# 5. Vectorized V3 Engine
+$(INSTALL_FILES_IF_CHANGED_V3): $(IFC_V3_PLURAL_SRC) | $(INSTALL_FILE_IF_CHANGED_V3)
+	@echo "🚀 Bootstrapping Vector Engine v3..."
+	@sudo install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 "$<" "$@"
+
 # ------------------------------------------------------------
 # Macros
 # ------------------------------------------------------------

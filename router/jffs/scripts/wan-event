@@ -1,56 +1,100 @@
 #!/bin/sh
-# Ensure IPv6 RA acceptance is correct BEFORE dhcp6c and RA processing
+# /jffs/scripts/wan-event
+set -eu
+
+# --- Merlin wan-event arguments ---
+EVENT_STAGE="${2:-}"
+
+# Only run on full WAN connect
+if [ "$EVENT_STAGE" != "connected" ] && [ -n "$EVENT_STAGE" ]; then
+    exit 0
+fi
+
+# --- IPv6 prerequisites (must run BEFORE RA/DHCPv6) ---
 echo 2 > /proc/sys/net/ipv6/conf/all/accept_ra
 echo 2 > /proc/sys/net/ipv6/conf/eth0/accept_ra
 
-# Ensure IPv6 forwarding is correct BEFORE routing engine initializes
 echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 echo 1 > /proc/sys/net/ipv6/conf/br0/forwarding
 echo 1 > /proc/sys/net/ipv6/conf/eth0/forwarding
 
-# Detect IPv6 prefix change and notify NAS (router-side)
-PREFIX_STATE="/jffs/prefix-current"
+# --- Logging & state ---
 LOG="/jffs/prefix-change.log"
+PREFIX_STATE="/jffs/prefix-current"
 
-NAS=julie@10.89.12.4
-NAS_MARKER="/var/lib/homelab/router-prefix.changed"
+NAS="julie@10.89.12.4"
 NAS_STAMP="/var/lib/homelab/router-prefix.last"
+NAS_MARKER="/var/lib/homelab/router-prefix.changed"
 
-# Extract delegated prefix (normalized)
-CUR=$(ip -6 addr show dev eth0 \
-    | awk '/scope global/ {print $2}' \
-    | cut -d/ -f1 \
-    | sed 's/:[0-9a-fA-F]\{1,4\}$/::/' \
-    | sed 's/::\+$/::/' \
-    | head -n1)
+# --- Discover WireGuard server interfaces (wgs1..wgs15) ---
+WG_IF_LIST=$(ip -o link show | awk -F': ' '$2 ~ /^wgs[0-9]+/ {print $2}')
 
-# Ignore empty or bogus prefixes
-case "$CUR" in
-    ""|*::*::*) exit 0 ;;
-esac
+# --- Extract WAN GUA (wait for convergence) ---
+RAW_GUA=""
+for i in 1 2 3 4 5; do
+    RAW_GUA=$(ip -6 addr show dev eth0 scope global \
+        | awk '/inet6/ {print $2}' | cut -d/ -f1 | head -n1)
+    [ -n "$RAW_GUA" ] && break
+    sleep 1
+done
 
-# Validate prefix is a sane hex:colon string before embedding in SSH commands
-case "$CUR" in
-    *[!0-9a-fA-F:]*) exit 0 ;;
-esac
-
-# Initialize state file if missing
-if [ ! -f "$PREFIX_STATE" ]; then
-    echo "$CUR" > "$PREFIX_STATE"
-    echo "$(date) INIT prefix=$CUR" >> "$LOG"
-
-    # Initialize NAS stamp + marker
-    ssh -p 2222 "$NAS" "echo '$CUR' > '$NAS_STAMP'; touch '$NAS_MARKER'"
+if [ -z "$RAW_GUA" ]; then
+    echo "$(date) ERROR: WAN connected but no global IPv6 on eth0" >> "$LOG"
     exit 0
 fi
 
-OLD=$(cat "$PREFIX_STATE")
+# --- Derive delegated /64 prefix (first 4 hextets) ---
+PREFIX=$(printf '%s\n' "$RAW_GUA" \
+    | sed -E 's/^((([0-9a-f]{1,4}:){3}[0-9a-f]{1,4})).*/\1::\/64/')
 
-# Compare prefixes
-if [ "$CUR" != "$OLD" ]; then
-    echo "$(date) PREFIX CHANGE old=$OLD new=$CUR" >> "$LOG"
-    echo "$CUR" > "$PREFIX_STATE"
+# Validate prefix
+case "$PREFIX" in
+    ""|*::*::*|*[!0-9a-fA-F:/]*)
+        echo "$(date) ERROR: Invalid prefix derived from $RAW_GUA" >> "$LOG"
+        exit 0
+        ;;
+esac
 
-    # Notify NAS with updated stamp + marker
-    ssh -p 2222 "$NAS" "echo '$CUR' > '$NAS_STAMP'; touch '$NAS_MARKER'"
+# --- Compute BASE_PREFIX for WG GUAs (no /64, no ::) ---
+BASE_PREFIX=$(printf '%s' "$PREFIX" | sed 's/::\/64$//')
+
+CHANGED=0
+
+# --- Update all wgsN GUAs ---
+for WG_IF in $WG_IF_LIST; do
+    IDX=$(echo "$WG_IF" | sed 's/wgs//')
+    HEX_SUFFIX=$(printf "%02x" "$IDX")
+
+    CUR="${BASE_PREFIX}${HEX_SUFFIX}::1/64"
+    STATE_FILE="${PREFIX_STATE}.${WG_IF}"
+
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "$CUR" > "$STATE_FILE"
+        CHANGED=1
+        echo "$(date) INIT ${WG_IF}=$CUR" >> "$LOG"
+        ip -6 addr add "$CUR" dev "$WG_IF" 2>/dev/null || true
+        continue
+    fi
+
+    OLD=$(cat "$STATE_FILE")
+
+    if [ "$CUR" != "$OLD" ]; then
+        echo "$(date) PREFIX CHANGE ${WG_IF} old=$OLD new=$CUR" >> "$LOG"
+        echo "$CUR" > "$STATE_FILE"
+        CHANGED=1
+
+        ip -6 addr show dev "$WG_IF" scope global \
+            | awk '/inet6/ {print $2}' \
+            | while read -r old_addr; do
+                ip -6 addr del "$old_addr" dev "$WG_IF" 2>/dev/null || true
+            done
+
+        ip -6 addr add "$CUR" dev "$WG_IF" 2>/dev/null || true
+    fi
+done
+
+# --- Send prefix to NAS + notify converge ---
+if [ "$CHANGED" -eq 1 ]; then
+    echo "$PREFIX" | ssh -p 2222 "$NAS" "cat > '$NAS_STAMP'"
+    ssh -p 2222 "$NAS" "touch '$NAS_MARKER'"
 fi

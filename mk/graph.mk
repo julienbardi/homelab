@@ -250,7 +250,7 @@ nft-apply-phase: nft-install nft-apply nft-confirm
 # Phase 2: Network Infrastructure (Parallel branches)
 .PHONY: wg-network-phase
 wg-network-phase: | nft-confirm
-wg-network-phase: converge-network router-ra-policy tailscaled-dependencies-met wg-install-router wg-up-router wg-up-nas
+wg-network-phase: converge-network router-ra-policy tailscaled-dependencies-met wg-up
 
 # Phase 3: Services (Independent of each other)
 .PHONY: service-phase

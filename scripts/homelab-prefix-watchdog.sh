@@ -1,5 +1,5 @@
 #!/bin/sh
-
+# scripts/homelab-prefix-watchdog.sh
 CURRENT=$(ip -6 addr show dev eth0 | grep "scope global" | awk '{print $2}' | cut -d/ -f1)
 ROUTER=$(ssh julie@10.89.12.1 -p 2222 "ip -6 addr show dev br0 | grep 'scope global' | awk '{print \$2}' | cut -d/ -f1")
 
