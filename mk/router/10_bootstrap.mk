@@ -184,20 +184,19 @@ router-install-%: | router-bootstrap-primitives
 	else \
 	  $(call PUSH_ROUTER_SCRIPT, $$src, $(ROUTER_SCRIPTS)/$*); \
 	fi
-#ROUTER_IFC_MODE ?= vector-v3
-ROUTER_IFC_MODE ?= vector-v3
+ROUTER_IFC_MODE ?= vector
 
 .PHONY: router-install-scripts
 router-install-scripts: install-ssh-config \
 	ensure-router-known-hosts router-scripts-invariants \
-	$(INSTALL_FILE_IF_CHANGED_V3) $(INSTALL_FILES_IF_CHANGED_V3) \
+	$(INSTALL_FILE_IF_CHANGED) $(INSTALL_FILES_IF_CHANGED) \
 	| ensure-router-ula
 	@echo "🔍 Router script converge ($(ROUTER_IFC_MODE), deterministic)"
 
 	@set -e; \
 	case "$(ROUTER_IFC_MODE)" in \
-		vector-v3) \
-			echo "➡️  Using vectorized IFC v3 (portable, zero-bootstrap)"; \
+		vector) \
+			echo "➡️  Using $(INSTALL_FILES_IF_CHANGED) (portable, zero-bootstrap)"; \
 			set --; \
 			for f in $(ROUTER_SCRIPT_FILES); do \
 			# f is already a full path (from ROUTER_SCRIPT_FILES) \
@@ -213,18 +212,18 @@ router-install-scripts: install-ssh-config \
 			done; \
 			CHANGED=0; \
 			rc=0; \
-			$(INSTALL_FILES_IF_CHANGED_V3) CHANGED "$$@" || rc=$$?; \
+			$(INSTALL_FILES_IF_CHANGED) CHANGED "$$@" || rc=$$?; \
 			if [ "$$rc" -eq 3 ]; then \
-			echo "📝 Vector v3: router scripts updated"; \
+			echo "📝 Router scripts updated ($(ROUTER_IFC_MODE), deterministic)"; \
 			elif [ "$$rc" -eq 0 ]; then \
-			echo "🟢 Vector v3: router scripts already up-to-date"; \
+			echo "🟢 Router scripts already up-to-date ($(ROUTER_IFC_MODE), deterministic)"; \
 			else \
-			echo "❌ Vector IFC v3 failed (rc=$$rc)"; \
+			echo "❌ Router scripts could not be installed (rc=$$rc) ($(ROUTER_IFC_MODE), deterministic)"; \
 			exit $$rc; \
 			fi \
 			;; \
-	  v3) \
-		echo "➡️  Using IFC v3 (portable, zero-bootstrap)"; \
+	  *) \
+		echo "➡️  Using $(INSTALL_FILE_IF_CHANGED) (portable, zero-bootstrap)"; \
 		for f in $(ROUTER_SCRIPT_FILES); do \
 		  src="$$f"; \
 		  dst="$(ROUTER_SCRIPTS)/$$(basename $$f)"; \
@@ -233,62 +232,17 @@ router-install-scripts: install-ssh-config \
 			continue; \
 		  fi; \
 		  rc=0; \
-		  $(INSTALL_FILE_IF_CHANGED_V3) \
+		  $(INSTALL_FILE_IF_CHANGED) -q \
 			"" "" "$$src" \
 			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$$dst" \
 			"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)" \
 		  || rc=$$?; \
 		  if [ "$$rc" -eq 3 ]; then \
-			echo "📝 Updated $$dst"; \
+			echo "📝 Router script updated $$dst ($(ROUTER_IFC_MODE), deterministic)"; \
 		  elif [ "$$rc" -eq 0 ]; then \
-			echo "🟢 Already up-to-date: $$dst"; \
+			echo "🟢 Router script already up-to-date: $$dst ($(ROUTER_IFC_MODE), deterministic)"; \
 		  else \
-			echo "❌ IFC v3 failed for $$f (rc=$$rc)"; \
-			exit $$rc; \
-		  fi; \
-		done \
-		;; \
-	  vector) \
-		echo "➡️  Using vectorized IFC v2"; \
-		args=""; \
-		for f in $(ROUTER_SCRIPT_FILES); do \
-		  src="$$f"; \
-		  dst="$(ROUTER_SCRIPTS)/$$(basename $$f)"; \
-		  if [ ! -f "$$src" ]; then \
-			echo "⚠️ Skipping $$f — source $$src not found"; \
-			continue; \
-		  fi; \
-		  args="$$args \"\" \"\" $$src $(ROUTER_ADDR) $(ROUTER_SSH_PORT) $$dst $(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE)"; \
-		done; \
-		rc=0; \
-		$(INSTALL_FILES_IF_CHANGED) CHANGED $$args || rc=$$?; \
-		if [ "$$rc" -eq 3 ]; then \
-		  echo "📝 Vector v2: router scripts updated"; \
-		elif [ "$$rc" -eq 0 ]; then \
-		  echo "🟢 Vector v2: router scripts already up-to-date"; \
-		else \
-		  echo "❌ Vector IFC v2 failed (rc=$$rc)"; \
-		  exit $$rc; \
-		fi \
-		;; \
-	  *) \
-		echo "➡️  Using IFC v2 (legacy)"; \
-		for f in $(ROUTER_SCRIPT_FILES); do \
-		  src="$$f"; \
-		  dst="$(ROUTER_SCRIPTS)/$$(basename $$f)"; \
-		  if [ ! -f "$$src" ]; then \
-			echo "⚠️ Skipping $$f — source $$src not found"; \
-			continue; \
-		  fi; \
-		  rc=0; \
-		  env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-			$(INSTALL_FILE_IF_CHANGED) \
-			  "" "" "$$src" \
-			  "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$$dst" \
-			  "$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)" \
-		  || rc=$$?; \
-		  if [ "$$rc" -ne 0 ] && [ "$$rc" -ne "$(INSTALL_IF_CHANGED_EXIT_CHANGED)" ]; then \
-			echo "❌ IFC v2 failed for $$f (rc=$$rc)"; \
+			echo "❌ Router scripts could not be installed $$f (rc=$$rc) ($(ROUTER_IFC_MODE), deterministic)"; \
 			exit $$rc; \
 		  fi; \
 		done \

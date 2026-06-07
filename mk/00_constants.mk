@@ -107,8 +107,6 @@ DOCS_DIR = $(INSTALL_PATH)/docs
 
 # BLUEPRINTS — always present in the Git repo
 RUN_ROOT_SRC      := $(REPO_ROOT)/scripts/run-as-root.sh
-IFC_V2_SINGLE_SRC := $(REPO_ROOT)/scripts/install_file_if_changed_v2.sh
-IFC_V2_PLURAL_SRC := $(REPO_ROOT)/scripts/install_files_if_changed_v2.sh
 # IFC v3 — portable, zero-bootstrap (blueprints only; may be used in-place or installed)
 IFC_V3_SINGLE_SRC := $(REPO_ROOT)/scripts/install_file_if_changed_v3.sh
 IFC_V3_PLURAL_SRC := $(REPO_ROOT)/scripts/install_files_if_changed_v3.sh
@@ -118,12 +116,8 @@ COMMON_SRC        := $(REPO_ROOT)/scripts/common.sh
 
 # ARTIFACTS — installed system locations
 export run_as_root                 := $(INSTALL_SBIN_PATH)/run-as-root.sh
-export INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v2.sh
-export INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v2.sh
-
-# Optional: installed v3 artifacts (kept separate from v2 for clean coexistence)
-export INSTALL_FILE_IF_CHANGED_V3  := $(INSTALL_PATH)/install_file_if_changed_v3.sh
-export INSTALL_FILES_IF_CHANGED_V3 := $(INSTALL_PATH)/install_files_if_changed_v3.sh
+export INSTALL_FILE_IF_CHANGED     := $(INSTALL_PATH)/install_file_if_changed_v3.sh
+export INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v3.sh
 
 export INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_changed.sh
 
