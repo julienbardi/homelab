@@ -173,8 +173,8 @@ ensure-router-known-hosts: install-ssh-config
 # SCRIPT DEPLOYMENT ONLY
 # ------------------------------------------------------------
 
-#ROUTER_SCRIPT_FILES := $(shell ls router/jffs/scripts | sort -u)
-ROUTER_SCRIPT_FILES := $(wildcard $(REPO_ROOT)/router/jffs/scripts/*.sh)
+#ROUTER_SCRIPT_FILES := $(shell ls $(REPO_ROOT)/router/jffs/scripts/ | sort -u)
+ROUTER_SCRIPT_FILES := $(wildcard $(REPO_ROOT)/router/jffs/scripts/* | sort -u)
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-primitives
@@ -185,7 +185,7 @@ router-install-%: | router-bootstrap-primitives
 	  $(call PUSH_ROUTER_SCRIPT, $$src, $(ROUTER_SCRIPTS)/$*); \
 	fi
 #ROUTER_IFC_MODE ?= vector-v3
-ROUTER_IFC_MODE ?= v3
+ROUTER_IFC_MODE ?= vector-v3
 
 .PHONY: router-install-scripts
 router-install-scripts: install-ssh-config \
@@ -196,7 +196,7 @@ router-install-scripts: install-ssh-config \
 
 	@set -e; \
 	case "$(ROUTER_IFC_MODE)" in \
-	    vector-v3) \
+		vector-v3) \
 			echo "➡️  Using vectorized IFC v3 (portable, zero-bootstrap)"; \
 			set --; \
 			for f in $(ROUTER_SCRIPT_FILES); do \
@@ -297,16 +297,23 @@ router-install-scripts: install-ssh-config \
 
 	@echo "🟢 All router scripts processed"
 
-
-
 .PHONY: router-scripts-invariants
 router-scripts-invariants: | router-ssh-check
-	@echo "🛡️ Enforcing /jffs/scripts ownership + permissions invariants"
+	@echo "🛡️ Enforcing /jffs/scripts invariants + WAN bootstrap if IPv4 route missing"
 
 	@ssh $(SSH_HOST_ROUTER) '\
 		set -e; \
+		\
+		# --- WAN bootstrap: ensure IPv4 default route exists --- \
+		if ! ip route show default | grep -q "dev eth0"; then \
+			echo "⚠️  No IPv4 default route — triggering wan-event bootstrap"; \
+			sh /jffs/scripts/wan-event 0 connected; \
+		else \
+			echo "🟢 IPv4 default route already present"; \
+		fi; \
+		\
+		# --- Script ownership + permissions invariants --- \
 		if [ -d /jffs/scripts ]; then \
-			# Ownership invariant \
 			/jffs/scripts/run-as-root chown -R julie:root /jffs/scripts; \
 			\
 			# Hook scripts (executed by AsusWRT) → 755 \
@@ -330,8 +337,11 @@ router-scripts-invariants: | router-ssh-check
 				fi; \
 			done; \
 		fi; \
+		\
 		echo "🟢 /jffs/scripts invariants enforced"; \
 	'
+
+
 
 
 print-ROUTER_SCRIPT_FILES:

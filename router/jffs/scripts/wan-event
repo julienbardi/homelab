@@ -18,6 +18,14 @@ echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 echo 1 > /proc/sys/net/ipv6/conf/br0/forwarding
 echo 1 > /proc/sys/net/ipv6/conf/eth0/forwarding
 
+# --- Ensure IPv4 default route exists (self-healing) ---
+if ! ip route show default | grep -q ' dev eth0'; then
+    GW="$(nvram get wan0_gateway || true)"
+    if [ -n "$GW" ]; then
+        ip route replace default via "$GW" dev eth0 || true
+    fi
+fi
+
 # --- Logging & state ---
 LOG="/jffs/prefix-change.log"
 PREFIX_STATE="/jffs/prefix-current"

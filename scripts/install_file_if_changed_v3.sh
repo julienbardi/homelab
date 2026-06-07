@@ -92,7 +92,6 @@ else
 fi
 
 BUF_HASH=$(sha256sum "$BUFFER" | awk '{print $1}')
-echo "IFCv3[debug]: SRC_HASH=$SRC_HASH BUF_HASH=$BUF_HASH" >&2
 if [ "$BUF_HASH" != "$SRC_HASH" ]; then
     echo "❌ IFCv3: buffer corruption detected" >&2
     rm -f "$BUFFER"

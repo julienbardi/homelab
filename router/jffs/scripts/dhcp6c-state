@@ -1,5 +1,36 @@
 #!/bin/sh
 # dhcp6c-state
+# IMPORTANT — DO NOT CHANGE:
+# Never call `service restart_dnsmasq` from dhcp6c-state.
+#
+# On AsusWRT-Merlin, a full dnsmasq restart is NOT atomic and races with:
+#   - WAN bring-up (udhcpc)
+#   - IPv6 prefix assignment (dhcp6c)
+#   - dnsmasq-ready.sh probes
+#   - dns-watchdog (process count + port binding checks)
+#   - ipv6-watchdog (WAN reset escalation)
+#
+# This race condition reliably spawns *two* dnsmasq processes:
+#   - one owned by 'nobody' (Merlin)
+#   - one owned by 'julie' (spawned during the race)
+#
+# Duplicate dnsmasq breaks:
+#   - JFFS config include loading
+#   - DHCPv4/v6 service
+#   - RA announcements
+#   - NAT and default route installation
+#
+# The end result is catastrophic:
+#   - WAN resets loop or get skipped
+#   - IPv4 default route disappears
+#   - IPv6 prefix never stabilizes
+#   - Router + NAS lose internet
+#   - Converge time explodes (10s → 60s)
+#
+# SIGHUP (`killall -HUP dnsmasq`) is the ONLY safe way to reload
+# dnsmasq after updating the IPv6 prefix. It reloads in-place,
+# preserves the process, and avoids all race conditions.
+
 IF="br0"
 
 PREFIX="$(nvram get ipv6_prefix)"
@@ -11,7 +42,7 @@ ip -6 addr flush dev "$IF" scope global
 # If no prefix, leave br0 with only link-local
 if [ -z "$PREFIX" ] || [ -z "$PLEN" ]; then
     logger -t ipv6-lan "No IPv6 prefix in nvram, skipping GUA config on $IF"
-    service restart_dnsmasq
+    killall -HUP dnsmasq
     exit 0
 fi
 
@@ -28,4 +59,4 @@ logger -t ipv6-lan "Configuring $IF with ${LAN_ADDR}/${PLEN}"
 ip -6 addr add "${LAN_ADDR}/${PLEN}" dev "$IF"
 
 # Restart dnsmasq so RA/DHCPv6 see the new prefix
-service restart_dnsmasq
+killall -HUP dnsmasq
