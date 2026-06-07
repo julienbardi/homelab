@@ -227,7 +227,8 @@ EOF
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}/128
 DNS = ${LAN_NAS}, ${LAN6_NAS}, ${LAN_ROUTER}
-$( [[ "$os" == "windows" ]] && echo "Table = auto" )
+$( [[ "$os" == "windows" && "${IF_HOST[$iface]}" == "router" ]] && echo "Table = auto" )
+$( [[ "$os" == "windows" && "${IF_HOST[$iface]}" == "nas" ]] && echo "Table = off" )
 
 [Peer]
 PublicKey = $(<"$KEY_DIR/servers/$iface.pub")
