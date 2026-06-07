@@ -206,13 +206,14 @@ check-dnsdist-doh-local: ensure-run-as-root
 			--http2 \
 			--cacert "$(DOH_TLS_CA)" \
 			-H 'accept: application/dns-message' \
-			"https://$(DOH_HOST):$(DOH_PORT)/dns-query?dns=AAABAAEAAAAAAA=="; then \
+			"https://$(DOH_HOST):$(DOH_PORT)/dns-query?dns=AAABAAABAAAAAAAAB2V4YW1wbGUDY29tAAABAAE"; then \
 			echo "✅ DoH endpoint reachable (curl fallback)"; \
 		else \
 			echo "❌ DoH endpoint unreachable (curl fallback)"; \
 			exit 1; \
 		fi; \
 	fi
+
 
 # --------------------------------------------------------------------
 # Orchestration umbrella
