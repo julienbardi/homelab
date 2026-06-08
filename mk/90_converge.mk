@@ -6,6 +6,13 @@
 # - Safe by default: no live mutation without FORCE=1
 # - Intended for steady-state convergence, not first-time setup
 
+# --- Canonical router SSH (authoritative, non‑drifting) ---
+: "${SSH_USER_ROUTER:?SSH_USER_ROUTER required}"
+: "${ROUTER_ADDR:?ROUTER_ADDR required}"
+: "${ROUTER_SSH_PORT:=2222}"
+: "${SSH_OPTS:=-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes}"
+: "${ROUTER_IDENTITY:=$HOME/.ssh/id_ed25519}"
+
 .NOTPARALLEL: dns enable-unbound deploy-unbound-config deploy-unbound-local-internal \
 			  deploy-unbound-service \
 			  dns-runtime \
@@ -26,7 +33,11 @@ SNAPSHOT_NETWORK  := $(INSTALL_PATH)/snapshot-network.sh
 STAMP_PREFIX := $(STAMP_DIR)/router-prefix.last
 
 router-prefix-current:
-	@$(run_as_root) ssh $(ROUTER) "ip -6 addr show dev eth0 | awk '/scope global/ {print \$2}' | cut -d/ -f1 | sed 's/:[0-9a-fA-F]\{1,4\}\$$/::/' | sed 's/::\+$$/::/'" > $@
+	@$(run_as_root) sh -c 'ssh ${SSH_OPTS} -i "${ROUTER_IDENTITY}" -p "${ROUTER_SSH_PORT}" "${SSH_USER_ROUTER}@${ROUTER_ADDR}" ip -6 addr show dev eth0 \
+	| awk "/scope global/ {print \$$2}" \
+	| cut -d/ -f1 \
+	| sed "s/:[0-9a-fA-F]\\{1,4\\}\$$/::/" \
+	| sed "s/::\\+\$$/::/" > $@'
 
 .PHONY: prefix-bootstrap
 prefix-bootstrap: router-prefix-current
@@ -62,11 +73,6 @@ converge-network: check-forwarding \
 				  ensure-default-route \
 				  wg-stack
 	@echo "✅ Network convergence complete"
-
-converge-audit:
-	@echo "🔍 Convergence plan (dry-run)"
-	@echo "   (audit disabled: sub-make is forbidden)"
-	@echo "   Use: make -n converge-network | sed -n '1,200p'"
 
 # ------------------------------------------------------------
 # System-wide homelab state directory (root:admin, admin-writable)
