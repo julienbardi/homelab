@@ -30,29 +30,29 @@
 
 SNAPSHOT_NETWORK  := $(INSTALL_PATH)/snapshot-network.sh
 
+ROUTER_PREFIX_CURRENT := /run/homelab/router-prefix.current
 STAMP_PREFIX := $(STAMP_DIR)/router-prefix.last
 
 router-prefix-current:
+	@$(run_as_root) sh -c 'mkdir -p /run/homelab'
 	@$(run_as_root) sh -c 'ssh ${SSH_OPTS} -i "${ROUTER_IDENTITY}" -p "${ROUTER_SSH_PORT}" "${SSH_USER_ROUTER}@${ROUTER_ADDR}" ip -6 addr show dev eth0 \
 	| awk "/scope global/ {print \$$2}" \
 	| cut -d/ -f1 \
 	| sed "s/:[0-9a-fA-F]\\{1,4\\}\$$/::/" \
-	| sed "s/::\\+\$$/::/" > $@'
+	| sed "s/::\\+\$$/::/" > "$(ROUTER_PREFIX_CURRENT)"'
 
 .PHONY: prefix-bootstrap
 prefix-bootstrap: router-prefix-current
 	@if [ ! -f "$(STAMP_PREFIX)" ]; then \
-		echo "📌 Prefix bootstrap: no NAS stamp found"; \
-		$(run_as_root) cp router-prefix-current "$(STAMP_PREFIX)"; \
+		echo "📌 Prefix bootstrap: no stamp found"; \
+		$(run_as_root) cp "$(ROUTER_PREFIX_CURRENT)" "$(STAMP_PREFIX)"; \
 		$(run_as_root) touch "$(ROUTER_PREFIX_MARKER)"; \
-		echo "📌 Prefix bootstrap: marker created"; \
-	elif ! $(run_as_root) diff -q router-prefix-current "$(STAMP_PREFIX)" >/dev/null; then \
-		echo "📌 Prefix bootstrap: NAS prefix out of sync"; \
-		$(run_as_root) cp router-prefix-current "$(STAMP_PREFIX)"; \
+	elif ! $(run_as_root) diff -q "$(ROUTER_PREFIX_CURRENT)" "$(STAMP_PREFIX)" >/dev/null; then \
+		echo "📌 Prefix changed — updating stamp"; \
+		$(run_as_root) cp "$(ROUTER_PREFIX_CURRENT)" "$(STAMP_PREFIX)"; \
 		$(run_as_root) touch "$(ROUTER_PREFIX_MARKER)"; \
-		echo "📌 Prefix bootstrap: marker created"; \
 	else \
-		echo "📌 Prefix bootstrap: already converged"; \
+		echo "📌 Prefix already converged"; \
 	fi
 
 # ------------------------------------------------------------
@@ -92,7 +92,6 @@ converge-router-prefix: $(SYSTEM_STATE_DIR) router-converge $(ROUTER_PREFIX_MARK
 	@echo "🌐 Router prefix changed — router DAG converged"
 	@rm -f $(ROUTER_PREFIX_MARKER)
 	@echo "🧹 Marker consumed"
-
 
 # ------------------------------------------------------------
 # WireGuard convergence DAG
