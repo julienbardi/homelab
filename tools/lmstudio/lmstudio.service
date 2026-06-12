@@ -1,0 +1,8 @@
+[Unit]
+Description=LM Studio Service
+
+[Service]
+ExecStart=/usr/bin/lmstudio
+
+[Install]
+WantedBy=default.target

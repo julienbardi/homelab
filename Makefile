@@ -13,6 +13,12 @@
 REPO_ROOT := $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
 export REPO_ROOT
 
+# Detect LM Studio targets
+LMSTUDIO_GOALS := $(filter lmstudio% homelab-lmstudio homelab-all-lmstudio,$(MAKECMDGOALS))
+
+# Detect debug targets
+DEBUG_GOALS := $(filter debug-vars debug-targets,$(MAKECMDGOALS))
+
 # Canonical entrypoint wrapper
 # This file exists ONLY to forward to the real graph.
 
@@ -29,7 +35,10 @@ export SECRETS_FILE
 # Load non-secret config
 include $(REPO_ROOT)/mk/config.mk
 
+# Load full homelab DAG only when NOT running LM Studio or debug targets
+ifeq ($(LMSTUDIO_GOALS)$(DEBUG_GOALS),)
 include $(REPO_ROOT)/mk/graph.mk
+endif
 
 # Global Makefile invariants
 .PHONY: sanity
@@ -50,3 +59,15 @@ debug-vars:
 debug-targets:
 	@$(MAKE) -pRrq : 2>/dev/null | \
 	awk '/^[a-zA-Z0-9][^$$#\/\t=]*:([^=]|$$)/ {print $$1}' | sort -u
+
+# Load LM Studio subsystem only when explicitly requested
+ifneq ($(LMSTUDIO_GOALS),)
+include $(REPO_ROOT)/mk/contracts/wsl2.mk
+include $(REPO_ROOT)/mk/targets/lmstudio.mk
+include $(REPO_ROOT)/mk/targets/lmstudio-service.mk
+include $(REPO_ROOT)/mk/targets/lmstudio-all.mk
+include $(REPO_ROOT)/mk/targets/lmstudio-uninstall.mk
+include $(REPO_ROOT)/mk/targets/homelab-lmstudio.mk
+include $(REPO_ROOT)/mk/targets/homelab-all-lmstudio.mk
+include $(REPO_ROOT)/mk/targets/homelab-all-extend.mk
+endif
