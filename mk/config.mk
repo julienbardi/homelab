@@ -45,26 +45,17 @@ INSTALL_SBIN_PATH := /usr/local/sbin
 
 # Network - General
 export PUBLIC_DNS := 1.1.1.1
-LAN_IFACE  := eth0
 
 # ------------------------------------------------------------
-# Topology constants (raw inputs — NEVER exported)
+# Public constants (Make-visible, safe for recipes)
 # ------------------------------------------------------------
-router_addr      := 10.89.12.1
-router_ssh_port  := 2222
 
-# Ensure these lowercase variables NEVER leak into the environment
-unexport router_addr
-unexport router_ssh_port
-
-# ------------------------------------------------------------
-# Exported, Make-safe constants (uppercase — ALWAYS exported)
-# ------------------------------------------------------------
-export ROUTER_ADDR      := $(router_addr)
-export ROUTER_SSH_PORT  := $(router_ssh_port)
-
-export ULA_PREFIX_NVRAM := fd89:7a3b:42c0::/48
-export ROUTER_ULA_IP6   := fd89:7a3b:42c0::1
+# Router constants
+export ROUTER_ADDR        := 10.89.12.1
+export ROUTER_SSH_PORT    := 2222
+export ROUTER_ULA_FILE    := /etc/homelab/router-ula
+export ROUTER_ULA_VALUE   := fd89:7a3b:42c0::1
+ROUTER_LAN_IFACE          := eth0
 
 # Certificates & Identity
 DOMAIN               := bardi.ch

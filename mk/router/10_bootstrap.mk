@@ -56,7 +56,7 @@ ensure-default-gateway: secrets-ready
 	@$(call WITH_SECRETS, sh -c '\
 		if ! ip route show default | grep -q "$$ROUTER_ADDR"; then \
 			echo "⚠️ Default gateway missing! Restoring path to $$ROUTER_ADDR..."; \
-			$(run_as_root) ip route add default via "$$ROUTER_ADDR" dev $(LAN_IFACE) 2>/dev/null || true; \
+			$(run_as_root) ip route add default via "$$ROUTER_ADDR" dev $(ROUTER_LAN_IFACE) 2>/dev/null || true; \
 			echo "✅ Default gateway restored"; \
 		else \
 			echo "🟢 Default gateway OK"; \
@@ -69,10 +69,13 @@ router-ensure-scripts-dir:
 
 .PHONY: router-bootstrap-primitives
 router-bootstrap-primitives: secrets-ready ensure-default-gateway
-	@echo "🛡️ Bootstrapping router primitives (run-as-root + install-cert.sh + reset-router.sh)"
+	@echo "🛡️ Bootstrapping router primitives"
 
+	# Ensure necessary directories exist for $(INSTALL_FILE_IF_CHANGED)
+	@ssh $(SSH_HOST_ROUTER) "mkdir -p /jffs/scripts /etc/homelab"
+	\
 	# Step 1: local hashes
-	@LOCAL_HASH_RUN_AS_ROOT="$$(sha256sum "$(REPO_ROOT)/router/jffs/scripts/run-as-root.sh" | awk '{print $$1}')" ; \
+	LOCAL_HASH_RUN_AS_ROOT="$$(sha256sum "$(REPO_ROOT)/router/jffs/scripts/run-as-root.sh" | awk '{print $$1}')" ; \
 	LOCAL_HASH_INSTALL_CERT="$$(sha256sum "$(REPO_ROOT)/router/jffs/scripts/install-cert.sh" | awk '{print $$1}')" ; \
 	LOCAL_HASH_RESET_ROUTER="$$(sha256sum "$(REPO_ROOT)/router/jffs/scripts/reset-router.sh" | awk '{print $$1}')" ; \
 	\
@@ -140,21 +143,13 @@ router-bootstrap-primitives: secrets-ready ensure-default-gateway
 		echo "✅ Router primitives installed"; \
 	fi
 
-ROUTER_ULA_FILE := /etc/homelab/router-ula
-ROUTER_ULA_VALUE := fd89:7a3b:42c0::1
-
-.PHONY: ensure-router-homelab-dir
-ensure-router-homelab-dir: ensure-default-gateway
-	ssh router "mkdir -p /etc/homelab"
-
 .PHONY: ensure-router-ula
-ensure-router-ula: secrets-ready router-bootstrap-primitives ensure-router-homelab-dir | $(INSTALL_FILES_IF_CHANGED)
+ensure-router-ula: secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)
 	@echo "🧩 Ensuring router ULA ($(ROUTER_ULA_VALUE))"
 
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_ULA)", \
 		$(call WITH_SECRETS, sh -c '\
 			TMPFILE="$(TMP_ROUTER_ULA)"; \
-			echo "DEBUG: ROUTER_ADDR=[$$ROUTER_ADDR]" >&2; \
 			printf "%s\n" "$(ROUTER_ULA_VALUE)" > "$$TMPFILE"; \
 			\
 			env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
