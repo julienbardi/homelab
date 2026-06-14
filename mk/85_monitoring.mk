@@ -54,7 +54,7 @@ prometheus: \
 # --------------------------------------------------------------------
 # Installation (Gated by binary existence to bypass apt completely)
 # --------------------------------------------------------------------
-prometheus-install: ensure-run-as-root | ensure-default-gateway
+prometheus-install: ensure-run-as-root | ensure-host-default-route
 	@if ! command -v prometheus >/dev/null 2>&1; then \
 		echo "📦 Installing Prometheus via package toolchain..."; \
 		$(call apt_update_if_needed); \

@@ -151,7 +151,7 @@ TS_REPO_LIST    := /etc/apt/sources.list.d/tailscale.list
 
 .PHONY: tailscale-repo install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale verify-pkg-tailscale
 
-tailscale-repo: | ensure-run-as-root ensure-default-gateway
+tailscale-repo: | ensure-run-as-root ensure-host-default-route
 	@echo "📦 Adding Tailscale apt repository (Debian $(DEBIAN_CODENAME))"
 	@$(run_as_root) install -d -m 0755 /usr/share/keyrings
 	@curl -fsSL https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg \
@@ -161,13 +161,13 @@ tailscale-repo: | ensure-run-as-root ensure-default-gateway
 	@$(call apt_update_if_needed)
 	@echo "✅ Tailscale repository configured"
 
-install-pkg-tailscale: tailscale-repo verify-pkg-tailscale | ensure-run-as-root ensure-default-gateway
+install-pkg-tailscale: tailscale-repo verify-pkg-tailscale | ensure-run-as-root ensure-host-default-route
 	@echo "📦 Installing Tailscale (client + daemon)"
 	@$(call apt_install_group,tailscale)
 	@$(call ensure_service_enabled,tailscaled,tailscaled)
 	@echo "✅ Tailscale installed and running"
 
-upgrade-pkg-tailscale: tailscale-repo verify-pkg-tailscale | ensure-run-as-root ensure-default-gateway
+upgrade-pkg-tailscale: tailscale-repo verify-pkg-tailscale | ensure-run-as-root ensure-host-default-route
 	@echo "⬆️ Upgrading Tailscale to latest stable"
 	@$(call apt_update_if_needed)
 	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y tailscale
@@ -187,7 +187,7 @@ remove-pkg-tailscale: | ensure-run-as-root
 		echo "✅ Tailscale removed"; \
 	fi
 
-verify-pkg-tailscale: | ensure-run-as-root ensure-default-gateway
+verify-pkg-tailscale: | ensure-run-as-root ensure-host-default-route
 	@echo "🔍 Verifying Tailscale installation"
 	@bash -c 'set -e; \
 	CLI_VER=$$(tailscale version | head -n1); \
@@ -205,7 +205,7 @@ verify-pkg-tailscale: | ensure-run-as-root ensure-default-gateway
 
 GO_TARBALL := $(STAMP_DIR)/go$(GO_MODERN_VERSION).linux-$(GO_ARCH).tar.gz
 
-install-pkg-go: | ensure-run-as-root ensure-default-gateway ensure-stamp-dir
+install-pkg-go: | ensure-run-as-root ensure-host-default-route ensure-stamp-dir
 	@set -e; \
 	if dpkg -s golang-go >/dev/null 2>&1 || dpkg -s golang-1.19-go >/dev/null 2>&1; then \
 		echo "🗑️ Removing legacy apt Go version..."; \
@@ -232,7 +232,7 @@ remove-pkg-go: | ensure-run-as-root
 # ------------------------------------------------------------
 # vnstat
 # ------------------------------------------------------------
-install-pkg-vnstat: prereqs | ensure-run-as-root ensure-default-gateway
+install-pkg-vnstat: prereqs | ensure-run-as-root ensure-host-default-route
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ vnstat already ensured by core apt group"; \
 	fi
@@ -249,7 +249,7 @@ remove-pkg-vnstat:
 # ------------------------------------------------------------
 # nftables
 # ------------------------------------------------------------
-install-pkg-nftables: prereqs | ensure-run-as-root ensure-default-gateway
+install-pkg-nftables: prereqs | ensure-run-as-root ensure-host-default-route
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ nftables already ensured by core apt group"; \
 	fi
@@ -261,7 +261,7 @@ remove-pkg-nftables:
 # ------------------------------------------------------------
 # WireGuard
 # ------------------------------------------------------------
-install-pkg-wireguard: prereqs | ensure-run-as-root ensure-default-gateway
+install-pkg-wireguard: prereqs | ensure-run-as-root ensure-host-default-route
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ WireGuard already ensured by core apt group"; \
 	fi
@@ -272,7 +272,7 @@ remove-pkg-wireguard:
 # ------------------------------------------------------------
 # Caddy
 # ------------------------------------------------------------
-install-pkg-caddy: prereqs | ensure-run-as-root ensure-default-gateway
+install-pkg-caddy: prereqs | ensure-run-as-root ensure-host-default-route
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ Caddy already ensured by core apt group"; \
 	fi
@@ -288,7 +288,7 @@ AGE_BIN        := /usr/local/bin/age
 AGE_KEYGEN_BIN := /usr/local/bin/age-keygen
 AGE_VERSION    := v1.2.1
 
-install-pkg-age: install-pkg-go | ensure-default-gateway ensure-stamp-dir
+install-pkg-age: install-pkg-go | ensure-host-default-route ensure-stamp-dir
 	@if [ -x "$(AGE_BIN)" ] && $(AGE_BIN) --version 2>&1 | grep -q "$(AGE_VERSION)"; then \
 		echo "✅ age $(AGE_VERSION) already installed at $(AGE_BIN)"; \
 	else \
@@ -307,7 +307,7 @@ SOPS_VERSION := v3.9.4
 
 .PHONY: install-pkg-sops remove-pkg-sops
 
-install-pkg-sops: install-pkg-go | ensure-default-gateway ensure-stamp-dir
+install-pkg-sops: install-pkg-go | ensure-host-default-route ensure-stamp-dir
 	@if command -v sops >/dev/null 2>&1; then \
 		echo "✅ SOPS already installed: $$(sops --version | head -n1)"; \
 	else \
@@ -322,7 +322,7 @@ remove-pkg-sops:
 # ------------------------------------------------------------
 # Rclone (The Swiss Army Knife for Cloud Storage)
 # ------------------------------------------------------------
-install-pkg-rclone: prereqs | ensure-run-as-root ensure-default-gateway
+install-pkg-rclone: prereqs | ensure-run-as-root ensure-host-default-route
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ rclone already ensured by core apt group"; \
 	fi
@@ -339,7 +339,7 @@ KOPIA_URL := https://github.com/kopia/kopia/releases/download/v$(KOPIA_VERSION)/
 KOPIA_STAMP := $(STAMP_DIR)/kopia.installed
 
 .PHONY: install-pkg-kopia
-install-pkg-kopia: ensure-run-as-root ensure-default-gateway ensure-stamp-dir install-all
+install-pkg-kopia: ensure-run-as-root ensure-host-default-route ensure-stamp-dir install-all
 	@echo "📦 Ensuring Kopia $(KOPIA_VERSION)"
 	@$(run_as_root) $(INSTALL_PATH)/install_github_asset.sh \
 		"$(KOPIA_URL)" \
@@ -373,7 +373,7 @@ STAMP_CHECKMAKE   := $(STAMP_DIR)/checkmake.installed
 ensure-git-detachedhead-silenced:
 	@git config --global advice.detachedHead false || true
 
-install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go ensure-git-detachedhead-silenced | ensure-default-gateway ensure-stamp-dir
+install-pkg-checkmake: ensure-run-as-root install-pkg-pandoc install-pkg-go ensure-git-detachedhead-silenced | ensure-host-default-route ensure-stamp-dir
 	@echo "📦 Checking checkmake (v$(CHECKMAKE_VERSION))"
 
 	# Fast path: skip everything if already installed
@@ -416,7 +416,7 @@ remove-pkg-checkmake: | ensure-run-as-root
 # ------------------------------------------------------------
 # strace
 # ------------------------------------------------------------
-install-pkg-strace: prereqs | ensure-run-as-root ensure-default-gateway
+install-pkg-strace: prereqs | ensure-run-as-root ensure-host-default-route
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "ℹ️ strace already ensured by core apt group"; \
 	fi
@@ -429,7 +429,7 @@ remove-pkg-strace:
 # ------------------------------------------------------------
 HEADSCALE_VERSION ?= v0.27.1
 
-headscale-build: install-pkg-go | ensure-default-gateway ensure-stamp-dir
+headscale-build: install-pkg-go | ensure-host-default-route ensure-stamp-dir
 	@if command -v headscale >/dev/null 2>&1; then \
 		CURRENT_VER=$$(headscale version | awk '{print $$3}'); \
 		if [ "$$CURRENT_VER" = "$(HEADSCALE_VERSION)" ]; then \
@@ -454,7 +454,7 @@ STAMP_PANDOC := $(STAMP_DIR)/pandoc.installed
 
 .SILENT: install-pkg-pandoc
 .PHONY: install-pkg-pandoc
-install-pkg-pandoc: ensure-run-as-root ensure-default-gateway ensure-stamp-dir install-all
+install-pkg-pandoc: ensure-run-as-root ensure-host-default-route ensure-stamp-dir install-all
 	@echo "📦 Ensuring Pandoc $(PANDOC_VERSION)"
 	@$(run_as_root) $(INSTALL_PATH)/install_github_asset.sh \
 		"$(PANDOC_DEB_URL)" \
@@ -462,7 +462,7 @@ install-pkg-pandoc: ensure-run-as-root ensure-default-gateway ensure-stamp-dir i
 		"$(PANDOC_SHA256)" \
 		"$(STAMP_PANDOC)"
 
-upgrade-pkg-pandoc: $(STAMP_PANDOC) | ensure-run-as-root ensure-default-gateway
+upgrade-pkg-pandoc: $(STAMP_PANDOC) | ensure-run-as-root ensure-host-default-route
 	@echo "⬆️ Upgrading pandoc..."
 	@$(call apt_update_if_needed)
 	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true

@@ -51,8 +51,8 @@ endef
 # PHASE 0: INFRASTRUCTURE & BOOTSTRAP
 # ------------------------------------------------------------
 
-.PHONY: ensure-default-gateway
-ensure-default-gateway: secrets-ready
+.PHONY: ensure-host-default-route
+ensure-host-default-route: secrets-ready
 	@$(call WITH_SECRETS, sh -c '\
 		if ! ip route show default | grep -q "$$ROUTER_ADDR"; then \
 			echo "⚠️ Default gateway missing! Restoring path to $$ROUTER_ADDR..."; \
@@ -68,7 +68,7 @@ router-ensure-scripts-dir:
 	@true
 
 .PHONY: router-bootstrap-primitives
-router-bootstrap-primitives: secrets-ready ensure-default-gateway
+router-bootstrap-primitives: secrets-ready ensure-host-default-route
 	@echo "🛡️ Bootstrapping router primitives"
 
 	# Ensure necessary directories exist for $(INSTALL_FILE_IF_CHANGED)

@@ -345,7 +345,7 @@ ROUTER_DNSMASQ_CONF := /jffs/configs/dnsmasq.conf.add
 LOCAL_DNSMASQ_CONF  := $(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add
 
 .PHONY: router-dnsmasq-conf
-router-dnsmasq-conf: secrets-ready ensure-default-gateway router-bootstrap-primitives ensure-router-ula router-lan-domain router-ra-policy
+router-dnsmasq-conf: secrets-ready ensure-host-default-route router-bootstrap-primitives ensure-router-ula router-lan-domain router-ra-policy
 	@echo "🔧 Installing dnsmasq.conf.add (no restart)"
 	@set -e; \
 	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \

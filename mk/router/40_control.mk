@@ -69,7 +69,7 @@ router-prepare: router-ready router-require-run-as-root router-certs-prepare
 router-bootstrap: export ROUTER_BOOTSTRAP=1
 router-bootstrap: \
 	router-install-scripts \
-	ensure-default-gateway \
+	ensure-host-default-route \
 	ensure-router-ula \
 	router-provision-nvram \
 	router-dhcp-range-ensure \

@@ -46,7 +46,7 @@ else
 		echo "ℹ️  ethtool not required for ROLE=$(ROLE)"
 endif
 
-prereqs-public-dns-verify: | ensure-default-gateway
+prereqs-public-dns-verify: | ensure-host-default-route
 	@$(call WITH_SECRETS, sh -c '\
 		echo "🔍 Verifying public DNS CNAME for apt.bardi.ch"; \
 		out=$$(dig +short @$$PUBLIC_DNS apt.bardi.ch CNAME 2>&1); \
@@ -76,7 +76,7 @@ prereqs-public-dns-verify: | ensure-default-gateway
 		echo "✅ Public DNS CNAME is correct"; \
 	')
 
-prereqs-tailscale-repo-verify: | ensure-default-gateway
+prereqs-tailscale-repo-verify: | ensure-host-default-route
 	@echo "🔍 Verifying Tailscale repo hygiene"
 	@if [ -f $(TAILSCALE_REPO_FILE) ]; then \
 		bad=$$(grep -Rl "pkgs.tailscale.com" /etc/apt/sources.list.d \
@@ -101,7 +101,7 @@ $(INSTALL_SBIN_PATH)/apt-proxy-auto.sh: $(REPO_ROOT)/scripts/apt-proxy-auto.sh |
 
 # 1. Granular network-bound prerequisites
 .PHONY: prereqs-network-deps
-prereqs-network-deps: ensure-default-gateway ensure-bootstrap-dns prereqs-tailscale-repo-verify prereqs-dns-warm
+prereqs-network-deps: ensure-host-default-route ensure-bootstrap-dns prereqs-tailscale-repo-verify prereqs-dns-warm
 
 # 2. Granular system-bound prerequisites
 .PHONY: prereqs-system-deps
@@ -149,7 +149,7 @@ prereqs: \
 # Network & Infrastructure Mutators
 # ------------------------------------------------------------
 
-prereqs-network: ensure-run-as-root prereqs-network-verify prereqs | ensure-default-gateway
+prereqs-network: ensure-run-as-root prereqs-network-verify prereqs | ensure-host-default-route
 	@echo "📦 Networking prerequisites already ensured"
 
 fix-tailscale-repo: ensure-run-as-root
@@ -250,7 +250,7 @@ prereqs-python-venv-verify:
 
 PYTHON_MIN ?= 3.11.2
 
-prereqs-python-venv: ensure-run-as-root | ensure-default-gateway
+prereqs-python-venv: ensure-run-as-root | ensure-host-default-route
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "📍 Ensuring python3-venv is installed (need >= $(PYTHON_MIN))"; fi
 	@python3 -c 'import sys,importlib,pkgutil; min_ver=tuple(int(p) for p in "$(PYTHON_MIN)".split(".")); ver=tuple(sys.version_info[:len(min_ver)]); has_venv=(hasattr(importlib,"util") and importlib.util.find_spec("venv") is not None) or (pkgutil.find_loader("venv") is not None); sys.exit(0 if ver>=min_ver and has_venv else 1)' >/dev/null 2>&1 || { \
 	$(call apt_update_if_needed); \

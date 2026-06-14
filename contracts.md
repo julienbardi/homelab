@@ -2439,7 +2439,7 @@ Any commit violating these contracts must be rejected.
                                                     │
                                                     ▼
                                      ┌──────────────────────────────┐
-                                     │ ensure-default-gateway       │
+                                     │ ensure-host-default-route       │
                                      └──────────────┬───────────────┘
                                                     │
                                                     ▼
@@ -2477,7 +2477,7 @@ Node: secrets-ready
 - Primary Contract Responsibility: Ensure SOPS + ephemeral decrypt pipeline is active
 - Exit Code Semantics: 0 success, non‑zero failure
 
-Node: ensure-default-gateway
+Node: ensure-host-default-route
 - Convergence Strategy: Sequential
 - Drift Detection Scope: Local
 - Primary Contract Responsibility: Guarantee router reachability before SSH converge
