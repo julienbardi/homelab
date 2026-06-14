@@ -143,24 +143,26 @@ router-bootstrap-primitives: secrets-ready ensure-default-gateway
 ROUTER_ULA_FILE := /etc/homelab/router-ula
 ROUTER_ULA_VALUE := fd89:7a3b:42c0::1
 
-.tmp/router-ula:
-	@mkdir -p .tmp
-	@printf "%s\n" "$(ROUTER_ULA_VALUE)" > .tmp/router-ula
+.PHONY: ensure-router-homelab-dir
+ensure-router-homelab-dir: ensure-default-gateway
+	ssh router "mkdir -p /etc/homelab"
 
 .PHONY: ensure-router-ula
-ensure-router-ula: secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)
+ensure-router-ula: secrets-ready router-bootstrap-primitives ensure-router-homelab-dir | $(INSTALL_FILES_IF_CHANGED)
 	@echo "🧩 Ensuring router ULA ($(ROUTER_ULA_VALUE))"
 
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_ULA)", \
-		TMPFILE="$(TMP_ROUTER_ULA)"; \
-		printf "%s\n" "$(ROUTER_ULA_VALUE)" > "$$TMPFILE"; \
 		$(call WITH_SECRETS, sh -c '\
+			TMPFILE="$(TMP_ROUTER_ULA)"; \
+			echo "DEBUG: ROUTER_ADDR=[$$ROUTER_ADDR]" >&2; \
+			printf "%s\n" "$(ROUTER_ULA_VALUE)" > "$$TMPFILE"; \
+			\
 			env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 				$(INSTALL_FILE_IF_CHANGED) \
-					"" "" "'"$$TMPFILE"'" \
+					"" "" "$$TMPFILE" \
 					"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "$(ROUTER_ULA_FILE)" \
 					"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
-				|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
+			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
 		') \
 	)
 
