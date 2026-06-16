@@ -47,7 +47,8 @@ include $(REPO_ROOT)/mk/07_secrets.mk
 # Step 3 — SSH layer (router)
 include $(REPO_ROOT)/mk/router/05_ssh.mk
 
-# Step 4 — Router modules
+# Step 4 — Host, Router modules
+include $(REPO_ROOT)/mk/host/10_route.mk
 include $(REPO_ROOT)/mk/router/10_bootstrap.mk
 include $(REPO_ROOT)/mk/router/20_network.mk
 include $(REPO_ROOT)/mk/router/40_caddy.mk

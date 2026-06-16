@@ -51,17 +51,6 @@ endef
 # PHASE 0: INFRASTRUCTURE & BOOTSTRAP
 # ------------------------------------------------------------
 
-.PHONY: ensure-host-default-route
-ensure-host-default-route: secrets-ready
-	@$(call WITH_SECRETS, sh -c '\
-		if ! ip route show default | grep -q "$$ROUTER_ADDR"; then \
-			echo "⚠️ Default gateway missing! Restoring path to $$ROUTER_ADDR..."; \
-			$(run_as_root) ip route add default via "$$ROUTER_ADDR" dev $(ROUTER_LAN_IFACE) 2>/dev/null || true; \
-			echo "✅ Default gateway restored"; \
-		else \
-			echo "🟢 Default gateway OK"; \
-		fi \
-	')
 
 .PHONY: router-ensure-scripts-dir
 router-ensure-scripts-dir:
@@ -142,6 +131,27 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 		\
 		echo "✅ Router primitives installed"; \
 	fi
+
+# ------------------------------------------------------------
+# ROUTER BOOTSTRAP (PRIMITIVE)
+# ------------------------------------------------------------
+.PHONY: router-bootstrap
+router-bootstrap: export ROUTER_BOOTSTRAP=1
+router-bootstrap: \
+	router-install-scripts \
+	ensure-host-default-route \
+	ensure-router-ula \
+	router-provision-nvram \
+	router-dhcp-range-ensure \
+	router-dhcp-static-ensure \
+	router-dnsmasq-sync \
+	install-ssh-config \
+	router-ddns \
+	router-firewall-install \
+	router-nat-install \
+	router-ssh-invariants \
+	router-disable-asus-ca
+	@echo "🛠️ Router bootstrap complete — all base services provisioned"
 
 .PHONY: ensure-router-ula
 ensure-router-ula: secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)

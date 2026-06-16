@@ -8,6 +8,7 @@ export LAN_SYNOLOGY := 10.89.12.2
 export LAN_QNAP     := 10.89.12.3
 export LAN_NAS      := 10.89.12.4
 export LAN_AC86U    := 10.89.12.6
+export LAN_HUB01    := 10.89.12.11
 
 # IPv6 ULA Topology (authoritative)
 export LAN6_NET      := fd89:7a3b:42c0::/64
@@ -26,9 +27,11 @@ export SSH_USER_NAS      := julie
 export SSH_USER_SYNOLOGY := julie
 export SSH_USER_QNAP     := admin
 export SSH_USER_AC86U    := admin
+export SSH_USER_HUB01    := julie
 
 # SSH host aliases (for ControlMaster reuse)
 export SSH_HOST_ROUTER := router
+export SSH_HOST_HUB01  := hub01
 
 # Bind ROUTER_USER for dns-suite
 export ROUTER_USER := $(SSH_USER_ROUTER)
@@ -50,12 +53,44 @@ export PUBLIC_DNS := 1.1.1.1
 # Public constants (Make-visible, safe for recipes)
 # ------------------------------------------------------------
 
-# Router constants
+# 1. Router constants
 export ROUTER_ADDR        := 10.89.12.1
 export ROUTER_SSH_PORT    := 2222
 export ROUTER_ULA_FILE    := /etc/homelab/router-ula
 export ROUTER_ULA_VALUE   := fd89:7a3b:42c0::1
 ROUTER_LAN_IFACE          := eth0
+
+# Router specific paths
+export ROUTER_SCRIPTS    := /jffs/scripts
+ROUTER_WG_DIR            := /jffs/configs
+ROUTER_CADDY_BIN         := /tmp/mnt/sda/router/bin/caddy
+ROUTER_CADDY_STAMP       := /jffs/.stamps/caddy.stamp
+
+# Router tooling Metadata
+ROUTER_SCRIPTS_OWNER := julie
+ROUTER_SCRIPTS_GROUP := root
+ROUTER_SCRIPTS_MODE  := 0755
+
+# DHCP Architecture (Declarative Policy)
+# Static DHCP reservations: .2 – .99
+# Dynamic DHCP pool:        .100 – .254
+DHCP_STATIC_MAX    := 99
+LAN_PREFIX        := 10.89.12
+DHCP_DYNAMIC_START := $(LAN_PREFIX).100
+DHCP_DYNAMIC_END   := $(LAN_PREFIX).254
+
+# 2.Synology constants
+SYNO_LAN_IFACE := eth0
+
+# 3. QNAP constants
+QNAP_LAN_IFACE := eth0
+
+# 4. NAS constants
+NAS_LAN_IFACE := eth0
+
+# 5. HUB01 constants
+HUB01_ADDR := 10.89.12.11
+HUB01_LAN_IFACE := ens3 # ip route get 10.89.12.1 | awk '/dev/ {print $5}'
 
 # Certificates & Identity
 DOMAIN               := bardi.ch
@@ -79,17 +114,6 @@ SSL_KEY_RSA   := $(ACME_HOME)/$(DOMAIN)/$(DOMAIN).key
 # Deployment targets
 SSL_DEPLOY_DIR_CADDY     := /etc/ssl/caddy
 SSL_DEPLOY_DIR_HEADSCALE := /etc/ssl/headscale
-
-# Router specific paths
-export ROUTER_SCRIPTS    := /jffs/scripts
-ROUTER_WG_DIR            := /jffs/configs
-ROUTER_CADDY_BIN         := /tmp/mnt/sda/router/bin/caddy
-ROUTER_CADDY_STAMP       := /jffs/.stamps/caddy.stamp
-
-# Tooling Metadata
-ROUTER_SCRIPTS_OWNER := julie
-ROUTER_SCRIPTS_GROUP := root
-ROUTER_SCRIPTS_MODE  := 0755
 
 # Unbound
 UNBOUND_PORT := 15335
@@ -118,12 +142,4 @@ APT_INSTALLABLE_PACKAGES := \
 	knot-dnsutils apt-cacher-ng unzip git-filter-repo rclone \
 	wireguard-tools qrencode
 
-# ----------------------------------------------------------------------------
-# 12. DHCP Architecture (Declarative Policy)
-# ----------------------------------------------------------------------------
-# Static DHCP reservations: .2 – .99
-# Dynamic DHCP pool:        .100 – .254
-DHCP_STATIC_MAX    := 99
-LAN_PREFIX        := 10.89.12
-DHCP_DYNAMIC_START := $(LAN_PREFIX).100
-DHCP_DYNAMIC_END   := $(LAN_PREFIX).254
+

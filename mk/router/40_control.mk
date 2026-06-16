@@ -61,28 +61,6 @@ router-ready: router-firewall-hardened
 .PHONY: router-prepare
 router-prepare: router-ready router-require-run-as-root router-certs-prepare
 
-# ------------------------------------------------------------
-# FULL ROUTER CONVERGENCE
-# ------------------------------------------------------------
-
-.PHONY: router-bootstrap
-router-bootstrap: export ROUTER_BOOTSTRAP=1
-router-bootstrap: \
-	router-install-scripts \
-	ensure-host-default-route \
-	ensure-router-ula \
-	router-provision-nvram \
-	router-dhcp-range-ensure \
-	router-dhcp-static-ensure \
-	router-dnsmasq-sync \
-	install-ssh-config \
-	router-ddns \
-	router-firewall-install \
-	router-nat-install \
-	router-ssh-invariants \
-	router-disable-asus-ca
-	@echo "🛠️ Router bootstrap complete — all base services provisioned"
-
 .PHONY: router-dnsmasq-invariant
 router-dnsmasq-invariant:
 	@echo "[ifc] Checking router dnsmasq singleton invariant..."
