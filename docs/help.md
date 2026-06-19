@@ -36,7 +36,7 @@
   - Live State: Filters out "tentative" or "deprecated" addresses to show exactly what the kernel is using for active traffic.
   - `make install-homelab-sysctl` — Reconciles the system-level forwarding rules with the repository source.
     - Functional Diffing: Uses a strip-diff engine to ignore local secrets and comments.
-    - Hardware Aware: Only injects stable_secret for active interfaces (e.g., eth0, eth1).
+    - Hardware Aware: Only injects stable_secret for active interfaces (currently eth0 only).
     - Post-Apply Validation: Queries the kernel via sysctl -n to verify the state was actually accepted.
     - Idempotent Reporting: Summarizes changes (Config update / Secret injection / NOP).
   - `make rotate-ipv6-secrets` — Destructive/Identity Rotation.

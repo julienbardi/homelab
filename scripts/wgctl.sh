@@ -59,6 +59,22 @@ do_install() {
 do_up() {
     log "Bringing up interfaces..."
     if [[ "$TARGET" == "router" ]]; then
+        # Ensure eth0 exists
+        if [[ ! -d /sys/class/net/eth0 ]]; then
+            log "❌ eth0 does not exist — cannot determine NAS link-local IPv6"
+            exit 1
+        fi
+
+        # Discover NAS link-local IPv6 on eth0
+        NAS_LL6="$(ip -6 addr show dev eth0 | awk '/scope link/ {print $2; exit}' | cut -d/ -f1)"
+
+        if [[ -z "$NAS_LL6" || ! "$NAS_LL6" =~ ^fe80: ]]; then
+            log "❌ Could not determine valid NAS link-local IPv6 on eth0"
+            exit 1
+        fi
+
+        log "Using NAS link-local IPv6: ${NAS_LL6}"
+
         ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" "
             # Ensure WireGuard interface exists (idempotent)
             if ! ip link show wgs1 >/dev/null 2>&1; then
@@ -76,12 +92,9 @@ do_up() {
             # Assign IPv4 server address
             ip addr add 10.89.101.1/24 dev wgs1 2>/dev/null || true
 
-            # Attempt IPv6 server address
-            if ip addr add fd89:7a3b:42c0:101::1/64 dev wgs1 2>/dev/null; then
-                echo 'wgs1: IPv6 address assigned (fd89:7a3b:42c0:101::1/64)'
-            else
-                echo 'WARNING: wgs1 IPv6 address could not be assigned. IPv6 WG is not operational on this router.'
-            fi
+            # IPv6: router cannot host WG v6, but must route NAS wg7 ULA back to NAS
+            ip -6 route del fd89:7a3b:42c0:7::/64 2>/dev/null || true
+            ip -6 route replace fd89:7a3b:42c0:7::/64 via ${NAS_LL6} dev eth0
         "
     else
         for f in "${NAS_WG_CONF}"/*.conf; do
@@ -90,7 +103,6 @@ do_up() {
         done
     fi
 }
-
 
 do_down() {
     log "Tearing down interfaces..."
@@ -187,10 +199,10 @@ do_status() {
 [[ -z "$TARGET" ]] && { echo "Usage: $0 {nas|router} {install|up|down|status}"; exit 1; }
 
 case "$MODE" in
-    install) do_install ;;
-    up)      do_up ;;
-    down)    do_down ;;
-    status)  do_status ;;
-    install-up)  do_install; do_up ;;
-    *)       echo "Unknown mode: $MODE for target: $TARGET"; exit 1 ;;
+    install)    do_install ;;
+    up)         do_up ;;
+    down)       do_down ;;
+    status)     do_status ;;
+    install-up) do_install; do_up ;;
+    *)          echo "Unknown mode: $MODE for target: $TARGET"; exit 1 ;;
 esac

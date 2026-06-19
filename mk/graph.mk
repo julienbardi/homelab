@@ -63,6 +63,7 @@ include $(REPO_ROOT)/mk/10_bootstrap_security.mk
 include $(REPO_ROOT)/mk/10_groups.mk
 include $(REPO_ROOT)/mk/10_local-tools.mk
 include $(REPO_ROOT)/mk/15_local-python-env.mk
+include $(REPO_ROOT)/mk/18_ipv6-invariants.mk
 include $(REPO_ROOT)/mk/20_deps.mk
 include $(REPO_ROOT)/mk/20_gitignore.mk
 include $(REPO_ROOT)/mk/20_local-python.mk
@@ -241,7 +242,7 @@ nft-install-rollback: ensure-run-as-root
 
 # The root of the DAG
 .PHONY: homelab-all
-homelab-all: sanity repo-preflight nft-apply-phase wg-network-phase service-phase
+homelab-all: sanity repo-preflight nft-apply-phase wg-network-phase service-phase verify-ipv6-invariants
 	@echo "🎉 Homelab fully converged."
 
 # Phase 1: Security/Firewall (Foundational, must run sequentially)

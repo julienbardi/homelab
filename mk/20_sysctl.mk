@@ -43,7 +43,7 @@ define inspect_ipv6_identity
 	}' | sort -u; \
 	echo "--------------------------------------------------------------------------------"; \
 	echo "🔍 accept_ra status (must be 2 on eth0 to survive forwarding=1):"; \
-	for iface in eth0 eth1; do \
+	for iface in eth0; do \
 		[ -f "/proc/sys/net/ipv6/conf/$$iface/accept_ra" ] || continue; \
 		val=$$(cat "/proc/sys/net/ipv6/conf/$$iface/accept_ra"); \
 		if [ "$$val" = "2" ]; then \
@@ -79,11 +79,9 @@ define inject_ipv6_secrets
 	echo "🔐 Generating hardware-linked IPv6 secrets..."; \
 	pool=$$(openssl rand -hex 32); \
 	s1=$$(echo $$pool | cut -c1-32 | sed "s/\(..\)/\1:/g; s/:$$//"); \
-	s2=$$(echo $$pool | cut -c33-64 | sed "s/\(..\)/\1:/g; s/:$$//"); \
 	{ \
 		printf "\n# --- Homelab IPv6 Stable Secrets ---\n"; \
 		[ -d /sys/class/net/eth0 ] && printf "net.ipv6.conf.eth0.stable_secret = %s\n" "$$s1"; \
-		[ -d /sys/class/net/eth1 ] && printf "net.ipv6.conf.eth1.stable_secret = %s\n" "$$s2"; \
 	} | $(run_as_root) tee -a "$(SYSCTL_DST)" >/dev/null; \
 }
 endef
@@ -124,11 +122,9 @@ rotate-ipv6-secrets: ensure-run-as-root sysctl-preflight
 		sed -i "/stable_secret/d; /Homelab/d" "$(SYSCTL_DST)"; \
 		pool=$$(openssl rand -hex 32); \
 		s1=$$(echo $$pool | cut -c1-32 | sed "s/\(..\)/\1:/g; s/:$$//"); \
-		s2=$$(echo $$pool | cut -c33-64 | sed "s/\(..\)/\1:/g; s/:$$//"); \
 		{ \
 			printf "\n\n# --- Homelab IPv6 Stable Secrets ---\n"; \
 			[ -d /sys/class/net/eth0 ] && printf "net.ipv6.conf.eth0.stable_secret = %s\n" "$$s1"; \
-			[ -d /sys/class/net/eth1 ] && printf "net.ipv6.conf.eth1.stable_secret = %s\n" "$$s2"; \
 		} >> "$(SYSCTL_DST)"; \
 		sleep 5; \
 		reboot; \
