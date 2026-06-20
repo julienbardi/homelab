@@ -72,6 +72,7 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 	REMOTE_DATA="$$(ssh $(SSH_HOST_ROUTER) '\
 		mkdir -p /jffs/scripts && chmod 755 /jffs/scripts && chown 0:0 /jffs/scripts ; \
 		mkdir -p /root/.ssh && chmod 700 /root/.ssh ; \
+		mkdir -p /jffs/ssl && chmod 700 /jffs/ssl ; \
 		if ! grep -Fq "$(LAN_NAS):2222" /root/.ssh/known_hosts 2>/dev/null && ! grep -Fq "[$(LAN_NAS)]:2222" /root/.ssh/known_hosts 2>/dev/null; then \
 			echo "STATUS_KNOWN_HOST:MISSING" ; \
 		else \

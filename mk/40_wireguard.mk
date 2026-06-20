@@ -99,8 +99,7 @@ wg-generate: $(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-genera
 	fi
 
 wg-clean-state:
-	@$(WG_SUDO) rm -f $(WG_SUBNETS_MK); \
-	rm -f "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"
+	@$(WG_SUDO) rm -f "$(WG_SUBNETS_MK)" "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"
 
 # --- Router Setup ---
 router-ensure-wg-module: router-install-scripts
@@ -143,11 +142,13 @@ $(INSTALL_PATH)/wg-generate-configs.sh: $(REPO_ROOT)/scripts/wg-generate-configs
 	$(call PUSH_WG_SCRIPT,$<,$@)
 
 wg-clean-out: wg-down-router wg-down-nas wg-clean-state
-	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🧹 Cleaning local scripts & SSH sockets"; fi; \
-	sudo rm -f "$(INSTALL_PATH)/wgctl.sh" "$(INSTALL_PATH)/wg-generate-configs.sh" "$(INSTALL_PATH)/wg-readiness-probe.sh"; \
-	rm -f $(SSH_SOCK_FILE); \
-	echo "🧹 Cleaning remote router scripts"; \
-	$(run_as_root_router) "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🧹 Cleaning local scripts & SSH sockets"; fi
+	@$(WG_SUDO) rm -f "$(INSTALL_PATH)/wgctl.sh" \
+					"$(INSTALL_PATH)/wg-generate-configs.sh" \
+					"$(INSTALL_PATH)/wg-readiness-probe.sh"
+	@rm -f "$(SSH_SOCK_FILE)"
+	@echo "🧹 Cleaning remote router scripts"
+	@$(run_as_root_router) "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
 
 # --- Deployment ---
 router-firewall: | wg-generate
@@ -203,7 +204,7 @@ wg-install-router: router-ensure-wg-module \
 		ROUTER_CONTROL_PLANE=1 \
 		$(INSTALL_PATH)/wgctl.sh router install-up || EC=$$?; \
 		if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi; \
-		rm -f "$(WG_ROUTER_DIRTY_STAMP)"; \
+		$(WG_SUDO) rm -f "$(WG_ROUTER_DIRTY_STAMP)"; \
 	else \
 		echo "✨ Router interfaces match runtime kernel cryptographic and routing expectations (skipping processing)"; \
 	fi
@@ -234,7 +235,7 @@ wg-install-nas: $(INSTALL_PATH)/wgctl.sh \
 		NAS_CONTROL_PLANE=1 \
 		$(WG_SUDO) $(INSTALL_PATH)/wgctl.sh nas install-up || EC=$$?; \
 		if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi; \
-		rm -f "$(WG_NAS_DIRTY_STAMP)"; \
+		$(WG_SUDO) rm -f "$(WG_NAS_DIRTY_STAMP)"; \
 	else \
 		echo "✨ NAS interfaces match runtime kernel cryptographic and routing expectations (skipping processing)"; \
 	fi
