@@ -7,7 +7,7 @@
 router-firewall-hardened: | router-ssh-check
 	@echo "🛡️ Validating router firewall invariants"
 	@$(call WITH_SECRETS, \
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" '\
+		ssh "$(SSH_HOST_ROUTER)" '\
 			set -e; \
 			if [ ! -x /jffs/scripts/firewall-start ]; then \
 				echo "❌ Missing /jffs/scripts/firewall-start"; exit 1; \
@@ -50,8 +50,11 @@ iptables -A HOMELAB_FWD -i br0 -o ppp0 -j ACCEPT 2>/dev/null || true
 iptables -A HOMELAB_FWD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # 3. Hook chains into persistent Merlin structural vectors
-iptables -t nat -D VSERVER -j HOMELAB_NAT 2>/dev/null || true
-iptables -t nat -I VSERVER 1 -j HOMELAB_NAT
+# Hook into VSERVER only if firmware created it
+if iptables -t nat -nL VSERVER >/dev/null 2>&1; then
+    iptables -t nat -D VSERVER -j HOMELAB_NAT 2>/dev/null || true
+    iptables -t nat -I VSERVER 1 -j HOMELAB_NAT
+fi
 iptables -D FORWARD -j HOMELAB_FWD 2>/dev/null || true
 iptables -I FORWARD 1 -j HOMELAB_FWD
 iptables -D INPUT -j HOMELAB_INPUT 2>/dev/null || true
@@ -167,6 +170,7 @@ router-nat-install: router-install-scripts
 	' "$(WG_INTERFACES_TSV)"
 
 	# 1) Write base script via native Make I/O
+	@mkdir -p $(dir $(TMP_ROUTER_NAT))
 	$(file >$(TMP_ROUTER_NAT),$(ROUTER_NAT_SCRIPT))
 
 	# 2) Append WG-derived NAT rules safely isolating shell scope variables
@@ -251,8 +255,8 @@ router-nat-dump: | router-ssh-check
 	@echo "📊 Querying active homelab firewall configurations on router..."
 	$(file >$(TMP_ROUTER_NAT).dump,$(ROUTER_NAT_DUMP_SCRIPT))
 	@$(call WITH_SECRETS, sh -c '\
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "cat > /tmp/nat-dump.sh" < "$(TMP_ROUTER_NAT).dump"; \
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "sh /tmp/nat-dump.sh && rm -f /tmp/nat-dump.sh"; \
+		ssh "$(SSH_HOST_ROUTER)" "cat > /tmp/nat-dump.sh" < "$(TMP_ROUTER_NAT).dump"; \
+		ssh "$(SSH_HOST_ROUTER)" "sh /tmp/nat-dump.sh && rm -f /tmp/nat-dump.sh"; \
 		rm -f "$(TMP_ROUTER_NAT).dump" \
 	')
 
@@ -260,7 +264,14 @@ router-nat-dump: | router-ssh-check
 .PHONY: router-firewall-started
 router-firewall-started: | router-install-scripts router-nat-install
 	@echo "🔁 Reloading router firewall (firewall-start)"
+
+	# NOTE:
+	#   This SSH call MUST remain raw (no SSH_HOST_ROUTER alias).
+	#   Reason: router-firewall-started is invoked during early bootstrap,
+	#   before ~/.ssh/config and multiplexing are guaranteed to exist.
+	#   Using the alias here would break first-run convergence.
 	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) "sh /jffs/scripts/firewall-start"
+
 	@echo "🟢 Router firewall reloaded"
 
 .PHONY: router
@@ -299,7 +310,7 @@ router-nat-apply: | router-install-scripts router-nat-install router-firewall-st
 
 	# 2) Upload atomically to router as root
 	@$(call WITH_SECRETS, sh -c '\
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "\
+		ssh "$(SSH_HOST_ROUTER)" "\
 			umask 077; \
 			cat > /tmp/nat-dump.sh.tmp; \
 			mv /tmp/nat-dump.sh.tmp /tmp/nat-dump.sh \
@@ -309,7 +320,7 @@ router-nat-apply: | router-install-scripts router-nat-install router-firewall-st
 
 	# 3) Validate ownership + permissions before execution
 	@$(call WITH_SECRETS, sh -c '\
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "\
+		ssh "$(SSH_HOST_ROUTER)" "\
 			set -e; \
 			[ -f /tmp/nat-dump.sh ] || { echo \"❌ nat-dump.sh missing\"; exit 1; }; \
 			\
@@ -325,12 +336,12 @@ router-nat-apply: | router-install-scripts router-nat-install router-firewall-st
 
 	# 4) Execute explicitly (no PATH lookup)
 	@$(call WITH_SECRETS, sh -c '\
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "sh /tmp/nat-dump.sh" \
+		ssh "$(SSH_HOST_ROUTER)" "sh /tmp/nat-dump.sh" \
 	')
 
 	# 5) Ephemeral cleanup
 	@$(call WITH_SECRETS, sh -c '\
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" "rm -f /tmp/nat-dump.sh" \
+		ssh "$(SSH_HOST_ROUTER)" "rm -f /tmp/nat-dump.sh" \
 	')
 
 	@echo "🎯 NAT pipeline complete"

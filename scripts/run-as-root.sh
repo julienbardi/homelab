@@ -20,10 +20,33 @@ if [ "$#" -eq 0 ]; then
 fi
 
 # 2. Establish fully isolated, deterministic root PATH (eliminates inherited pollution)
-readonly ROOT_PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+ROOT_PATH=
+ROOT_PATH="/usr/sbin:/usr/bin:/sbin:/bin:${HOME}/.local/tools/yq"
+readonly ROOT_PATH
 
 # 3. Explicit contract-driven environment variable passthrough profile
-readonly PRESERVE_ENV="DEBIAN_FRONTEND,SRC_ATTIC_CONFIG,SRC_ATTIC_SERVICE,ATTIC_REF,WG_ROOT,VERBOSE,HOMELAB_DIR,ROUTER_ADDR,SSH_USER_ROUTER,ROUTER_SSH_PORT,SSH_OPTS"
+# Environment variables allowed to pass through sudo
+PRESERVE_ENV=
+PRESERVE_ENV="$(
+  printf "%s," \
+    DEBIAN_FRONTEND \
+    SRC_ATTIC_CONFIG \
+    SRC_ATTIC_SERVICE \
+    ATTIC_REF \
+    WG_ROOT \
+    VERBOSE \
+    HOMELAB_DIR \
+    ROUTER_ADDR \
+    SSH_USER_ROUTER \
+    ROUTER_SSH_PORT \
+    SSH_OPTS \
+    SOPS_AGE_KEY_FILE \
+    SOPS \
+    SECRETS_FILE \
+    YQ \
+  | sed 's/,$//'
+)"
+readonly PRESERVE_ENV
 
 # --------------------------------------------------------------------
 # BRANCH A — Already root

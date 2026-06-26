@@ -56,10 +56,10 @@ router-dhcp-static-validate: secrets-ready
 # ------------------------------------------------------------
 
 .PHONY: router-dhcp-range-ensure
-router-dhcp-range-ensure: secrets-ready | ensure-router-ula
+router-dhcp-range-ensure: secrets-ready | ensure-router-ula router-ssh-check
 	@echo "🛡️ Enforcing DHCP pool range via NVRAM (no commit, no restart)"
 
-	@ssh $(SSH_HOST_ROUTER) 'set -e; \
+	@ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 cur_start="$$(nvram get dhcp_start 2>/dev/null || echo)"; \
 cur_end="$$(nvram get dhcp_end 2>/dev/null || echo)"; \
 desired_start="$(DHCP_DYNAMIC_START)"; \
@@ -90,7 +90,7 @@ fi'
 # ------------------------------------------------------------
 
 .PHONY: router-dhcp-static-ensure
-router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-router-ula
+router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-router-ula router-ssh-check
 	@echo "🛡️ Enforcing DHCP static leases via NVRAM (no commit, no restart)"
 
 	@$(call WITH_SECRETS, sh -c '\
@@ -99,7 +99,7 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 			echo "⚠️ STATIC_DHCP is empty — skipping enforcement"; \
 			exit 0; \
 		fi; \
-		ssh -p "$$ROUTER_SSH_PORT" "$$SSH_USER_ROUTER@$$ROUTER_ADDR" \
+		ssh "$(SSH_HOST_ROUTER)" \
 			"set -e; \
 			current=\$$(nvram get dhcp_staticlist 2>/dev/null || echo); \
 			desired=\"$$desired\"; \
@@ -113,12 +113,11 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 			fi" \
 	')
 
-
 # ------------------------------------------------------------
 # dnsmasq templating + sync (files only, no restart)
 # ------------------------------------------------------------
 
-router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-primitives
+router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-primitives router-ssh-check
 	@echo "📡 Templating and Syncing DNS configuration for $(DOMAIN)..."
 
 	$(call TMPFILE_BLOCK,"$(TMP_DNSMASQ_ADD) $(TMP_DNSMASQ_HOSTS)", \
@@ -138,7 +137,7 @@ router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-boo
 
 		if [ "$$DNS_CHANGED" -eq 1 ]; then \
 			echo "🔄 DNS configuration changed (pending restart)"; \
-			ssh $(SSH_HOST_ROUTER) "touch /jffs/homelab_dnsmasq_changed"; \
+			ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
 		else \
 			echo "✔️ DNS configuration up-to-date (no restart needed)"; \
 		fi; \
@@ -150,12 +149,12 @@ router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-boo
 # ------------------------------------------------------------
 
 .PHONY: router-provision-nvram
-router-provision-nvram: secrets-ready | ensure-router-ula
+router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
 	@echo "🛡️ Syncing Router NVRAM (ULA only — DNS handled by dns-enforcer) (no commit)"
 
 	@ULA_PREFIX_NVRAM="$(ULA_PREFIX_NVRAM)"; \
 	ROUTER_ULA_IP6="$(ROUTER_ULA_IP6)"; \
-	ssh $(SSH_HOST_ROUTER) 'set -e; \
+	ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 		cur_prefix=$$(nvram get ipv6_ula_prefix 2>/dev/null || echo); \
 		cur_lan_addr=$$(nvram get ipv6_lan_addr 2>/dev/null || echo); \
 		changed=0; \
@@ -185,9 +184,9 @@ router-provision-nvram: secrets-ready | ensure-router-ula
 
 
 .PHONY: router-ra-policy
-router-ra-policy: router-bootstrap-primitives
+router-ra-policy: router-bootstrap-primitives router-ssh-check
 	@echo "🛡️ Enforcing router RA policy (enable default route in RA) (no commit, no restart)"
-	@ssh $(SSH_HOST_ROUTER) 'set -e; \
+	@ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 cur="$$(nvram get ipv6_accept_ra || echo unset)"; \
 if [ "$$cur" != "2" ]; then \
 	echo "🔧 ipv6_accept_ra → 2"; \
@@ -203,7 +202,7 @@ fi'
 # ------------------------------------------------------------
 
 .PHONY: router-ddns
-router-ddns: ensure-router-ula
+router-ddns: secrets-ready ensure-router-ula router-ssh-check
 	@echo "📡 Deploying DDNS configuration to router"
 
 	@# Generate DDNS confidential file inline (no separate target)
@@ -227,7 +226,7 @@ router-ddns: ensure-router-ula
 	')
 
 	@echo "🔄 Executing DDNS update"
-	@ssh $(SSH_HOST_ROUTER) '$(ROUTER_SCRIPTS)/ddns-start'
+	@ssh "$(SSH_HOST_ROUTER)" '$(ROUTER_SCRIPTS)/ddns-start'
 
 	@echo "🧹 Cleaning up RAM-only local DDNS secrets"
 	@rm -f "$(TMP_DDNS_CONF)"
@@ -240,11 +239,10 @@ router-ddns: ensure-router-ula
 # ------------------------------------------------------------
 
 .PHONY: router-dhcp-list
-router-dhcp-list:
+router-dhcp-list: secrets-ready router-ssh-check
 	@echo "📋 Listing current DHCP clients on router:"
 	@$(call WITH_SECRETS, sh -c '\
-		router_ssh="ssh $$SSH_HOST_ROUTER"; \
-		$$router_ssh "set -e; \
+		ssh "$(SSH_HOST_ROUTER)" "set -e; \
 			if [ -f /var/lib/misc/dnsmasq.leases ]; then \
 				cat /var/lib/misc/dnsmasq.leases; \
 			else \
@@ -253,10 +251,10 @@ router-dhcp-list:
 	')
 
 .PHONY: router-dhcp-list-static-format
-router-dhcp-list-static-format:
+router-dhcp-list-static-format: secrets-ready router-ssh-check
 	@echo "📋 DHCP clients in static NVRAM format:"
 	@$(call WITH_SECRETS, sh -c '\
-		ssh $$SSH_HOST_ROUTER "\
+		ssh "$(SSH_HOST_ROUTER)" "\
 			set -e; \
 			if [ ! -f /var/lib/misc/dnsmasq.leases ]; then \
 				echo \"⚠️ dnsmasq.leases not found\"; \
@@ -270,7 +268,6 @@ router-dhcp-list-static-format:
 		" \
 	')
 
-
 # router-ssh-invariants:
 # Enforces LAN-only SSH by setting:
 #   ssh_wan=0  → disable SSH on WAN
@@ -278,9 +275,9 @@ router-dhcp-list-static-format:
 # AsusWRT defaults to WAN-enabled SSH when ssh_wan is unset.
 # This target makes the invariant explicit and idempotent.
 .PHONY: router-ssh-invariants
-router-ssh-invariants:
+router-ssh-invariants: router-ssh-check
 	@echo "🛡️ Enforcing router SSH invariants (LAN-only SSH)"
-	@ssh $(SSH_HOST_ROUTER) 'set -e; \
+	@ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 		changed=0; \
 		cur_wan="$$(nvram get ssh_wan || echo unset)"; \
 		cur_lan="$$(nvram get ssh_lan || echo unset)"; \
@@ -311,22 +308,24 @@ router-ssh-invariants:
 .PHONY: router-lan-domain
 router-lan-domain: | router-ssh-check
 	@LAN_DOMAIN="$$( $(call WITH_SECRETS, sh -c 'echo "$$lan_domain"' ) )"; \
-	ssh $(SSH_HOST_ROUTER) '\
-		cur="$$(nvram get lan_domain 2>/dev/null || true)"; \
-		if [ "$$cur" = "'"$$LAN_DOMAIN"'" ]; then \
-			echo "🌐 LAN domain already set to '"$$LAN_DOMAIN"' (no commit, no restart)"; \
+	ssh "$(SSH_HOST_ROUTER)" "\
+		set -e; \
+		cur=\$$(nvram get lan_domain 2>/dev/null || true); \
+		if [ \"\$$cur\" = \"$$LAN_DOMAIN\" ]; then \
+			echo \"🌐 LAN domain already set to $$LAN_DOMAIN (no commit, no restart)\"; \
 			exit 0; \
 		fi; \
-		nvram set lan_domain="'"$$LAN_DOMAIN"'"; \
-		echo "🌐 LAN domain NVRAM updated to '"$$LAN_DOMAIN"' (pending commit)"; \
+		nvram set lan_domain=\"$$LAN_DOMAIN\"; \
+		echo \"🌐 LAN domain NVRAM updated to $$LAN_DOMAIN (pending commit)\"; \
 		touch /jffs/homelab_nvram_dirty; \
-	'
+	"
 
-router-dhcp-static-export-secrets:
+.PHONY: router-dhcp-static-export-secrets
+router-dhcp-static-export-secrets: secrets-ready router-ssh-check
 	@$(call WITH_SECRETS_v2, \
 		tmp=$$(mktemp); \
 		trap "rm -f $$tmp" EXIT INT TERM; \
-		ssh "$$SSH_HOST_ROUTER" \
+		ssh "$(SSH_HOST_ROUTER)" \
 			"nvram get dhcp_staticlist 2>/dev/null || true" \
 			> "$$tmp"; \
 		printf "DHCP static leases (paste into secrets.enc.yaml):\n\n"; \
@@ -345,7 +344,7 @@ ROUTER_DNSMASQ_CONF := /jffs/configs/dnsmasq.conf.add
 LOCAL_DNSMASQ_CONF  := $(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add
 
 .PHONY: router-dnsmasq-conf
-router-dnsmasq-conf: secrets-ready ensure-host-default-route router-bootstrap-primitives ensure-router-ula router-lan-domain router-ra-policy
+router-dnsmasq-conf: secrets-ready ensure-host-default-route router-bootstrap-primitives ensure-router-ula router-lan-domain router-ra-policy router-ssh-check $(INSTALL_FILE_IF_CHANGED)
 	@echo "🔧 Installing dnsmasq.conf.add (no restart)"
 	@set -e; \
 	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
@@ -356,15 +355,15 @@ router-dnsmasq-conf: secrets-ready ensure-host-default-route router-bootstrap-pr
 	RC=$$?; \
 	if [ $$RC -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "🔄 dnsmasq.conf.add changed (pending restart)"; \
-		ssh $(SSH_HOST_ROUTER) "touch /jffs/homelab_dnsmasq_changed"; \
-	elif [ $$RC -eq 0 ]; then
+		ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
+	elif [ $$RC -eq 0 ]; then \
 		echo "✔️ dnsmasq.conf.add up-to-date"; \
 	else \
 		exit 1; \
 	fi
 
 	@echo "🔍 Checking if dnsmasq restart is required"
-	@ssh $(SSH_HOST_ROUTER) '\
+	@ssh "$(SSH_HOST_ROUTER)" '\
 		# Mark config as ready (prevents watchdog WAN restarts before deploy) \
 		touch /jffs/dnsmasq-config.ready; \
 		\
@@ -396,9 +395,10 @@ router-nvram-converge: \
 	router-provision-nvram \
 	router-ra-policy \
 	router-dnsmasq-sync \
-	router-dnsmasq-conf
+	router-dnsmasq-conf \
+	router-ssh-check
 	@echo "🛡️ Committing NVRAM and restarting services (minimal restarts)"
-	@ssh $(SSH_HOST_ROUTER) '\
+	@ssh "$(SSH_HOST_ROUTER)" '\
 		set -e; \
 		RESTART=0; \
 		\
@@ -429,9 +429,9 @@ router-nvram-converge: \
 	'
 
 .PHONY: router-dhcp6c-hook-converge
-router-dhcp6c-hook-converge:
+router-dhcp6c-hook-converge: router-ssh-check
 	@echo "🛡️ Ensuring dhcp6c-state hook exists"
-	@ssh $(SSH_HOST_ROUTER) 'set -e; \
+	@ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 		mkdir -p /jffs/scripts; \
 		tmp="/tmp/dhcp6c-state.$$"; \
 		umask 077; \
@@ -446,15 +446,15 @@ chmod 755 /jffs/scripts/dhcp6c-state; \
 .PHONY: router-ipv6-converge
 router-ipv6-converge: router-nvram-converge router-dhcp6c-hook-converge
 	@echo "🛡️ IPv6 converge: ensuring PD hook + dnsmasq RA"
-	@ssh $(SSH_HOST_ROUTER) '\
+	@ssh "$(SSH_HOST_ROUTER)" '\
 		echo "🔄 Forcing DHCPv6-PD refresh"; \
 		service start_dhcp6c || true; \
 	'
 
 .PHONY: router-dnsmasq-invariants
-router-dnsmasq-invariants:
+router-dnsmasq-invariants: router-ssh-check
 	@echo "🛡️ Validating dnsmasq invariants on router"
-	@ssh $(SSH_HOST_ROUTER) '\
+	@ssh "$(SSH_HOST_ROUTER)" '\
 		set -e; \
 		echo "🔍 Checking dnsmasq process"; \
 		pidof dnsmasq >/dev/null || { echo "❌ dnsmasq not running"; exit 1; }; \

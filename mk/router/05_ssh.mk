@@ -33,7 +33,7 @@ router-ssh-check: install-ssh-config
 	@ssh -q \
 		-o BatchMode=yes \
 		-o ConnectTimeout=5 \
-		-p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
+		"$(SSH_HOST_ROUTER)" \
 		true >/dev/null 2>&1 || { \
 		echo "❌ SSH reachable but authentication failed for $(SSH_USER_ROUTER)"; \
 		exit 1; \
@@ -48,7 +48,7 @@ router-require-run-as-root: | router-ssh-check
 
 	@echo "🔎 Checking router run-as-root helper"
 
-	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
+	@ssh "$(SSH_HOST_ROUTER)" \
 		'test -x /jffs/scripts/run-as-root' >/dev/null 2>&1 || { \
 			echo "❌ run-as-root missing on router"; \
 			echo "ℹ️  Router helpers not installed"; \
@@ -80,8 +80,7 @@ get-router-root-identity: router-require-run-as-root
 	mkdir "$$LOCKDIR" 2>/dev/null || exit 0
 
 	@# 3. Remote identity lookup (BusyBox-safe AWK)
-	@ssh -p "$(ROUTER_SSH_PORT)" \
-		"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
+	@ssh "$(SSH_HOST_ROUTER)" \
 		'awk -F: -v U="$(SSH_USER_ROUTER)" '\'' \
 			FILENAME=="/etc/group"  { g[$$3]=$$1; next } \
 			FILENAME=="/etc/passwd" { if ($$1==U) { printf "%s:%s:%s:%s\n", $$3, $$4, $$1, (g[$$4]||""); found=1; exit } } \

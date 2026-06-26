@@ -6,28 +6,28 @@
 .PHONY: router-disable-asus-ca
 router-disable-asus-ca: secrets-ready
 	@echo "🛡️ Disabling ASUS internal certificate generation"
-	@$(call WITH_SECRETS, sh -c '\
-		router_ssh="ssh -p $$ROUTER_SSH_PORT $$SSH_USER_ROUTER@$$ROUTER_ADDR"; \
-		$$router_ssh "set -e; \
-			cur_gen=\$$(nvram get https_crt_gen 2>/dev/null || echo); \
-			cur_save=\$$(nvram get https_crt_save 2>/dev/null || echo); \
+	@$(call WITH_SECRETS, \
+		ssh "$(SSH_HOST_ROUTER)" ' \
+			set -e; \
+			cur_gen="$$(nvram get https_crt_gen 2>/dev/null || echo)"; \
+			cur_save="$$(nvram get https_crt_save 2>/dev/null || echo)"; \
 			changed=0; \
-			if [ \"\$$cur_gen\" != \"0\" ]; then \
-				echo \"🔧 Setting https_crt_gen=0\"; \
+			if [ "$$cur_gen" != "0" ]; then \
+				echo "🔧 Setting https_crt_gen=0"; \
 				nvram set https_crt_gen=0; \
 				changed=1; \
 			fi; \
-			if [ \"\$$cur_save\" != \"0\" ]; then \
-				echo \"🔧 Setting https_crt_save=0\"; \
+			if [ "$$cur_save" != "0" ]; then \
+				echo "🔧 Setting https_crt_save=0"; \
 				nvram set https_crt_save=0; \
 				changed=1; \
 			fi; \
-			if [ \"\$$changed\" -eq 1 ]; then \
+			if [ "$$changed" -eq 1 ]; then \
 				nvram commit; \
-				echo \"✅ ASUS internal CA disabled\"; \
+				echo "✅ ASUS internal CA disabled"; \
 			else \
-				echo \"ℹ️ ASUS internal CA already converged\"; \
-			fi" \
+				echo "ℹ️ ASUS internal CA already converged"; \
+			fi \
 	')
 
 .PHONY: check-tools
@@ -40,13 +40,18 @@ check-tools:
 	@command -v scp >/dev/null 2>&1 \
 		&& echo "✅ CAP_FILE_DEPLOY: enabled" \
 		|| echo "❌ CAP_FILE_DEPLOY: unavailable"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) \
+
+	# CAP_CONTENT_ADDRESSING: check sha256sum availability on router
+	@ssh "$(SSH_HOST_ROUTER)" \
 		'command -v sha256sum >/dev/null 2>&1 || echo test | busybox sha256sum >/dev/null 2>&1' \
 		&& echo "✅ CAP_CONTENT_ADDRESSING: enabled" \
 		|| echo "⚠️ CAP_CONTENT_ADDRESSING: degraded"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '[ -x /jffs/scripts/firewall-start ]' >/dev/null 2>&1 \
+
+	# CAP_FIREWALL: check firewall-start presence
+	@ssh "$(SSH_HOST_ROUTER)" '[ -x /jffs/scripts/firewall-start ]' >/dev/null 2>&1 \
 		&& echo "✅ CAP_FIREWALL: enabled" \
 		|| echo "⚠️ CAP_FIREWALL: degraded"
+
 	@echo
 	@echo "ℹ️ Informational only"
 
@@ -63,12 +68,12 @@ router-prepare: router-ready router-require-run-as-root router-certs-prepare
 
 .PHONY: router-dnsmasq-invariant
 router-dnsmasq-invariant:
-	@echo "[ifc] Checking router dnsmasq singleton invariant..."
-	@if ! ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_ROUTER)@$(ROUTER_ADDR) "/jffs/scripts/dns-watchdog.sh --invariant"; then \
-		echo "[ifc] ERROR: dnsmasq singleton invariant failed — aborting converge"; \
+	@echo "🔍 Checking router dnsmasq singleton invariant..."
+	@if ! ssh "$(SSH_HOST_ROUTER)" "/jffs/scripts/dns-watchdog.sh --invariant"; then \
+		echo "❌ ERROR: dnsmasq singleton invariant failed — aborting converge"; \
 		exit 1; \
 	fi
-	@echo "[ifc] dnsmasq singleton invariant OK"
+	@echo "✅ dnsmasq singleton invariant OK"
 
 .PHONY: router-converge
 router-converge: \

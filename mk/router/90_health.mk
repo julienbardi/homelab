@@ -7,7 +7,7 @@ export ROUTER_CADDY_BIN
 .PHONY: router-health
 router-health: router-ssh-check
 	@echo "📊 Router health check"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
+	@ssh "$(SSH_HOST_ROUTER)" '\
 		set -e; \
 		echo "-> System:"; \
 			uname -a; \
@@ -54,7 +54,7 @@ router-health: router-ssh-check
 .PHONY: router-health-strict
 router-health-strict: router-health | router-ssh-check router-bootstrap-primitives
 	@echo "🔒 Enforcing strict security invariants"
-	@ssh -p $(ROUTER_SSH_PORT) $(ROUTER_HOST) '\
+	@ssh "$(SSH_HOST_ROUTER)" '\
 		set -e; \
 		echo "-> OpenVPN:"; \
 			if pidof openvpn >/dev/null 2>&1; then \
