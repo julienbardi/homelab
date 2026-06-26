@@ -36,20 +36,17 @@
 # No uninstall target must ever exist.
 # --------------------------------------------------------------------
 
-ACME_HOME    := /var/lib/acme
+# ACME_HOME is defined in mk/config.mk
 ACME_BIN     := $(ACME_HOME)/acme.sh
-ACME_VERSION := v3.1.3
+ACME_VERSION := v3.1.4
 
 .PHONY: acme-bootstrap acme-install acme-ensure-dirs
 
-acme-bootstrap: ensure-run-as-root acme-ensure-dirs acme-install
+acme-bootstrap: ensure-run-as-root acme-ensure-dirs acme-install acme-write-infomaniak-token
 	@echo "✅ ACME bootstrap complete"
 
 acme-ensure-dirs: | $(run_as_root)
-	@{ \
-		test -d "$(ACME_HOME)" || \
-		$(run_as_root) install -d -m 0700 -o $(ROOT_UID) -g $(ROOT_GID) "$(ACME_HOME)"; \
-	}
+	@$(run_as_root) install -d -m 0700 -o $(ROOT_UID) -g $(ROOT_GID) "$(ACME_HOME)"
 
 ACME_SRC := $(HOME)/src/acme.sh
 
@@ -63,14 +60,56 @@ acme-install: | $(run_as_root)
 		exit 1; \
 	fi; \
 	CURRENT_VER="$$( $(run_as_root) sh -c 'test -x "$(ACME_BIN)" && "$(ACME_BIN)" --version | tail -n 1 | xargs || echo none' )"; \
-	if [ "$$CURRENT_VER" != "$(ACME_VERSION)" ]; then \
-		echo "🔄 ACME Version mismatch (Got: $$CURRENT_VER, Target: $(ACME_VERSION)). Installing..."; \
+	FORCE_REINSTALL=0; \
+	if ! $(run_as_root) grep -q "LE_WORKING_DIR" "$(ACME_HOME)/account.conf" 2>/dev/null; then \
+		echo "⚠️ ACME not installed in sudo-safe mode — forcing reinstall"; \
+		FORCE_REINSTALL=1; \
+	fi; \
+	if [ "$$CURRENT_VER" != "$(ACME_VERSION)" ] || [ "$$FORCE_REINSTALL" = "1" ]; then \
+		echo "🔄 Installing ACME (sudo-safe mode)..."; \
 		$(call git_clone_or_fetch,$(ACME_SRC),https://github.com/acmesh-official/acme.sh.git,master); \
-		cd "$(ACME_SRC)"; \
-		$(run_as_root) ./acme.sh --install --nocron --home "$(ACME_HOME)"; \
+		$(run_as_root) sh -c '\
+			cd "$(ACME_SRC)"; \
+			LE_FORCE_SUDO=1 ./acme.sh \
+				--install \
+				--nocron \
+				--home "$(ACME_HOME)" \
+				--accountemail "$(DOMAIN)@$(DOMAIN)" \
+				--force; \
+			chmod 700 "$(ACME_HOME)"; \
+			chmod 755 "$(ACME_HOME)/acme.sh"; \
+			find "$(ACME_HOME)/dnsapi" -type f -exec chmod 755 {} \;; \
+			find "$(ACME_HOME)" -type f -name "*.cer" -exec chmod 644 {} \;; \
+			find "$(ACME_HOME)" -type f -name "*.key" -exec chmod 600 {} \;; \
+		'; \
 	else \
-		echo "✅ acme.sh $$CURRENT_VER already installed."; \
+		echo "✅ acme.sh $$CURRENT_VER already installed (sudo-safe)."; \
 	fi
 
-
-
+# --------------------------------------------------------------------
+# ACME: Inject Infomaniak API token (idempotent, secrets-aware)
+# --------------------------------------------------------------------
+.PHONY: acme-write-infomaniak-token
+acme-write-infomaniak-token: secrets-ready | $(INSTALL_FILES_IF_CHANGED) $(run_as_root)
+	@$(call WITH_SECRETS, sh -euo pipefail -c '\
+		TOKEN="$$INFOMANIAK_API_TOKEN"; \
+		if [ -z "$$TOKEN" ]; then \
+			echo "❌ ERROR: INFOMANIAK_API_TOKEN missing from secrets.enc.yaml"; \
+			exit 1; \
+		fi; \
+		\
+		TMP="$$(mktemp)"; \
+		printf "INFOMANIAK_API_TOKEN=\"%s\"\n" "$$TOKEN" > "$$TMP"; \
+		\
+		echo "🔐 Installing Infomaniak API token into $(ACME_HOME)/account.conf"; \
+		RC=0; \
+		$(run_as_root) "$(INSTALL_FILE_IF_CHANGED)" -q \
+			"" "" "$$TMP" \
+			"" "" "$(ACME_HOME)/account.conf" \
+			"$(ROOT_UID)" "$(ROOT_GID)" 600 || RC=$$?; \
+		if [ "$$RC" -ne 0 ] && [ "$$RC" -ne "$(INSTALL_IF_CHANGED_EXIT_CHANGED)" ]; then \
+			echo "❌ IFC failed for $$TARGET (exit $$RC)"; \
+			exit $$RC; \
+		fi; \
+		rm -f "$$TMP"; \
+	')
