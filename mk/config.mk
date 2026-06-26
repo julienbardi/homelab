@@ -94,7 +94,7 @@ HUB01_LAN_IFACE := ens3 # ip route get 10.89.12.1 | awk '/dev/ {print $5}'
 
 # Certificates & Identity
 DOMAIN               := bardi.ch
-ACME_HOME            := /var/lib/acme
+ACME_HOME := $(shell . /volume1/homelab/homelab.env && echo $$ACME_HOME)
 RENEW_THRESHOLD_DAYS := 30
 export APT_CNAME_EXPECTED   := bardi.ch
 
@@ -105,11 +105,6 @@ SSL_CANONICAL_DIR := /var/lib/ssl/canonical
 SSL_CERT_ECC  := $(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer
 SSL_CHAIN_ECC := $(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer
 SSL_KEY_ECC   := $(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key
-
-# RSA certificates (fallback)
-SSL_CERT_RSA  := $(ACME_HOME)/$(DOMAIN)/$(DOMAIN).cer
-SSL_CHAIN_RSA := $(ACME_HOME)/$(DOMAIN)/fullchain.cer
-SSL_KEY_RSA   := $(ACME_HOME)/$(DOMAIN)/$(DOMAIN).key
 
 # Deployment targets
 SSL_DEPLOY_DIR_CADDY     := /etc/ssl/caddy

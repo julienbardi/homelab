@@ -37,7 +37,7 @@ define go_install_from_source
 		echo "🚚 Installing $$FILENAME via IFC"; \
 		RC=0; \
 		$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q "" "" "$$f" "" "" "$$TARGET" "$(ROOT_UID)" "$(ROOT_GID)" "0755" || RC=$$?; \
-		if [ "$$RC" -ne 0 ] && [ "$$RC" -ne 3 ]; then \
+		if [ "$$RC" -ne 0 ] && [ "$$RC" -ne "$(INSTALL_IF_CHANGED_EXIT_CHANGED)" ]; then \
 			echo "❌ IFC failed for $$TARGET (exit $$RC)"; \
 			exit $$RC; \
 		fi; \

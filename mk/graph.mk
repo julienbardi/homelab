@@ -50,7 +50,8 @@ include $(REPO_ROOT)/mk/router/05_ssh.mk
 # Step 4 — Host, Router modules
 include $(REPO_ROOT)/mk/host/10_route.mk
 include $(REPO_ROOT)/mk/router/10_bootstrap.mk
-include $(REPO_ROOT)/mk/router/20_network.mk
+include $(REPO_ROOT)/mk/router/20_network_dhcp_dns.mk
+include $(REPO_ROOT)/mk/router/21_network_ipv6_nvram.mk
 include $(REPO_ROOT)/mk/router/40_caddy.mk
 include $(REPO_ROOT)/mk/router/40_control.mk
 include $(REPO_ROOT)/mk/router/40_firewall.mk
@@ -58,7 +59,6 @@ include $(REPO_ROOT)/mk/router/90_health.mk
 
 # Step 5 — Everything else
 include $(REPO_ROOT)/mk/05_bootstrap_acme.mk
-include $(REPO_ROOT)/mk/06_acme_timer.mk
 include $(REPO_ROOT)/mk/10_bootstrap_security.mk
 include $(REPO_ROOT)/mk/10_groups.mk
 include $(REPO_ROOT)/mk/10_local-tools.mk
@@ -242,8 +242,18 @@ nft-install-rollback: ensure-run-as-root
 
 # The root of the DAG
 .PHONY: homelab-all
-homelab-all: sanity repo-preflight nft-apply-phase wg-network-phase service-phase verify-ipv6-invariants
+homelab-all: \
+	sanity \
+	repo-preflight \
+	nft-apply-phase \
+	router-install-scripts \
+	wg-network-phase \
+	service-phase \
+	router-health \
+	verify-ipv6-invariants
 	@echo "🎉 Homelab fully converged."
+
+router-install-scripts: | repo-preflight
 
 # Phase 1: Security/Firewall (Foundational, must run sequentially)
 .PHONY: nft-apply-phase
@@ -258,7 +268,12 @@ wg-network-phase: nft-apply-phase
 # Phase 3: Services (Independent of each other)
 .PHONY: service-phase
 service-phase: | nft-confirm
-service-phase: install-systemd enable-systemd deploy-unbound-config monitoring install-router-prefix-watchdog install-nas-prefix-watchdog enable-unbound verify-internal-dns all-remote
+service-phase: install-systemd enable-systemd deploy-unbound-config monitoring \
+			install-router-prefix-watchdog install-nas-prefix-watchdog \
+			enable-unbound verify-internal-dns all-remote \
+			router-certs-prepare \
+			router-certs-deploy \
+			router-caddy
 service-phase: wg-network-phase
 
 # Sub-groupings
