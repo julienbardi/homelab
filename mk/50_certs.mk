@@ -52,7 +52,7 @@ certs-deploy: ensure-run-as-root certs-create $(CERTS_DEPLOY)
 	@$(run_as_root) $(CERTS_DEPLOY) deploy router
 	@echo "🔐 Certificates deployed"
 
-certs-ensure: ensure-run-as-root certs-deploy
+certs-ensure: certs-deploy
 	@echo "🔄 certificates ensured"
 
 certs-status:
@@ -87,7 +87,10 @@ certs-expiry: ensure-run-as-root
 		bootstrap-all deploy-ac86u
 
 renew: ensure-run-as-root install-helpers
-	@$(run_as_root) $(CERTS_DEPLOY) renew FORCE=$(FORCE) ACME_FORCE=$(ACME_FORCE)
+	@$(run_as_root) systemctl start acme-issue.service || { \
+		echo "❌ Failed to trigger ACME issuance via systemd"; \
+		exit 1; \
+	}
 
 install-helpers: $(INSTALL_PATH)/common.sh \
 	$(INSTALL_FILE_IF_CHANGED) \
@@ -101,19 +104,17 @@ $(INSTALL_PATH)/deploy_certificates.sh: $(REPO_ROOT)/scripts/deploy_certificates
 # ============================================================
 # prepare: run CERTS_DEPLOY prepare + compute canonical hash
 # ============================================================
-$(STAMP_PREPARE): ensure-run-as-root renew $(CERTS_DEPLOY)
-	@$(run_as_root) sh -c '\
+$(STAMP_PREPARE): renew $(CERTS_DEPLOY)
+	@$(call WITH_SECRETS, $(run_as_root) sh -c '\
 		set -euo pipefail; \
 		$(CERTS_DEPLOY) prepare; \
 		sha256sum \
 			$(SSL_CANONICAL_DIR)/fullchain_ecc.pem \
 			$(SSL_CANONICAL_DIR)/privkey_ecc.pem \
-			$(SSL_CANONICAL_DIR)/fullchain_rsa.pem \
-			$(SSL_CANONICAL_DIR)/privkey_rsa.pem \
 			| sha256sum | awk '\''{print $$1}'\'' \
 			> $(STAMP_CERTS_CANONICAL); \
 		touch $(STAMP_PREPARE); \
-	' || { echo "❌ prepare failed"; exit 1; }
+	') || { echo "❌ prepare failed"; exit 1; }
 
 prepare: $(STAMP_PREPARE)
 
@@ -125,16 +126,16 @@ $(STAMP_CERTS_CANONICAL): $(STAMP_PREPARE)
 # All deploy targets depend on canonical stamp
 # ============================================================
 deploy-caddy:      $(STAMP_CERTS_CANONICAL) router-install-scripts
-	$(call deploy_with_status,caddy)
+	$(call WITH_SECRETS, $(call deploy_with_status,caddy))
 
 deploy-headscale:  $(STAMP_CERTS_CANONICAL)
-	$(call deploy_with_status,headscale)
+	$(call WITH_SECRETS, $(call deploy_with_status,headscale))
 
 deploy-dnsdist:    $(STAMP_CERTS_CANONICAL)
-	$(call deploy_with_status,dnsdist)
+	$(call WITH_SECRETS, $(call deploy_with_status,dnsdist))
 
 deploy-qnap:       $(STAMP_CERTS_CANONICAL)
-	@echo "🔄 QNAP deploy triggered by canonical cert change"
+	$(call WITH_SECRETS, $(call deploy_with_status,qnap))
 
 deploy-dsm:        $(STAMP_CERTS_CANONICAL)
 	@echo "🔄 DSM deploy triggered by canonical cert change"

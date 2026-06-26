@@ -2,18 +2,20 @@
 # /usr/local/bin/certs-deploy.sh
 set -euo pipefail
 
+# shellcheck disable=SC2034
 SCRIPT_NAME=""
 COMMON="/usr/local/bin/common.sh"
 [[ -f "$COMMON" ]] || { echo "❌ Error: $COMMON not found" >&2; exit 1; }
+# shellcheck source=common.sh
+# shellcheck disable=SC1091
 source "$COMMON"
 
 # Constants
 CA_PUB="/etc/ssl/certs/homelab_bardi_CA.pem"
 CANON_CA="/var/lib/ssl/canonical/ca.cer"
 CADDY_CA="/etc/ssl/caddy/homelab_bardi_CA.pem"
-ACME_HOME="/var/lib/acme"
-ACME_GROUP="ssl-cert"
-DOMAIN="bardi.ch"
+
+# ACME_HOME, DOMAIN, SSL paths already loaded by common.sh
 
 # Caddy Target Paths
 CADDY_CERT_DIR="/etc/ssl/caddy"

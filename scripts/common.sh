@@ -1,17 +1,38 @@
 #!/bin/bash
 # ============================================================
-# common.sh
-# ------------------------------------------------------------
-# Shared helpers for homelab scripts
-# Provides: log(), run_as_root(), ensure_rule()
+# common.sh — shared primitives for homelab scripts
+#
+# This file defines:
+#   - secure environment loading
+#   - deterministic logging
+#   - privilege‑correct root escalation
+#   - idempotent rule insertion
+#   - certificate‑deployment helpers
+#
+# All helpers here must remain:
+#   - side‑effect minimal
+#   - privilege‑bounded
+#   - reproducible
+#   - safe under sudo and non‑sudo execution
 # ============================================================
+
 set -euo pipefail
 
+# Prevent double‑loading when sourced multiple times
 [[ -n "${_HOMELAB_COMMON_SH_LOADED:-}" ]] && return
 readonly _HOMELAB_COMMON_SH_LOADED=1
 
-# --- 1. Environment Loading (INSERT HERE) ---
-# Load authoritative homelab environment variables
+# ============================================================
+# 1. Secure environment loading
+#
+# homelab.env is authoritative configuration. It must:
+#   - be owned by root or a trusted admin user
+#   - not be writable by untrusted groups or world
+#   - not be able to hijack PATH
+#
+# If any trust condition fails, the file is skipped.
+# ============================================================
+
 HOMELAB_ENV="/volume1/homelab/homelab.env"
 TRUSTED_GROUP="admin"
 
@@ -20,21 +41,31 @@ if [[ -f "$HOMELAB_ENV" ]]; then
     _env_group=$(stat -c "%g" "$HOMELAB_ENV")
     _env_mode=$(stat -c "%a" "$HOMELAB_ENV")
 
+    # Extract octal digits (owner/group/other)
+    _env_o=${_env_mode:0:1}
+    _env_g=${_env_mode:1:1}
+    _env_t=${_env_mode:2:1}
+
     current_uid=$(id -u)
-    current_gid=$(id -g)
     trusted_gid=$(getent group "$TRUSTED_GROUP" | cut -d: -f3)
 
-    # If trusted_gid is empty, treat as untrusted
     if [[ -z "$trusted_gid" ]]; then
-        echo "[common.sh] WARNING: trusted group '$TRUSTED_GROUP' not found — skipping source" >&2
+        echo "[common.sh] WARNING: trusted group '$TRUSTED_GROUP' missing — skipping source" >&2
+
+    # Owner must be root, current user, or trusted group
     elif [[ "$_env_owner" != "0" && "$_env_owner" != "$current_uid" && "$_env_group" != "$trusted_gid" ]]; then
-        echo "[common.sh] WARNING: $HOMELAB_ENV owner/group not trusted — skipping source" >&2
-    elif (( (10#$_env_mode & 002) != 0 )); then
-        echo "[common.sh] WARNING: $HOMELAB_ENV is world-writable ($_env_mode) — skipping source" >&2
-    elif (( (10#$_env_mode & 020) != 0 )) && [[ "$_env_group" != "$trusted_gid" ]]; then
-        echo "[common.sh] WARNING: $HOMELAB_ENV is group-writable by untrusted group ($_env_mode) — skipping source" >&2
+        echo "[common.sh] WARNING: $HOMELAB_ENV owner/group untrusted — skipping source" >&2
+
+    # World‑writable is always forbidden
+    elif (( _env_t >= 2 )); then
+        echo "[common.sh] WARNING: $HOMELAB_ENV world‑writable ($_env_mode) — skipping source" >&2
+
+    # Group‑writable allowed only if group is trusted
+    elif (( _env_g >= 2 )) && [[ "$_env_group" != "$trusted_gid" ]]; then
+        echo "[common.sh] WARNING: $HOMELAB_ENV group‑writable by untrusted group ($_env_mode) — skipping source" >&2
+
     else
-        # Save PATH before sourcing so homelab.env cannot hijack it
+        # Protect PATH from being overridden by homelab.env
         _saved_path="$PATH"
         set +a; set +u; set -a
         source "$HOMELAB_ENV"
@@ -43,36 +74,54 @@ if [[ -f "$HOMELAB_ENV" ]]; then
         export PATH
         unset _saved_path
     fi
-
-    unset _env_owner _env_group _env_mode
+    unset _env_owner _env_group _env_mode _env_o _env_g _env_t
 fi
+export ACME_HOME
+export SSL_CERT_ECC SSL_CHAIN_ECC SSL_KEY_ECC
 
+# ============================================================
+# 2. Derived defaults
+# ============================================================
 
-# Set derived router connection string if not already set
+# Router SSH helper (only set if not already defined)
 : "${ROUTER_SSH:=ssh -p${ROUTER_SSH_PORT:-2222} ${ROUTER_HOST:-}}"
 export ROUTER_SSH
 
-# Only set a default if SCRIPT_NAME is completely unset.
-# If it is set to "" (empty), we respect that for minimalist logging.
+# SCRIPT_NAME:
+#   - If user sets SCRIPT_NAME="", logging becomes minimalist
+#   - If unset, derive from BASH_SOURCE (correct for sourced scripts)
 if [ "${SCRIPT_NAME+set}" != "set" ]; then
-    SCRIPT_NAME="$(basename "$0" .sh)"
+    SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"
 fi
 
+# Exit code used by IFCv3 to signal "changed"
 export INSTALL_IF_CHANGED_EXIT_CHANGED=3
 
-# shellcheck disable=SC2317
+# Path to IFCv3 installer (vectorized v2 wrapper depends on this)
+: "${INSTALL_FILE_IF_CHANGED:=/usr/local/bin/install_file_if_changed_v3.sh}"
+
+export INSTALL_FILE_IF_CHANGED
+
+# ============================================================
+# 3. Logging + privilege helpers
+# ============================================================
+
 log() {
+    # Minimalist mode: SCRIPT_NAME=""
     if [ "${SCRIPT_NAME+set}" = "set" ] && [ -z "$SCRIPT_NAME" ]; then
-        # Minimalist mode: No brackets, just the message (preserves icons)
         printf "%s\n" "$*" >&2
     else
-        # Explicit or Default: [name] message
         printf "[%s] %s\n" "${SCRIPT_NAME:-$(basename "$0" .sh)}" "$*" >&2
     fi
 
-    command -v logger >/dev/null 2>&1 && logger -t homelab "${SCRIPT_NAME:-${0##*/}}: $*"
+    # Optional syslog integration
+    command -v logger >/dev/null 2>&1 && \
+        logger -t homelab "${SCRIPT_NAME:-${0##*/}}: $*"
 }
 
+# Privilege boundary:
+#   - If already root, run directly
+#   - Otherwise escalate via sudo
 run_as_root() {
     if [[ $EUID -eq 0 ]]; then
         "$@"
@@ -81,7 +130,8 @@ run_as_root() {
     fi
 }
 
-# Idempotent rule inserter: checks with -C first
+# Idempotent rule insertion:
+#   - Uses iptables/nftables -C to check before inserting
 ensure_rule() {
     local cmd="$1"; shift
     local args=("$@")
@@ -94,22 +144,22 @@ ensure_rule() {
 }
 
 # ============================================================
-# Extra helpers for certificate deployment
-# ------------------------------------------------------------
-# These are additive; existing functions above remain untouched
+# 4. Certificate‑deployment helpers
 # ============================================================
 
-# Require file exists and is non-empty
+# Require file exists and is non‑empty
 require_file() {
     [[ -s "$1" ]] || { log "❌ missing file: $1"; exit 1; }
 }
 
-# Compare hash of source file against stored hash file
-# Returns 0 if changed, 1 if unchanged
+# Hash‑based drift detector:
+#   - Returns 0 if changed
+#   - Returns 1 if unchanged
 changed() {
     local file="$1" hashfile="$2"
     local newhash
     newhash="$(sha256sum "${file}" | cut -d' ' -f1)"
+
     if [[ ! -f "${hashfile}" ]] || [[ "$(cat "${hashfile}")" != "$newhash" ]]; then
         echo "$newhash" | sudo tee "${hashfile}" >/dev/null
         return 0
@@ -117,13 +167,14 @@ changed() {
     return 1
 }
 
+# Reload service with correct fallback order:
+#   1. caddy reload (only for caddy)
+#   2. systemctl reload
+#   3. systemctl restart
 reload_service() {
     local svc="$1"
     local config="$2"
 
-    # Caddy has its own graceful reload CLI; use it only for Caddy itself.
-    # Passing a non-Caddy config path to `caddy reload` is incorrect and can
-    # silently reload Caddy with wrong configuration.
     if [[ "$svc" == "caddy" ]]; then
         if sudo timeout 10 caddy reload --config "${config}" --force; then
             log "${svc} reloaded via caddy CLI"
@@ -132,15 +183,13 @@ reload_service() {
         log "${svc} caddy CLI reload failed, falling back to systemctl..."
     fi
 
-    # systemctl reload sends SIGHUP (supported by most daemons)
     if sudo timeout 10 systemctl reload "${svc}"; then
         log "${svc} reloaded via systemctl"
         return 0
     fi
 
-    log "${svc} reload not supported, restarting..."
+    log "${svc} reload unsupported — restarting"
 
-    # Final fallback: full restart
     if sudo timeout 10 systemctl restart "${svc}"; then
         log "${svc} restarted via systemctl"
         return 0
@@ -150,8 +199,7 @@ reload_service() {
     return 1
 }
 
-# Require a binary exists in PATH
-# Usage: require_bin funzip "Required for Tranco list extraction"
+# Require a binary to exist in PATH
 require_bin() {
     local bin="$1"
     local reason="${2:-Required for operation}"
@@ -162,17 +210,21 @@ require_bin() {
     fi
 }
 
+# Vectorized wrapper for IFCv3:
+#   - Processes arguments in groups of 9
+#   - Tracks whether any file changed
+#   - Aborts on any non‑zero, non‑changed exit code
 install_files_if_changed_v2() {
-    local -n _changed_ref=$1  # Added underscore to prevent name collision
+    local -n _changed_ref=$1
     shift
     local total_args=$#
-
+	echo "DEBUG221"
     echo "ARGCOUNT=$# ARGS=[${*}]" >&2
-    # Precision check: Ensure the installer exists before processing the vector
-    require_file "/usr/local/bin/install_file_if_changed_v3.sh"
+    require_file "$INSTALL_FILE_IF_CHANGED"
 
     for (( i=1; i<=total_args; i+=9 )); do
         echo "VECTORIZED CALL: ${@:i:9}" >&2
+
         set +e
         (
             set +e
@@ -180,6 +232,7 @@ install_files_if_changed_v2() {
         )
         rc=$?
         set -e
+
         if [[ "$rc" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]]; then
             _changed_ref=1
         elif [[ "$rc" -ne 0 ]]; then

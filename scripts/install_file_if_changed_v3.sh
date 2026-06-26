@@ -106,6 +106,9 @@ if [ -z "$DST_HOST" ]; then
 
     mkdir -p "$DST_DIR"
 
+    # Ensure lock + buffer are always cleaned up
+    trap 'rm -rf "$LOCK" "$BUFFER" 2>/dev/null || true' EXIT
+
     if ! mkdir "$LOCK" 2>/dev/null; then
         echo "❌ IFCv3: lock held: $LOCK" >&2
         rm -f "$BUFFER"

@@ -32,7 +32,7 @@ endif
 # Shared helpers
 # ------------------------------------------------------------
 define router_deploy_with_status
-	@ROUTER_ADDR="$(ROUTER_ADDR)" \
+	ROUTER_ADDR="$(ROUTER_ADDR)" \
 	ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
 	SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
 	SSH_OPTS="$(SSH_OPTS) -F $(HOME)/.ssh/config -i $(HOME)/.ssh/id_ed25519" \
@@ -49,8 +49,7 @@ endef
 .PHONY: router-certs-prereqs-ssh
 router-certs-prereqs-ssh:
 	@$(call WITH_SECRETS, \
-		ssh $(SSH_OPTS) -o BatchMode=yes -p "$(ROUTER_SSH_PORT)" \
-			"$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" true \
+		ssh "$(SSH_HOST_ROUTER)" true \
 	) 2>/dev/null || { \
 		echo "❌ SSH key authentication to router failed"; \
 		exit 1; \
@@ -67,28 +66,29 @@ router-certs-deploy-script:
 			$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE) \
 	)
 
-.PHONY: router-certs-prepare
 router-certs-prepare: install-all router-certs-deploy-script router-require-run-as-root
-	@ROUTER_ADDR="$(ROUTER_ADDR)" \
-	ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
-	SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
-	SSH_OPTS="$(SSH_OPTS) -F $(HOME)/.ssh/config -i $(HOME)/.ssh/id_ed25519" \
-	$(run_as_root) $(CERTS_DEPLOY) prepare
+	@$(call WITH_SECRETS, \
+		ROUTER_ADDR="$(ROUTER_ADDR)" \
+		ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
+		SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
+		SSH_OPTS="$(SSH_OPTS) -F $(HOME)/.ssh/config -i $(HOME)/.ssh/id_ed25519" \
+		$(run_as_root) $(CERTS_DEPLOY) prepare \
+	)
 
 # ------------------------------------------------------------
 # Namespaced deploy + validate
 # ------------------------------------------------------------
 .PHONY: router-certs-deploy
 router-certs-deploy: router-bootstrap-primitives install-all router-certs-prereqs-ssh router-certs-prepare
-	$(call router_deploy_with_status,router)
+	$(call WITH_SECRETS, $(call router_deploy_with_status,router))
 
 .PHONY: router-certs-validate
 router-certs-validate: router-certs-deploy
-	$(call router_validate_with_status,router)
+	$(call WITH_SECRETS, $(call router_validate_with_status,router))
 
 .PHONY: router-certs-validate-caddy
 router-certs-validate-caddy: install-all router-certs-deploy
-	$(call router_validate_with_status,caddy)
+	$(call WITH_SECRETS, $(call router_validate_with_status,caddy))
 
 .PHONY: router-certs-status
 router-certs-status: router-bootstrap router-certs-prepare
@@ -114,5 +114,4 @@ validate-router: router-certs-validate
 .PHONY: router-logs
 router-logs:
 	@echo "Tailing router certificate logs"
-	@ssh -p "$(ROUTER_SSH_PORT)" "$(SSH_USER_ROUTER)@$(ROUTER_ADDR)" \
-		"logread -f | grep -E 'router-cert-apply'"
+	@ssh "$(SSH_HOST_ROUTER)" "logread -f | grep -E 'router-cert-apply'"
