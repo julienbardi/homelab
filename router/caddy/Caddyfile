@@ -40,7 +40,7 @@
 # Consolidated HTTPS listener (edge)
 # ------------------------------------------------------------
 :443 {
-	tls /jffs/ssl/caddy/fullchain.pem /jffs/ssl/caddy/privkey.pem
+	tls /jffs/ssl/fullchain.pem /jffs/ssl/privkey.pem
 
 	# ------------------------------------------------------------
 	# Syncthing GUI (explicit port)
