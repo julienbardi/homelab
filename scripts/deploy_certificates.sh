@@ -323,7 +323,6 @@ deploy_router() {
         log "ℹ️ router TLS material already up-to-date (fast-path)"
         return 0
     fi
-	log "DEBUG326"
     local changed=0
     run_as_root install_files_if_changed_v2 changed \
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
@@ -332,7 +331,6 @@ deploy_router() {
         "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
         julie root 0600
-    log "DEBUG335"
     if [[ "$changed" -eq 1 ]]; then
         log "📝 Router TLS material updated"
     else

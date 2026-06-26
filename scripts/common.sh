@@ -218,7 +218,6 @@ install_files_if_changed_v2() {
     local -n _changed_ref=$1
     shift
     local total_args=$#
-	echo "DEBUG221"
     echo "ARGCOUNT=$# ARGS=[${*}]" >&2
     require_file "$INSTALL_FILE_IF_CHANGED"
 
