@@ -61,15 +61,6 @@ WG_ENV = \
 # Unified sudo wrapper for homelab root operations
 WG_SUDO := sudo --preserve-env=ROUTER_HOST,ROUTER_ADDR,ROUTER_SSH_PORT,ROUTER_WG_DIR,WG_ROOT,WG_SUBNETS_MK,SSH_AUTH_SOCK,ROUTER_IDENTITY,SSH_CONTROL_PATH
 
-run_as_root_router := ssh -p $(ROUTER_SSH_PORT) \
-	-o ControlMaster=auto \
-	-o ControlPath=$(SSH_SOCK_FILE) \
-	-o ControlPersist=60s \
-	-o BatchMode=yes \
-	-o IdentityFile=$(ROUTER_IDENTITY) \
-	-o StrictHostKeyChecking=yes \
-	$(ROUTER_HOST)
-
 WG_SUBNETS_MK := $(SYSTEM_STATE_DIR)/wg-subnets.mk
 
 # --------------------------------------------------------------------
@@ -109,7 +100,7 @@ router-ensure-wg-module: router-install-scripts
 .PHONY: router-bootstrap-wg-keys
 router-bootstrap-wg-keys:
 	@echo "🧬 [router] Ensuring WireGuard identity in NVRAM (wgs1)..."; \
-	$(run_as_root_router) ' \
+	ssh "$(SSH_HOST_ROUTER)" ' \
 		set -eu; \
 		priv="$$(nvram get wgs1_priv 2>/dev/null || true)"; \
 		pub="$$(nvram get wgs1_pub 2>/dev/null || true)"; \
@@ -148,7 +139,7 @@ wg-clean-out: wg-down-router wg-down-nas wg-clean-state
 					"$(INSTALL_PATH)/wg-readiness-probe.sh"
 	@rm -f "$(SSH_SOCK_FILE)"
 	@echo "🧹 Cleaning remote router scripts"
-	@$(run_as_root_router) "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
+	@ssh "$(SSH_HOST_ROUTER)" "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
 
 # --- Deployment ---
 router-firewall: | wg-generate
@@ -164,7 +155,7 @@ router-firewall: | wg-generate
 			"0" "0" "0755" || FEC=$$?; \
 		if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi; \
 		if [ "$$FEC" = "0" ]; then \
-			$(run_as_root_router) "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
+			ssh "$(SSH_HOST_ROUTER)" "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
 		fi \
 	)
 
@@ -175,7 +166,7 @@ wg-install-router: router-ensure-wg-module \
 	| wg-generate \
 	router-firewall
 	@EXECUTE_DEPLOY=0; \
-	if ! ssh -p "$(ROUTER_SSH_PORT)" "$(ROUTER_HOST)" 'test -f $(ROUTER_WG_DIR)/wgs1.conf'; then \
+	if ! ssh "$(SSH_HOST_ROUTER)" 'test -f $(ROUTER_WG_DIR)/wgs1.conf'; then \
 		echo "⚠️  Router missing $(ROUTER_WG_DIR)/wgs1.conf — marking for deploy"; \
 		EXECUTE_DEPLOY=1; \
 	fi; \
@@ -192,7 +183,7 @@ wg-install-router: router-ensure-wg-module \
 			EXECUTE_DEPLOY=1; \
 		fi; \
 	done; \
-	if ! ssh -p "$(ROUTER_SSH_PORT)" "$(ROUTER_HOST)" 'test -f $(ROUTER_WG_DIR)/wgs1.conf'; then \
+	if ! ssh "$(SSH_HOST_ROUTER)" 'test -f $(ROUTER_WG_DIR)/wgs1.conf'; then \
 		echo "⚠️  Router missing $(ROUTER_WG_DIR)/wgs1.conf — deploy required"; \
 		EXECUTE_DEPLOY=1; \
 	fi; \
@@ -293,7 +284,7 @@ wg-restart: wg-down wg-up
 
 router-wg-health-strict:
 	@echo "🔍 Strict WireGuard health check on router"; \
-	$(run_as_root_router) 'set -e; \
+	ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 		if ! wg show wgs1 >/dev/null 2>&1; then \
 			echo "❌ WireGuard interface wgs1 missing or down"; \
 			exit 1; \
@@ -303,7 +294,7 @@ router-wg-health-strict:
 
 router-wg-audit:
 	@echo "🔍 Auditing WireGuard configuration on router"; \
-	$(run_as_root_router) 'set -e; \
+	ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 		echo "📝 WireGuard interfaces:"; \
 		wg show; \
 		echo "📝 Routing table:"; \
@@ -339,7 +330,7 @@ wg7-validate:
 # wg-router-ipv6-probe — standalone check for router IPv6 capabilities and prefix delegation
 wg-router-ipv6-probe:
 	@echo "🔍 Probing router IPv6 stack..."; \
-	$(run_as_root_router) ' \
+	ssh "$(SSH_HOST_ROUTER)" ' \
 		echo "=== ip6tables nat table (expected: FAIL — Asus Merlin lacks CONFIG_IP6_NF_NAT) ==="; \
 		ip6tables -t nat -L 2>&1 || echo "  (not available — expected, wg7 uses NAS NAT66 instead)"; \
 		echo ""; \

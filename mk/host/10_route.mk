@@ -9,7 +9,7 @@ define REMOTE_DEFAULT_ROUTE_HEALER
 		echo "❌ REMOTE_DEFAULT_ROUTE_HEALER must NEVER be used on the router (WAN routing is ISP/firmware controlled)"; \
 		exit 1; \
 	fi; \
-	ssh $(1) ' \
+	ssh "$(1)" ' \
 		if ! ip route show default | grep -q "$(LAN_ROUTER)"; then \
 			echo "⚠️ Default route missing on $(1) — restoring"; \
 			sudo ip route add default via "$(LAN_ROUTER)" dev $(2) || true; \
@@ -18,7 +18,6 @@ define REMOTE_DEFAULT_ROUTE_HEALER
 			echo "🟢 Default route OK on $(1)"; \
 		fi'
 endef
-
 
 # ------------------------------------------------------------
 # HOST DEFAULT ROUTE HEALER (always safe, always local)
@@ -52,7 +51,7 @@ ensure-hub01-default-route: install-ssh-config secrets-ready
 # ------------------------------------------------------------
 
 # NAS
-nas-bootstrap: ensure-host-default-route
+nas-bootstrap: install-ssh-config ensure-host-default-route
 nas-bootstrap:
 	@if ! ping -c1 $(NAS_ADDR) >/dev/null 2>&1; then \
 		echo "⚠️ NAS unreachable — skipping nas-bootstrap"; \
@@ -65,7 +64,7 @@ nas-bootstrap:
 
 
 # Synology
-synology-bootstrap: ensure-host-default-route
+synology-bootstrap: install-ssh-config ensure-host-default-route
 synology-bootstrap:
 	@if ! ping -c1 $(SYNOLOGY_ADDR) >/dev/null 2>&1; then \
 		echo "⚠️ Synology unreachable — skipping synology-bootstrap"; \
@@ -78,7 +77,7 @@ synology-bootstrap:
 
 
 # QNAP
-qnap-bootstrap: ensure-host-default-route
+qnap-bootstrap: install-ssh-config ensure-host-default-route
 qnap-bootstrap:
 	@if ! ping -c1 $(QNAP_ADDR) >/dev/null 2>&1; then \
 		echo "⚠️ QNAP unreachable — skipping qnap-bootstrap"; \
@@ -91,7 +90,7 @@ qnap-bootstrap:
 
 
 # hub01
-hub01-bootstrap: ensure-host-default-route ensure-hub01-default-route
+hub01-bootstrap: install-ssh-config ensure-hub01-default-route
 hub01-bootstrap:
 	@if ! ssh -o ConnectTimeout=3 $(SSH_HOST_HUB01) 'true' >/dev/null 2>&1; then \
 		echo "⚠️ hub01 unreachable — skipping hub01-bootstrap"; \
