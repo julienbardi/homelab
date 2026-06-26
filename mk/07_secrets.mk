@@ -15,13 +15,10 @@ export SECRETS_FILE  := $(REPO_ROOT)/secrets.enc.yaml
 # ----------------------------------------------------------------------------
 
 HOMELAB_RUNTIME_BASE := /run/user/$(shell id -u)/homelab
-export HOMELAB_RUNTIME_USER := $(HOMELAB_RUNTIME_BASE)
+HOMELAB_RUNTIME_USER := $(HOMELAB_RUNTIME_BASE)
 
 # Per-user secrets tmp dir (RAM-only)
 export SECRETS_TMP_DIR := $(HOMELAB_RUNTIME_USER)/secrets/tmp
-
-# Ensure per-user runtime secrets workspace exists (RAM-only, managed by systemd)
-$(shell mkdir -p $(HOMELAB_RUNTIME_USER)/secrets $(SECRETS_TMP_DIR))
 
 export SECRETS_LOCK := $(HOMELAB_RUNTIME_USER)/secrets/lock
 export SECRETS_LOCK_PID := $(SECRETS_LOCK)/pid
@@ -34,10 +31,13 @@ SECRETS_LOCK_MAX_AGE := 30
 # Secrest are scoped to a subshell - they do NOT leak into the parent recipe
 # environment or subsequent make recipe lines.
 define WITH_SECRETS
-	( export $$($(SOPS) -d $(REPO_ROOT)/secrets.enc.yaml \
-		| awk -F': ' '/: / {gsub(/"/, "", $$2); print $$1 "=" $$2}'); \
-	$(1) )
+	( \
+		SECS="$$( $(SOPS) -d "$(SECRETS_FILE)" | $(YQ) -r 'to_entries | .[] | "\(.key)=\(.value)"' )"; \
+		export $$SECS; \
+		$(1) \
+	)
 endef
+
 
 # ----------------------------------------------------------------------------
 # DHCP static lease aggregation (non-secret, derived from secrets)
@@ -188,10 +188,123 @@ check-age-key: ensure-authorized-admin
 	}
 
 define WITH_SECRETS_v2
-	( export $$($(SOPS) -d $(REPO_ROOT)/secrets.enc.yaml \
+	( export $$($(SOPS) -d "$(SECRETS_FILE)" \
 		| awk -F': ' '/: / {gsub(/"/, "", $$2); printf "%s=%q\n", $$1, $$2}'); \
 	$(1) )
 endef
 
+# Ensure per-user runtime secrets workspace exists (RAM-only, managed by systemd)
+.PHONY: secrets-runtime-init
+secrets-runtime-init:
+	@mkdir -p \
+		"$(HOMELAB_RUNTIME_USER)/secrets" \
+		"$(SECRETS_TMP_DIR)" \
+		"$(HOMELAB_RUNTIME_USER)/ddns"
 
+DDNS_ENV_FILE := /etc/homelab/ddns.env
 
+.PHONY: ddns-env
+ddns-env: secrets-runtime-init $(YQ_STAMP) | ensure-run-as-root
+	@{ \
+		# Export only NON-SECRET variables so run-as-root preserves them
+		export SOPS="$(SOPS)"; \
+		export SECRETS_FILE="$(SECRETS_FILE)"; \
+		export YQ="$(YQ)"; \
+		\
+		$(run_as_root) bash -euo pipefail -c '\
+			tmp="$$(mktemp)"; \
+			trap "rm -f \"$$tmp\"" EXIT; \
+			umask 077; \
+			\
+			eval "$$( \
+				"$$SOPS" -d "$$SECRETS_FILE" \
+				| "$$YQ" -r '\'' \
+					"INFOMANIAK_API_KEY=\(.infomaniak_api_key)", \
+					"INFOMANIAK_API_SECRET=\(.infomaniak_api_secret)" \
+				'\'' \
+			)"; \
+			\
+			printf "%s\n" \
+				"INFOMANIAK_API_KEY=$$INFOMANIAK_API_KEY" \
+				"INFOMANIAK_API_SECRET=$$INFOMANIAK_API_SECRET" \
+				> "$$tmp"; \
+			\
+			install -m 600 -o $(ROOT_UID) -g $(ROOT_GID) "$$tmp" "$(DDNS_ENV_FILE)";
+		'; \
+		echo "🔐 Updated $(DDNS_ENV_FILE)"; \
+	}
+
+DDNS_RUNTIME_FILE := $(HOMELAB_RUNTIME_USER)/ddns/ddns.conf
+# Contract: root-owned, RAM-only, consumed by DDNS updater
+
+.PHONY: ddns-runtime
+ddns-runtime: $(YQ_STAMP) secrets-runtime-init | ensure-run-as-root
+	@{ \
+		export SOPS="$(SOPS)"; \
+		export SECRETS_FILE="$(SECRETS_FILE)"; \
+		export YQ="$(YQ)"; \
+		\
+		$(run_as_root) bash -euo pipefail -c '\
+			tmp="$$(mktemp)"; \
+			trap "rm -f \"$$tmp\"" EXIT; \
+			umask 077; \
+			\
+			eval "$$( \
+				"$$SOPS" -d "$$SECRETS_FILE" \
+				| "$$YQ" -r '\'' \
+					"ddns_username=\(.ddns_username)", \
+					"ddns_password=\(.ddns_password)", \
+					"ddns_topdomain=\(.ddns_topdomain)" \
+				'\'' \
+			)"; \
+			\
+			printf "%s\n" \
+				"ddns_username=$$ddns_username" \
+				"ddns_password=$$ddns_password" \
+				"ddns_topdomain=$$ddns_topdomain" \
+				> "$$tmp"; \
+			\
+			install -m 600 -o $(ROOT_UID) -g $(ROOT_GID) "$$tmp" "$(DDNS_RUNTIME_FILE)"; \
+		'; \
+		echo "🔐 DDNS runtime file updated: $(DDNS_RUNTIME_FILE)"; \
+	}
+
+print-SOPS:
+	@echo "SOPS=$(SOPS)"
+
+print-SECRETS_FILE:
+	@echo "SECRETS_FILE=$(SECRETS_FILE)"
+
+.PHONY: test-infomaniak-token
+test-infomaniak-token:
+	@$(call WITH_SECRETS, printf "INFOMANIAK_API_TOKEN=%s\n" "$$INFOMANIAK_API_TOKEN")
+
+.PHONY: test-infomaniak-dns-api
+test-infomaniak-dns-api:
+	@$(call WITH_SECRETS, \
+		curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
+			-H "Authorization: Bearer $$INFOMANIAK_API_TOKEN" \
+			https://api.infomaniak.com/2/domains/domains \
+	)
+
+.PHONY: test-infomaniak-txt-dryrun
+test-infomaniak-txt-dryrun:
+	@$(call WITH_SECRETS, \
+		domain="bardi.ch"; \
+		name="_acme-challenge.dryrun"; \
+		value="homelab-dryrun-$$RANDOM"; \
+		echo "🟦 Creating TXT: $$name → $$value"; \
+		resp=$$(curl -s -X POST \
+			-H "Authorization: Bearer $$INFOMANIAK_API_TOKEN" \
+			-H "Content-Type: application/json" \
+			-d "{\"type\":\"TXT\",\"name\":\"$$name\",\"target\":\"$$value\",\"ttl\":60}" \
+			"https://api.infomaniak.com/2/domains/domains/$$domain/records"); \
+		echo "$$resp" | grep -q '"id"' || { echo "❌ TXT create failed"; echo "$$resp"; exit 1; }; \
+		rec_id=$$(echo "$$resp" | sed -n 's/.*\"id\":[ ]*\([0-9]*\).*/\1/p'); \
+		echo "🟢 Created TXT record id=$$rec_id"; \
+		echo "🟦 Deleting TXT id=$$rec_id"; \
+		curl -s -X DELETE \
+			-H "Authorization: Bearer $$INFOMANIAK_API_TOKEN" \
+			"https://api.infomaniak.com/2/domains/domains/$$domain/records/$$rec_id" >/dev/null; \
+		echo "🟢 Deleted TXT record"; \
+	)
