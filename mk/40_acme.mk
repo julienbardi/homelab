@@ -32,7 +32,7 @@ ACME_BIN  := $(ACME_HOME)/acme.sh
 # 1. Normal ACME Renewal (safe, idempotent, daily)
 # ----------------------------------------------------------------------------
 .PHONY: acme-renew
-acme-renew: ddns-env acme-install acme-write-infomaniak-token acme-timer-install | ensure-run-as-root
+acme-renew: ddns-env acme-install acme-write-infomaniak-token acme-timer-install
 	@$(run_as_root) bash -euo pipefail -c '\
 		DIR="$(ACME_HOME)/$(DOMAIN)_ecc"; \
 		if [ ! -d "$$DIR" ]; then \
@@ -100,7 +100,7 @@ export SERVICE_CONTENT
 export TIMER_CONTENT
 
 .PHONY: acme-timer-install
-acme-timer-install: ensure-run-as-root
+acme-timer-install:
 	@$(run_as_root) env \
 		SERVICE_CONTENT="$${SERVICE_CONTENT}" \
 		TIMER_CONTENT="$${TIMER_CONTENT}" \
@@ -140,7 +140,7 @@ acme-timer-install: ensure-run-as-root
 # This prevents accidental destructive use.
 # ----------------------------------------------------------------------------
 .PHONY: acme-migrate-and-deploy
-acme-migrate-and-deploy: ensure-run-as-root
+acme-migrate-and-deploy:
 	@$(run_as_root) bash -euo pipefail -c '\
 		# Guards
 		if [ "$${MIGRATE:-0}" != "1" ]; then \
@@ -181,13 +181,13 @@ acme-migrate-and-deploy: ensure-run-as-root
 # ----------------------------------------------------------------------------
 
 .PHONY: acme-issue
-acme-issue: install-all secrets-ready ddns-env acme-install acme-write-infomaniak-token acme-issue-service-install systemd-reload | ensure-run-as-root
+acme-issue: install-all secrets-ready ddns-env acme-install acme-write-infomaniak-token acme-issue-service-install systemd-reload
 	@$(run_as_root) systemctl start --no-block acme-issue.service
 	@echo "🚀 ACME issuance triggered via systemd (non-blocking)."
 	@echo "   Check progress with: sudo journalctl -u acme-issue.service -f"
 
 .PHONY: acme-issue-service-install
-acme-issue-service-install: | ensure-run-as-root
+acme-issue-service-install:
 	@$(run_as_root) bash -euo pipefail -c '\
 		SRC="$(REPO_ROOT)/config/systemd/acme-issue.service"; \
 		DST="/etc/systemd/system/acme-issue.service"; \
@@ -196,5 +196,5 @@ acme-issue-service-install: | ensure-run-as-root
 	'
 
 .PHONY: systemd-reload
-systemd-reload: | ensure-run-as-root
+systemd-reload:
 	@$(run_as_root) systemctl daemon-reload

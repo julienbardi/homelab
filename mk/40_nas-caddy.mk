@@ -10,7 +10,7 @@ SRC_NAS_CADDYFILE := $(REPO_ROOT)/config/caddy/Caddyfile
 NAS_CADDY_ADMIN_ADDR := 10.89.12.4:2019
 
 .PHONY: nas-caddy
-nas-caddy: ensure-run-as-root gitcheck nas-assert-caddy-ports-free deploy-caddy
+nas-caddy: gitcheck nas-assert-caddy-ports-free deploy-caddy
 	@set -euo pipefail; \
 	echo "🔐 Securing certificate permissions"; \
 	$(run_as_root) chown -R root:caddy /etc/ssl/caddy; \
@@ -77,7 +77,7 @@ nas-caddy-fmt:
 	@sudo "$(NAS_CADDY_BIN)" fmt --overwrite "$(SRC_NAS_CADDYFILE)"
 
 .PHONY: nas-assert-caddy-ports-free
-nas-assert-caddy-ports-free: ensure-run-as-root
+nas-assert-caddy-ports-free:
 	@conflict=$$($(run_as_root) ss -H -tlnp '( sport = :80 or sport = :443 )' | grep -v caddy || true); \
 	if [ -n "$$conflict" ]; then \
 		echo "❌ ERROR: Port 80 or 443 is already in use:"; \

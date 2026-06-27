@@ -42,7 +42,7 @@ ACME_VERSION := v3.1.4
 
 .PHONY: acme-bootstrap acme-install acme-ensure-dirs
 
-acme-bootstrap: ensure-run-as-root acme-ensure-dirs acme-install acme-write-infomaniak-token
+acme-bootstrap: acme-ensure-dirs acme-install acme-write-infomaniak-token
 	@echo "✅ ACME bootstrap complete"
 
 acme-ensure-dirs: | $(run_as_root)

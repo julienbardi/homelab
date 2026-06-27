@@ -6,9 +6,12 @@
 lint-gitignore:
 	@./scripts/gitignore-check.sh
 
+REPO_PREFLIGHT_SCRIPT := /usr/local/bin/secrets-check.sh
+
 .PHONY: repo-preflight
-repo-preflight:
+repo-preflight: $(REPO_PREFLIGHT_SCRIPT)
 	@echo "🚦 Running repo-preflight..."
+	@$(REPO_PREFLIGHT_SCRIPT)
 	@fails=0; \
 	./scripts/gitignore-stamp.sh || fails=1; \
 	./scripts/secrets-stamp.sh || fails=1; \

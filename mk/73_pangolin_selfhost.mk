@@ -13,7 +13,7 @@ PANGOLIN_SELF_SERVICE_SRC := $(REPO_ROOT)/config/systemd/pangolin-site-agent-sel
 
 .PHONY: pangolin-selfhost-install pangolin-selfhost-enable pangolin-selfhost-status pangolin-selfhost-health
 
-pangolin-selfhost-install: ensure-run-as-root
+pangolin-selfhost-install:
 	@echo "📦 Installing *self-hosted* Pangolin Site Agent..."
 	@$(run_as_root) mkdir -p $(PANGOLIN_SELF_DIR)
 	@$(run_as_root) chmod 700 $(PANGOLIN_SELF_DIR)
@@ -39,16 +39,16 @@ pangolin-selfhost-install: ensure-run-as-root
 	@$(run_as_root) systemctl daemon-reload
 	@echo "✅ Self-hosted Pangolin install complete"
 
-pangolin-selfhost-enable: ensure-run-as-root pangolin-selfhost-install
+pangolin-selfhost-enable: pangolin-selfhost-install
 	@echo "🚀 Enabling self-hosted Pangolin Site Agent..."
 	@$(run_as_root) systemctl enable --now pangolin-site-agent-selfhost.service
 	@$(run_as_root) systemctl is-active --quiet pangolin-site-agent-selfhost.service && \
 		echo "   ✅ Agent active" || echo "   ❌ Agent not running"
 
-pangolin-selfhost-status: ensure-run-as-root
+pangolin-selfhost-status:
 	@$(run_as_root) systemctl status pangolin-site-agent-selfhost.service --no-pager || true
 
-pangolin-selfhost-health: ensure-run-as-root
+pangolin-selfhost-health:
 	@echo "🔍 Self-hosted Pangolin Agent Health"
 	@if $(run_as_root) systemctl is-active --quiet pangolin-site-agent-selfhost.service; then \
 		echo "   ✅ Service active"; \

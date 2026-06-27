@@ -94,7 +94,7 @@ sysctl-preflight:
 sysctl-inspect: sysctl-preflight
 	@set -eu; ( $(inspect_ipv6_identity) )
 
-set-ipv6-token: ensure-run-as-root
+set-ipv6-token:
 	@set -eu; ( $(set_ipv6_token) )
 
 # Verify effective accept_ra =2 on eth0 without touching sysctl files.
@@ -108,14 +108,14 @@ ensure-accept-ra:
 	fi; \
 	echo "✅ net.ipv6.conf.eth0.accept_ra = 2 - IPv6 default route will be accepted from router RA."; \
 
-install-homelab-sysctl: ensure-run-as-root sysctl-preflight set-ipv6-token
+install-homelab-sysctl: sysctl-preflight set-ipv6-token
 	@set -eu; \
 	echo "🔄 Syncing functional sysctl configuration..."; \
 	$(run_as_root) install -o root -g root -m 0644 "$(SYSCTL_SRC)" "$(SYSCTL_DST)"; \
 	$(run_as_root) $(SYSCTL_BIN) -p "$(SYSCTL_DST)" >/dev/null; \
 	echo "✨ Convergence verified: NAS IPv6 address is $(NAS_LAN_IP6)/64 (RA-independent)"; \
 
-rotate-ipv6-secrets: ensure-run-as-root sysctl-preflight
+rotate-ipv6-secrets: sysctl-preflight
 	@echo "🔄 Scrambling IPv6 identity (RFC 7217)..."
 	@set -eu; \
 	$(run_as_root) sh -e -c '\

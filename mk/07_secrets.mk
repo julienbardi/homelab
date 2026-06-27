@@ -204,7 +204,7 @@ secrets-runtime-init:
 DDNS_ENV_FILE := /etc/homelab/ddns.env
 
 .PHONY: ddns-env
-ddns-env: secrets-runtime-init $(YQ_STAMP) | ensure-run-as-root
+ddns-env: secrets-runtime-init $(YQ_STAMP)
 	@{ \
 		# Export only NON-SECRET variables so run-as-root preserves them
 		export SOPS="$(SOPS)"; \
@@ -238,7 +238,7 @@ DDNS_RUNTIME_FILE := $(HOMELAB_RUNTIME_USER)/ddns/ddns.conf
 # Contract: root-owned, RAM-only, consumed by DDNS updater
 
 .PHONY: ddns-runtime
-ddns-runtime: $(YQ_STAMP) secrets-runtime-init | ensure-run-as-root
+ddns-runtime: $(YQ_STAMP) secrets-runtime-init
 	@{ \
 		export SOPS="$(SOPS)"; \
 		export SECRETS_FILE="$(SECRETS_FILE)"; \

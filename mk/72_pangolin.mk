@@ -9,7 +9,7 @@ PANGOLIN_SERVICE_SRC := $(REPO_ROOT)/config/systemd/pangolin-site-agent.service
 
 .PHONY: pangolin-install pangolin-enable pangolin-status pangolin-health pangolin-node-check
 
-pangolin-install: ensure-run-as-root pangolin-node-check
+pangolin-install: pangolin-node-check
 	@echo "📦 Installing Pangolin Site Agent..."
 	@$(run_as_root) mkdir -p $(PANGOLIN_DIR)
 	@$(run_as_root) chmod 700 $(PANGOLIN_DIR)
@@ -35,16 +35,16 @@ pangolin-install: ensure-run-as-root pangolin-node-check
 	@$(run_as_root) systemctl daemon-reload
 	@echo "✅ Pangolin install complete"
 
-pangolin-enable: ensure-run-as-root pangolin-install
+pangolin-enable: pangolin-install
 	@echo "🚀 Enabling Pangolin Site Agent..."
 	@$(run_as_root) systemctl enable --now pangolin-site-agent.service
 	@$(run_as_root) systemctl is-active --quiet pangolin-site-agent.service && \
 		echo "   ✅ Agent active" || echo "   ❌ Agent not running"
 
-pangolin-status: ensure-run-as-root
+pangolin-status:
 	@$(run_as_root) systemctl status pangolin-site-agent.service --no-pager || true
 
-pangolin-health: ensure-run-as-root
+pangolin-health:
 	@echo "🔍 Pangolin Agent Health"
 	@if $(run_as_root) systemctl is-active --quiet pangolin-site-agent.service; then \
 		echo "   ✅ Service active"; \

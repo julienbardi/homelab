@@ -83,7 +83,7 @@ headscale: \
 # --------------------------------------------------------------------
 # Headscale binary (via centralized GitHub installer)
 # --------------------------------------------------------------------
-headscale-bin: ensure-run-as-root ensure-stamp-dir install-all
+headscale-bin: ensure-stamp-dir install-all
 	@echo "📦 Ensuring Headscale binary"
 	@$(run_as_root) $(INSTALL_PATH)/install_github_asset.sh \
 			$(HEADSCALE_URL) \
@@ -151,7 +151,7 @@ $(HEADSCALE_ACL_SHADOW): $(HEADSCALE_ACL_SRC) | headscale-bin
 # --------------------------------------------------------------------
 # Service Lifecycle Control (Strictly Conditional)
 # --------------------------------------------------------------------
-headscale-restart: ensure-run-as-root
+headscale-restart:
 	@NEED_RESTART=0; \
 	if [ -f "$(HEADSCALE_CHANGED_STAMP)" ]; then NEED_RESTART=1; fi; \
 	if ! $(run_as_root) systemctl is-active --quiet headscale 2>/dev/null; then NEED_RESTART=1; fi; \
@@ -171,7 +171,7 @@ define HEADSCALE_VERIFY_FN
 	echo "[verify] 🧠 Headscale control plane ready"
 endef
 
-headscale-verify: ensure-run-as-root
+headscale-verify:
 	@RUN_VERIFY=0; \
 	if [ -f "$(HEADSCALE_CHANGED_STAMP)" ]; then RUN_VERIFY=1; fi; \
 	if ! $(run_as_root) systemctl is-active --quiet headscale 2>/dev/null; then RUN_VERIFY=1; fi; \
@@ -186,7 +186,7 @@ headscale-verify: ensure-run-as-root
 # Deterministic sequential validation wrapper target
 headscale-verify-run: headscale-wait-ready test-headscale-core test-headscale-unit test-headscale-override
 
-headscale-wait-ready: ensure-run-as-root
+headscale-wait-ready:
 	@echo "ℹ️ Waiting for Headscale API"
 	@$(run_as_root) sh -c '\
 		i=1; \
@@ -202,7 +202,7 @@ headscale-wait-ready: ensure-run-as-root
 		exit 1; \
 	'
 
-test-headscale-core: ensure-run-as-root
+test-headscale-core:
 	@if ! $(run_as_root) systemctl is-active --quiet headscale; then \
 		echo "[verify] ❌ Service NOT active"; \
 		exit 1; \
@@ -249,7 +249,7 @@ test-headscale-override:
 # --------------------------------------------------------------------
 # Diagnostics and Administrative Helpers
 # --------------------------------------------------------------------
-headscale-logs: ensure-run-as-root
+headscale-logs:
 	@echo "📜 Tailing Headscale logs (Ctrl-C to exit)"
 	@$(run_as_root) journalctl -u headscale -f -n 100
 
@@ -259,7 +259,7 @@ headscale-metrics:
 
 rotate-noise-key-dangerous: rotate-noise-key
 
-rotate-noise-key: ensure-run-as-root headscale-bin
+rotate-noise-key: headscale-bin
 	@echo "🔥 ROTATE HEADSCALE NOISE KEY — this will disconnect all clients"
 	@read -p "Type YES to ROTATE THE NOISE KEY: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1)
 	@echo "⚠️ Proceeding with Noise key rotation — clients must re-authenticate"

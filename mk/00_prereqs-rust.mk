@@ -5,7 +5,7 @@
 .PHONY: rust-system rust-system-uninstall
 
 # allow forcing reinstall with FORCE=1
-rust-system: ensure-run-as-root
+rust-system:
 	@# Detect user vs root installs separately and always show versions
 	set -euo pipefail
 
@@ -102,7 +102,7 @@ rust-system: ensure-run-as-root
 	fi
 
 # reversible uninstall that moves things aside instead of deleting
-rust-system-uninstall: ensure-run-as-root
+rust-system-uninstall:
 	@$(run_as_root) sh -eux -c '\
 		ts=$$(date +%s); \
 		[ -e "$(INSTALL_PATH)/cargo" ] && mv -f "$(INSTALL_PATH)/cargo" "$(INSTALL_PATH)/cargo.uninstalled.$$ts" || true; \

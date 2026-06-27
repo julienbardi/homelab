@@ -36,17 +36,17 @@ STAMP_PREPARE         := $(SYSTEM_STATE_DIR)/prepare.stamp
 .PHONY: certs-create certs-deploy certs-ensure certs-status certs-expiry \
 		certs-rotate certs-rotate-dangerous gen-client-cert
 
-certs-create: ensure-run-as-root $(CERTS_CREATE)
+certs-create: $(CERTS_CREATE)
 	@$(run_as_root) $(CERTS_CREATE)
 
-gen-client-cert: ensure-run-as-root $(GEN_CLIENT_WRAPPER) $(GEN_CLIENT_CERT)
+gen-client-cert: $(GEN_CLIENT_WRAPPER) $(GEN_CLIENT_CERT)
 	@if [ -z "$(CN)" ]; then \
 	  echo "❌ Usage: make gen-client-cert CN=<name> [FORCE=1]"; exit 1; \
 	fi
 	@FORCE_FLAG=''; if [ "$(FORCE)" = "1" ]; then FORCE_FLAG="--force"; fi; \
 	$(GEN_CLIENT_WRAPPER) "$(CN)" "$(run_as_root)" "$(INSTALL_PATH)" "$$FORCE_FLAG"
 
-certs-deploy: ensure-run-as-root certs-create $(CERTS_DEPLOY)
+certs-deploy: certs-create $(CERTS_DEPLOY)
 	@$(run_as_root) $(CERTS_DEPLOY) deploy caddy
 	@$(run_as_root) $(CERTS_DEPLOY) deploy dnsdist
 	@$(run_as_root) $(CERTS_DEPLOY) deploy router
@@ -61,7 +61,7 @@ certs-status:
 	@echo "Caddy CA: $(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem"; ls -l "$(CADDY_DEPLOY_DIR)/homelab_bardi_CA.pem" || true
 	@echo "Client store: /etc/ssl/caddy/clients"; ls -l /etc/ssl/caddy/clients || true
 
-certs-expiry: ensure-run-as-root
+certs-expiry:
 	@if [ -f "$(CA_PUB)" ]; then \
 	  echo "🔍 CA public cert: $(CA_PUB)"; \
 	  $(run_as_root) openssl x509 -in "$(CA_PUB)" -noout -enddate -subject; \
@@ -86,7 +86,7 @@ certs-expiry: ensure-run-as-root
 		bootstrap-caddy bootstrap-headscale bootstrap-diskstation bootstrap-qnap \
 		bootstrap-all deploy-ac86u
 
-renew: ensure-run-as-root install-helpers
+renew: install-helpers
 	@$(run_as_root) systemctl start acme-issue.service || { \
 		echo "❌ Failed to trigger ACME issuance via systemd"; \
 		exit 1; \
@@ -190,7 +190,7 @@ all-remote: all-router all-diskstation all-qnap all-ac86u
 # ============================================================
 # Cert watchers
 # ============================================================
-setup-cert-watch-%: ensure-run-as-root scripts/systemd/cert-reload@.service scripts/systemd/$*-cert.path
+setup-cert-watch-%: scripts/systemd/cert-reload@.service scripts/systemd/$*-cert.path
 	@$(run_as_root) install -m 0644 scripts/systemd/cert-reload@.service \
 		/etc/systemd/system/cert-reload@.service && \
 	$(run_as_root) install -m 0644 scripts/systemd/$*-cert.path \

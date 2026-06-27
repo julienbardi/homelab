@@ -25,7 +25,7 @@ endif
 	apt-cacher-ng-enable-https \
 	apt-proxy-auto-enable
 
-apt-cacher-ng-enable-https: ensure-run-as-root
+apt-cacher-ng-enable-https:
 	@$(run_as_root) sh -eu -c '\
 		if [ ! -f /etc/apt-cacher-ng/acng.conf ]; then \
 			echo "ℹ️ apt-cacher-ng not found or config missing; skipping server-side tweak"; \
@@ -48,7 +48,7 @@ apt-cacher-ng-enable-https: ensure-run-as-root
 			echo "ℹ️ Unit not present; skipping restart"; \
 		fi'
 
-apt-proxy-auto-install: ensure-run-as-root $(INSTALL_FILE_IF_CHANGED)
+apt-proxy-auto-install: $(INSTALL_FILE_IF_CHANGED)
 	@set -eu; \
 	changed=0; \
 	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
@@ -63,7 +63,7 @@ apt-proxy-auto-install: ensure-run-as-root $(INSTALL_FILE_IF_CHANGED)
 	fi; \
 	test -z "$(VERBOSE)" || echo "✅ apt-proxy-auto installed"
 
-apt-proxy-auto-enable: apt-cacher-ng-enable-https apt-proxy-auto-install ensure-run-as-root
+apt-proxy-auto-enable: apt-cacher-ng-enable-https apt-proxy-auto-install
 	@$(run_as_root) sh -eu -c '\
 		was_enabled=0; \
 		systemctl is-enabled --quiet apt-proxy-auto.timer && was_enabled=1 || true; \
@@ -75,12 +75,12 @@ apt-proxy-auto-enable: apt-cacher-ng-enable-https apt-proxy-auto-install ensure-
 			test -z "$(VERBOSE)" || echo "ℹ️ Timer already enabled and proxy present; skipping immediate run"; \
 		fi'
 
-apt-proxy-auto-disable: ensure-run-as-root
+apt-proxy-auto-disable:
 	@$(run_as_root) systemctl disable --now apt-proxy-auto.timer || true
 	@$(run_as_root) rm -f /etc/apt/apt.conf.d/01proxy
 	@echo "✅ apt-proxy-auto timer disabled and proxy file removed"
 
-apt-proxy-auto-status: ensure-run-as-root
+apt-proxy-auto-status:
 	@echo "🔍 apt-proxy-auto status"
 	@$(run_as_root) systemctl is-active --quiet apt-proxy-auto.timer || \
 		( echo "❌ apt-proxy-auto.timer not active"; exit 1 )

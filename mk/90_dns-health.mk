@@ -4,7 +4,7 @@
 
 dns-health: dns-suite
 
-dns-suite: deploy-unbound dnsdist-config check-dnsdist-listeners prereqs /usr/local/bin/dns-suite.sh
+dns-suite: deploy-unbound dnsdist-config check-dnsdist-listeners prereqs-ok /usr/local/bin/dns-suite.sh
 	@echo "📊 Running full DNS suite"
 	@/usr/local/bin/dns-suite.sh
 

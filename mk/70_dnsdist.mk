@@ -98,7 +98,7 @@ install-kdig:
 	@command -v kdig >/dev/null 2>&1 || \
 		echo "ℹ️  kdig absent; DoH validation targets will use curl"
 
-assert-dnsdist-certs: ensure-run-as-root
+assert-dnsdist-certs:
 	@$(run_as_root) sh -eu -c 'for f in "$(DNSDIST_CERT)" "$(DNSDIST_KEY)"; do \
 		[ -r "$$f" ] || { echo "❌ Missing/unreadable: $$f"; exit 1; }; \
 	done'
@@ -108,7 +108,7 @@ assert-dnsdist-certs: ensure-run-as-root
 # Implementation Details (Idempotent)
 # --------------------------------------------------------------------
 
-dnsdist-config: dnsdist-install ensure-run-as-root
+dnsdist-config: dnsdist-install
 	@set -eu; \
 	$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
 	rc=0; \
@@ -122,7 +122,7 @@ dnsdist-config: dnsdist-install ensure-run-as-root
 		$(DNSDIST_RESTART_CMD); \
 	} || { [ "$$rc" -eq 0 ] || exit "$$rc"; }
 
-dnsdist-systemd-dropin: ensure-run-as-root
+dnsdist-systemd-dropin:
 	@set -eu; \
 	$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
 	rc=0; \
@@ -144,7 +144,7 @@ CANONICAL_SUM := $(CANONICAL_DIR)/.lastsum
 .PHONY: deploy-dnsdist-certs
 
 # deploy depends on the stamp so deploy runs only when canonical store changed
-deploy-dnsdist-certs: install-all $(DEPLOY_CERTS) $(CANONICAL_SUM) dnsdist-config ensure-run-as-root
+deploy-dnsdist-certs: install-all $(DEPLOY_CERTS) $(CANONICAL_SUM) dnsdist-config
 
 # Robust checksum + deploy (atomic stamp write)
 $(CANONICAL_SUM): $(DEPLOY_CERTS)
@@ -179,15 +179,15 @@ $(CANONICAL_SUM): $(DEPLOY_CERTS)
 # --------------------------------------------------------------------
 # Verification & Status
 # --------------------------------------------------------------------
-dnsdist-validate: deploy-dnsdist-certs ensure-run-as-root
+dnsdist-validate: deploy-dnsdist-certs
 	@echo "🔍 Validating dnsdist configuration"
 	@$(run_as_root) $(DNSDIST_BIN) --check-config
 
-dnsdist-enable: deploy-dnsdist-certs ensure-run-as-root
+dnsdist-enable: deploy-dnsdist-certs
 	@echo "⚙️  Enabling dnsdist service"
 	@$(run_as_root) systemctl enable $(DNSDIST_UNIT)
 
-check-dnsdist-doh-local: ensure-run-as-root
+check-dnsdist-doh-local:
 	@set -eu; \
 	[ -r "$(DOH_TLS_CA)" ] || { echo "❌ Missing CA bundle: $(DOH_TLS_CA)"; exit 1; }; \
 	KDIG_BIN=$$(command -v $(KDIG) 2>/dev/null || true); \
@@ -241,7 +241,7 @@ ci-doh-check:
 		echo "❌ ci-doh-check: probe $$TEST failed (kdig)"; exit 1; \
 	fi
 
-check-dnsdist-systemd: ensure-run-as-root
+check-dnsdist-systemd:
 	@set -eu; \
 	if ! $(run_as_root) systemctl is-active --quiet $(DNSDIST_UNIT); then \
 		echo "❌ $(DNSDIST_UNIT) is not active"; \
@@ -250,7 +250,7 @@ check-dnsdist-systemd: ensure-run-as-root
 	fi; \
 	echo "✅ $(DNSDIST_UNIT) active"
 
-check-dnsdist-doh-listener: ensure-run-as-root
+check-dnsdist-doh-listener:
 	@set -eu; \
 	if ! $(run_as_root) ss -ltn "sport = :$(DOH_PORT)" | grep -q LISTEN; then \
 		echo "❌ DoH listener not present on :$(DOH_PORT)"; \
@@ -272,6 +272,6 @@ dnsdist-pre-reboot-check:
 	@echo "✅ dnsdist healthy"
 
 .PHONY: check-dnsdist-listeners
-check-dnsdist-listeners: $(INSTALL_PATH)/dnsdist-validate-listeners.sh ensure-run-as-root
+check-dnsdist-listeners: $(INSTALL_PATH)/dnsdist-validate-listeners.sh
 	@echo "🔍 Checking dnsdist listeners"
 	@$(run_as_root) $(INSTALL_PATH)/dnsdist-validate-listeners.sh

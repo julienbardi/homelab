@@ -90,15 +90,16 @@ define git_clone_or_fetch
 	mkdir -p "$(1)"; \
 	if [ -d "$(1)/.git" ]; then \
 		cd "$(1)"; \
-		if ! git fetch --tags --quiet || ! git checkout --quiet "$(3)" 2>/dev/null; then \
-			cd ..; \
-			rm -rf "$(1)"; \
+		git fetch --unshallow --tags --quiet 2>/dev/null || git fetch --tags --quiet; \
+		if ! git checkout --quiet "$(3)" 2>/dev/null; then \
+			cd ..; rm -rf "$(1)"; \
 			git clone --quiet --depth 1 --branch "$(3)" "$(2)" "$(1)"; \
 		fi; \
 	else \
 		git clone --quiet --depth 1 --branch "$(3)" "$(2)" "$(1)"; \
 	fi
 endef
+
 
 
 # $(call acme_fix_perms,DIR)
@@ -161,17 +162,14 @@ OTHER_SBIN_FILES := $(addprefix $(INSTALL_SBIN_PATH)/,$(filter-out run-as-root.s
 # Main Targets
 # ------------------------------------------------------------
 
-.PHONY: install-all uninstall-all ensure-run-as-root assert-sanity
+.PHONY: install-all uninstall-all assert-sanity
 
-install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES) install-router-prefix-watchdog
+install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES) install-router-prefix-watchdog $(run_as_root)
 	@echo "📦 [$(ROLE)] Homelab bootstrap complete."
 
 uninstall-all:
 	@echo "🗑️  Uninstalling all homelab scripts..."
 	-@$(run_as_root) rm -f $(BIN_FILES) $(OTHER_SBIN_FILES) $(BOOTSTRAP_FILES) || true
-
-ensure-run-as-root:
-	@test -f "$(run_as_root)" || { echo "❌ Error: run-as-root.sh not found. Run 'sudo make install-all' first."; exit 1; }
 
 .PHONY: require-wg-plan-subnets
 require-wg-plan-subnets:
@@ -195,10 +193,9 @@ assert-sanity: \
 # Prevents race conditions and ensures we don't accidentally execute
 # non-bootstrapped scripts from the working directory.
 assert-no-repo-exec:
-ifneq ($(filter -j%,$(MAKEFLAGS)),)
+ifneq ($(filter -j% --jobs%,$(MAKEFLAGS)),)
 	@grep -R 'scripts/.*\.sh' --include='*.mk' \
-		--exclude=01_common.mk \
-		--exclude-dir=archive . >/dev/null && \
+		--exclude=01_common.mk --exclude-dir=archive . >/dev/null && \
 	{ \
 		echo "🚫 Parallel execution (-j) is not supported."; \
 		echo "   Safety checks detected repo-local script references during graph expansion."; \
@@ -231,13 +228,14 @@ assert-scripts-layout:
 define apt_install
 	@command -v $(1) >/dev/null 2>&1 || { \
 		echo "apt 📦 Installing $(2)..."; \
+		$(call apt_update_if_needed); \
 		$(run_as_root) sh -c '( test -x /usr/local/sbin/apt-proxy-auto.sh && /usr/local/sbin/apt-proxy-auto.sh ) || true'; \
-		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get update -qq; \
 		$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
 			-o Dpkg::Options::="--force-confold" \
 			-o Dpkg::Options::="--force-confdef" $(2); \
 	}
 endef
+
 
 # ------------------------------------------------------------
 # apt_remove
@@ -259,8 +257,8 @@ define apt_remove
 		echo "🗑️ Removing apt packages: $$PKGS"; \
 	fi; \
 	INSTALLED=$$( \
-		dpkg-query -W -f='$${Status} $${Package}\n' $$PKGS 2>/dev/null \
-		| awk '$$1$$2$$3 == "installokinstalled" {print $$4}' \
+		dpkg-query -W -f='$${Status} $${Package}\n' $$PKGS 2>/dev/null || true \
+		| awk -F'\t' '$$1 == "install ok installed" {print $$2}' \
 	); \
 	if [ -z "$$INSTALLED" ]; then \
 		if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
@@ -341,7 +339,7 @@ endef
 # ---------------------------------------------------------------------------
 
 define TMPFILE_BLOCK
-	@trap 'rm -f $(1)' EXIT; \
+	@trap 'rm -f "$(1)"' EXIT; \
 	{ \
 		$(2) \
 	}

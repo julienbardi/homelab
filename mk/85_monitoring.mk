@@ -54,7 +54,7 @@ prometheus: \
 # --------------------------------------------------------------------
 # Installation (Gated by binary existence to bypass apt completely)
 # --------------------------------------------------------------------
-prometheus-install: ensure-run-as-root | ensure-host-default-route
+prometheus-install: | ensure-host-default-route
 	@if ! command -v prometheus >/dev/null 2>&1; then \
 		echo "📦 Installing Prometheus via package toolchain..."; \
 		$(call apt_update_if_needed); \
@@ -100,7 +100,7 @@ $(PROMETHEUS_CONFIG_SHADOW): $(PROMETHEUS_CONFIG_SRC) | prometheus-install
 # --------------------------------------------------------------------
 # Enable and State Management
 # --------------------------------------------------------------------
-prometheus-enable: ensure-run-as-root
+prometheus-enable:
 	@if ! $(run_as_root) systemctl is-enabled --quiet $(PROMETHEUS_SERVICE) 2>/dev/null; then \
 		echo "⚙️ Enabling Prometheus service"; \
 		$(run_as_root) systemctl enable $(PROMETHEUS_SERVICE); \
@@ -109,7 +109,7 @@ prometheus-enable: ensure-run-as-root
 # --------------------------------------------------------------------
 # Service Recycles (Strictly Conditional on Flags)
 # --------------------------------------------------------------------
-prometheus-restart: ensure-run-as-root
+prometheus-restart:
 	@NEED_RELOAD=0; NEED_RESTART=0; \
 	if [ -f "$(PROMETHEUS_UNIT_CHANGED_STAMP)" ]; then NEED_RELOAD=1; NEED_RESTART=1; fi; \
 	if [ -f "$(PROMETHEUS_CHANGED_STAMP)" ]; then NEED_RESTART=1; fi; \
@@ -127,5 +127,5 @@ prometheus-restart: ensure-run-as-root
 # --------------------------------------------------------------------
 # Status Helper
 # --------------------------------------------------------------------
-prometheus-status: ensure-run-as-root
+prometheus-status:
 	@$(run_as_root) systemctl status $(PROMETHEUS_SERVICE) --no-pager

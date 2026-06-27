@@ -21,6 +21,82 @@ PREREQS_PACKAGES := \
 	qrencode \
 	ldnsutils
 
+PREREQS_SOURCES := \
+	mk/00_prereqs.mk \
+	mk/20_deps.mk \
+	mk/71_dns-warm.mk \
+	mk/00_prereqs-rust.mk
+
+# Full prereqs execution (mutators + verifiers + apt + scripts)
+prereqs-run: ensure-stamp-dir $(PREREQS_SOURCES)
+	@echo "🔍 Running prereqs checks (DNS, Tailscale, docs, warm, system)"
+
+	# --- Network deps ---
+	@$(call ensure_host_default_route)
+	@$(call ensure_bootstrap_dns)
+	@$(call prereqs_tailscale_repo_verify)
+	@$(call prereqs_dns_warm)
+
+	# --- System deps ---
+	@$(call prereqs_helper_scripts)
+	@$(call install_ssh_config)
+	@$(call rust_system)
+
+	# --- Verify-only ---
+	@$(call prereqs_dns_warm_verify)
+	@$(call prereqs_docs_verify)
+	@$(call prereqs_public_dns_verify)
+
+	# --- Apt prerequisites ---
+	@echo "📦 Ensuring installation of prerequisite tools"
+	@$(call apt_install_group,$(PREREQS_PACKAGES))
+
+	@sh -c 'for bin in curl jq git iperf3 qrencode funzip; do \
+		command -v "$$bin" >/dev/null || { echo "❌ $$bin missing"; exit 1; }; \
+		done; echo "✅ Base prerequisites installed"'
+
+	# nft sanity
+	@sh -c 'test -x /usr/sbin/nft || { \
+		echo "❌ nft binary missing at /usr/sbin/nft"; exit 1; }; \
+		echo "✅ nft present"; \
+	'
+
+prereqs-ok: ensure-stamp-dir $(PREREQS_SOURCES)
+	@if [ -f "$(STAMP_PREREQS_OK)" ]; then \
+		echo "⏩ prereqs-ok (fast-path OK)"; \
+		exit 0; \
+	fi
+
+	# run prereqs-run inline
+	$(call ensure_host_default_route)
+	$(call ensure_bootstrap_dns)
+	$(call prereqs_tailscale_repo_verify)
+	$(call prereqs_dns_warm)
+	$(call prereqs_helper_scripts)
+	$(call install_ssh_config)
+	$(call rust_system)
+	$(call prereqs_dns_warm_verify)
+	$(call prereqs_docs_verify)
+	$(call prereqs_public_dns_verify)
+	echo "📦 Ensuring installation of prerequisite tools"
+	$(call apt_install_group,$(PREREQS_PACKAGES))
+	sh -c 'for bin in curl jq git iperf3 qrencode funzip; do \
+		command -v "$$bin" >/dev/null || { echo "❌ $$bin missing"; exit 1; }; \
+	done; echo "✅ Base prerequisites installed"'
+	sh -c 'test -x /usr/sbin/nft || { \
+		echo "❌ nft binary missing at /usr/sbin/nft"; exit 1; }; \
+		echo "✅ nft present"; \
+	'
+
+	@echo "ok" | $(run_as_root) tee "$(STAMP_PREREQS_OK)" >/dev/null
+	@echo "✅ prereqs-ok complete"
+
+.PHONY: reset-prereqs
+reset-prereqs: | ensure-stamp-dir
+	@echo "🗑️ Resetting prereqs-ok stamp: sudo rm -f $(STAMP_PREREQS_OK)"
+	@$(run_as_root) rm -f "$(STAMP_PREREQS_OK)"
+	@echo "✅ prereqs-ok reset"
+
 .PHONY: all help \
 		prereqs prereqs-network prereqs-network-verify \
 		prereqs-docs-verify prereqs-public-dns-verify \
@@ -108,7 +184,7 @@ prereqs-network-deps: ensure-host-default-route ensure-bootstrap-dns prereqs-tai
 prereqs-system-deps: prereqs-helper-scripts install-ssh-config rust-system
 
 # 3. Dedicated target for Tailscale key management
-$(TAILSCALE_KEYRING): | ensure-run-as-root
+$(TAILSCALE_KEYRING):
 	@echo "🔐 Ensuring Tailscale APT signing key"
 	@$(run_as_root) sh -c ' \
 		tmp=$$(mktemp -p /run homelab.ifc.tmp.XXXXXX); \
@@ -116,43 +192,14 @@ $(TAILSCALE_KEYRING): | ensure-run-as-root
 		curl -fsSL $(TAILSCALE_KEY_URL) -o "$$tmp"; \
 		$(INSTALL_FILE_IF_CHANGED) -q "" "" "$$tmp" "" "" "$(TAILSCALE_KEYRING)" root root 0644'
 
-# 4. Aggregator target for orchestration
-.PHONY: prereqs
-prereqs: \
-	$(INSTALL_SBIN_PATH)/apt-proxy-auto.sh \
-	prereqs-network-deps \
-	prereqs-system-deps \
-	prereqs-dns-warm-verify \
-	prereqs-docs-verify \
-	$(TAILSCALE_KEYRING)
-	@echo "📦 Ensuring installation of prerequisite tools"
-	@$(call apt_install_group,$(PREREQS_PACKAGES))
-	@sh -c 'for bin in curl jq git iperf3 qrencode funzip; do \
-		command -v "$$bin" >/dev/null || { echo "❌ $$bin missing"; exit 1; }; \
-		done; echo "✅ Base prerequisites installed"'
-
-	@echo "📦 Ensuring installation of prerequisite tools"
-	@$(call apt_install_group,$(PREREQS_PACKAGES)) || true
-
-	@sh -c '\
-		export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"; \
-		for bin in curl jq git iperf3 qrencode funzip; do \
-			command -v "$$bin" >/dev/null || { \
-				echo "❌ $$bin missing after install"; exit 1; }; \
-		done; \
-		test -x /usr/sbin/nft || { \
-			echo "❌ nft binary missing at /usr/sbin/nft"; exit 1; }; \
-		echo "✅ Base prerequisites installed"; \
-	'
-
 # ------------------------------------------------------------
 # Network & Infrastructure Mutators
 # ------------------------------------------------------------
 
-prereqs-network: ensure-run-as-root prereqs-network-verify prereqs | ensure-host-default-route
+prereqs-network: prereqs-network-verify prereqs-ok | ensure-host-default-route
 	@echo "📦 Networking prerequisites already ensured"
 
-fix-tailscale-repo: ensure-run-as-root
+fix-tailscale-repo:
 	@# If TAILSCALE_REPO_FILE is unset or the file is missing, print where the variable is defined
 	@set -e; \
 	if [ -z "$(TAILSCALE_REPO_FILE)" ] || [ ! -f "$(TAILSCALE_REPO_FILE)" ]; then \
@@ -250,7 +297,7 @@ prereqs-python-venv-verify:
 
 PYTHON_MIN ?= 3.11.2
 
-prereqs-python-venv: ensure-run-as-root | ensure-host-default-route
+prereqs-python-venv: | ensure-host-default-route
 	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "📍 Ensuring python3-venv is installed (need >= $(PYTHON_MIN))"; fi
 	@python3 -c 'import sys,importlib,pkgutil; min_ver=tuple(int(p) for p in "$(PYTHON_MIN)".split(".")); ver=tuple(sys.version_info[:len(min_ver)]); has_venv=(hasattr(importlib,"util") and importlib.util.find_spec("venv") is not None) or (pkgutil.find_loader("venv") is not None); sys.exit(0 if ver>=min_ver and has_venv else 1)' >/dev/null 2>&1 || { \
 	$(call apt_update_if_needed); \
@@ -263,7 +310,7 @@ prereqs-python-venv: ensure-run-as-root | ensure-host-default-route
 	}; \
 	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "ℹ️  python3 >= $(PYTHON_MIN) and venv available: $$(python3 -V 2>&1)"; fi
 
-prereqs-dns-health-check-verify: ensure-run-as-root
+prereqs-dns-health-check-verify:
 	@$(run_as_root) test -x $(INSTALL_PATH)/dns-health-check.sh || { \
 		echo "❌ DNS health check script drift detected. Remediate with: sudo make install-all."; \
 		exit 1; \
@@ -277,7 +324,7 @@ prereqs-dns-health-check-verify: ensure-run-as-root
 # Helper scripts
 # ------------------------------------------------------------
 
-prereqs-helper-scripts: ensure-run-as-root
+prereqs-helper-scripts:
 	@$(run_as_root) sh -c '\
 		VERBOSE="$(VERBOSE)"; \
 		if [ -n "$$VERBOSE" ] && [ "$$VERBOSE" != "0" ]; then echo "📦 Ensuring helper scripts are installed"; fi; \

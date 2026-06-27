@@ -24,7 +24,7 @@ UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
 # ------------------------------------------------------------
 # Sysctl (safe: kernel tuning only)
 # ------------------------------------------------------------
-deploy-unbound-sysctl: ensure-run-as-root
+deploy-unbound-sysctl:
 	@changed=0; rc=0; \
 	$(call install_file,$(SYSCTL_UNBOUND_SRC),$(SYSCTL_UNBOUND_DST),root,root,0644) || rc=$$?; \
 	case "$${rc:-0}" in \
@@ -41,7 +41,7 @@ deploy-unbound-sysctl: ensure-run-as-root
 # ------------------------------------------------------------
 # Root hints (pure data)
 # ------------------------------------------------------------
-update-root-hints: ensure-run-as-root
+update-root-hints:
 	@echo "🌐 Installing static root hints"
 	@$(run_as_root) install -d -m 0750 -o root -g unbound /var/lib/unbound
 	@$(run_as_root) install -m 0644 -o root -g unbound $(REPO_ROOT)/config/unbound/root.hints /var/lib/unbound/root.hints
@@ -50,7 +50,7 @@ update-root-hints: ensure-run-as-root
 # ------------------------------------------------------------
 # Trust anchor (stamp-driven, no service control)
 # ------------------------------------------------------------
-ensure-dnssec-trust-anchor: ensure-run-as-root $(STAMP_UNBOUND_ANCHOR)
+ensure-dnssec-trust-anchor: $(STAMP_UNBOUND_ANCHOR)
 	@echo "✅ root key present"
 
 $(STAMP_UNBOUND_ANCHOR):
@@ -68,7 +68,7 @@ $(STAMP_UNBOUND_ANCHOR):
 # ------------------------------------------------------------
 # Config deployment (pure, IGOS-safe)
 # ------------------------------------------------------------
-deploy-unbound-config: ensure-run-as-root
+deploy-unbound-config:
 	@$(run_as_root) install -d -m 0755 /etc/unbound /etc/unbound/unbound.conf.d
 	@changed=0; rc=0; \
 	$(call install_file,$(UNBOUND_CONF_SRC),$(UNBOUND_CONF_DST),root,root,0644) || rc=$$?; \
@@ -82,7 +82,7 @@ deploy-unbound-config: ensure-run-as-root
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
 	fi
 
-deploy-unbound-local-internal: ensure-run-as-root
+deploy-unbound-local-internal:
 	@changed=0; rc=0; \
 	$(call install_file,$(UNBOUND_LOCAL_INTERNAL_SRC),$(UNBOUND_LOCAL_INTERNAL_DST),root,root,0644) || rc=$$?; \
 	case "$${rc:-0}" in \
@@ -98,7 +98,7 @@ deploy-unbound-local-internal: ensure-run-as-root
 # ------------------------------------------------------------
 # Unbound health (IGOS-safe, read-only, no lifecycle control)
 # ------------------------------------------------------------
-unbound-health: ensure-run-as-root
+unbound-health:
 	@echo "🔍 Unbound health check (IGOS-safe)"
 
 	# 1. Process check
@@ -145,7 +145,7 @@ unbound-health: ensure-run-as-root
 
 .PHONY: enable-homelab-unbound
 
-enable-homelab-unbound: ensure-run-as-root
+enable-homelab-unbound:
 	@echo "🚀 Enabling homelab-unbound.service"
 	@if ! systemctl is-enabled --quiet homelab-unbound.service 2>/dev/null; then \
 		$(run_as_root) systemctl enable homelab-unbound.service; \
@@ -155,7 +155,7 @@ enable-homelab-unbound: ensure-run-as-root
 	fi
 	@echo "🟢 homelab-unbound enabled and started"
 
-deploy-homelab-unbound-service: ensure-run-as-root
+deploy-homelab-unbound-service:
 	@changed=0; rc=0; \
 	$(call install_file,$(REPO_ROOT)/config/systemd/homelab-unbound.service,/etc/systemd/system/homelab-unbound.service,root,root,0644) || rc=$$?; \
 	case "$${rc:-0}" in \
@@ -182,7 +182,7 @@ deploy-unbound: deploy-unbound-config deploy-unbound-local-internal deploy-homel
 enable-unbound: enable-homelab-unbound
 
 .PHONY: verify-internal-dns
-verify-internal-dns: ensure-run-as-root
+verify-internal-dns:
 	@echo "🔍 Verifying internal DNS"
 	@if [ "$$(dig +short @127.0.0.1 -p 15335 apt.bardi.ch CNAME)" = "nas.bardi.ch." ]; then \
 		echo "   • ✅ internal DNS OK"; \

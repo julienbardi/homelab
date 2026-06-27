@@ -34,12 +34,12 @@ DNS_WARM_POLICY_DST := $(INSTALL_PATH)/dns-warm-update-domains
 	dns-warm-create-user dns-warm-dirs dns-warm-install-script \
 	dns-warm-install-systemd dns-warm-async dns-warm-health dns-warm-now
 
-install-dns-warm-policy: ensure-run-as-root
+install-dns-warm-policy:
 	@echo "📦 Deploying DNS warm policy script..."
 	@$(call install_file,$(DNS_WARM_POLICY_SRC),$(DNS_WARM_POLICY_DST),root,root,0755)
 
 # Fix parallel ordering
-update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-warm-dirs prereqs-dns-warm-verify ensure-run-as-root
+update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-warm-dirs prereqs-dns-warm-verify
 	@echo "🌐 Updating dns-warm domain list"
 	@$(run_as_root) $(DNS_WARM_POLICY_DST)
 	@$(run_as_root) chown root:root $(DOMAINS_FILE)
@@ -73,30 +73,30 @@ dns-warm-install: \
 	dns-warm-install-systemd \
 	dns-warm-enable
 
-dns-warm-status: ensure-run-as-root
+dns-warm-status:
 	@$(run_as_root) systemctl status $(TIMER) --no-pager || true
 	@$(run_as_root) systemctl status $(SERVICE) --no-pager || true
 
 # Fix parallel ordering
-dns-warm-enable: dns-warm-install-systemd ensure-run-as-root
+dns-warm-enable: dns-warm-install-systemd
 	@echo "⚙️ Enabling and starting dns-warm timer..."
 	@$(run_as_root) systemctl unmask $(TIMER) > /dev/null 2>&1 || true
 	@$(run_as_root) systemctl enable $(TIMER)
 	@$(run_as_root) systemctl start $(TIMER)
 	@$(run_as_root) systemctl is-active --quiet $(TIMER) && echo "✅ $(TIMER) active"
 
-dns-warm-disable: ensure-run-as-root
+dns-warm-disable:
 	@echo "Disabling dns-warm timer..."
 	-@$(run_as_root) systemctl disable --now $(TIMER)
 	-@$(run_as_root) systemctl stop $(SERVICE)
 
-dns-warm-start: ensure-run-as-root
+dns-warm-start:
 	@$(run_as_root) systemctl start $(SERVICE)
 
-dns-warm-stop: ensure-run-as-root
+dns-warm-stop:
 	@$(run_as_root) systemctl stop $(SERVICE)
 
-dns-warm-uninstall: dns-warm-disable ensure-run-as-root
+dns-warm-uninstall: dns-warm-disable
 	@echo "Removing dns-warm components..."
 	@$(run_as_root) rm -f $(SERVICE_PATH) $(TIMER_PATH) $(ROTATE_SCRIPT_PATH) $(DNS_WARM_POLICY_DST)
 	@$(run_as_root) rm -f $(STATE_FILE) $(DOMAINS_FILE)
@@ -111,20 +111,20 @@ dns-warm-uninstall: dns-warm-disable ensure-run-as-root
 dns-warm-create-user: enforce-groups
 	@id -u $(DNS_WARM_USER) >/dev/null 2>&1 || { echo "❌ User $(DNS_WARM_USER) creation failed in groups.mk"; exit 1; }
 
-dns-warm-dirs: ensure-run-as-root
+dns-warm-dirs:
 	@$(run_as_root) mkdir -p $(DOMAINS_DIR) $(DNS_WARM_STATE_DIR)
 	@$(run_as_root) chown -R $(DNS_WARM_USER):$(DNS_WARM_GROUP) $(DNS_WARM_STATE_DIR)
 	@$(run_as_root) chown -R root:root $(DOMAINS_DIR)
 	@$(run_as_root) chmod 750 $(DNS_WARM_STATE_DIR)
 
-dns-warm-install-script: dns-warm-async-install ensure-run-as-root
+dns-warm-install-script: dns-warm-async-install
 	@$(call install_file,$(ROTATE_SCRIPT_SRC),$(ROTATE_SCRIPT_PATH),$(DNS_WARM_USER),$(DNS_WARM_GROUP),0755)
 	@$(run_as_root) bash -n $(ROTATE_SCRIPT_PATH)
 
 # Fix parallel ordering
 # mk/71_dns-warm.mk (Update the printf block)
 
-dns-warm-install-systemd: dns-warm-install-script ensure-run-as-root
+dns-warm-install-systemd: dns-warm-install-script
 	@echo "📦 Installing systemd service and timer..."
 	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
 	@$(run_as_root) printf "[Unit]\n\
@@ -166,15 +166,15 @@ WantedBy=timers.target\n" | $(run_as_root) tee $(TIMER_PATH) > /dev/null
 DNS_WARM_ASYNC_SRC := $(REPO_ROOT)/scripts/dns-warm-async.c
 DNS_WARM_ASYNC_BIN := $(INSTALL_PATH)/dns-warm-async
 
-$(DNS_WARM_ASYNC_BIN): $(DNS_WARM_ASYNC_SRC) prereqs
+$(DNS_WARM_ASYNC_BIN): $(DNS_WARM_ASYNC_SRC) prereqs-ok
 	@$(run_as_root) $(CC) -O2 -Wall -Wextra -o $@ $< -lcares
 
 dns-warm-async: $(DNS_WARM_ASYNC_BIN)
 
-dns-warm-async-install: $(DNS_WARM_ASYNC_BIN) ensure-run-as-root
+dns-warm-async-install: $(DNS_WARM_ASYNC_BIN)
 	@$(run_as_root) chmod 0755 $(DNS_WARM_ASYNC_BIN)
 
-dns-warm-health: ensure-run-as-root
+dns-warm-health:
 	@echo "🔍 DNS-warm health check"
 	@if $(run_as_root) systemctl is-active --quiet $(TIMER); then \
 		echo "✅ Timer active"; \
