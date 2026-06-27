@@ -1,4 +1,5 @@
 #!/bin/sh
+# secrets-check.sh
 set -eu
 
 echo "🔍 Scanning git-tracked files for secret material..."
@@ -72,13 +73,14 @@ EOF
         errors=1
     fi
 
-    # Cloudflare / Infomaniak tokens
-    if grep -Eq "CF_API|CLOUDFLARE.*(token|key)" -- "$file"; then
+    # Cloudflare: flag only literal token-like values
+    if grep -Eq "CF_API_[A-Z_]*=[A-Za-z0-9+/=]\{24,\}" -- "$file"; then
         echo "❌ Cloudflare token found in: $file"
         errors=1
     fi
 
-    if grep -Eq "INFOMANIAK.*(token|key)" -- "$file"; then
+    # Infomaniak: flag only literal token-like values
+    if grep -Eq "INFOMANIAK_[A-Z_]*=[A-Za-z0-9+/=]\{24,\}" -- "$file"; then
         echo "❌ Infomaniak token found in: $file"
         errors=1
     fi

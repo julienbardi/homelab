@@ -53,7 +53,7 @@ if [ -x "$DEST" ]; then
 	if [ "$CURRENT" = "$SHA256_EXPECTED" ]; then
 		TMP_STAMP="$(mktemp 2>/dev/null || mktemp -t 'stamp')"
 		echo "$SHA256_EXPECTED" > "$TMP_STAMP"
-		mv -f "$TMP_STAMP" "$STAMP"
+		install -m 0644 "$TMP_STAMP" "$STAMP"
 		echo "⏩ ${TOOL_LABEL} (local recovery: binary hash OK, stamp restored): $CURRENT"
 		exit 0
 	fi
@@ -101,7 +101,7 @@ if [ "$TYPE" = "raw" ]; then
 
 	TMP_STAMP="$(mktemp 2>/dev/null || mktemp -t 'stamp')"
 	echo "$SHA256_EXPECTED" > "$TMP_STAMP"
-	mv -f "$TMP_STAMP" "$STAMP"
+	install -m 0644 "$TMP_STAMP" "$STAMP"
 
 	echo "🚀 Installed raw binary: $DEST"
 	exit 0
@@ -171,6 +171,6 @@ mv -f "$TMP_DEST" "$DEST"
 # ------------------------------------------------------------
 TMP_STAMP="$(mktemp 2>/dev/null || mktemp -t 'stamp')"
 echo "$SHA256_EXPECTED" > "$TMP_STAMP"
-mv -f "$TMP_STAMP" "$STAMP"
+install -m 0644 "$TMP_STAMP" "$STAMP"
 
 echo "🚀 Installed/updated $DEST"

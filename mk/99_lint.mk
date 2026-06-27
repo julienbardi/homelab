@@ -36,7 +36,9 @@ MAKEFILES := $(REPO_ROOT)Makefile $(MK_FILES)
 
 define require_tool
 @if ! command -v $(1) >/dev/null 2>&1; then \
-	echo "❌ $(1) not installed"; exit 2; \
+    echo "❌ $(1) not installed"; \
+    echo "👉 Run 'make deps' to install all lint dependencies"; \
+    exit 2; \
 fi
 endef
 
@@ -87,7 +89,8 @@ lint-all: lint-fast lint-spell lint-headscale lint-no-recursive-make lint-sensit
 lint-ci: lint-shellcheck-strict lint-makefile-strict lint-spell-strict lint-headscale-strict lint-semantic-strict \
 	check-control-plane-reasoning \
 	check-exec-surface \
-	lint-sensitive
+	lint-sensitive \
+	lint-paths
 	@echo "✅ All checks passed (strict mode)."
 
 # Run shell syntax check and ShellCheck across all tracked .sh files (permissive)
@@ -214,7 +217,7 @@ lint-makefile-strict:
 	done
 
 # Headscale config test (use run_as_root helper)
-lint-headscale: ensure-run-as-root
+lint-headscale:
 	@echo "🚨 Linting /etc/headscale/config.yaml (permissive)..."
 	@if [ -z "$(run_as_root)" ]; then \
 	  echo "🔍 run_as_root helper not defined; skipping headscale configtest"; \
@@ -225,7 +228,7 @@ lint-headscale: ensure-run-as-root
 	fi
 
 # Headscale config test strict
-lint-headscale-strict: ensure-run-as-root
+lint-headscale-strict:
 	@echo "🔍 Linting /etc/headscale/config.yaml (strict)..."
 	@if [ -z "$(run_as_root)" ]; then \
 	  echo "❌ run_as_root helper not defined"; exit 2; \
@@ -300,3 +303,13 @@ lint-no-recursive-make:
 .PHONY: lint-sensitive
 lint-sensitive: /usr/local/bin/secrets-check.sh
 	@/usr/local/bin/secrets-check.sh
+
+.PHONY: lint-paths
+lint-paths:
+	@echo "🔍 Lint: checking for double slashes in filesystem paths..."
+	@if grep -R --exclude-dir=.git -nE '(^|[^:])/(/{2,})' Makefile mk \
+		| grep -vE 'https?://|http://|https://'; then \
+		echo "❌ Double slash detected in filesystem path"; \
+		exit 1; \
+	fi
+	@echo "✅ No double slashes in filesystem paths"
