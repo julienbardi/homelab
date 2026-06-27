@@ -145,7 +145,7 @@ update: gitcheck
 .PHONY: test logs clean-soft
 
 .PHONY: clean
-clean: ensure-run-as-root
+clean:
 	@$(run_as_root) sh -c '\
 		echo "🧹 Removing tailscaled role units"; \
 		systemctl disable tailscaled-lan.service >/dev/null 2>&1 || true; \
@@ -155,7 +155,7 @@ clean: ensure-run-as-root
 	'
 
 .PHONY: reload
-reload: ensure-run-as-root
+reload:
 	@$(run_as_root) sh -c '\
 		echo "🔄 Reloading systemd units"; \
 		systemctl daemon-reload; \
@@ -163,7 +163,7 @@ reload: ensure-run-as-root
 	'
 
 .PHONY: restart
-restart: ensure-run-as-root
+restart:
 	@$(run_as_root) sh -c '\
 		echo "🔄 Restarting tailscaled services"; \
 		systemctl restart tailscaled >/dev/null 2>&1 || true; \
@@ -171,7 +171,7 @@ restart: ensure-run-as-root
 		echo "✅ tailscaled services restarted"; \
 	'
 
-test: logs ensure-run-as-root
+test: logs
 	@echo "🧩 Running run_as_root harness"
 	@$(run_as_root) bash $(INSTALL_PATH)/test_run_as_root.sh
 
@@ -196,14 +196,14 @@ tailscaled: \
 .PHONY: install-nft-apply nft-apply nft-confirm nft-install nft-status nft-install nft-verify nft-install-rollback
 .NOTPARALLEL: nft-confirm nft-apply
 
-install-nft-apply: ensure-run-as-root
+install-nft-apply:
 	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)/scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
 
-nft-sync: ensure-run-as-root
+nft-sync:
 	@echo "🔄 Syncing homelab.nft ruleset"
 	@$(call install_file,$(REPO_ROOT)/scripts/homelab.nft,$(HOMELAB_NFT_RULESET),root,root,0644)
 
-nft-apply: install-nft-apply nft-sync ensure-run-as-root
+nft-apply: install-nft-apply nft-sync
 	@$(run_as_root) sh -c '\
 		echo "🔧 Applying nftables ruleset"; \
 		$(INSTALL_PATH)/homelab-nft-apply.sh >/dev/null 2>&1 || true; \
@@ -211,10 +211,10 @@ nft-apply: install-nft-apply nft-sync ensure-run-as-root
 		echo "📄 Recorded nftables ruleset hash"; \
 	'
 
-nft-confirm: ensure-run-as-root
+nft-confirm:
 	@$(run_as_root) $(INSTALL_PATH)/homelab-nft-confirm.sh
 
-nft-install: install-nft-apply ensure-run-as-root
+nft-install: install-nft-apply
 	@$(run_as_root) sh -c '\
 		echo "🛡️ Installing homelab nftables firewall"; \
 		install -o root -g root -m 0755 $(REPO_ROOT)/scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh; \
@@ -227,10 +227,10 @@ nft-install: install-nft-apply ensure-run-as-root
 		echo "✅ Firewall units installed (not yet applied)"; \
 	'
 
-nft-status: ensure-run-as-root
+nft-status:
 	@$(run_as_root) nft list table inet homelab_filter
 
-nft-install-rollback: ensure-run-as-root
+nft-install-rollback:
 	@$(run_as_root) sh -c '\
 		echo "⏪ Installing homelab nft rollback units"; \
 		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \

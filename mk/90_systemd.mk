@@ -8,13 +8,13 @@ REPO_SYSTEMD   := config/systemd
 # ------------------------------------------------------------
 
 .PHONY: install-dns-health
-install-dns-health: ensure-run-as-root
+install-dns-health:
 	@$(run_as_root) install -m 0644 -o root -g root \
 		$(REPO_ROOT)/$(REPO_SYSTEMD)/homelab-dns-health.service \
 		$(SYSTEMD_DIR)/homelab-dns-health.service
 
 .PHONY: install-nas-prefix-watchdog
-install-nas-prefix-watchdog: ensure-run-as-root
+install-nas-prefix-watchdog:
 	@echo "🧩 Installing NAS IPv6 prefix watchdog"
 
 	# Install script
@@ -34,7 +34,7 @@ install-nas-prefix-watchdog: ensure-run-as-root
 
 .PHONY: install-systemd enable-systemd verify-systemd uninstall-systemd
 
-install-systemd: ensure-run-as-root install-dns-health
+install-systemd: install-dns-health
 	@echo "🧩 Installing systemd units"
 	@if [ ! -d "$(REPO_ROOT)/$(REPO_SYSTEMD)" ]; then \
 		echo "ERROR: $(REPO_ROOT)/$(REPO_SYSTEMD) not found"; exit 1; \
@@ -55,7 +55,7 @@ install-systemd: ensure-run-as-root install-dns-health
 # Enable + start services
 # ------------------------------------------------------------
 
-enable-systemd: install-systemd ensure-run-as-root
+enable-systemd: install-systemd
 	@$(run_as_root) sh -c '\
 		if systemctl is-active --quiet homelab-unbound.service; then \
 			echo "🟢 homelab-unbound.service already running and converged"; \
@@ -69,7 +69,7 @@ enable-systemd: install-systemd ensure-run-as-root
 # Verification
 # ------------------------------------------------------------
 
-verify-systemd: ensure-run-as-root
+verify-systemd:
 	@echo "🔍 Status and socket ownership:"
 	@$(run_as_root) systemctl status unbound --no-pager || true
 
@@ -77,5 +77,5 @@ verify-systemd: ensure-run-as-root
 # Uninstall (minimal)
 # ------------------------------------------------------------
 
-uninstall-systemd: ensure-run-as-root
+uninstall-systemd:
 	@$(run_as_root) systemctl daemon-reload >/dev/null 2>&1 || true

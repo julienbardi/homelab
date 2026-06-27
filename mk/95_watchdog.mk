@@ -1,7 +1,7 @@
 WATCHDOG_UNIT_SRC := $(REPO_ROOT)/config/systemd/router-prefix-watchdog.service.in
 WATCHDOG_UNIT_DST := /etc/systemd/system/router-prefix-watchdog.service
 
-install-router-prefix-watchdog: | ensure-run-as-root
+install-router-prefix-watchdog:
 	@echo "🛠️ Installing router-prefix-watchdog service"
 	@tmp=$$(mktemp); \
 	sed \
