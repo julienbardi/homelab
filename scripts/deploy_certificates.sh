@@ -28,7 +28,6 @@ fi
 ROUTER_ADDR="${ROUTER_ADDR:-10.89.12.1}"
 SSH_USER_ROUTER="${SSH_USER_ROUTER:-root}"
 ROUTER_SSH_PORT="${ROUTER_SSH_PORT:-2222}"
-SSH_OPTS="${SSH_OPTS:-}"
 SSH_IDENTITY="${SSH_IDENTITY:-$HOME/.ssh/id_ed25519}"
 
 INTENDED_SANS=(
@@ -108,30 +107,6 @@ if [[ "${1:-}" == "_validate_sans" ]]; then
     validate_sans "$2"
     exit 0
 fi
-
-days_left() {
-    local cert="$1"
-    local expiry
-    expiry=$(openssl x509 -in "$cert" -noout -enddate | cut -d= -f2)
-    local expiry_ts now_ts
-    expiry_ts=$(date -d "$expiry" +%s)
-    now_ts=$(date +%s)
-    echo $(( (expiry_ts - now_ts) / 86400 ))
-}
-
-# --------------------------------------------------------------------
-# issue — initial ACME issuance
-# --------------------------------------------------------------------
-issue() {
-	log "ℹ️ Legacy issue() disabled — ACME issuance is now handled by acme-issue.service"
-}
-
-# --------------------------------------------------------------------
-# renew — ACME renewal logic
-# --------------------------------------------------------------------
-renew() {
-	log "ℹ️ Legacy renew() disabled — ACME renewal is now handled by acme-issue.service"
-}
 
 # --------------------------------------------------------------------
 # prepare — canonical store + no redundant work
@@ -447,8 +422,6 @@ dispatch_status() {
 # Main
 # --------------------------------------------------------------------
 case "${1:-}" in
-    issue)   issue ;;
-    renew)   renew ;;
     prepare) prepare ;;
     deploy)  [[ $# -eq 2 ]] || usage; dispatch_deploy "$2" ;;
     validate) [[ $# -eq 2 ]] || usage; dispatch_validate "$2" ;;

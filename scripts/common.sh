@@ -42,6 +42,7 @@ if [[ -f "$HOMELAB_ENV" ]]; then
     _env_mode=$(stat -c "%a" "$HOMELAB_ENV")
 
     # Extract octal digits (owner/group/other)
+	
     _env_o=${_env_mode:0:1}
     _env_g=${_env_mode:1:1}
     _env_t=${_env_mode:2:1}
@@ -67,11 +68,10 @@ if [[ -f "$HOMELAB_ENV" ]]; then
     else
         # Protect PATH from being overridden by homelab.env
         _saved_path="$PATH"
-        set +a; set +u; set -a
+        set -a
         source "$HOMELAB_ENV"
-        set +a; set -u
+        set +a
         PATH="$_saved_path"
-        export PATH
         unset _saved_path
     fi
     unset _env_owner _env_group _env_mode _env_o _env_g _env_t
@@ -152,21 +152,6 @@ require_file() {
     [[ -s "$1" ]] || { log "❌ missing file: $1"; exit 1; }
 }
 
-# Hash‑based drift detector:
-#   - Returns 0 if changed
-#   - Returns 1 if unchanged
-changed() {
-    local file="$1" hashfile="$2"
-    local newhash
-    newhash="$(sha256sum "${file}" | cut -d' ' -f1)"
-
-    if [[ ! -f "${hashfile}" ]] || [[ "$(cat "${hashfile}")" != "$newhash" ]]; then
-        echo "$newhash" | sudo tee "${hashfile}" >/dev/null
-        return 0
-    fi
-    return 1
-}
-
 # Reload service with correct fallback order:
 #   1. caddy reload (only for caddy)
 #   2. systemctl reload
@@ -218,12 +203,9 @@ install_files_if_changed_v2() {
     local -n _changed_ref=$1
     shift
     local total_args=$#
-    echo "ARGCOUNT=$# ARGS=[${*}]" >&2
     require_file "$INSTALL_FILE_IF_CHANGED"
 
     for (( i=1; i<=total_args; i+=9 )); do
-        echo "VECTORIZED CALL: ${@:i:9}" >&2
-
         set +e
         (
             set +e
@@ -236,7 +218,7 @@ install_files_if_changed_v2() {
             _changed_ref=1
         elif [[ "$rc" -ne 0 ]]; then
             local failed_arg="${@:i+2:1}"
-            log "❌ install_file_if_changed_v3.sh failed (rc=$rc) for ${failed_arg}"
+            log "❌ $INSTALL_FILE_IF_CHANGED failed (rc=$rc) for ${failed_arg}"
             exit 1
         fi
     done
