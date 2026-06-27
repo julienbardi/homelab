@@ -175,7 +175,6 @@ EOF
 [Interface]
 Address = ${IF_ADDR_V4[$iface]}, ${v6_prefix}::1/64
 ListenPort = ${IF_PORT[$iface]}
-Table = off
 PrivateKey = $priv
 EOF
 )

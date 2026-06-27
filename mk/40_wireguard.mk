@@ -95,7 +95,8 @@ wg-clean-state:
 # --- Router Setup ---
 router-ensure-wg-module: router-install-scripts
 	@if [ -z "$(ROUTER_WG_DIR)" ]; then echo "ERROR: ROUTER_WG_DIR undefined"; exit 1; fi; \
-	echo "🛡️ [router] Ensuring WireGuard kernel module on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)..."
+	echo "🛡️ [router] Ensuring WireGuard kernel module on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)..."; \
+	ssh "$(SSH_HOST_ROUTER)" 'modprobe wireguard 2>/dev/null || true'
 
 .PHONY: router-bootstrap-wg-keys
 router-bootstrap-wg-keys:
