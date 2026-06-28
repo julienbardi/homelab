@@ -222,7 +222,7 @@ EOF
         # PSK_VALUE is now available for both router + client config blocks
 
         install_content "$OUT_CLIENTS/$name.conf" "0600" <<EOF
-# Rotate PSK: rm ${WG_ROOT}/psk/${name}.psk && make wg-generate && make wg-install-router && make wg-up-router
+# Rotate PSK: rm ${WG_ROOT}/psk/${name}.psk && make wg-generate && make wg-install-${IF_HOST[$iface]} && make wg-up-${IF_HOST[$iface]}
 [Interface]
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}/128
@@ -235,27 +235,15 @@ PublicKey = $(<"$KEY_DIR/servers/$iface.pub")
 PresharedKey = $PSK_VALUE
 Endpoint = ${endpoint_host}:${IF_PORT[$iface]}
 AllowedIPs = $(
-    if [[ "$os" == "windows" ]]; then
-        if [[ "$acc" == "full" ]]; then
-            # Windows full-tunnel + LAN bypass.
-            # ::/0 is intentionally included: routing ALL IPv6 through the tunnel prevents
-            # the client's native IPv6 from bypassing the VPN and leaking their real location.
-            # At the tunnel exit the router REJECTs (not drops) non-LAN IPv6, so the OS
-            # fails fast via Happy Eyeballs and retries on IPv4 (~100ms). No black hole.
-            # IPv6 internet will work once NAT66 is operational (see wg7 notes)
-            echo "10.89.12.0/24, fd89:7a3b:42c0::/64, 0.0.0.0/0, ::/0"
-        else
-            # Windows restricted mode
-            echo "$(ipv4_network "${IF_ADDR_V4[$iface]}"), ${IF_ADDR_V6[$iface]}"
-        fi
+    if [[ "$acc" == "full" ]]; then
+        # LAN-friendly full tunnel:
+        # - WAN routed through WG
+        # - LAN stays local (no routing conflict)
+        # - IPv6 full tunnel without blackhole (split default route)
+        echo "0.0.0.0/1, 128.0.0.0/1, ::/1, 8000::/1"
     else
-        # Linux / Android / iOS / macOS
-        if [[ "$acc" == "full" ]]; then
-            # ::/0 intentionally included - see Windows comment above.
-            echo "0.0.0.0/0, ::/0"
-        else
-            echo "$(ipv4_network "${IF_ADDR_V4[$iface]}"), ${IF_ADDR_V6[$iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64"
-        fi
+        # Restricted mode: only WG subnet + LAN
+        echo "$(ipv4_network "${IF_ADDR_V4[$iface]}"), ${IF_ADDR_V6[$iface]}, 10.89.12.0/24, fd89:7a3b:42c0::/64"
     fi
 )
 PersistentKeepalive = 25
