@@ -110,6 +110,12 @@ bardi.ch:8384 {
 			tls
 			tls_insecure_skip_verify
 		}
+
+        # --- DoH health checks ---
+        health_uri /dns-query?name=example.com&type=A
+        health_interval 10s
+        health_timeout 2s
+        fail_duration 30s
 	}
 
 	# DiskStation main HTTPS site (WAN)
