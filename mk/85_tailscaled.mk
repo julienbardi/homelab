@@ -153,7 +153,7 @@ tailscale-check:
 
 # optional tailscaled preflight
 # Set USE_TAILSCALED=1 to enable tailscaled installation/start/wait behavior.
-USE_TAILSCALED ?= 1
+USE_TAILSCALED ?= 0
 
 .PHONY: net-tunnel-preflight
 

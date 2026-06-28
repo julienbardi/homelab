@@ -1,6 +1,14 @@
+# internal-hosts.txt
+#
+# Contract:
+# - These hostnames are internal-only for Caddy routing/ACLs.
+# - vpn.bardi.ch MUST NOT be listed here; it is a public-facing hostname.
+# - Public hosts (vpn.bardi.ch, derp.bardi.ch, bardi.ch) are handled in the Caddyfile.
+# - This file does NOT override DNS; Unbound controls DNS resolution.
+#
+# This file defines Caddy's internal routing policy, not DNS policy.
 router.bardi.ch
 dns.bardi.ch
-vpn.bardi.ch
 derp.bardi.ch
 qnap.bardi.ch
 nas.bardi.ch
