@@ -1,15 +1,26 @@
 # mk/20_deps.mk
-# Package installation and build helpers
 
-STAMP_DIR := $(STAMP_DIR_ROOT)
-STAMP_DNS_OK := $(STAMP_DIR)/dns-ok.stamp
-STAMP_TS_OK  := $(STAMP_DIR)/tailscale-hygiene.stamp
-STAMP_CARGO_OK := $(STAMP_DIR)/cargo-ok.stamp
-STAMP_WATCHDOG_OK := $(STAMP_DIR)/watchdog-ok.stamp
-STAMP_VNSTAT_OK := $(STAMP_DIR)/vnstat-ok.stamp
-PROBES_STAMP := $(STAMP_DIR)/deps-probes.checked
-STAMP_GO_TARBALL := $(STAMP_DIR)/go-tarball.checked
-STAMP_PREREQS_OK := $(STAMP_DIR)/prereqs-ok.stamp
+# --------------------------------------------------------------------
+# Package installation and build helpers
+# --------------------------------------------------------------------
+STAMP_DNS_OK := $(STAMP_DIR_ROOT)/dns-ok.stamp
+STAMP_TS_OK  := $(STAMP_DIR_ROOT)/tailscale-hygiene.stamp
+STAMP_CARGO_OK := $(STAMP_DIR_ROOT)/cargo-ok.stamp
+STAMP_WATCHDOG_OK := $(STAMP_DIR_ROOT)/watchdog-ok.stamp
+STAMP_VNSTAT_OK := $(STAMP_DIR_ROOT)/vnstat-ok.stamp
+PROBES_STAMP := $(STAMP_DIR_ROOT)/deps-probes.checked
+STAMP_GO_TARBALL := $(STAMP_DIR_ROOT)/go-tarball.checked
+STAMP_PREREQS_OK := $(STAMP_DIR_ROOT)/prereqs-ok.stamp
+
+# Stamp directory order-only dependencies (root scope)
+$(STAMP_DNS_OK):            | $(STAMP_DIR_ROOT)
+$(STAMP_TS_OK):             | $(STAMP_DIR_ROOT)
+$(STAMP_CARGO_OK):          | $(STAMP_DIR_ROOT)
+$(STAMP_WATCHDOG_OK):       | $(STAMP_DIR_ROOT)
+$(STAMP_VNSTAT_OK):         | $(STAMP_DIR_ROOT)
+$(PROBES_STAMP):            | $(STAMP_DIR_ROOT)
+$(STAMP_GO_TARBALL):        | $(STAMP_DIR_ROOT)
+$(STAMP_PREREQS_OK):        | $(STAMP_DIR_ROOT)
 
 GO_MODERN_VERSION := 1.25.5
 GO_MODERN_PREFIX  := /usr/local/go
@@ -27,7 +38,7 @@ define go_install_from_source
 	BIN_NAME="$(1)"; VERSION_STR="$(2)"; \
 	REQ_VER="$${VERSION_STR##*@}"; \
 	DEST="$(INSTALL_PATH)/$$BIN_NAME"; \
-	STAMP="$(STAMP_DIR)/$$BIN_NAME.installed"; \
+	STAMP="$(STAMP_DIR_ROOT)/$$BIN_NAME.installed"; \
 	if [ -f "$$STAMP" ] && [ -f "$$DEST" ]; then \
 		CURRENT_SHA=$$(sha256sum "$$DEST" | awk '{print $$1}'); \
 		STAMP_SHA=$$(grep -oP 'sha256=\K[a-f0-9]+' "$$STAMP" || echo "none"); \
@@ -54,7 +65,7 @@ define go_install_from_source
 	TMP_STAMP=$$(mktemp); \
 	echo "version=$$REQ_VER sha256=$$NEW_SHA installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$$TMP_STAMP"; \
 	$(run_as_root) install -m 0644 "$$TMP_STAMP" "$$STAMP"; \
-	rm -f "$$TMP_STAMP"; \
+	$(run_as_root) rm -f "$$TMP_STAMP"; \
 	rm -rf "$$TMP_BIN"
 endef
 
@@ -142,12 +153,9 @@ endef
 	remove-pkg-kopia \
 	headscale-build
 
-STAMP_INSTALLERS_OK := $(STAMP_DIR)/installers-ok.stamp
+STAMP_INSTALLERS_OK := $(STAMP_DIR_ROOT)/installers-ok.stamp
 
-.PHONY: installers-ok
-installers-ok: $(STAMP_INSTALLERS_OK)
-
-$(STAMP_INSTALLERS_OK): ensure-stamp-dir \
+$(STAMP_INSTALLERS_OK): \
 	install-pkg-go \
 	install-pkg-pandoc \
 	install-pkg-checkmake \
@@ -155,24 +163,29 @@ $(STAMP_INSTALLERS_OK): ensure-stamp-dir \
 	install-pkg-age \
 	install-pkg-rclone \
 	install-pkg-kopia \
-	install-pkg-sops
+	install-pkg-sops \
+	| $(STAMP_DIR_ROOT)
 	@echo "ok" | $(run_as_root) tee "$@" >/dev/null
+
+.PHONY: installers-ok
+installers-ok: $(STAMP_INSTALLERS_OK)
 
 # ------------------------------------------------------------
 # Aggregate deps target
 # ------------------------------------------------------------
+STAMP_DEPS_OK := $(STAMP_DIR_ROOT)/deps-ok.stamp
 
-STAMP_DEPS_OK := $(STAMP_DIR)/deps-ok.stamp
+$(STAMP_DEPS_OK): \
+	dns-ok tailscale-hygiene-ok cargo-ok watchdog-ok vnstat-ok prereqs-ok \
+	installers-ok \
+	| $(STAMP_DIR_ROOT)
+	@echo "ok" | $(run_as_root) tee "$@" >/dev/null
+	@echo "✅ deps-ok complete"
 
 .PHONY: deps-ok
 deps-ok: $(STAMP_DEPS_OK)
 
-$(STAMP_DEPS_OK): ensure-stamp-dir \
-	dns-ok tailscale-hygiene-ok cargo-ok watchdog-ok vnstat-ok prereqs-ok \
-	installers-ok
-	@echo "ok" | $(run_as_root) tee "$@" >/dev/null
-	@echo "✅ deps-ok complete"
-
+.PHONY: deps
 deps: deps-ok
 
 # ------------------------------------------------------------
@@ -236,12 +249,13 @@ verify-pkg-tailscale: ensure-host-default-route
 # Go (Modern Binary Distribution)
 # ------------------------------------------------------------
 
-GO_TARBALL := $(STAMP_DIR)/go$(GO_MODERN_VERSION).linux-$(GO_ARCH).tar.gz
+GO_TARBALL := $(STAMP_DIR_ROOT)/go$(GO_MODERN_VERSION).linux-$(GO_ARCH).tar.gz
+$(GO_TARBALL): | $(STAMP_DIR_ROOT)
 
-install-pkg-go: | ensure-stamp-dir
+install-pkg-go: | $(GO_TARBALL)
 	@set -e; \
 	# deps-probes handles legacy Go detection
-	if [ -f "$(STAMP_DIR)/legacy-go.detected" ]; then \
+	if [ -f "$(STAMP_DIR_ROOT)/legacy-go.detected" ]; then \
 		echo "🗑️ Removing legacy apt Go version..."; \
 		$(run_as_root) apt-get purge -y golang-go golang-1.19-go >/dev/null 2>&1; \
 		$(run_as_root) apt-get autoremove -y >/dev/null 2>&1; \
@@ -259,6 +273,7 @@ install-pkg-go: | ensure-stamp-dir
 		echo "✅ Go $(GO_MODERN_VERSION) already installed at $(GO_MODERN_PREFIX)"; \
 	fi
 
+.PHONY: remove-pkg-go
 remove-pkg-go:
 	@$(call remove_file_or_link_if_exists,$(GO_MODERN_BIN) /usr/local/bin/go,go)
 
@@ -321,7 +336,7 @@ AGE_BIN        := /usr/local/bin/age
 AGE_KEYGEN_BIN := /usr/local/bin/age-keygen
 AGE_VERSION    := v1.2.1
 
-install-pkg-age: install-pkg-go | ensure-stamp-dir
+install-pkg-age: install-pkg-go | $(STAMP_DIR_ROOT)
 	@if [ -x "$(AGE_BIN)" ] && $(AGE_BIN) --version 2>&1 | grep -q "$(AGE_VERSION)"; then \
 		echo "✅ age $(AGE_VERSION) already installed at $(AGE_BIN)"; \
 	else \
@@ -337,10 +352,10 @@ remove-pkg-age:
 # SOPS (Secrets Operations - Source build via Go)
 # ------------------------------------------------------------
 SOPS_VERSION := v3.13.1
-SOPS_BIN     := /usr/local/bin/sops
-STAMP_SOPS   := $(STAMP_DIR)/sops.installed
+STAMP_SOPS   := $(STAMP_DIR_ROOT)/sops.installed
+$(STAMP_SOPS): | $(STAMP_DIR_ROOT)
 
-install-pkg-sops: install-pkg-go | ensure-stamp-dir
+install-pkg-sops: install-pkg-go | $(STAMP_DIR_ROOT)
 	@echo "📦 Ensuring SOPS $(SOPS_VERSION)"
 
 	# Fast path: skip if stamp + binary hash match
@@ -364,6 +379,7 @@ install-pkg-sops: install-pkg-go | ensure-stamp-dir
 
 	@echo "✅ SOPS $(SOPS_VERSION) installed"
 
+.PHONY: remove-pkg-sops
 remove-pkg-sops:
 	@$(call remove_file_or_link_if_exists,$(SOPS_BIN) $(STAMP_SOPS),sops)
 
@@ -385,10 +401,11 @@ remove-pkg-rclone:
 KOPIA_VERSION := 0.23.1
 KOPIA_URL := https://github.com/kopia/kopia/releases/download/v$(KOPIA_VERSION)/kopia-$(KOPIA_VERSION)-linux-x64.tar.gz
 KOPIA_SHA256 := e306c3d48b47756912928738241baffe68d1a8a16ab804ab3fbabd725a61df7f
-KOPIA_STAMP := $(STAMP_DIR)/kopia.installed
+KOPIA_STAMP := $(STAMP_DIR_ROOT)/kopia.installed
+$(KOPIA_STAMP): | $(STAMP_DIR_ROOT)
 
 .PHONY: install-pkg-kopia
-install-pkg-kopia: ensure-stamp-dir
+install-pkg-kopia: $(INSTALL_PATH)/install_github_asset.sh $(KOPIA_STAMP)
 	@echo "📦 Ensuring Kopia $(KOPIA_VERSION)"
 	# Fast path: skip if stamp + binary hash match
 	@if [ -f "$(KOPIA_STAMP)" ] && [ -x "$(INSTALL_PATH)/kopia" ]; then \
@@ -425,15 +442,9 @@ enable-ndppd:
 CHECKMAKE_VERSION := 0.2.2
 CHECKMAKE_BIN     := /usr/local/bin/checkmake
 CHECKMAKE_SRC     := $(HOME)/src/checkmake
-STAMP_CHECKMAKE   := $(STAMP_DIR)/checkmake.installed
+STAMP_CHECKMAKE   := $(STAMP_DIR_ROOT)/checkmake.installed
 
-ensure-git-detachedhead-silenced:
-	@git config --global advice.detachedHead false || true
-
-.PHONY: install-pkg-checkmake
-install-pkg-checkmake: $(STAMP_CHECKMAKE)
-
-$(STAMP_CHECKMAKE): install-pkg-pandoc install-pkg-go ensure-git-detachedhead-silenced | ensure-stamp-dir
+$(STAMP_CHECKMAKE): install-pkg-pandoc install-pkg-go ensure-git-detachedhead-silenced | $(STAMP_DIR_ROOT)
 	@echo "📦 Checking checkmake (v$(CHECKMAKE_VERSION))"
 
 	# Fast path
@@ -469,7 +480,13 @@ $(STAMP_CHECKMAKE): install-pkg-pandoc install-pkg-go ensure-git-detachedhead-si
 	echo "version=$(CHECKMAKE_VERSION) sha256=$$NEW_SHA installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee "$(STAMP_CHECKMAKE)" >/dev/null
 
+ensure-git-detachedhead-silenced:
+	@git config --global advice.detachedHead false || true
 
+.PHONY: install-pkg-checkmake
+install-pkg-checkmake: $(STAMP_CHECKMAKE)
+
+.PHONY: remove-pkg-checkmake
 remove-pkg-checkmake:
 	@{ \
 		$(call remove_file_or_link_if_exists,$(CHECKMAKE_BIN) $(STAMP_CHECKMAKE),checkmake); \
@@ -492,7 +509,7 @@ remove-pkg-strace:
 # ------------------------------------------------------------
 HEADSCALE_VERSION ?= v0.27.1
 
-headscale-build: install-pkg-go ensure-host-default-route | ensure-stamp-dir
+headscale-build: install-pkg-go ensure-host-default-route | $(STAMP_DIR_ROOT)
 	@if command -v headscale >/dev/null 2>&1; then \
 		CURRENT_VER=$$(headscale version | awk '{print $$3}'); \
 		if [ "$$CURRENT_VER" = "$(HEADSCALE_VERSION)" ]; then \
@@ -503,8 +520,9 @@ headscale-build: install-pkg-go ensure-host-default-route | ensure-stamp-dir
 	@$(call go_install_from_source,headscale,github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION))
 	@echo "✅ headscale $(HEADSCALE_VERSION) installed"
 
+.PHONY: remove-pkg-headscale
 remove-pkg-headscale:
-	@$(call remove_file_or_link_if_exists,$(INSTALL_PATH)/headscale $(STAMP_DIR)/headscale.installed,headscale)
+	@$(call remove_file_or_link_if_exists,$(INSTALL_PATH)/headscale $(STAMP_DIR_ROOT)/headscale.installed,headscale)
 
 # ------------------------------------------------------------
 # Pandoc (pinned .deb)
@@ -513,12 +531,9 @@ PANDOC_VERSION := 3.9.0.2
 PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.9.0.2/pandoc-3.9.0.2-1-amd64.deb
 PANDOC_SHA256  := 7d124235998ecd3cdd9a463b1e5f6691a178b6461824c29a36170a0882f05597
 
-STAMP_PANDOC := $(STAMP_DIR)/pandoc.installed
+STAMP_PANDOC := $(STAMP_DIR_ROOT)/pandoc.installed
 
-.SILENT: $(STAMP_PANDOC)
-install-pkg-pandoc: $(STAMP_PANDOC)
-
-$(STAMP_PANDOC): ensure-stamp-dir
+$(STAMP_PANDOC): | $(STAMP_DIR_ROOT)
 	@echo "📦 Ensuring Pandoc $(PANDOC_VERSION)"
 
 	# Fast path: skip if stamp + binary hash match
@@ -538,6 +553,10 @@ $(STAMP_PANDOC): ensure-stamp-dir
 		"$(PANDOC_SHA256)" \
 		"$(STAMP_PANDOC)"
 
+.SILENT: $(STAMP_PANDOC)
+install-pkg-pandoc: $(STAMP_PANDOC)
+
+.PHONY: upgrade-pkg-pandoc
 upgrade-pkg-pandoc: $(STAMP_PANDOC) ensure-host-default-route
 	@echo "⬆️ Upgrading pandoc..."
 	@$(call apt_update_if_needed)
@@ -548,22 +567,22 @@ upgrade-pkg-pandoc: $(STAMP_PANDOC) ensure-host-default-route
 	rm -f "$$tmp"
 	@echo "✅ pandoc upgrade complete"
 
+.PHONY: remove-pkg-pandoc
 remove-pkg-pandoc:
 	@if dpkg -s pandoc >/dev/null 2>&1; then \
 		echo "🗑️ Removing pandoc (takes about 4 seconds)..."; \
 		$(run_as_root) apt-get remove -y --allow-change-held-packages pandoc >/dev/null 2>&1; \
 	fi
 
-print-STAMP-KOPIA:
+print-STAMP-KOPIA: | $(STAMP_DIR_ROOT) $(STAMP_KOPIA)
 	@echo "STAMP_DIR_ROOT='$(STAMP_DIR_ROOT)'"
-	@echo "STAMP_DIR='$(STAMP_DIR)'"
 	@echo "STAMP_KOPIA='$(STAMP_KOPIA)'"
 
 print-run-as-root:
 	@printf 'run_as_root="%s"\n' "$(run_as_root)"
 
 .PHONY: deps-probes
-deps-probes: ensure-stamp-dir
+deps-probes: | $(STAMP_DIR_ROOT)
 	@if [ -f "$(PROBES_STAMP)" ]; then \
 		echo "⏩ deps-probes (fast-path OK)"; \
 		exit 0; \
@@ -577,26 +596,26 @@ deps-probes: ensure-stamp-dir
 	@{ cargo --version >/dev/null; } &
 	@{ $(call ensure_service_enabled,router-prefix-watchdog,router-prefix-watchdog); } &
 	@{ $(call ensure_service_enabled,vnstat,vnstat); } &
-	@{ dpkg -s golang-go >/dev/null 2>&1 && touch "$(STAMP_DIR)/legacy-go.1" || true; } &
-	@{ dpkg -s golang-1.19-go >/dev/null 2>&1 && touch "$(STAMP_DIR)/legacy-go.2" || true; } &
+	@{ dpkg -s golang-go >/dev/null 2>&1 && touch "$(STAMP_DIR_ROOT)/legacy-go.1" || true; } &
+	@{ dpkg -s golang-1.19-go >/dev/null 2>&1 && touch "$(STAMP_DIR_ROOT)/legacy-go.2" || true; } &
 
 	# Wait for all background jobs and fail if any failed
 	@wait || { echo "❌ deps-probes failed"; exit 1; }
 
 	# Single atomic stamp write
-	@if [ -f "$(STAMP_DIR)/legacy-go.1" ] || [ -f "$(STAMP_DIR)/legacy-go.2" ]; then \
-		echo "legacy" > "$(STAMP_DIR)/legacy-go.detected"; \
+	@if [ -f "$(STAMP_DIR_ROOT)/legacy-go.1" ] || [ -f "$(STAMP_DIR_ROOT)/legacy-go.2" ]; then \
+		echo "legacy" > "$(STAMP_DIR_ROOT)/legacy-go.detected"; \
 	fi
 
 	# Write main fast-path stamp (user-owned)
 	@echo "ok" | $(run_as_root) tee "$(PROBES_STAMP)" >/dev/null
 
 	# Cleanup temp markers
-	@rm -f "$(STAMP_DIR)/legacy-go.1" "$(STAMP_DIR)/legacy-go.2"
+	@$(run_as_root) rm -f "$(STAMP_DIR_ROOT)/legacy-go.1" "$(STAMP_DIR_ROOT)/legacy-go.2"
 
 	@echo "✅ deps-probes complete (parallel)"
 
-dns-ok: ensure-stamp-dir
+dns-ok: | $(STAMP_DIR_ROOT)
 	@if [ -f "$(STAMP_DNS_OK)" ]; then \
 		echo "⏩ dns-ok (fast-path OK)"; \
 		exit 0; \
@@ -605,7 +624,7 @@ dns-ok: ensure-stamp-dir
 	@$(call check_bootstrap_dns)
 	@$(run_as_root) touch "$(STAMP_DNS_OK)"
 
-tailscale-hygiene-ok: ensure-stamp-dir
+tailscale-hygiene-ok: | $(STAMP_DIR_ROOT)
 	@if [ -f "$(STAMP_TS_OK)" ]; then \
 		echo "⏩ tailscale-hygiene-ok (fast-path OK)"; \
 		exit 0; \
@@ -614,7 +633,7 @@ tailscale-hygiene-ok: ensure-stamp-dir
 	@$(call verify_tailscale_repo)
 	@$(run_as_root) touch "$(STAMP_TS_OK)"
 
-cargo-ok: ensure-stamp-dir
+cargo-ok: | $(STAMP_DIR_ROOT)
 	@if [ -f "$(STAMP_CARGO_OK)" ]; then \
 		echo "⏩ cargo-ok (fast-path OK)"; \
 		exit 0; \
@@ -623,7 +642,7 @@ cargo-ok: ensure-stamp-dir
 	@cargo --version >/dev/null
 	@$(run_as_root) touch "$(STAMP_CARGO_OK)"
 
-watchdog-ok: ensure-stamp-dir
+watchdog-ok: | $(STAMP_DIR_ROOT)
 	@if [ -f "$(STAMP_WATCHDOG_OK)" ]; then \
 		echo "⏩ watchdog-ok (fast-path OK)"; \
 		exit 0; \
@@ -631,7 +650,7 @@ watchdog-ok: ensure-stamp-dir
 	@$(call ensure_service_enabled,router-prefix-watchdog,router-prefix-watchdog)
 	@$(run_as_root) touch "$(STAMP_WATCHDOG_OK)"
 
-vnstat-ok: ensure-stamp-dir
+vnstat-ok:| $(STAMP_DIR_ROOT)
 	@if [ -f "$(STAMP_VNSTAT_OK)" ]; then \
 		echo "⏩ vnstat-ok (fast-path OK)"; \
 		exit 0; \
@@ -639,18 +658,15 @@ vnstat-ok: ensure-stamp-dir
 	@$(call ensure_service_enabled,vnstat,vnstat)
 	@$(run_as_root) touch "$(STAMP_VNSTAT_OK)"
 
-STAMP_HOST_ROUTE_OK := $(SYSTEM_STATE_DIR)/host-default-route.ok
+STAMP_HOST_ROUTE_OK := $(STAMP_DIR_ROOT)/host-default-route.ok
 
-.PHONY: ensure-host-default-route
-ensure-host-default-route: $(STAMP_HOST_ROUTE_OK)
-
-$(STAMP_HOST_ROUTE_OK): ensure-stamp-dir
+$(STAMP_HOST_ROUTE_OK): | $(STAMP_DIR_ROOT)
 	@if [ -f "$@" ]; then \
 		echo "⏩ ensure-host-default-route (fast-path OK)"; \
 		exit 0; \
 	fi
 	@echo "🔍 Checking host default route..."
-	@( SECS="$( /usr/local/bin/sops -d "$(SECRETS_FILE)" | $(YQ) -r 'to_entries | .[] | "\(.key)=\(.value)"' )"; \
+	@( SECS="$( $($(SOPS_BIN) -d "$(SECRETS_FILE)" | $(YQ) -r 'to_entries | .[] | "\(.key)=\(.value)"' )"; \
 	export $$SECS; \
 	IFACE=$$(ip route get "$$ROUTER_ADDR" | awk "/dev/ {print \$$5}"); \
 	if [ -z "$$IFACE" ]; then echo "❌ Cannot determine host LAN interface"; exit 1; fi; \
@@ -661,3 +677,6 @@ $(STAMP_HOST_ROUTE_OK): ensure-stamp-dir
 	echo "🟢 Default gateway OK"; \
 	)
 	@echo ok | $(run_as_root) tee "$@" >/dev/null
+
+.PHONY: ensure-host-default-route
+ensure-host-default-route: $(STAMP_HOST_ROUTE_OK)

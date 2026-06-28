@@ -39,7 +39,6 @@ export ROUTER_USER := $(SSH_USER_ROUTER)
 # Paths
 HOMELAB_DIR := /volume1/homelab
 WG_ROOT     := $(HOMELAB_DIR)/wireguard
-STAMP_DIR   := /var/lib/homelab
 
 # System
 SYSTEMD_DIR       := /etc/systemd/system
@@ -117,9 +116,9 @@ UNBOUND_PORT := 15335
 ROLE := service
 
 # Canonical marker path
-export SYSTEM_STATE_DIR := /var/lib/homelab
-export ROUTER_PREFIX_MARKER := $(SYSTEM_STATE_DIR)/router-prefix.changed
+export ROUTER_PREFIX_MARKER := $(STAMP_DIR_ROOT)/router-prefix.changed
 
+$(ROUTER_PREFIX_MARKER): | $(STAMP_DIR_ROOT)
 # Deterministic PATH for all recipes
 PATH := /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH

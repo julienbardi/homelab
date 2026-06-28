@@ -25,29 +25,6 @@ ifneq ($(filter router-% wg-% dns-% firewall-% converge-% all,$(MAKECMDGOALS)),)
 endif
 
 # ------------------------------------------------------------
-# SCRIPT PUSH HELPERS
-# ------------------------------------------------------------
-
-define PUSH_ROUTER_SCRIPT
-	if [ -z "$(VERBOSE)" ] || [ "$(VERBOSE)" -eq 0 ]; then \
-	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) -q \
-		"" "" $(1) \
-		$$ROUTER_ADDR $$ROUTER_SSH_PORT $(2) \
-		$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE); \
-	else \
-	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) \
-		"" "" $(1) \
-		$$ROUTER_ADDR $$ROUTER_SSH_PORT $(2) \
-		$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE); \
-	fi; \
-	rc=$$?; \
-	if [ $$rc -ne 0 ] && [ $$rc -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-	echo "❌ Failed to push $(1) to $$ROUTER_ADDR (rc=$$rc)"; \
-	exit $$rc; \
-	fi
-endef
-
-# ------------------------------------------------------------
 # PHASE 0: INFRASTRUCTURE & BOOTSTRAP
 # ------------------------------------------------------------
 
@@ -185,12 +162,17 @@ ROUTER_SCRIPT_FILES := $(wildcard $(REPO_ROOT)/router/jffs/scripts/* | sort -u)
 
 .PHONY: router-install-%
 router-install-%: | router-bootstrap-primitives
-	@src=$(REPO_ROOT)/router/jffs/scripts/$*; \
-	if [ ! -f "$$src" ]; then \
-	  echo "⚠️ Skipping $* — source $$src not found"; \
-	else \
-	  $(call PUSH_ROUTER_SCRIPT, $$src, $(ROUTER_SCRIPTS)/$*); \
-	fi
+		@src="$(REPO_ROOT)/router/jffs/scripts/$*"; \
+		if [ ! -f "$$src" ]; then \
+			echo "⚠️ Skipping $* — source $$src not found"; \
+		else \
+			env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+				$(INSTALL_FILES_IF_CHANGED) -q \
+					"$$src" "$(ROUTER_SCRIPTS)/$*" \
+					$$ROUTER_ADDR $$ROUTER_SSH_PORT \
+					$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE); \
+		fi
+
 ROUTER_IFC_MODE ?= vector
 
 .PHONY: router-install-scripts

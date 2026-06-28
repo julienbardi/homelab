@@ -36,9 +36,8 @@
 # ------------------------------------------------------------
 TOOLS_DIR := $(HOME)/.local/tools
 
-# Local tools use user-level stamp directory
-YQ_STAMP_DIR := $(STAMP_DIR_USER)
-YQ_STAMP := $(YQ_STAMP_DIR)/yq.installed
+# Local tools use STAMP_DIR_USER (user-level stamps)
+YQ_STAMP := $(STAMP_DIR_USER)/yq.installed
 
 SPELLCHECK_FILES := *.md
 SPELLCHECK_MAKEFILES := Makefile mk/*.mk
@@ -61,7 +60,6 @@ CHECKMAKE := $(TOOLS_DIR)/checkmake
 # ------------------------------------------------------------
 
 .PHONY: tools
-tools: STAMP_DIR := $(STAMP_DIR_USER)
 tools: require-awk check-yq-latest | $(YQ_STAMP)
 
 $(YQ_DIR):
@@ -93,9 +91,7 @@ check-yq-latest:
 		fi
 
 .PHONY: install-yq
-# Bind STAMP_DIR locally for this target and its dependencies
-install-yq: STAMP_DIR := $(STAMP_DIR_USER)
-install-yq: | $(YQ_DIR) ensure-stamp-dir $(INSTALL_PATH)/install_github_asset.sh
+install-yq: | $(YQ_DIR) $(INSTALL_PATH)/install_github_asset.sh
 	@$(INSTALL_PATH)/install_github_asset.sh \
 		"$(YQ_URL)" \
 		"$(YQ)" \
@@ -103,9 +99,9 @@ install-yq: | $(YQ_DIR) ensure-stamp-dir $(INSTALL_PATH)/install_github_asset.sh
 		"$(YQ_STAMP)" \
 		"yq $(YQ_VERSION)"
 
-$(YQ_STAMP): STAMP_DIR := $(STAMP_DIR_USER)
 $(YQ_STAMP): install-yq
 	@test -f "$@" || { echo "ERROR: expected stamp $@ missing"; exit 1; }
+	@echo "📄 yq installed — stamp updated: $@"
 
 # ------------------------------------------------------------
 # System tool requirements

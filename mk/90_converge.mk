@@ -31,7 +31,7 @@
 SNAPSHOT_NETWORK  := $(INSTALL_PATH)/snapshot-network.sh
 
 ROUTER_PREFIX_CURRENT := /run/homelab/router-prefix.current
-STAMP_PREFIX := $(STAMP_DIR)/router-prefix.last
+STAMP_PREFIX := $(STAMP_DIR_ROOT)/router-prefix.last
 
 router-prefix-current:
 	@$(run_as_root) sh -c 'mkdir -p /run/homelab'
@@ -43,16 +43,29 @@ router-prefix-current:
 
 .PHONY: prefix-bootstrap
 prefix-bootstrap: router-prefix-current
-	@if [ ! -f "$(STAMP_PREFIX)" ]; then \
+	@set -e; \
+	current="$$(cat "$(ROUTER_PREFIX_CURRENT)")"; \
+	if ! $(run_as_root) test -f "$(STAMP_PREFIX)"; then \
 		echo "📌 Prefix bootstrap: no stamp found"; \
-		$(run_as_root) cp "$(ROUTER_PREFIX_CURRENT)" "$(STAMP_PREFIX)"; \
-		$(run_as_root) touch "$(ROUTER_PREFIX_MARKER)"; \
-	elif ! $(run_as_root) diff -q "$(ROUTER_PREFIX_CURRENT)" "$(STAMP_PREFIX)" >/dev/null; then \
-		echo "📌 Prefix changed — updating stamp"; \
-		$(run_as_root) cp "$(ROUTER_PREFIX_CURRENT)" "$(STAMP_PREFIX)"; \
-		$(run_as_root) touch "$(ROUTER_PREFIX_MARKER)"; \
+		echo "    new: $$current"; \
+		need_update=1; \
 	else \
-		echo "📌 Prefix already converged"; \
+		stamped="$$( $(run_as_root) cat "$(STAMP_PREFIX)" )"; \
+		if ! $(run_as_root) diff -q "$(ROUTER_PREFIX_CURRENT)" "$(STAMP_PREFIX)" >/dev/null; then \
+			echo "📌 Prefix changed — updating stamp"; \
+			echo "    old: $$stamped"; \
+			echo "    new: $$current"; \
+			need_update=1; \
+		else \
+			echo "📌 Prefix already converged: $$current"; \
+			need_update=0; \
+		fi; \
+	fi; \
+	if [ "$$need_update" -eq 1 ]; then \
+		tmp="$(STAMP_DIR_ROOT)/tmp.router-prefix"; \
+		$(run_as_root) cp "$(ROUTER_PREFIX_CURRENT)" "$$tmp"; \
+		$(run_as_root) mv "$$tmp" "$(STAMP_PREFIX)"; \
+		$(run_as_root) touch "$(ROUTER_PREFIX_MARKER)"; \
 	fi
 
 # ------------------------------------------------------------
@@ -74,21 +87,8 @@ converge-network: check-forwarding \
 				  wg-stack
 	@echo "✅ Network convergence complete"
 
-# ------------------------------------------------------------
-# System-wide homelab state directory (root:admin, admin-writable)
-# ------------------------------------------------------------
-
-SYSTEM_STATE_DIR := /var/lib/homelab
-ROUTER_PREFIX_MARKER := $(SYSTEM_STATE_DIR)/router-prefix.changed
-
-# Primary admin group (first entry in ADMIN_GROUPS)
-PRIMARY_ADMIN_GROUP := $(word 1,$(ADMIN_GROUPS))
-
-$(SYSTEM_STATE_DIR):
-	$(run_as_root) install -d -m 0775 -o root -g $(PRIMARY_ADMIN_GROUP) $(SYSTEM_STATE_DIR)
-
 .PHONY: converge-router-prefix
-converge-router-prefix: $(SYSTEM_STATE_DIR) router-converge $(ROUTER_PREFIX_MARKER)
+converge-router-prefix: $(STAMP_DIR_ROOT) router-converge $(ROUTER_PREFIX_MARKER)
 	@echo "🌐 Router prefix changed — router DAG converged"
 	@rm -f $(ROUTER_PREFIX_MARKER)
 	@echo "🧹 Marker consumed"

@@ -150,31 +150,42 @@ deploy-dnsdist-certs: install-all $(DEPLOY_CERTS) $(CANONICAL_SUM) dnsdist-confi
 $(CANONICAL_SUM): $(DEPLOY_CERTS)
 	@set -eu; \
 	if [ ! -d "$(CANONICAL_DIR)" ]; then \
-	  echo "⚠️  canonical dir missing: $(CANONICAL_DIR)"; exit 1; \
+	echo "⚠️  canonical dir missing: $(CANONICAL_DIR)"; exit 1; \
 	fi; \
 	if ! command -v sha256sum >/dev/null 2>&1; then \
-	  echo "❌ sha256sum not found"; exit 1; \
+	echo "❌ sha256sum not found"; exit 1; \
 	fi; \
 	nfiles=$$($(run_as_root) sh -c "find '$(CANONICAL_DIR)' -type f -print -quit | wc -l"); \
 	if [ "$$nfiles" -eq 0 ]; then \
-	  echo "⚠️  canonical store empty: $(CANONICAL_DIR)"; \
-	  tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
-	  $(run_as_root) sh -c 'printf "%s\n" "" > "$$1"' sh "$$tmp"; \
-	  $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
-	  exit 0; \
+	echo "⚠️  canonical store empty: $(CANONICAL_DIR)"; \
+	tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
+	$(run_as_root) sh -c 'printf "%s\n" "" > "$$1"' sh "$$tmp"; \
+	$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
+	exit 0; \
 	fi; \
 	sum=$$($(run_as_root) sh -c "find '$(CANONICAL_DIR)' -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | cut -d' ' -f1"); \
-	old=""; [ -f "$(CANONICAL_SUM)" ] && old=$$(cat "$(CANONICAL_SUM)"); \
+	old=""; [ -f "$(CANONICAL_SUM)" ] && old=$$($(run_as_root) cat "$(CANONICAL_SUM)" 2>/dev/null || true); \
 	if [ "$$sum" = "$$old" ]; then \
-	  echo "🔁 canonical store unchanged; skipping deploy"; \
+	# canonical store unchanged: only skip if dnsdist certs are actually present \
+	if [ -r "$(DNSDIST_CERT)" ] && [ -r "$(DNSDIST_KEY)" ]; then \
+		echo "🔁 canonical store unchanged; skipping deploy"; \
 	else \
-	  echo "📦 Deploying certificates to dnsdist"; \
-	  $(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(DEPLOY_CERTS) deploy dnsdist"; \
-	  tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
-	  $(run_as_root) sh -c 'printf "%s\n" "$$1" > "$$2"' sh "$$sum" "$$tmp"; \
-	  $(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
-	  echo "✅ deploy-dnsdist-certs complete"; \
+		echo "📦 canonical unchanged but dnsdist certs missing; forcing deploy"; \
+		$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(DEPLOY_CERTS) deploy dnsdist"; \
+		tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
+		$(run_as_root) sh -c 'printf "%s\n" "$$1" > "$$2"' sh "$$sum" "$$tmp"; \
+		$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
+		echo "✅ deploy-dnsdist-certs complete"; \
+	fi; \
+	else \
+	echo "📦 Deploying certificates to dnsdist"; \
+	$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(DEPLOY_CERTS) deploy dnsdist"; \
+	tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
+	$(run_as_root) sh -c 'printf "%s\n" "$$1" > "$$2"' sh "$$sum" "$$tmp"; \
+	$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
+	echo "✅ deploy-dnsdist-certs complete"; \
 	fi
+
 
 # --------------------------------------------------------------------
 # Verification & Status
@@ -219,8 +230,8 @@ check-dnsdist-doh-local:
 # Orchestration umbrella
 # --------------------------------------------------------------------
 
-dnsdist: dnsdist-install dnsdist-systemd-dropin dnsdist-config \
-	dnsdist-enable deploy-dnsdist-certs dnsdist-validate \
+dnsdist: dnsdist-install dnsdist-systemd-dropin deploy-dnsdist-certs \
+	dnsdist-config dnsdist-enable dnsdist-validate \
 	assert-dnsdist-running check-dnsdist-doh-listener check-dnsdist-doh-local \
 	install-kdig check-dnsdist-listeners
 	@test -z "$(VERBOSE)" || echo "🚀 dnsdist DoH frontend ready"
@@ -267,9 +278,10 @@ assert-dnsdist-running: check-dnsdist-systemd check-dnsdist-doh-listener dnsdist
 dnsdist-pre-reboot-check:
 	@echo "🔍 Validating dnsdist before reboot"
 	@$(run_as_root) $(DNSDIST_BIN) --check-config
-	@$(run_as_root) ss -lntup | grep -q "127.0.0.1:53" \
-		|| { echo "❌ dnsdist not listening on 127.0.0.1:53"; exit 1; }
+	@$(run_as_root) ss -lnt | grep -q ":$(DOH_PORT)" \
+		|| { echo "❌ dnsdist not listening on :$(DOH_PORT)"; exit 1; }
 	@echo "✅ dnsdist healthy"
+
 
 .PHONY: check-dnsdist-listeners
 check-dnsdist-listeners: $(INSTALL_PATH)/dnsdist-validate-listeners.sh

@@ -17,9 +17,8 @@ WG_OUTPUT_ROUTER := $(WG_ROOT)/output/router
 WG_FIREWALL      := $(WG_OUTPUT_ROUTER)/wg-firewall.sh
 
 # Persistent state tracking markers
-WG_STAMP_DIR        := $(SYSTEM_STATE_DIR)/stamps
-WG_ROUTER_DIRTY_STAMP := $(WG_STAMP_DIR)/wg_router_dirty.stamp
-WG_NAS_DIRTY_STAMP    := $(WG_STAMP_DIR)/wg_nas_dirty.stamp
+WG_ROUTER_DIRTY_STAMP := $(STAMP_DIR_ROOT)/wg_router_dirty.stamp
+WG_NAS_DIRTY_STAMP    := $(STAMP_DIR_ROOT)/wg_nas_dirty.stamp
 
 # Explicit interface inventory managed by the control plane
 WG_INTERFACES_NAS    := wg0 wg1 wg2 wg3 wg4 wg5 wg6 wg7 wg8 wg9 wg10 wg11 wg12 wg13 wg14 wg15
@@ -61,12 +60,12 @@ WG_ENV = \
 # Unified sudo wrapper for homelab root operations
 WG_SUDO := sudo --preserve-env=ROUTER_HOST,ROUTER_ADDR,ROUTER_SSH_PORT,ROUTER_WG_DIR,WG_ROOT,WG_SUBNETS_MK,SSH_AUTH_SOCK,ROUTER_IDENTITY,SSH_CONTROL_PATH
 
-WG_SUBNETS_MK := $(SYSTEM_STATE_DIR)/wg-subnets.mk
+WG_SUBNETS_MK := $(STAMP_DIR_ROOT)/wg-subnets.mk
 
 # --------------------------------------------------------------------
 # Generated subnet map (router + NAS WG subnets)
 # --------------------------------------------------------------------
-$(WG_SUBNETS_MK): $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-subnets.sh | ensure-stamp-dir
+$(WG_SUBNETS_MK): $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-subnets.sh | $(STAMP_DIR_ROOT)
 	@echo "🌐 Generating WireGuard subnet map"; \
 	WG_ROOT="$(WG_ROOT)" WG_SUBNETS_MK="$(WG_SUBNETS_MK)" \
 		$(WG_SUDO) $(INSTALL_PATH)/wg-plan-subnets.sh
@@ -86,7 +85,7 @@ wg-generate: $(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-genera
 	ROUTER_NEW_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_NEW_HASH=""; \
 	if [ "$$ROUTER_OLD_HASH" != "$$ROUTER_NEW_HASH" ]; then \
 		echo "⚠️  WireGuard configuration mutation caught — marking runtime topologies dirty"; \
-		$(run_as_root) sh -c 'mkdir -p "$(WG_STAMP_DIR)" && touch "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"'; \
+		$(run_as_root) touch "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"; \
 	fi
 
 wg-clean-state:
@@ -175,7 +174,7 @@ wg-install-router: router-ensure-wg-module \
 		if ! [ -f "$(WG_OUTPUT_ROUTER)/$$iface.conf" ]; then continue; fi; \
 		EXPECTED_GEN=$$(grep -E '^#[[:space:]]*WG_GENERATION:' "$(WG_OUTPUT_ROUTER)/$$iface.conf" | awk '{print $$3}' 2>/dev/null || echo "0"); \
 		if [ -x "$(INSTALL_PATH)/wg-readiness-probe.sh" ]; then \
-			if ! ROUTER_HOST="$(ROUTER_HOST)" ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" ROUTER_IDENTITY="$(ROUTER_IDENTITY)" "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)" "router"; then \
+			if ! ROUTER_HOST="$(ROUTER_HOST)" ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" ROUTER_IDENTITY="$(ROUTER_IDENTITY)" "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(STAMP_DIR_ROOT)" "router"; then \
 				echo "⚠️  Kernel link drift verified on router interface $$iface"; \
 				EXECUTE_DEPLOY=1; \
 			fi; \
@@ -211,7 +210,7 @@ wg-install-nas: $(INSTALL_PATH)/wgctl.sh \
 		if ! [ -f "$(WG_OUTPUT_ROUTER)/$$iface.conf" ]; then continue; fi; \
 		EXPECTED_GEN=$$(grep -E '^#[[:space:]]*WG_GENERATION:' "$(WG_OUTPUT_ROUTER)/$$iface.conf" | awk '{print $$3}' 2>/dev/null || echo "0"); \
 		if [ -x "$(INSTALL_PATH)/wg-readiness-probe.sh" ]; then \
-			if ! "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(WG_STAMP_DIR)"; then \
+			if ! "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(STAMP_DIR_ROOT)"; then \
 				echo "⚠️  Kernel link drift verified on NAS interface $$iface"; \
 				EXECUTE_DEPLOY=1; \
 			fi; \

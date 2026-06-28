@@ -8,10 +8,6 @@
 # - SAN validation and canonical store rebuild run only when needed
 # ============================================================
 
-ifeq ($(SYSTEM_STATE_DIR),)
-  $(error SYSTEM_STATE_DIR is not defined. Ensure it is set in mk/01_common.mk)
-endif
-
 CERTS_CREATE        := $(INSTALL_PATH)/certs-create.sh
 CERTS_DEPLOY        := $(INSTALL_PATH)/deploy_certificates.sh
 GEN_CLIENT_CERT     := $(INSTALL_PATH)/generate-client-cert.sh
@@ -27,8 +23,8 @@ CADDY_DEPLOY_DIR ?= /etc/ssl/caddy
 # ============================================================
 # Canonical certificate stamp (Option A)
 # ============================================================
-STAMP_CERTS_CANONICAL := $(SYSTEM_STATE_DIR)/certs_canonical.sha256
-STAMP_PREPARE         := $(SYSTEM_STATE_DIR)/prepare.stamp
+STAMP_CERTS_CANONICAL := $(STAMP_DIR_ROOT)/certs_canonical.sha256
+STAMP_PREPARE         := $(STAMP_DIR_ROOT)/prepare.stamp
 
 # ============================================================
 # Internal CA lifecycle

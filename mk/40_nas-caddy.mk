@@ -1,7 +1,7 @@
 # 40_nas-caddy.mk
 NAS_CADDY_BIN    := /usr/bin/caddy
 NAS_CADDY_BACKUP := /usr/bin/caddy.orig
-NAS_STAMP_CADDY  := $(STAMP_DIR)/caddy.installed
+NAS_STAMP_CADDY  := $(STAMP_DIR_ROOT)/caddy.installed
 
 NAS_CADDYFILE     := /etc/caddy/Caddyfile
 SRC_NAS_CADDYFILE := $(REPO_ROOT)/config/caddy/Caddyfile

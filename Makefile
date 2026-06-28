@@ -28,8 +28,13 @@ DEBUG_GOALS := $(filter debug-vars debug-targets,$(MAKECMDGOALS))
 # ---------------------------------------------------------------------------
 
 # SOPS binary and secrets file
-SOPS         ?= /usr/local/bin/sops
-SECRETS_FILE ?= $(REPO_ROOT)/secrets.enc.yaml
+SOPS_BIN := /usr/local/bin/sops
+
+# Ensure SOPS can decrypt inside Make recipes
+SOPS_AGE_KEY_FILE := /etc/sops/keys/age.key
+SECRETS_FILE := $(REPO_ROOT)/secrets.enc.yaml
+
+export SOPS_AGE_KEY_FILE
 export SECRETS_FILE
 
 # Load non-secret config

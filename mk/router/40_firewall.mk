@@ -201,12 +201,16 @@ router-nat-install: router-install-scripts
 
 	# 3) Execute synchronization pipeline wrapping cleanup actions into immediate continuation
 	@{ \
-		rc=0; \
-		$(call PUSH_ROUTER_SCRIPT,"$(TMP_ROUTER_NAT)","$(ROUTER_SCRIPTS)/nat-start"); \
+		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+			$(INSTALL_FILES_IF_CHANGED) -q \
+				"$(TMP_ROUTER_NAT)" "$(ROUTER_SCRIPTS)/nat-start" \
+				$$ROUTER_ADDR $$ROUTER_SSH_PORT \
+				$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE); \
 		rc=$$?; \
-		if [ $$rc -ne 0 ] && [ $$rc -ne 3 ]; then exit $$rc; fi; \
-		echo "🟢 NAT rules deployed to router and verified"
+		if [ $$rc -ne 0 ] && [ $$rc -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then exit $$rc; fi; \
+		echo "🟢 NAT rules deployed to router and verified"; \
 	}
+
 
 define ROUTER_NAT_DUMP_SCRIPT
 set -e

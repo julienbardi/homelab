@@ -85,15 +85,48 @@ XDG_STATE_HOME := $(HOME)/.local/state
 STAMP_DIR_USER := $(XDG_STATE_HOME)/homelab
 STAMP_DIR_ROOT := /var/lib/homelab
 
-.PHONY: ensure-stamp-dir
-ensure-stamp-dir:
-	@if [ "$(STAMP_DIR)" = "$(STAMP_DIR_ROOT)" ]; then \
-		echo "📁 [root] Ensuring STAMP_DIR exists: $(STAMP_DIR)"; \
-		$(run_as_root) install -d -m 0755 "$(STAMP_DIR)"; \
-		$(run_as_root) chown root:root "$(STAMP_DIR)" || true; \
+PRIMARY_ADMIN_GROUP := $(word 1,$(ADMIN_GROUPS))
+
+.PHONY: $(STAMP_DIR_ROOT)
+$(STAMP_DIR_ROOT):
+	@if [ ! -x "$(run_as_root)" ]; then \
+		echo "❌ run_as_root missing — run 'make install-all'"; \
+		exit 1; \
+	fi; \
+	if [ ! -d "$(STAMP_DIR_ROOT)" ]; then \
+		echo "📁 [root] Creating STAMP_DIR_ROOT: $(STAMP_DIR_ROOT)"; \
+		$(run_as_root) install -d -m 0775 -o root -g $(PRIMARY_ADMIN_GROUP) "$(STAMP_DIR_ROOT)"; \
 	else \
-		echo "📁 [user] Ensuring STAMP_DIR exists: $(STAMP_DIR)"; \
-		mkdir -p "$(STAMP_DIR)"; \
+		[ "$(VERBOSE)" = "1" ] && echo "📁 [root] STAMP_DIR_ROOT exists: $(STAMP_DIR_ROOT)"; \
+	fi; \
+	# Autocorrect owner/group
+	if [ "$$(stat -c %u $(STAMP_DIR_ROOT))" != "0" ] || \
+	[ "$$(stat -c %g $(STAMP_DIR_ROOT))" != "$$(getent group $(PRIMARY_ADMIN_GROUP) | cut -d: -f3)" ]; then \
+		echo "🔧 [root] Fixing owner/group of $(STAMP_DIR_ROOT)"; \
+		$(run_as_root) chown root:$(PRIMARY_ADMIN_GROUP) "$(STAMP_DIR_ROOT)"; \
+	fi; \
+	# Autocorrect permissions
+	if [ "$$(stat -c %a $(STAMP_DIR_ROOT))" != "775" ]; then \
+		echo "🔧 [root] Fixing permissions of $(STAMP_DIR_ROOT)"; \
+		$(run_as_root) chmod 775 "$(STAMP_DIR_ROOT)"; \
+	fi
+.PHONY: $(STAMP_DIR_USER)
+$(STAMP_DIR_USER):
+	@if [ ! -d "$(STAMP_DIR_USER)" ]; then \
+		echo "📁 [user] Creating STAMP_DIR_USER: $(STAMP_DIR_USER)"; \
+		mkdir -p "$(STAMP_DIR_USER)"; \
+	else \
+		[ "$(VERBOSE)" = "1" ] && echo "📁 [user] STAMP_DIR_USER exists: $(STAMP_DIR_USER)"; \
+	fi; \
+	# Autocorrect ownership
+	if [ "$$(stat -c %u $(STAMP_DIR_USER))" != "$$(id -u)" ]; then \
+		echo "🔧 [user] Fixing owner of $(STAMP_DIR_USER)"; \
+		chown "$$(id -u):$$(id -g)" "$(STAMP_DIR_USER)"; \
+	fi; \
+	# Autocorrect permissions
+	if [ "$$(stat -c %a $(STAMP_DIR_USER))" -lt 700 ]; then \
+		echo "🔧 [user] Fixing permissions of $(STAMP_DIR_USER)"; \
+		chmod 700 "$(STAMP_DIR_USER)"; \
 	fi
 
 # ----------------------------------------------------------------------------

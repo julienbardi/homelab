@@ -4,12 +4,6 @@
 # RAM-only, no decrypted files on disk
 # ============================================================================
 
-# Ensure SOPS can decrypt inside Make recipes
-export SOPS_AGE_KEY_FILE := /etc/sops/keys/age.key
-
-SOPS             := /usr/local/bin/sops
-export SECRETS_FILE  := $(REPO_ROOT)/secrets.enc.yaml
-
 # ----------------------------------------------------------------------------
 # 0. RAM-only workspace (per-user)
 # ----------------------------------------------------------------------------
@@ -32,7 +26,7 @@ SECRETS_LOCK_MAX_AGE := 30
 # environment or subsequent make recipe lines.
 define WITH_SECRETS
 	( \
-		SECS="$$( $(SOPS) -d "$(SECRETS_FILE)" | $(YQ) -r 'to_entries | .[] | "\(.key)=\(.value)"' )"; \
+		SECS="$$( $(SOPS_BIN) -d "$(SECRETS_FILE)" | $(YQ) -r 'to_entries | .[] | "\(.key)=\(.value)"' )"; \
 		export $$SECS; \
 		$(1) \
 	)
@@ -86,7 +80,7 @@ secrets-break-lock:
 .PHONY: secrets-dump
 secrets-dump:
 	@echo "🔐 Dumping decrypted secrets (RAM-only):"
-	@$(SOPS) -d "$(SECRETS_FILE)" \
+	@$(SOPS_BIN) -d "$(SECRETS_FILE)" \
 		| awk -F': ' '/: / {gsub(/"/, "", $$2); printf "%s=\"%s\"\n", $$1, $$2}'
 
 .PHONY: secrets-verify
@@ -96,13 +90,13 @@ secrets-verify: $(YQ_STAMP)
 	@if [ ! -f "$(SECRETS_FILE)" ]; then \
 		echo "❌ Missing: $(SECRETS_FILE)"; \
 		echo "👉 To initialize a new encrypted secrets file:"; \
-		echo "   SOPS_AGE_KEY_FILE=$(SOPS_AGE_KEY_FILE) $(SOPS) $(SECRETS_FILE)"; \
+		echo "   SOPS_AGE_KEY_FILE=$(SOPS_AGE_KEY_FILE) $(SOPS_BIN) $(SECRETS_FILE)"; \
 		exit 1; \
 	fi
 	@echo "  • Checking SOPS decryption..."
-	@$(SOPS) -d "$(SECRETS_FILE)" >/dev/null || { echo "❌ Decryption failed"; exit 1; }
+	@$(SOPS_BIN) -d "$(SECRETS_FILE)" >/dev/null || { echo "❌ Decryption failed"; exit 1; }
 	@echo "  • Checking YAML structure..."
-	@$(SOPS) -d "$(SECRETS_FILE)" \
+	@$(SOPS_BIN) -d "$(SECRETS_FILE)" \
 		| $(YQ) e 'keys' - >/dev/null || { echo "❌ Invalid YAML"; exit 1; }
 	@echo "🟢 Secrets OK — decryptable and structurally valid"
 
@@ -136,7 +130,7 @@ secrets-edit:
 		trap 'rm -rf "$$lock_dir" 2>/dev/null || true' EXIT; \
 		echo "📝 Editing encrypted secrets with SOPS ($(SECRETS_FILE))"; \
 		status=0; \
-		TMPDIR="$(SECRETS_TMP_DIR)" $(SOPS) "$(SECRETS_FILE)" || status=$$?; \
+		TMPDIR="$(SECRETS_TMP_DIR)" $(SOPS_BIN) "$(SECRETS_FILE)" || status=$$?; \
 		if [ $$status -eq 200 ]; then \
 			status=0; \
 		fi; \
@@ -188,7 +182,7 @@ check-age-key: ensure-authorized-admin
 	}
 
 define WITH_SECRETS_v2
-	( export $$($(SOPS) -d "$(SECRETS_FILE)" \
+	( export $$($(SOPS_BIN) -d "$(SECRETS_FILE)" \
 		| awk -F': ' '/: / {gsub(/"/, "", $$2); printf "%s=%q\n", $$1, $$2}'); \
 	$(1) )
 endef
@@ -207,7 +201,7 @@ DDNS_ENV_FILE := /etc/homelab/ddns.env
 ddns-env: secrets-runtime-init $(YQ_STAMP)
 	@{ \
 		# Export only NON-SECRET variables so run-as-root preserves them
-		export SOPS="$(SOPS)"; \
+		export SOPS_BIN="$(SOPS_BIN)"; \
 		export SECRETS_FILE="$(SECRETS_FILE)"; \
 		export YQ="$(YQ)"; \
 		\
@@ -217,7 +211,7 @@ ddns-env: secrets-runtime-init $(YQ_STAMP)
 			umask 077; \
 			\
 			eval "$$( \
-				"$$SOPS" -d "$$SECRETS_FILE" \
+				"$$SOPS_BIN" -d "$$SECRETS_FILE" \
 				| "$$YQ" -r '\'' \
 					"INFOMANIAK_API_KEY=\(.infomaniak_api_key)", \
 					"INFOMANIAK_API_SECRET=\(.infomaniak_api_secret)" \
@@ -240,7 +234,7 @@ DDNS_RUNTIME_FILE := $(HOMELAB_RUNTIME_USER)/ddns/ddns.conf
 .PHONY: ddns-runtime
 ddns-runtime: $(YQ_STAMP) secrets-runtime-init
 	@{ \
-		export SOPS="$(SOPS)"; \
+		export SOPS_BIN="$(SOPS_BIN)"; \
 		export SECRETS_FILE="$(SECRETS_FILE)"; \
 		export YQ="$(YQ)"; \
 		\
@@ -250,7 +244,7 @@ ddns-runtime: $(YQ_STAMP) secrets-runtime-init
 			umask 077; \
 			\
 			eval "$$( \
-				"$$SOPS" -d "$$SECRETS_FILE" \
+				"$$SOPS_BIN" -d "$$SECRETS_FILE" \
 				| "$$YQ" -r '\'' \
 					"ddns_username=\(.ddns_username)", \
 					"ddns_password=\(.ddns_password)", \
@@ -268,12 +262,6 @@ ddns-runtime: $(YQ_STAMP) secrets-runtime-init
 		'; \
 		echo "🔐 DDNS runtime file updated: $(DDNS_RUNTIME_FILE)"; \
 	}
-
-print-SOPS:
-	@echo "SOPS=$(SOPS)"
-
-print-SECRETS_FILE:
-	@echo "SECRETS_FILE=$(SECRETS_FILE)"
 
 .PHONY: test-infomaniak-token
 test-infomaniak-token:

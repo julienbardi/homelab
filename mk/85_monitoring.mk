@@ -21,12 +21,12 @@ PROMETHEUS_ADDR := $(NAS_LAN_IP):9090
 PROMETHEUS_SERVICE := prometheus.service
 
 # Tracking flags
-PROMETHEUS_CHANGED_STAMP := $(STAMP_DIR)/prometheus_config_changed.stamp
-PROMETHEUS_UNIT_CHANGED_STAMP := $(STAMP_DIR)/prometheus_unit_changed.stamp
+PROMETHEUS_CHANGED_STAMP := $(STAMP_DIR_ROOT)/prometheus_config_changed.stamp
+PROMETHEUS_UNIT_CHANGED_STAMP := $(STAMP_DIR_ROOT)/prometheus_unit_changed.stamp
 
 # Absolute Fast-Path Shadow Targets
-PROMETHEUS_CONFIG_SHADOW := $(STAMP_DIR)/prometheus_config.shadow
-PROMETHEUS_UNIT_SHADOW := $(STAMP_DIR)/prometheus_unit.shadow
+PROMETHEUS_CONFIG_SHADOW := $(STAMP_DIR_USER)/prometheus_config.shadow
+PROMETHEUS_UNIT_SHADOW := $(STAMP_DIR_USER)/prometheus_unit.shadow
 
 .PHONY: \
     monitoring \
@@ -116,12 +116,12 @@ prometheus-restart:
 	if [ "$$NEED_RELOAD" -eq 1 ]; then \
 		echo "🔄 Prometheus unit changed — executing daemon-reload"; \
 		$(run_as_root) systemctl daemon-reload; \
-		rm -f "$(PROMETHEUS_UNIT_CHANGED_STAMP)"; \
+		$(run_as_root) rm -f "$(PROMETHEUS_UNIT_CHANGED_STAMP)"; \
 	  fi; \
 	if [ "$$NEED_RESTART" -eq 1 ]; then \
 		echo "🔄 Prometheus state modification verified — restarting service"; \
 		$(run_as_root) systemctl restart $(PROMETHEUS_SERVICE); \
-		rm -f "$(PROMETHEUS_CHANGED_STAMP)"; \
+		$(run_as_root) rm -f "$(PROMETHEUS_CHANGED_STAMP)"; \
 	  fi
 
 # --------------------------------------------------------------------

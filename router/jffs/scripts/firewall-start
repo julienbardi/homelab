@@ -32,7 +32,13 @@ iptables -I INPUT -i lo -j ACCEPT
 iptables -C INPUT -p tcp --dport 443 -i eth0 -j ACCEPT 2>/dev/null || \
 iptables -I INPUT -p tcp --dport 443 -i eth0 -j ACCEPT
 
-# 4. Last-resort drop for non-LAN traffic to router (WAN protection)
+# 4. Allow Tailscale control plane (port 41641)
+iptables -C INPUT -p tcp --dport 41641 -i eth0 -j ACCEPT 2>/dev/null || \
+iptables -I INPUT -p tcp --dport 41641 -i eth0 -j ACCEPT
+iptables -C INPUT -p udp --dport 41641 -i eth0 -j ACCEPT 2>/dev/null || \
+iptables -I INPUT -p udp --dport 41641 -i eth0 -j ACCEPT
+
+# 5. Last-resort drop for non-LAN traffic to router (WAN protection)
 iptables -C INPUT ! -i br0 -j DROP 2>/dev/null || \
 iptables -A INPUT ! -i br0 -j DROP
 
@@ -67,6 +73,12 @@ ip6tables -I INPUT -i lo -j ACCEPT
 # Allow WAN IPv6 HTTPS to Caddy for public site (bardi.ch)
 ip6tables -C INPUT -p tcp --dport 443 -i eth0 -j ACCEPT 2>/dev/null || \
 ip6tables -I INPUT -p tcp --dport 443 -i eth0 -j ACCEPT
+
+# Allow Tailscale control plane (port 41641)
+ip6tables -C INPUT -p tcp --dport 41641 -i eth0 -j ACCEPT 2>/dev/null || \
+ip6tables -I INPUT -p tcp --dport 41641 -i eth0 -j ACCEPT
+ip6tables -C INPUT -p udp --dport 41641 -i eth0 -j ACCEPT 2>/dev/null || \
+ip6tables -I INPUT -p udp --dport 41641 -i eth0 -j ACCEPT
 
 # Default deny: drop all non-LAN IPv6 input (WAN protection, mirrors IPv4 rule 4)
 ip6tables -C INPUT ! -i br0 -j DROP 2>/dev/null || \

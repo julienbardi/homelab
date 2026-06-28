@@ -21,6 +21,7 @@ TAILSCALE_REPO_LINE := deb [signed-by=$(TAILSCALE_KEYRING)] https://pkgs.tailsca
 TS_BIN ?= /usr/bin/tailscale
 HS_BIN ?= /usr/local/bin/headscale
 
+# Define a function to get the headscale user ID based on username
 define headscale_user_id
 $(shell [ -x "$(HS_BIN)" ] && command -v jq >/dev/null 2>&1 && \
 	$(run_as_root) "$(HS_BIN)" users list --output json \
@@ -51,7 +52,7 @@ tailscaled-check-deps:
 # --------------------------------------------------------------------
 # LAN client (trusted: LAN + exit-node)
 # --------------------------------------------------------------------
-# do not use --accept-dns=true as it hijacks DNS entries in /etc/resolv.conf
+# Do not use --accept-dns=true as it hijacks DNS entries in /etc/resolv.conf
 # CONTRACT: This target is a no-op unless USE_TAILSCALED=1
 tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
@@ -152,7 +153,7 @@ tailscale-check:
 
 # optional tailscaled preflight
 # Set USE_TAILSCALED=1 to enable tailscaled installation/start/wait behavior.
-USE_TAILSCALED ?= 0
+USE_TAILSCALED ?= 1
 
 .PHONY: net-tunnel-preflight
 

@@ -1,7 +1,7 @@
-# mk/60_unbound.mk — Unbound orchestration (IGOS-safe, config-only, pure DAG)
+ # mk/60_unbound.mk — Unbound orchestration (IGOS-safe, config-only, pure DAG)
 
-UNBOUND_RESTART_STAMP := $(STAMP_DIR)/unbound.restart
-STAMP_UNBOUND_ANCHOR  := $(STAMP_DIR)/unbound_anchor.sha256
+UNBOUND_RESTART_STAMP := $(STAMP_DIR_ROOT)/unbound.restart
+STAMP_UNBOUND_ANCHOR  := $(STAMP_DIR_ROOT)/unbound_anchor.sha256
 
 SYSCTL_UNBOUND_SRC := $(REPO_ROOT)/config/sysctl/99-unbound-buffers.conf
 SYSCTL_UNBOUND_DST := /etc/sysctl.d/99-unbound-buffers.conf
@@ -68,7 +68,7 @@ $(STAMP_UNBOUND_ANCHOR):
 # ------------------------------------------------------------
 # Config deployment (pure, IGOS-safe)
 # ------------------------------------------------------------
-deploy-unbound-config:
+deploy-unbound-config: deploy-unbound-local-internal
 	@$(run_as_root) install -d -m 0755 /etc/unbound /etc/unbound/unbound.conf.d
 	@changed=0; rc=0; \
 	$(call install_file,$(UNBOUND_CONF_SRC),$(UNBOUND_CONF_DST),root,root,0644) || rc=$$?; \
@@ -169,7 +169,7 @@ deploy-homelab-unbound-service:
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
 	fi
 
-deploy-unbound: deploy-unbound-config deploy-unbound-local-internal deploy-homelab-unbound-service
+deploy-unbound: deploy-unbound-config deploy-homelab-unbound-service
 	@if [ -f "$(UNBOUND_RESTART_STAMP)" ]; then \
 		echo "🔄 Executing deferred restart for homelab-unbound.service due to configuration drift"; \
 		$(run_as_root) systemctl restart homelab-unbound.service; \

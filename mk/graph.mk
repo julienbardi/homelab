@@ -68,14 +68,13 @@ include $(REPO_ROOT)/mk/20_deps.mk
 include $(REPO_ROOT)/mk/20_gitignore.mk
 include $(REPO_ROOT)/mk/20_local-python.mk
 include $(REPO_ROOT)/mk/20_sysctl.mk
-include $(REPO_ROOT)/mk/21_invariants_stamps.mk
 include $(REPO_ROOT)/mk/25_routing.mk
 include $(REPO_ROOT)/mk/30_config_validation.mk
-include $(REPO_ROOT)/mk/30_firewall-nas.mk
 include $(REPO_ROOT)/mk/40_acme.mk
 include $(REPO_ROOT)/mk/40_code-server.mk
 include $(REPO_ROOT)/mk/40_nas-caddy.mk
 include $(REPO_ROOT)/mk/40_wireguard.mk
+include $(REPO_ROOT)/mk/41_firewall-nas.mk
 include $(REPO_ROOT)/mk/50_certs.mk
 include $(REPO_ROOT)/mk/55_router-certs.mk
 include $(REPO_ROOT)/mk/60_unbound.mk

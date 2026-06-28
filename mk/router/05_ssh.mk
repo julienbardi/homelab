@@ -17,19 +17,19 @@ export ROUTER_BOOTSTRAP ?=
 router-ssh-check: install-ssh-config
 	@echo "🔎 Checking router SSH ($(SSH_USER_ROUTER)@$(ROUTER_ADDR):$(ROUTER_SSH_PORT))"
 
-	@# 1. Dependency check
+	# 1. Dependency check
 	@command -v nc >/dev/null 2>&1 || { \
 		echo "❌ Missing dependency: nc"; \
 		exit 1; \
 	}
 
-	@# 2. TCP reachability
+	# 2. TCP reachability
 	@nc -z -w 2 "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" >/dev/null 2>&1 || { \
 		echo "❌ Router unreachable on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)"; \
 		exit 1; \
 	}
 
-	@# 3. SSH authentication
+	# 3. SSH authentication
 	@ssh -q \
 		-o BatchMode=yes \
 		-o ConnectTimeout=5 \
@@ -43,7 +43,7 @@ router-ssh-check: install-ssh-config
 
 .PHONY: router-require-run-as-root
 router-require-run-as-root: | router-ssh-check
-	@# Skip check during bootstrap
+	# Skip check during bootstrap
 	@if [ "$(ROUTER_BOOTSTRAP)" = "1" ]; then exit 0; fi
 
 	@echo "🔎 Checking router run-as-root helper"
@@ -62,10 +62,10 @@ router-require-run-as-root: | router-ssh-check
 get-router-root-identity: router-require-run-as-root
 	@echo "🔍 Checking router identity for $(SSH_USER_ROUTER) on $(ROUTER_ADDR)"
 
-	@# Ensure cache directory exists
+	# Ensure cache directory exists
 	@mkdir -p "$(dir $(ROUTER_ID_FILE))"
 
-	@# 1. TTL-based cache check
+	# 1. TTL-based cache check
 	@if [ -f "$(ROUTER_ID_FILE)" ] && [ "$(FORCE)" != "1" ]; then \
 		now=$$(date +%s); \
 		mtime=$$(stat -c %Y "$(ROUTER_ID_FILE)" 2>/dev/null || stat -f %m "$(ROUTER_ID_FILE)" 2>/dev/null || echo 0); \
@@ -75,11 +75,11 @@ get-router-root-identity: router-require-run-as-root
 		fi; \
 	fi
 
-	@# 2. Lock to avoid races under -j
+	# 2. Lock to avoid races under -j
 	@LOCKDIR="$(dir $(ROUTER_ID_FILE))/lock"; \
 	mkdir "$$LOCKDIR" 2>/dev/null || exit 0
 
-	@# 3. Remote identity lookup (BusyBox-safe AWK)
+	# 3. Remote identity lookup (BusyBox-safe AWK)
 	@ssh "$(SSH_HOST_ROUTER)" \
 		'awk -F: -v U="$(SSH_USER_ROUTER)" '\'' \
 			FILENAME=="/etc/group"  { g[$$3]=$$1; next } \
@@ -88,11 +88,11 @@ get-router-root-identity: router-require-run-as-root
 		'\'' /etc/group /etc/passwd' \
 		> "$(ROUTER_ID_FILE).tmp"
 
-	@# 4. Commit result + release lock
+	# 4. Commit result + release lock
 	@mv -f "$(ROUTER_ID_FILE).tmp" "$(ROUTER_ID_FILE)"
 	@rmdir "$(dir $(ROUTER_ID_FILE))/lock"
 
-	@# 5. Validate result
+	# 5. Validate result
 	@R_ID="$$(cat "$(ROUTER_ID_FILE)")"; \
 	if [ "$$R_ID" = "MISSING" ]; then \
 		echo "❌ Router user $(SSH_USER_ROUTER) not found"; \

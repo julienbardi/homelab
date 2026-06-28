@@ -320,22 +320,6 @@ router-lan-domain: | router-ssh-check
 		touch /jffs/homelab_nvram_dirty; \
 	"
 
-.PHONY: router-dhcp-static-export-secrets
-router-dhcp-static-export-secrets: secrets-ready router-ssh-check
-	@$(call WITH_SECRETS_v2, \
-		tmp=$$(mktemp); \
-		trap "rm -f $$tmp" EXIT INT TERM; \
-		ssh "$(SSH_HOST_ROUTER)" \
-			"nvram get dhcp_staticlist 2>/dev/null || true" \
-			> "$$tmp"; \
-		printf "DHCP static leases (paste into secrets.enc.yaml):\n\n"; \
-		tr " " "\n" < "$$tmp" \
-		| sed -n "s/^<\\([^>]*\\)>\\([^>]*\\)>>\$$/\\1=\\2==0/p" \
-		| nl -w1 -s" " \
-		| awk "{printf \"dhcp_static_%d=\\\"%s\\\"\\n\", $$1, $$2}"; \
-		printf "\nDone\n"; \
-	)
-
 # ------------------------------------------------------------
 # dnsmasq.conf.add deploy (files only, marks dirty on change)
 # ------------------------------------------------------------

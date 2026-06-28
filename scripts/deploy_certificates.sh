@@ -139,33 +139,6 @@ prepare() {
     fi
 }
 
-# --------------------------------------------------------------------
-# Fast‑path deploy helpers
-# --------------------------------------------------------------------
-deploy_local_fastpath() {
-    local service="$1"
-    local dst_dir="$2"
-
-    local canon_fc="$SSL_CANONICAL_DIR/fullchain_ecc.pem"
-    local canon_pk="$SSL_CANONICAL_DIR/privkey_ecc.pem"
-
-    local dst_fc="$dst_dir/fullchain.pem"
-    local dst_pk="$dst_dir/privkey.pem"
-
-    local h1 h2 h3 h4
-    h1=$(hash_file "$canon_fc")
-    h2=$(hash_file "$canon_pk")
-    h3=$( (hash_file "$dst_fc" 2>/dev/null) || echo none)
-    h4=$( (hash_file "$dst_pk" 2>/dev/null) || echo none)
-
-    if fastpath_match "$h1" "$h3" && fastpath_match "$h2" "$h4"; then
-        log "ℹ️ $service TLS material up-to-date"
-        return 0
-    fi
-
-    return 1
-}
-
 deploy_remote_fastpath() {
     local host="$1"
     local port="$2"
@@ -201,11 +174,6 @@ deploy_caddy() {
         return 0
     fi
 
-    if deploy_local_fastpath "caddy" "$SSL_DEPLOY_DIR_CADDY"; then
-        log "ℹ️ caddy TLS material already up-to-date (fast-path)"
-        return 0
-    fi
-
     local changed=0
     run_as_root install_files_if_changed_v3.sh changed \
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$SSL_DEPLOY_DIR_CADDY/fullchain.pem" caddy caddy 0644 \
@@ -215,7 +183,7 @@ deploy_caddy() {
         log "📝 caddy TLS material updated"
         reload_service caddy /etc/caddy/Caddyfile
     else
-        log "ℹ️ caddy TLS material already up-to-date (slow-path)"
+        log "ℹ️ caddy TLS material already up-to-date"
     fi
 }
 
@@ -226,16 +194,6 @@ deploy_headscale() {
     log "🔐 Deploying ECC TLS to headscale"
     run_as_root mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
 
-    if ! service_exists headscale; then
-        log "📍 headscale not installed — skipping"
-        return 0
-    fi
-
-    if deploy_local_fastpath "headscale" "$SSL_DEPLOY_DIR_HEADSCALE"; then
-        log "ℹ️ headscale TLS material already up-to-date (fast-path)"
-        return 0
-    fi
-
     local changed=0
     run_as_root install_files_if_changed_v3.sh changed \
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$SSL_DEPLOY_DIR_HEADSCALE/fullchain.pem" headscale headscale 0644 \
@@ -245,7 +203,7 @@ deploy_headscale() {
         log "📝 headscale TLS material updated"
         reload_service headscale /etc/headscale/config.yaml
     else
-        log "ℹ️ headscale TLS material already up-to-date (slow-path)"
+        log "ℹ️ headscale TLS material already up-to-date"
     fi
 }
 
@@ -255,37 +213,27 @@ deploy_headscale() {
 deploy_dnsdist() {
     log "🔐 Deploying ECC TLS to dnsdist"
 
-    local base="/etc/dnsdist"
-    local certdir="$base/certs"
+    run_as_root sh -c "
+        install -d -m 0750 -o root -g _dnsdist /etc/dnsdist
+        install -d -m 0750 -o root -g _dnsdist /etc/dnsdist/certs
 
-    run_as_root install -d -m 0750 -o root -g _dnsdist "$base"
-    run_as_root install -d -m 0750 -o root -g _dnsdist "$certdir"
+        changed=0
 
-    if ! service_exists dnsdist; then
-        log "📍 dnsdist not installed — skipping"
-        return 0
-    fi
+        install_files_if_changed_v3.sh changed \
+            \"\" \"\" \"$SSL_CANONICAL_DIR/fullchain_ecc.pem\" \"\" \"\" \"/etc/dnsdist/certs/fullchain.pem\" root _dnsdist 0644 \
+            \"\" \"\" \"$SSL_CANONICAL_DIR/privkey_ecc.pem\"   \"\" \"\" \"/etc/dnsdist/certs/privkey.pem\"   root _dnsdist 0640
 
-    if deploy_local_fastpath "dnsdist" "$certdir"; then
-        log "ℹ️ dnsdist TLS material already up-to-date (fast-path)"
-        return 0
-    fi
-
-    local changed=0
-    run_as_root install_files_if_changed_v3.sh changed \
-        "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$certdir/fullchain.pem" root _dnsdist 0644 \
-        "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$certdir/privkey.pem"   root _dnsdist 0640
-
-    if [[ "$changed" -eq 1 ]]; then
-        log "📝 dnsdist TLS material updated"
-        systemctl restart dnsdist
-    else
-        log "ℹ️ dnsdist TLS material already up-to-date (slow-path)"
-    fi
+        if [ \"\$changed\" -eq 1 ]; then
+            echo \"📝 dnsdist TLS material updated\" >&2
+            systemctl restart dnsdist
+        else
+            echo \"ℹ️ dnsdist TLS material already up-to-date\" >&2
+        fi
+    "
 }
 
 # --------------------------------------------------------------------
-# Deploy: router (fast‑path + IFC)
+# Deploy: router
 # --------------------------------------------------------------------
 deploy_router() {
     log "🔐 Deploying ECC TLS to router"

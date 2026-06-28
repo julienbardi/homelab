@@ -12,7 +12,9 @@ HEADSCALE_BIN := $(INSTALL_PATH)/headscale
 HEADSCALE_URL := https://github.com/juanfont/headscale/releases/download/v0.28.0-beta.1/headscale_0.28.0-beta.1_linux_amd64
 HEADSCALE_SHA256 := f9ba05660cfbba72a1f6a51f8792c83b5cdabb335ec84b975468ddc8df95f56e
 
-HEADSCALE_STAMP := $(STAMP_DIR)/headscale.installed
+HEADSCALE_STAMP := $(STAMP_DIR_ROOT)/headscale.installed
+# Headscale stamp directory order-only dependencies (root scope)
+$(HEADSCALE_STAMP): | $(STAMP_DIR_ROOT)
 
 HEADSCALE_CONFIG_SRC := config/headscale/config.yaml
 HEADSCALE_CONFIG_DST := /etc/headscale/config.yaml
@@ -30,12 +32,19 @@ HEADSCALE_HEALTH_URL := http://127.0.0.1:8910/health
 HEADSCALE_CACHE := $(REPO_ROOT).cache/headscale_0.28.0-beta.1_$(shell uname -m)
 
 # Fast-Path Shadow Targets & Change Flags
-HEADSCALE_CHANGED_STAMP := $(STAMP_DIR)/headscale_state_changed.stamp
-HEADSCALE_CONFIG_SHADOW  := $(STAMP_DIR)/headscale_config.shadow
-HEADSCALE_DERP_SHADOW    := $(STAMP_DIR)/headscale_derp.shadow
-HEADSCALE_ACL_SHADOW      := $(STAMP_DIR)/headscale_acl.shadow
-HEADSCALE_UNIT_SHADOW    := $(STAMP_DIR)/headscale_unit.shadow
-HEADSCALE_OVERRIDE_SHADOW:= $(STAMP_DIR)/headscale_override.shadow
+HEADSCALE_CHANGED_STAMP := $(STAMP_DIR_USER)/headscale_state_changed.stamp
+HEADSCALE_CONFIG_SHADOW  := $(STAMP_DIR_USER)/headscale_config.shadow
+HEADSCALE_DERP_SHADOW    := $(STAMP_DIR_USER)/headscale_derp.shadow
+HEADSCALE_ACL_SHADOW      := $(STAMP_DIR_USER)/headscale_acl.shadow
+HEADSCALE_UNIT_SHADOW    := $(STAMP_DIR_USER)/headscale_unit.shadow
+HEADSCALE_OVERRIDE_SHADOW:= $(STAMP_DIR_USER)/headscale_override.shadow
+# Headscale stamp directory order-only dependencies (root scope)
+$(HEADSCALE_CHANGED_STAMP):      | $(STAMP_DIR_USER)
+$(HEADSCALE_CONFIG_SHADOW):      | $(STAMP_DIR_USER)
+$(HEADSCALE_DERP_SHADOW):        | $(STAMP_DIR_USER)
+$(HEADSCALE_ACL_SHADOW):         | $(STAMP_DIR_USER)
+$(HEADSCALE_UNIT_SHADOW):        | $(STAMP_DIR_USER)
+$(HEADSCALE_OVERRIDE_SHADOW):    | $(STAMP_DIR_USER)
 
 # Strictly serialize step execution order under high -j jobs
 .NOTPARALLEL: headscale headscale-restart headscale-acls headscale-verify
@@ -83,7 +92,7 @@ headscale: \
 # --------------------------------------------------------------------
 # Headscale binary (via centralized GitHub installer)
 # --------------------------------------------------------------------
-headscale-bin: ensure-stamp-dir install-all
+headscale-bin: install-all | $(INSTALL_PATH)/install_github_asset.sh
 	@echo "📦 Ensuring Headscale binary"
 	@$(run_as_root) $(INSTALL_PATH)/install_github_asset.sh \
 			$(HEADSCALE_URL) \
@@ -116,7 +125,7 @@ $(HEADSCALE_OVERRIDE_SHADOW): config/systemd/headscale.service.d/override.conf |
 		$(run_as_root) systemctl daemon-reload && \
 		touch "$(HEADSCALE_CHANGED_STAMP)"; \
 	  fi
-	@touch "$@"
+	@$(run_as_root) touch "$@"
 
 $(HEADSCALE_CONFIG_SHADOW): $(HEADSCALE_CONFIG_SRC) | headscale-bin
 	@OLD_HASH=$$(sha256sum "$(HEADSCALE_CONFIG_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \

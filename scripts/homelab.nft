@@ -135,6 +135,10 @@ table inet homelab_filter {
         # --- Tailscale ---
         iifname "tailscale0" ip  saddr 100.64.0.0/10  accept comment "sr:input-ts-v4"
         iifname "tailscale0" ip6 saddr fd7a:115c:a1e0::/48 accept comment "sr:input-ts-v6"
+
+        # Allow tailscaled to communicate on port 41641
+        iifname "eth0" tcp dport 41641 accept comment "sr:input-tailscale-udp"
+        iifname "eth0" udp dport 41641 accept comment "sr:input-tailscale-tcp"
     }
 
     chain forward {
@@ -248,7 +252,7 @@ table inet homelab_filter {
         iifname "wg14" oifname "eth0" ip6 saddr fd89:7a3b:42c0:14::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg14-inet-ula-v6"
         iifname "wg15" oifname "eth0" ip6 saddr fd89:7a3b:42c0:15::/64 ip6 daddr != fd89:7a3b:42c0::/64 counter accept comment "sr:forward-wg15-inet-ula-v6"
 
-        iifname "eth0" oifname "wg+" ip6 daddr fd89:7a3b:42c0::/48 ct state established,related counter accept comment "sr:forward-wg-inet-ula-v6-rev"
+        iifname "eth0" oifname "wg+" ip6 saddr fd89:7a3b:42c0::/48 ct state established,related counter accept comment "sr:forward-wg-inet-ula-v6-rev"
 
         # IPv6 Internet return path for full-tunnel profiles (wg7, wg14, wg15)
         iifname "eth0" oifname "wg7"  ip6 daddr fd89:7a3b:42c0:7::/64  ct state established,related accept comment "sr:forward-wg7-inet-v6-rev"

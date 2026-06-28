@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-# mk/30_firewall-nas.mk — NAS firewall invariants
+# mk/41_firewall-nas.mk — NAS firewall invariants
 # --------------------------------------------------------------------
 # CONTRACT:
 # - Explicitly allow trusted subnets to access NAS services

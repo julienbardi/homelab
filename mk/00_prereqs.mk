@@ -19,7 +19,8 @@ PREREQS_PACKAGES := \
 	wireguard-tools \
 	unzip \
 	qrencode \
-	ldnsutils
+	ldnsutils \
+	coreutils util-linux
 
 PREREQS_SOURCES := \
 	mk/00_prereqs.mk \
@@ -28,7 +29,7 @@ PREREQS_SOURCES := \
 	mk/00_prereqs-rust.mk
 
 # Full prereqs execution (mutators + verifiers + apt + scripts)
-prereqs-run: ensure-stamp-dir $(PREREQS_SOURCES)
+prereqs-run: $(PREREQS_SOURCES) | $(STAMP_DIR_ROOT)
 	@echo "🔍 Running prereqs checks (DNS, Tailscale, docs, warm, system)"
 
 	# --- Network deps ---
@@ -61,7 +62,7 @@ prereqs-run: ensure-stamp-dir $(PREREQS_SOURCES)
 		echo "✅ nft present"; \
 	'
 
-prereqs-ok: ensure-stamp-dir $(PREREQS_SOURCES)
+prereqs-ok: $(PREREQS_SOURCES)
 	@if [ -f "$(STAMP_PREREQS_OK)" ]; then \
 		echo "⏩ prereqs-ok (fast-path OK)"; \
 		exit 0; \
@@ -92,7 +93,7 @@ prereqs-ok: ensure-stamp-dir $(PREREQS_SOURCES)
 	@echo "✅ prereqs-ok complete"
 
 .PHONY: reset-prereqs
-reset-prereqs: | ensure-stamp-dir
+reset-prereqs:
 	@echo "🗑️ Resetting prereqs-ok stamp: sudo rm -f $(STAMP_PREREQS_OK)"
 	@$(run_as_root) rm -f "$(STAMP_PREREQS_OK)"
 	@echo "✅ prereqs-ok reset"
