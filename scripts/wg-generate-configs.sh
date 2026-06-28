@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# wg-generate-configs.sh
 set -euo pipefail
 
 TMPDIR="${TMPDIR:-${XDG_RUNTIME_DIR:-$HOME/.cache/homelab}}"
@@ -10,6 +11,11 @@ mkdir -p "$TMPDIR"
 : "${LAN_NAS:?LAN_NAS must be exported by the Makefile}"
 : "${LAN6_NAS:?LAN6_NAS must be exported by the Makefile}"
 : "${LAN_ROUTER:?LAN_ROUTER must be exported by the Makefile}"
+
+: "${WG_DOH_IPV4:?WG_DOH_IPV4 must be exported}"
+: "${WG_DOH_IPV6:?WG_DOH_IPV6 must be exported}"
+: "${WG_DNS_ROUTER_IPV4:?WG_DNS_ROUTER_IPV4 must be exported}"
+: "${WG_DNS_NAS_IPV6:?WG_DNS_NAS_IPV6 must be exported}"
 
 INPUT_DIR="${WG_ROOT}/input"
 OUTPUT_DIR="${WG_ROOT}/output"
@@ -226,7 +232,7 @@ EOF
 [Interface]
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}/128
-DNS = ${LAN_NAS}, ${LAN6_NAS}, ${LAN_ROUTER}
+DNS = ${WG_DOH_IPV4}, ${WG_DOH_IPV6}, ${WG_DNS_ROUTER_IPV4}, ${WG_DNS_NAS_IPV6}
 $( [[ "$os" == "windows" && "${IF_HOST[$iface]}" == "router" ]] && echo "Table = auto" )
 $( [[ "$os" == "windows" && "${IF_HOST[$iface]}" == "nas" ]] && echo "Table = off" )
 

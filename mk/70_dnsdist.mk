@@ -53,10 +53,12 @@ DNSDIST_UNIT         := dnsdist.service
 KDIG                 ?= kdig
 
 # Configuration (Ensuring trailing slash safety)
-DNSDIST_CONF_SRC     := $(REPO_ROOT)/config/dnsdist/dnsdist.conf
-DNSDIST_CONF_DST     := /etc/dnsdist/dnsdist.conf
-DNSDIST_DROPIN_SRC   := $(REPO_ROOT)/scripts/systemd/dnsdist.service.d/10-no-port53.conf
-DNSDIST_DROPIN_DST   := /etc/systemd/system/dnsdist.service.d/10-no-port53.conf
+DNSDIST_CONF_SRC        := $(REPO_ROOT)/config/dnsdist/dnsdist.conf
+DNSDIST_CONF_DST        := /etc/dnsdist/dnsdist.conf
+DNSDIST_DROPIN_SRC      := $(REPO_ROOT)/config/systemd/dnsdist.service.d/10-no-port53.conf
+DNSDIST_DROPIN_DST      := /etc/systemd/system/dnsdist.service.d/10-no-port53.conf
+DNSDIST_CAPS_DROPIN_SRC := $(REPO_ROOT)/config/systemd/dnsdist.service.d/20-homelab-bindcaps.conf
+DNSDIST_CAPS_DROPIN_DST := /etc/systemd/system/dnsdist.service.d/20-homelab-bindcaps.conf
 
 # TLS Material
 DNSDIST_CERT_DIR     := /etc/dnsdist/certs
@@ -134,6 +136,21 @@ dnsdist-systemd-dropin:
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		$(run_as_root) systemctl daemon-reload; \
 		echo "🔄 Systemd drop-in updated, restarting..."; \
+		$(DNSDIST_RESTART_CMD); \
+	fi
+
+dnsdist-systemd-caps:
+	@set -eu; \
+	$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
+	rc=0; \
+	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+		$(INSTALL_FILE_IF_CHANGED) -q \
+		"" "" "$(DNSDIST_CAPS_DROPIN_SRC)" \
+		"" "" "$(DNSDIST_CAPS_DROPIN_DST)" \
+		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
+	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		$(run_as_root) systemctl daemon-reload; \
+		echo "🔄 dnsdist capability drop-in updated, restarting..."; \
 		$(DNSDIST_RESTART_CMD); \
 	fi
 
@@ -230,7 +247,7 @@ check-dnsdist-doh-local:
 # Orchestration umbrella
 # --------------------------------------------------------------------
 
-dnsdist: dnsdist-install dnsdist-systemd-dropin deploy-dnsdist-certs \
+dnsdist: dnsdist-install dnsdist-systemd-dropin dnsdist-systemd-caps deploy-dnsdist-certs \
 	dnsdist-config dnsdist-enable dnsdist-validate \
 	assert-dnsdist-running check-dnsdist-doh-listener check-dnsdist-doh-local \
 	install-kdig check-dnsdist-listeners

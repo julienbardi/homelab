@@ -21,6 +21,13 @@ export LAN6_PREFIXLEN := 64
 # Add others as needed:
 # export LAN6_QNAP     := ...
 
+# WireGuard DNS topology (authoritative, non-secret)
+# Fastest-first ordering: DoH → Router IPv4 → NAS IPv6
+export WG_DOH_IPV4       := $(LAN_NAS):8053
+export WG_DOH_IPV6       := $(LAN6_NAS):8053
+export WG_DNS_ROUTER_IPV4 := $(LAN_ROUTER)
+export WG_DNS_NAS_IPV6    := $(LAN6_NAS)
+
 # SSH users per host
 export SSH_USER_ROUTER   := julie
 export SSH_USER_NAS      := julie
@@ -135,5 +142,3 @@ APT_INSTALLABLE_PACKAGES := \
 	build-essential shellcheck pup codespell aspell aspell-en ndppd \
 	knot-dnsutils apt-cacher-ng unzip git-filter-repo rclone \
 	wireguard-tools qrencode
-
-
