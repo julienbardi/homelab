@@ -81,7 +81,7 @@ WG_INTERFACES_TSV := /volume1/homelab/wireguard/input/wg-interfaces.tsv
 # We therefore check its existence at runtime instead of wiring it into the DAG.
 .PHONY: router-nat-install
 router-nat-install: router-install-scripts
-	@#echo "🔧 Rendering and deploying NAT rules"
+	@echo "🔧 Rendering and deploying NAT rules"
 	@if [ ! -f "$(WG_INTERFACES_TSV)" ]; then \
 		echo "❌ Topology file missing at $(WG_INTERFACES_TSV)"; exit 1; \
 	fi
@@ -200,7 +200,7 @@ router-nat-install: router-install-scripts
 	' "$(WG_INTERFACES_TSV)" >> "$(TMP_ROUTER_NAT)"
 
 	# 2b) Append global WG NAT rules (only once)
-	@echo "iptables -t nat -A HOMELAB_NAT -s 10.7.0.0/16 -o eth0 -j MASQUERADE" >> "$(TMP_ROUTER_NAT)"
+	@echo "iptables -t nat -A POSTROUTING -s 10.89.101.0/24 -o eth0 -j MASQUERADE" >> "$(TMP_ROUTER_NAT)"
 	@echo "iptables -A HOMELAB_FWD -i wgs1 -o eth0 -j ACCEPT" >> "$(TMP_ROUTER_NAT)"
 
 	# 3) Execute synchronization pipeline wrapping cleanup actions into immediate continuation

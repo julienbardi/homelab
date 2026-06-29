@@ -50,14 +50,20 @@ v4_net="$(ipv4_network "${IF_ADDR_V4[$router_iface]}")"
 
 # --- compute IPv6 subnet ---
 raw_v6="${IF_ADDR_V6[$router_iface]}"
-addr_v6="${raw_v6%/*}"
 
-case "$addr_v6" in
-    *::1) prefix_v6="${addr_v6%1}" ;;
-    *)    prefix_v6="$addr_v6" ;;
-esac
+# Router IPv6 disabled → do not generate a subnet
+if [[ "$raw_v6" == "-" || -z "$raw_v6" ]]; then
+    v6_net=""
+else
+    addr_v6="${raw_v6%/*}"
 
-v6_net="${prefix_v6}/64"
+    case "$addr_v6" in
+        *::1) prefix_v6="${addr_v6%1}" ;;
+        *)    prefix_v6="$addr_v6" ;;
+    esac
+
+    v6_net="${prefix_v6}/64"
+fi
 
 # --- write output atomically ---
 cat > "$tmp" <<EOF
