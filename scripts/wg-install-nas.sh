@@ -10,6 +10,7 @@ NAS_WG_DIR="/etc/wireguard"
 
 # shellcheck disable=SC1091
 source /usr/local/bin/common.sh
+# shellcheck disable=SC2034
 SCRIPT_NAME="wg-install-nas"
 
 log "Installing NAS WireGuard configs (vectorized IFC_v2)"

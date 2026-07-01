@@ -46,6 +46,9 @@ while IFS= read -r raw || [ -n "$raw" ]; do
   line="$(printf '%s\n' "${raw%%#*}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/[[:space:]]+/ /g')"
   [ -z "$line" ] && continue
 
+  # Intentional word splitting: HOSTS_FILE lines are space-separated by contract,
+  # and tokens must not contain internal spaces.
+  # shellcheck disable=SC2086
   set -- $line
   p_ip="${3:-}"; p_pub="${2:-}"; p_port="${4:-22}"
   token="${p_ip:-$p_pub}"
@@ -112,6 +115,9 @@ scan_one_host() {
 while IFS= read -r raw || [ -n "$raw" ]; do
   line="$(printf '%s\n' "${raw%%#*}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/[[:space:]]+/ /g')"
   [ -z "$line" ] && continue
+  # Intentional word splitting: HOSTS_FILE lines are space-separated by contract,
+  # and tokens must not contain internal spaces.
+  # shellcheck disable=SC2086
   set -- $line
   a="$1" p="$2" i="$3" pt="${4:-22}"
   d="$a"; [ "$a" == "-" ] && d="${p:-$i}"
@@ -124,11 +130,13 @@ wait
 
 # Phase 2: Atomic updates
 for ((idx=0; idx<${#HOST_META[@]}; idx+=2)); do
+  # shellcheck disable=SC2034
   d_name="${HOST_META[idx]}"
   o_file="${HOST_META[idx+1]}"
   [ ! -s "$o_file" ] && continue
 
   KEYS=(); D_NAME=""
+  # shellcheck disable=SC1090
   source "$o_file"
 
   if [ "$DRY_RUN" -eq 1 ]; then
