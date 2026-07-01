@@ -374,5 +374,9 @@ table ip6 homelab_nat6 {
 
         # Any ULA from fd89:7a3b:42c0::/48 leaving via eth0 is NAT66'd
         oifname "eth0" ip6 saddr fd89:7a3b:42c0::/48 masquerade comment "sr:nat-wg-inet-v6"
+
+        # NAT66 for WireGuard clients leaving via router WAN (wan0)
+        # Required when router has no global IPv6 (e.g., 4G) and only link-local IPv6
+        oifname "wan0" ip6 saddr fd89:7a3b:42c0::/48 masquerade comment "sr:nat-wg-router-v6"
     }
 }

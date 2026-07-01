@@ -78,13 +78,6 @@ ROOT_UID  := $(shell id -u root 2>/dev/null || echo 0)
 ROOT_GID  := $(shell id -g root 2>/dev/null || echo 0)
 ROOT_HOME := $(shell getent passwd root | cut -d: -f6)
 
-# ----------------------------------------------------------------------------
-# 4. State / Stamp Directory Configuration
-# ----------------------------------------------------------------------------
-XDG_STATE_HOME := $(HOME)/.local/state
-STAMP_DIR_USER := $(XDG_STATE_HOME)/homelab
-STAMP_DIR_ROOT := /var/lib/homelab
-
 PRIMARY_ADMIN_GROUP := $(word 1,$(ADMIN_GROUPS))
 
 .PHONY: $(STAMP_DIR_ROOT)

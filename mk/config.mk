@@ -40,6 +40,20 @@ export SSH_USER_HUB01    := julie
 export SSH_HOST_ROUTER := router
 export SSH_HOST_HUB01  := hub01
 
+# SSH options for router access: accept-new not yes so that automation survives router resets
+export SSH_OPTS := -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new
+
+ACTUAL_USER := $(or $(SUDO_USER),$(USER))
+# Capture the user context
+# DDA-Compliant: Resolve home directory via system database instead of hardcoded paths
+ACTUAL_HOME := $(or \
+	$(shell getent passwd $(ACTUAL_USER) | cut -d: -f6), \
+	$(HOME) \
+)
+
+# SSH Multiplexing Config
+SSH_SOCK_FILE_ROUTER := /tmp/ssh-$(ACTUAL_USER)-router-$(ROUTER_SSH_PORT)
+
 # Bind ROUTER_USER for dns-suite
 export ROUTER_USER := $(SSH_USER_ROUTER)
 
@@ -60,11 +74,13 @@ export PUBLIC_DNS := 1.1.1.1
 # ------------------------------------------------------------
 
 # 1. Router constants
-export ROUTER_ADDR        := 10.89.12.1
-export ROUTER_SSH_PORT    := 2222
-export ROUTER_ULA_FILE    := /etc/homelab/router-ula
-export ROUTER_ULA_VALUE   := fd89:7a3b:42c0::1
-ROUTER_LAN_IFACE          := eth0
+export ROUTER_ADDR       := 10.89.12.1
+export ROUTER_SSH_PORT   := 2222
+export ROUTER_ULA_FILE   := /etc/homelab/router-ula
+export ROUTER_ULA_VALUE  := fd89:7a3b:42c0::1
+export ROUTER_LAN_IFACE  := eth0
+
+export ROUTER_IDENTITY   := $(ACTUAL_HOME)/.ssh/id_ed25519
 
 # Router specific paths
 export ROUTER_SCRIPTS    := /jffs/scripts
@@ -122,10 +138,18 @@ UNBOUND_PORT := 15335
 # Role
 ROLE := service
 
+# ----------------------------------------------------------------------------
+# 4. State / Stamp Directory Configuration
+# ----------------------------------------------------------------------------
+XDG_STATE_HOME := $(HOME)/.local/state
+STAMP_DIR_USER := $(XDG_STATE_HOME)/homelab
+STAMP_DIR_ROOT := /var/lib/homelab
+
 # Canonical marker path
 export ROUTER_PREFIX_MARKER := $(STAMP_DIR_ROOT)/router-prefix.changed
 
 $(ROUTER_PREFIX_MARKER): | $(STAMP_DIR_ROOT)
+
 # Deterministic PATH for all recipes
 PATH := /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH

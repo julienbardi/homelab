@@ -148,7 +148,35 @@ if ! ip6tables -S FORWARD | grep -q -- "^-A FORWARD -o wg\+ -j WGSF6"; then
     ip6tables -I FORWARD -o wg+ -j WGSF6
 fi
 
+# ------------------------------------------------------------
+# 4b. WGSF6 policy: allow WG ULA -> WAN, WG ULA -> LAN
+# ------------------------------------------------------------
+
+# Allow WireGuard IPv6 from homelab ULA to WAN (eth0/wan0)
+if ! ip6tables -C WGSF6 -s fd89:7a3b:42c0::/48 -o eth0 -j ACCEPT 2>/dev/null; then
+    log "allowing WG IPv6 ULA -> WAN (eth0) in WGSF6"
+    ip6tables -A WGSF6 -s fd89:7a3b:42c0::/48 -o eth0 -j ACCEPT
+fi
+
+# Allow WireGuard IPv6 from homelab ULA to LAN bridge
+if ! ip6tables -C WGSF6 -s fd89:7a3b:42c0::/48 -o br0 -j ACCEPT 2>/dev/null; then
+    log "allowing WG IPv6 ULA -> LAN (br0) in WGSF6"
+    ip6tables -A WGSF6 -s fd89:7a3b:42c0::/48 -o br0 -j ACCEPT
+fi
+
 log "IPv6 WireGuard FORWARD scoping enforced"
+
+# ------------------------------------------------------------
+# 4c. IPv6 fallback default route
+# ------------------------------------------------------------
+# Merlin removes the IPv6 default route when ISP IPv6 PD is missing.
+# This fallback ensures NAT66'd WG IPv6 packets have a next hop.
+# Safe because it only activates when no global IPv6 route exists.
+
+if ! ip -6 route show default | grep -q '^default'; then
+    log "installing IPv6 fallback default route via eth0"
+    ip -6 route add default dev eth0 2>/dev/null || true
+fi
 
 # ------------------------------------------------------------
 # 5. DNS SOVEREIGNTY ENFORCER

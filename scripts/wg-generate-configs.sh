@@ -17,6 +17,16 @@ mkdir -p "$TMPDIR"
 : "${WG_DNS_ROUTER_IPV4:?WG_DNS_ROUTER_IPV4 must be exported}"
 : "${WG_DNS_NAS_IPV6:?WG_DNS_NAS_IPV6 must be exported}"
 
+# Mandatory variables for Firewall generation
+: "${OPERATOR_GROUP:?OPERATOR_GROUP must be exported}"
+: "${ROUTER_LAN_IFACE:?ROUTER_LAN_IFACE must be exported}"
+: "${LAN_NAS:?LAN_NAS must be exported (DNS IPv4)}"
+: "${LAN6_NAS:?LAN6_NAS must be exported (DNS IPv6)}"
+: "${LAN_NET:?LAN_NET must be exported (e.g., 10.89.12.0/24)}"
+: "${LAN6_NET:?LAN6_NET must be exported (e.g., fd89:7a3b:42c0::/64)}"
+
+: "${DNS_TOPDOMAIN_NAME:?DNS_TOPDOMAIN_NAME must be exported}"
+
 INPUT_DIR="${WG_ROOT}/input"
 OUTPUT_DIR="${WG_ROOT}/output"
 KEY_DIR="${WG_ROOT}/keys"
@@ -26,18 +36,21 @@ OUT_SERVER="$OUTPUT_DIR/server"
 OUT_ROUTER="$OUTPUT_DIR/router"
 OUT_CLIENTS="$OUTPUT_DIR/clients"
 
-declare -A IF_HOST IF_PORT IF_ADDR_V4 IF_ADDR_V6 IF_ENABLED
+declare -A IF_HOST IF_PORT IF_ADDR_V4 IF_ADDR_V6 IF_ENABLED IF_MTU
 # shellcheck disable=SC1091
 source /usr/local/bin/common.sh
 
 # --- Canonical router SSH (authoritative, non‑drifting) ---
 : "${SSH_USER_ROUTER:?SSH_USER_ROUTER required}"
 : "${ROUTER_ADDR:?ROUTER_ADDR required}"
-: "${ROUTER_SSH_PORT:=2222}"
-: "${SSH_OPTS:=-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes}"
-: "${ROUTER_IDENTITY:=$HOME/.ssh/id_ed25519}"
+: "${ROUTER_SSH_PORT:?ROUTER_SSH_PORT required}"
+: "${SSH_OPTS:?SSH_OPTS required}"
+: "${ROUTER_IDENTITY:?ROUTER_IDENTITY required}"
 
-ROUTER_SSH_CMD=(ssh ${SSH_OPTS} -i "${ROUTER_IDENTITY}" -p "${ROUTER_SSH_PORT}" "${SSH_USER_ROUTER}@${ROUTER_ADDR}")
+: "${INSTALL_FILE_IF_CHANGED:?INSTALL_FILE_IF_CHANGED required}"
+
+# shellcheck disable=SC2206
+ROUTER_SSH_CMD=(ssh ${SSH_OPTS} -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$SSH_USER_ROUTER@$ROUTER_ADDR")
 
 # --- 2. Helpers -------------------------------------------------------------
 
@@ -49,12 +62,10 @@ install_content() {
     cat > "$tmp_src"
 
     set +e
-    local op_group rc
-    op_group="$(id -gn)"
-    run_as_root /usr/local/bin/install_file_if_changed_v3.sh -q \
+    run_as_root "$INSTALL_FILE_IF_CHANGED" -q \
         "" "22" "$tmp_src" \
         "" "22" "$target" \
-        "root" "$op_group" "$mode"
+        "root" "$(id -gn)" "$mode"
     rc=$?
     set -e
 
@@ -92,7 +103,7 @@ fw_lan() {
     local iface="$1" v4="$2" v6="$3"
     cat <<EOF
 iptables -C FORWARD -i $iface -s $v4/32 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i $iface -s $v4/32 -o br0 -j ACCEPT
-ip6tables -C FORWARD -i $iface -s $v6/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s $v6/128 -o br0 -j ACCEPT
+ip6tables -C FORWARD -i $iface -s ${v6}/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s ${v6}/128 -o br0 -j ACCEPT
 EOF
 }
 
@@ -100,7 +111,7 @@ fw_dns_only() {
     local iface="$1" v4="$2" v6="$3" dns4="$4" dns6="$5"
     cat <<EOF
 iptables -C FORWARD -i $iface -s $v4/32 -d $dns4/32 -o br0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -i $iface -s $v4/32 -d $dns4/32 -o br0 -j ACCEPT
-ip6tables -C FORWARD -i $iface -s $v6/128 -d $dns6/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s $v6/128 -d $dns6/128 -o br0 -j ACCEPT
+ip6tables -C FORWARD -i $iface -s ${v6}/128 -d $dns6/128 -o br0 -j ACCEPT 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s ${v6}/128 -d $dns6/128 -o br0 -j ACCEPT
 EOF
 }
 
@@ -116,7 +127,7 @@ iptables -C FORWARD -i $iface -s $v4/32 -o $wan_if ! -d $lan4 -j ACCEPT 2>/dev/n
 # REJECT (not DROP) so the client gets an immediate ICMPv6 no-route error and Happy Eyeballs
 # retries on IPv4 within ~100ms. Traffic is still routed into the tunnel (no location leak).
 # ::/0 remains in wgs1 client AllowedIPs for full tunnel / location privacy.
-ip6tables -C FORWARD -i $iface -s $v6/128 ! -d $lan6 -j REJECT --reject-with icmp6-no-route 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s $v6/128 ! -d $lan6 -j REJECT --reject-with icmp6-no-route
+ip6tables -C FORWARD -i $iface -s ${v6}/128 ! -d $lan6 -j REJECT --reject-with icmp6-no-route 2>/dev/null || ip6tables -I FORWARD 2 -i $iface -s ${v6}/128 ! -d $lan6 -j REJECT --reject-with icmp6-no-route
 EOF
 }
 
@@ -126,8 +137,9 @@ load_interfaces() {
         IF_HOST["$iface"]="$host"
         IF_PORT["$iface"]="$port"
         IF_ADDR_V4["$iface"]="$v4"
-        IF_ADDR_V6["$iface"]="$v6"
+        IF_ADDR_V6["$iface"]="${v6}"
         IF_ENABLED["$iface"]="$en"
+        IF_MTU["$iface"]="$mtu"
     done < "$IFACES_TSV"
 }
 
@@ -139,7 +151,7 @@ server_out_path() {
 
 generate_configs() {
     declare -A SERVER_BUFFERS
-    local peer_map_tmp
+    local peer_map_tmp=""
     peer_map_tmp=$(mktemp -p "$TMPDIR" homelab.ifc.tmp.XXXXXX)
     printf "pubkey\tname\tiface\tipv4\tipv6\taccess\tlan\n" > "$peer_map_tmp"
 
@@ -152,8 +164,8 @@ generate_configs() {
 
         if [[ "$host" == "router" ]]; then
             # Router keys come from nvram
-            priv=$("${ROUTER_SSH_CMD[@]}" nvram get wgs1_priv 2>/dev/null || true)
-            pub=$("${ROUTER_SSH_CMD[@]}" nvram get wgs1_pub 2>/dev/null || true)
+            priv=$("${ROUTER_SSH_CMD[@]}" "nvram get ${iface}_priv")
+            pub=$("${ROUTER_SSH_CMD[@]}" "nvram get ${iface}_pub")
             [[ -z "$priv" || -z "$pub" ]] && { echo "ERROR: Missing router keys for $iface"; exit 1; }
             # Use printf to avoid interpreting backslash sequences in the raw keys (e.g. \n in base64)
             (umask 077; printf '%s\n' "$priv" > "$kb.key")
@@ -196,6 +208,7 @@ EOF
         chmod 2770 "${WG_ROOT}/psk"
         chown root:"${OPERATOR_GROUP}" "${WG_ROOT}/psk"
     fi
+    # shellcheck disable=SC2034
     while IFS=$'\t' read -r name dev os iface mode acc lan rest; do
         [[ -z "$name" || "$name" == "#"* || "$name" == "name" ]] && continue
 
@@ -228,14 +241,28 @@ EOF
         # PSK_VALUE is now available for both router + client config blocks
 
         install_content "$OUT_CLIENTS/$name.conf" "0600" <<EOF
-# Rotate PSK: rm ${WG_ROOT}/psk/${name}.psk && make wg-generate && make wg-install-${IF_HOST[$iface]} && make wg-up-${IF_HOST[$iface]}
 [Interface]
+# Device = \${dev}
+# Host = \${host_id}
 PrivateKey = $(<"$ck.key")
 Address = ${ipv4}/32, ${ipv6}/128
-DNS = ${WG_DOH_IPV4}, ${WG_DOH_IPV6}, ${WG_DNS_ROUTER_IPV4}, ${WG_DNS_NAS_IPV6}
-$( [[ "$os" == "windows" && "${IF_HOST[$iface]}" == "router" ]] && echo "Table = auto" )
-$( [[ "$os" == "windows" && "${IF_HOST[$iface]}" == "nas" ]] && echo "Table = off" )
-
+DNS = $(
+    case "$os" in
+        android|iphone)
+            # Mobile-safe DNS: pure IPs only, fastest-first (NAS IPv6 → Router IPv4)
+            echo "${WG_DNS_NAS_IPV6}, ${WG_DNS_ROUTER_IPV4}"
+            ;;
+        *)
+            # Full DNS for Linux/Windows: includes DoH/DoT ports
+            echo "${WG_DOH_IPV4}, ${WG_DOH_IPV6}, ${WG_DNS_ROUTER_IPV4}, ${WG_DNS_NAS_IPV6}"
+            ;;
+    esac
+)
+$( if [[ "$os" == "windows" && "${IF_HOST[$iface]}" == "router" ]]; then
+       printf "Table = auto"
+   elif [[ "$os" == "windows" && "${IF_HOST[$iface]}" == "nas" ]]; then
+       printf "Table = off"
+   fi )
 [Peer]
 PublicKey = $(<"$KEY_DIR/servers/$iface.pub")
 PresharedKey = $PSK_VALUE
@@ -253,6 +280,7 @@ AllowedIPs = $(
     fi
 )
 PersistentKeepalive = 25
+# Rotate PSK: rm ${WG_ROOT}/psk/${name}.psk && make wg-generate && make wg-install-${IF_HOST[$iface]} && make wg-up-${IF_HOST[$iface]}
 EOF
     # -------------------------------
     # Compute router AllowedIPs safely
@@ -271,7 +299,7 @@ PublicKey = $(<"$ck.pub")
 PresharedKey = $PSK_VALUE
 AllowedIPs = ${ROUTER_ALLOWEDIPS}"
         printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-            "$(<"$ck.pub")" "$name" "$iface" "$ipv4" "$ipv6" "$acc" "$lan" >> "$peer_map_tmp"
+            "$(<"$ck.pub")" "$name" "$iface" "$ipv4" "${ipv6}" "$acc" "$lan" >> "$peer_map_tmp"
     done < "$CLIENTS_TSV"
 
     #
@@ -282,18 +310,19 @@ AllowedIPs = ${ROUTER_ALLOWEDIPS}"
     done
 
     install_content "$OUTPUT_DIR/peer-map.tsv" "0644" < "$peer_map_tmp"
-    rm -f "$peer_map_tmp"
+    [[ -n "${peer_map_tmp:-}" ]] && rm -f "$peer_map_tmp"
 }
 
 # --- 4. Firewall Generation -------------------------------------------------
 
 generate_router_firewall() {
     local fw_out="$OUT_ROUTER/wg-firewall.sh"
-    local dns_v4="${NAS_LAN_IP:-10.89.12.4}"
-    local dns_v6="${NAS_LAN_IP6:-fd89:7a3b:42c0::4}"
-    local lan_v4="10.89.12.0/24"
-    local lan_v6="fd89:7a3b:42c0::/64"
-    local wan_if="eth0"   # set to your actual WAN interface
+
+    local dns_v4="$LAN_NAS"
+    local dns_v6="$LAN6_NAS"
+    local lan_v4="$LAN_NET"
+    local lan_v6="$LAN6_NET"
+    local wan_if="$ROUTER_LAN_IFACE"
 
     local peer_map_local="" tmp=""
     peer_map_local=$(mktemp -p "$TMPDIR" homelab.ifc.tmp.XXXXXX)
@@ -336,8 +365,11 @@ EOF
     for iface in $(printf '%s\n' "${!IF_HOST[@]}" | sort); do
         [[ "${IF_HOST[$iface]}" != "router" ]] && continue
         local port="${IF_PORT[$iface]}"
+        local mtu="${IF_MTU[$iface]}"
 
         buffer+=$'\n'"# --- ${iface} (Port ${port}) ---"
+        buffer+=$'\n'"ip link set dev ${iface} mtu ${mtu} 2>/dev/null || true"
+
         buffer+=$'\n'"iptables -C INPUT -p udp --dport ${port} -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport ${port} -j ACCEPT"
         buffer+=$'\n'"ip6tables -C INPUT -p udp --dport ${port} -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p udp --dport ${port} -j ACCEPT"
 
@@ -345,13 +377,13 @@ EOF
             [[ "$ifc" != "$iface" ]] && continue
 
             if [[ "$lan" == "1" ]]; then
-                buffer+=$'\n'"$(fw_lan "$iface" "$v4" "$v6")"
+                buffer+=$'\n'"$(fw_lan "$iface" "$v4" "${v6}")"
             else
-                buffer+=$'\n'"$(fw_dns_only "$iface" "$v4" "$v6" "$dns_v4" "$dns_v6")"
+                buffer+=$'\n'"$(fw_dns_only "$iface" "$v4" "${v6}" "$dns_v4" "$dns_v6")"
             fi
 
             if [[ "$acc" == "full" ]]; then
-                buffer+=$'\n'"$(fw_inet "$iface" "$v4" "$v6" "$lan_v4" "$lan_v6")"
+                buffer+=$'\n'"$(fw_inet "$iface" "$v4" "${v6}" "$lan_v4" "$lan_v6")"
                 # NAT66 for IPv6 WAN
                 #buffer+=$'\n'"ip6tables -t nat -C POSTROUTING -s fd89:7a3b:42c0:101::/64 -o eth0 -j MASQUERADE 2>/dev/null || ip6tables -t nat -A POSTROUTING -s fd89:7a3b:42c0:101::/64 -o eth0 -j MASQUERADE"
                 # NAT66 intentionally NOT generated:
@@ -362,8 +394,7 @@ EOF
                 # OD Happy Eyeballs falls back to IPv4 in ~100ms. No black hole, no location leak.
                 # wg7 IPv6 internet is unaffected - it is NAS-terminated and uses NAS NAT66.
             fi
-        done < <(grep -vE '^(#|pubkey)' "$peer_map_local")
-
+        done < <(grep -vE '^(#|pubkey)' "$peer_map_local" || true)
     done
 
     printf "%s\n" "$buffer" > "$tmp"

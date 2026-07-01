@@ -21,22 +21,33 @@ install-router-prefix-watchdog:
 			"" "" "$$real_tmp" \
 			"" "" "$(WATCHDOG_UNIT_DST)" \
 			"$(ROOT_UID)" "$(ROOT_GID)" "0644" || status=$$?; \
-		if [ $$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then changed=1; fi; \
+		\
+		# IFC exit code 3 = "changed" → treat as non-fatal
+		if [ $$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+			changed=1; \
+			status=0; \
+		fi; \
+		\
 		rm -f "$$real_tmp"; \
+		\
 		if [ $$changed -eq 1 ]; then \
 			systemctl daemon-reload; \
-			systemctl enable --now router-prefix-watchdog.service; \
+			systemctl enable --now router-prefix-watchdog.service || true; \
 		else \
 			if ! systemctl is-enabled router-prefix-watchdog.service >/dev/null 2>&1; then \
-				systemctl enable --now router-prefix-watchdog.service; \
+				systemctl enable --now router-prefix-watchdog.service || true; \
 			fi; \
 		fi; \
+		\
 		exit $$status \
 	'; \
 	status=$$?; \
 	rm -f "$$tmp"; \
+	\
+	# Fatal only if status is non-zero AND not IFC "changed"
 	if [ $$status -ne 0 ] && [ $$status -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "❌ IFC fatal error (exit $$status) installing watchdog unit"; \
 		exit $$status; \
 	fi; \
+	\
 	echo "🟢 router-prefix-watchdog active"

@@ -7,7 +7,7 @@ Type=simple
 User=@OPERATOR_USER@
 Group=@PRIMARY_ADMIN_GROUP@
 Environment=REPO_ROOT=@REPO_ROOT@
-ExecStart=@INSTALL_PATH@/router-prefix-watchdog.sh
+ExecStart=@INSTALL_PATH@/homelab-router-prefix-watchdog.sh
 Restart=always
 RestartSec=3
 

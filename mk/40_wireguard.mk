@@ -21,7 +21,7 @@ WG_ROUTER_DIRTY_STAMP := $(STAMP_DIR_ROOT)/wg_router_dirty.stamp
 WG_NAS_DIRTY_STAMP    := $(STAMP_DIR_ROOT)/wg_nas_dirty.stamp
 
 # Explicit interface inventory managed by the control plane
-WG_INTERFACES_NAS    := wg0 wg1 wg2 wg3 wg4 wg5 wg6 wg7 wg8 wg9 wg10 wg11 wg12 wg13 wg14 wg15
+# $(WG_INTERFACES_NAS) is dynamically determined
 WG_INTERFACES_ROUTER := wgs1
 
 .PHONY: \
@@ -36,19 +36,6 @@ WG_INTERFACES_ROUTER := wgs1
     router-wg-health-strict \
     router-wg-audit \
     wg7-validate wg-router-ipv6-probe
-
-ACTUAL_USER := $(or $(SUDO_USER),$(USER))
-# Capture the user context
-# DDA-Compliant: Resolve home directory via system database instead of hardcoded paths
-ACTUAL_HOME := $(or \
-	$(shell getent passwd $(ACTUAL_USER) | cut -d: -f6), \
-	$(HOME) \
-)
-
-export ROUTER_IDENTITY := $(ACTUAL_HOME)/.ssh/id_ed25519
-
-# SSH Multiplexing Config
-SSH_SOCK_FILE := /tmp/ssh-$(ACTUAL_USER)-router-$(ROUTER_SSH_PORT)
 
 # Canonical environment block for router/NAS control-plane operations
 WG_ENV = \
@@ -76,7 +63,22 @@ $(WG_SUBNETS_MK): \
 # Load the generated subnet map into the DAG (optional: tolerate first-run absence)
 -include $(WG_SUBNETS_MK)
 
-wg-generate: $(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh | $(run_as_root)
+WG_INTERFACE_LIST_STAMP := $(STAMP_DIR_ROOT)/wg-interfaces.mk
+
+$(WG_INTERFACE_LIST_STAMP): $(WG_ROOT)/input/wg-interfaces.tsv | $(STAMP_DIR_ROOT)
+	@echo "🔧 Generating dynamic WG interface list..."
+	@awk -F'\t' '$$2=="nas" && $$1!~/^#/ {print $$1}' \
+		$(WG_ROOT)/input/wg-interfaces.tsv \
+		| tr '\n' ' ' \
+		| sed 's/ *$$//' \
+		| awk '{print "WG_INTERFACES_NAS := " $$0}' \
+		> "$(WG_INTERFACE_LIST_STAMP)"
+
+# Load the generated list of interfaces into the DAG (optional: tolerate first-run absence)
+-include $(WG_INTERFACE_LIST_STAMP)
+
+wg-generate: $(WG_INTERFACE_LIST_STAMP) \
+	$(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh | $(run_as_root)
 	@echo "🔍 Staging configuration hash states before generation execution"; \
 	ROUTER_OLD_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_OLD_HASH=""; \
 	DNS_TOPDOMAIN_NAME="$$( $(call WITH_SECRETS, sh -c 'echo "$$ddns_topdomain"') )" \
@@ -84,6 +86,8 @@ wg-generate: $(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-genera
 	NAS_LAN_IP6="$(NAS_LAN_IP6)" \
 	LAN_ROUTER="$(LAN_ROUTER)" \
 	WG_ROOT="$(WG_ROOT)" \
+	OPERATOR_GROUP="$(OPERATOR_GROUP)" \
+	ROUTER_LAN_IFACE="$(ROUTER_LAN_IFACE)" \
 	$(INSTALL_PATH)/wg-generate-configs.sh; \
 	ROUTER_NEW_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_NEW_HASH=""; \
 	if [ "$$ROUTER_OLD_HASH" != "$$ROUTER_NEW_HASH" ]; then \
@@ -93,6 +97,60 @@ wg-generate: $(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-genera
 
 wg-clean-state:
 	@$(WG_SUDO) rm -f "$(WG_SUBNETS_MK)" "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"
+
+.PHONY: wg-check-router-identity
+wg-check-router-identity:
+	@echo "🔍 Checking router WireGuard identity consistency (wgs1)..."; \
+	iface="wgs1"; \
+	keydir="$(WG_ROOT)/keys/servers"; \
+	nas_priv=""; nas_pub=""; router_priv=""; router_pub=""; \
+	\
+	# --- 1. Check NAS authoritative keys ---
+	if [ -f "$$keydir/$$iface.key" ]; then \
+		nas_priv="$$(cat "$$keydir/$$iface.key")"; \
+	else \
+		echo "❌ NAS missing private key: $$keydir/$$iface.key"; \
+		exit 1; \
+	fi; \
+	if [ -f "$$keydir/$$iface.pub" ]; then \
+		nas_pub="$$(cat "$$keydir/$$iface.pub")"; \
+	else \
+		echo "❌ NAS missing public key: $$keydir/$$iface.pub"; \
+		exit 1; \
+	fi; \
+	echo "🟢 NAS authoritative keypair present."; \
+	\
+	# --- 2. Check router NVRAM identity ---
+	router_priv="$$(ssh "$(SSH_HOST_ROUTER)" 'nvram get wgs1_priv 2>/dev/null || true')"; \
+	router_pub="$$(ssh "$(SSH_HOST_ROUTER)" 'nvram get wgs1_pub 2>/dev/null || true')"; \
+	if [ -z "$$router_priv" ] || [ -z "$$router_pub" ]; then \
+		echo "❌ Router missing NVRAM identity (wgs1_priv / wgs1_pub)."; \
+		exit 1; \
+	fi; \
+	echo "🟢 Router NVRAM identity present."; \
+	\
+	# --- 3. Compare NAS ↔ Router public keys ---
+	if [ "$$nas_pub" != "$$router_pub" ]; then \
+		echo "❌ Drift detected: NAS public key != Router NVRAM public key"; \
+		echo "NAS:     $$nas_pub"; \
+		echo "Router:  $$router_pub"; \
+		exit 1; \
+	fi; \
+	echo "🟢 NAS ↔ Router public keys match."; \
+	\
+	# --- 4. Check server config correctness ---
+	server_conf="$(WG_OUTPUT_ROUTER)/$$iface.conf"; \
+	if [ ! -f "$$server_conf" ]; then \
+		echo "❌ Missing router server config: $$server_conf"; \
+		exit 1; \
+	fi; \
+	conf_priv="$$(grep -E '^PrivateKey' "$$server_conf" 2>/dev/null | awk '{print $$3}' || true)"; \
+
+	if [ "$$conf_priv" != "$$nas_priv" ]; then \
+		echo "❌ Drift detected: server config PrivateKey != NAS authoritative key"; \
+		exit 1; \
+	fi; \
+	echo "🟢 Server config embeds correct NAS authoritative private key.";
 
 # --- Router Setup ---
 router-ensure-wg-module: router-install-scripts
@@ -140,7 +198,8 @@ wg-clean-out: wg-down-router wg-down-nas wg-clean-state
 	@$(WG_SUDO) rm -f "$(INSTALL_PATH)/wgctl.sh" \
 					"$(INSTALL_PATH)/wg-generate-configs.sh" \
 					"$(INSTALL_PATH)/wg-readiness-probe.sh"
-	@rm -f "$(SSH_SOCK_FILE)"
+	@ssh -O exit "$(SSH_HOST_ROUTER)" 2>/dev/null || true;
+	@rm -f "$(SSH_SOCK_FILE_ROUTER)"
 	@echo "🧹 Cleaning remote router scripts"
 	@ssh "$(SSH_HOST_ROUTER)" "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
 
@@ -151,7 +210,7 @@ router-firewall: | wg-generate
 		umask 077; \
 		cat "$(WG_FIREWALL)" > "$(TMP_ROUTER_WG_FIREWALL)"; \
 		FEC=0; \
-		SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
+		SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
 		$(INSTALL_FILE_IF_CHANGED) "-q" \
 			"" "" "$(TMP_ROUTER_WG_FIREWALL)" \
 			$(ROUTER_HOST) $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
@@ -193,7 +252,7 @@ wg-install-router: router-ensure-wg-module \
 	if [ "$$EXECUTE_DEPLOY" -eq 1 ]; then \
 		echo "🚀 Executing router control plane tunnel provision..."; \
 		EC=0; \
-		SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
+		SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
 		$(WG_ENV) \
 		ROUTER_CONTROL_PLANE=1 \
 		$(INSTALL_PATH)/wgctl.sh router install-up || EC=$$?; \
@@ -239,7 +298,7 @@ wg-install-nas: $(INSTALL_PATH)/wgctl.sh \
 # Bring up WireGuard on the router (creates wgs1, applies config)
 # --------------------------------------------------------------------
 wg-up-router: wg-install-router
-	@SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
+	@SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
 	$(WG_ENV) \
 	ROUTER_CONTROL_PLANE=1 \
 	$(INSTALL_PATH)/wgctl.sh router up
@@ -260,7 +319,7 @@ wg-down-nas:
 		$(INSTALL_PATH)/wgctl.sh nas down
 
 wg-down-router:
-	@SSH_CONTROL_PATH="$(SSH_SOCK_FILE)" \
+	@SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
 		$(WG_ENV) \
 		ROUTER_CONTROL_PLANE=1 \
 		$(INSTALL_PATH)/wgctl.sh router down
@@ -313,9 +372,14 @@ wg7-validate:
 		&& echo "   ✅ wg7 interface present" \
 		|| { echo "   ❌ wg7 interface missing — run: make wg-install-nas"; exit 1; }; \
 	echo "🔍 [wg7] Step 2/5 — IPv4 connectivity (NAS → wg7 server addr)..."; \
-	ping -c2 -W2 "$$($(WG_SUDO) wg show wg7 | awk '/address:/{print $$2}' | cut -d/ -f1)" >/dev/null 2>&1 \
-		&& echo "   ✅ wg7 IPv4 self-ping OK" \
-		|| echo "   ⚠️  wg7 IPv4 self-ping failed (interface may be up but unconfigured)"; \
+	wg7_ip="$$( $(WG_SUDO) wg show wg7 2>/dev/null | awk '/address:/{print $$2}' | cut -d/ -f1 )"; \
+	if [ -n "$$wg7_ip" ]; then \
+		ping -c2 -W2 "$$wg7_ip" >/dev/null 2>&1 \
+			&& echo "   ✅ wg7 IPv4 self-ping OK" \
+			|| echo "   ⚠️  wg7 IPv4 self-ping failed (interface may be up but unconfigured)"; \
+	else \
+		echo "   ⚠️  wg7 has no assigned IP address (config mismatch?)"; \
+	fi; \
 	echo "🔍 [wg7] Step 3/5 — NAS eth0 global IPv6 (NAT66 egress prerequisite)..."; \
 	$(WG_SUDO) ip -6 addr show dev eth0 scope global | grep -q 'inet6' \
 		&& echo "   ✅ NAS eth0 has a global IPv6 address" \
