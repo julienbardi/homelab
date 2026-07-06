@@ -91,7 +91,7 @@ converge-network: check-forwarding \
 converge-router-prefix: $(STAMP_DIR_ROOT) router-converge $(ROUTER_PREFIX_MARKER)
 	@echo "🌐 Router prefix changed — router DAG converged"
 	@rm -f $(ROUTER_PREFIX_MARKER)
-	@echo "🧹 Marker consumed"
+	@echo " Marker consumed"
 
 # ------------------------------------------------------------
 # WireGuard convergence DAG
@@ -169,7 +169,7 @@ runtime-diff: prefix-bootstrap
 	  fi; \
 	done; \
 	\
-	# If no drift → done \
+	# If no drift ➡️ done \
 	if ! $(run_as_root) sh -c '[ -s "$$1" ]' _ "$$difffile"; then \
 	  echo "♻️  Runtime network state already converged"; \
 	  exit 0; \
@@ -181,7 +181,7 @@ runtime-diff: prefix-bootstrap
 	# ------------------------------------------------------------
 	# Drift cause classification (non-authoritative, best-effort)
 	# ------------------------------------------------------------
-	echo "🔎 Classifying drift cause..."; \
+	echo "🔍 Classifying drift cause..."; \
 	cause="unknown"; \
 	\
 	# Case A: nftables reload or firewall re-apply
@@ -211,12 +211,12 @@ runtime-diff: prefix-bootstrap
 	\
 	# Emit classification
 	case "$$cause" in \
-		firewall_reload)        echo "   → Cause: firewall reload (nftables)";; \
-		sysctl_reload)          echo "   → Cause: sysctl reload (kernel parameters)";; \
-		router_prefix_watchdog) echo "   → Cause: router-prefix-watchdog activity";; \
-		interface_bounce)       echo "   → Cause: interface bounce (link flap)";; \
-		headscale_restart)      echo "   → Cause: headscale restart";; \
-		*)                      echo "   → Cause: unknown (no matching signals)";; \
+		firewall_reload)        echo "   ➡️ Cause: firewall reload (nftables)";; \
+		sysctl_reload)          echo "   ➡️ Cause: sysctl reload (kernel parameters)";; \
+		router_prefix_watchdog) echo "   ➡️ Cause: router-prefix-watchdog activity";; \
+		interface_bounce)       echo "   ➡️ Cause: interface bounce (link flap)";; \
+		headscale_restart)      echo "   ➡️ Cause: headscale restart";; \
+		*)                      echo "   ➡️ Cause: unknown (no matching signals)";; \
 	esac; \
 	\
 	# ------------------------------------------------------------ \
@@ -274,18 +274,18 @@ runtime-diff: prefix-bootstrap
 	rm -f "$$tmp_before" "$$tmp_after" >/dev/null 2>&1 || true; \
 	fi; \
 	\
-	# If any suppression applied → skip error \
+	# If any suppression applied ➡️ skip error \
 	if [ "$$continue_flag" = "1" ]; then \
 	  echo "♻️  Runtime network state already converged (after suppression)"; \
 	  exit 0; \
 	fi; \
 	\
 	# ------------------------------------------------------------ \
-	# Real drift → require FORCE=1 \
+	# Real drift ➡️ require FORCE=1 \
 	# ------------------------------------------------------------ \
 	if [ "$(FORCE)" != "1" ]; then \
 	  echo ""; \
-	  echo "👉 Re-run with:"; \
+	  echo "➡️ Re-run with:"; \
 	  echo "   sudo FORCE=1 make all"; \
 	  exit 1; \
 	fi; \
@@ -334,13 +334,13 @@ network-status:
 			$(run_as_root) nft list table inet homelab_filter; \
 		else \
 			echo "❌ nftables table 'inet homelab_filter' does not exist"; \
-			echo "👉 Run: sudo make nft-apply"; \
+			echo "➡️ Run: sudo make nft-apply"; \
 		fi; \
 		if $(run_as_root) nft list tables | grep -q 'ip homelab_nat'; then \
 			$(run_as_root) nft list table ip homelab_nat; \
 		else \
 			echo "❌ nftables table 'ip homelab_nat' does not exist"; \
-			echo "👉 Run: sudo make nft-apply"; \
+			echo "➡️ Run: sudo make nft-apply"; \
 		fi; \
 	}
 
@@ -359,19 +359,19 @@ nft-verify: check-forwarding
 		echo "   converge-network only verifies firewall state"; \
 		echo "   firewall has never been applied on this host"; \
 		echo ""; \
-		echo "👉 First-time setup required:"; \
+		echo "➡️ First-time setup required:"; \
 		echo "   sudo make nft-apply && sudo make nft-confirm"; \
 		exit 1; \
 	fi
 	@if [ ! -f "$(HOMELAB_NFT_HASH_FILE)" ]; then \
 		echo "❌ No recorded applied hash found: $(HOMELAB_NFT_HASH_FILE)"; \
-		echo "👉 Firewall was never applied intentionally"; \
-		echo "👉 Run: make nft-apply && make nft-confirm"; \
+		echo "➡️ Firewall was never applied intentionally"; \
+		echo "➡️ Run: make nft-apply && make nft-confirm"; \
 		exit 1; \
 	fi
 	@if [ ! -s "$(HOMELAB_NFT_HASH_FILE)" ]; then \
 		echo "❌ Recorded nftables hash is empty"; \
-		echo "👉 Run: make nft-apply && make nft-confirm"; \
+		echo "➡️ Run: make nft-apply && make nft-confirm"; \
 		exit 1; \
 	fi
 	@current=$$($(run_as_root) sha256sum "$(HOMELAB_NFT_RULESET)" | awk '{print $$1}'); \
@@ -380,7 +380,7 @@ nft-verify: check-forwarding
 		echo "❌ nftables drift detected (homelab.nft changed since last apply)"; \
 		echo "   Recorded: $$recorded"; \
 		echo "   Current:  $$current"; \
-		echo "👉 Review and run: make nft-apply && make nft-confirm"; \
+		echo "➡️ Review and run: make nft-apply && make nft-confirm"; \
 		exit 1; \
 	fi
 	@echo "♻️  nftables ruleset matches recorded applied state"

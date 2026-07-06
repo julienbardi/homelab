@@ -53,7 +53,7 @@ sops-init:
 
 .PHONY: secrets-status
 secrets-status:
-	@echo "🔎 Secrets subsystem status"
+	@echo "🔍 Secrets subsystem status"
 	@echo "  USER: $(shell id -un)"
 	@echo "  FILE: $(SECRETS_FILE)"
 	@echo "  BASE: $(HOMELAB_RUNTIME_USER)/secrets"
@@ -61,8 +61,8 @@ secrets-status:
 	@echo "🔒 Lock state:"
 	@if [ -d "$(SECRETS_LOCK)" ]; then \
 		echo "  LOCKED"; \
-		[ -f "$(SECRETS_LOCK_PID)" ] && echo "  PID → $$(cat $(SECRETS_LOCK_PID))"; \
-		[ -f "$(SECRETS_LOCK_TS)" ] && echo "  TS  → $$(cat $(SECRETS_LOCK_TS))"; \
+		[ -f "$(SECRETS_LOCK_PID)" ] && echo "  PID ➡️ $$(cat $(SECRETS_LOCK_PID))"; \
+		[ -f "$(SECRETS_LOCK_TS)" ] && echo "  TS  ➡️ $$(cat $(SECRETS_LOCK_TS))"; \
 	else \
 		echo "  UNLOCKED"; \
 	fi
@@ -85,11 +85,11 @@ secrets-dump:
 
 .PHONY: secrets-verify
 secrets-verify: $(YQ_STAMP)
-	@echo "🔎 Verifying secrets integrity"
+	@echo "🔍 Verifying secrets integrity"
 	@echo "  • Checking encrypted file exists..."
 	@if [ ! -f "$(SECRETS_FILE)" ]; then \
 		echo "❌ Missing: $(SECRETS_FILE)"; \
-		echo "👉 To initialize a new encrypted secrets file:"; \
+		echo "➡️ To initialize a new encrypted secrets file:"; \
 		echo "   SOPS_AGE_KEY_FILE=$(SOPS_AGE_KEY_FILE) $(SOPS_BIN) $(SECRETS_FILE)"; \
 		exit 1; \
 	fi
@@ -150,7 +150,7 @@ secrets-ready:
 
 .PHONY: check-age-key
 check-age-key: ensure-authorized-admin
-	@echo "🔎 Checking system AGE key (/etc/sops/keys/age.key)"
+	@echo "🔍 Checking system AGE key (/etc/sops/keys/age.key)"
 
 	@{ \
 		key="/etc/sops/keys/age.key"; \
@@ -160,7 +160,7 @@ check-age-key: ensure-authorized-admin
 		fi; \
 		info="$$(stat -c '%a %U %G' "$$key" 2>/dev/null || echo MISSING)"; \
 		if [ "$$info" != "640 root admin" ]; then \
-			echo "⚠️  AGE key permissions drifted ($$info → fixing)"; \
+			echo "⚠️  AGE key permissions drifted ($$info ➡️ fixing)"; \
 			$(run_as_root) sh -c "chown root:admin \"$$key\" && chmod 640 \"$$key\""; \
 			info="$$(stat -c '%a %U %G' "$$key")"; \
 			echo "🛠️  Permissions set to $$info"; \
@@ -281,7 +281,7 @@ test-infomaniak-txt-dryrun:
 		domain="bardi.ch"; \
 		name="_acme-challenge.dryrun"; \
 		value="homelab-dryrun-$$RANDOM"; \
-		echo "🟦 Creating TXT: $$name → $$value"; \
+		echo "🟦 Creating TXT: $$name ➡️ $$value"; \
 		resp=$$(curl -s -X POST \
 			-H "Authorization: Bearer $$INFOMANIAK_API_TOKEN" \
 			-H "Content-Type: application/json" \

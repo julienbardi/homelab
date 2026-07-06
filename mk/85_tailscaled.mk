@@ -102,7 +102,7 @@ tailscaled-wan: tailscaled-check-deps
 # Install and enable services at boot
 # --------------------------------------------------------------------
 enable-tailscaled:
-	@echo "🧩 Installing systemd role units"
+	@echo "🔧 Installing systemd role units"
 	@$(run_as_root) install -o root -g root -m 644 \
 		$(SYSTEMD_SRC_DIR)/tailscaled-lan.service \
 		$(SYSTEMD_DIR)/tailscaled-lan.service
@@ -131,13 +131,13 @@ tailscaled-status: install-pkg-vnstat
 	fi
 	@echo "🔍 tailscaled health + stats"
 	@echo "📦 daemon:"; $(run_as_root) systemctl is-active tailscaled || echo "❌ inactive"
-	@echo "🧩 role unit:"; $(run_as_root) systemctl is-enabled tailscaled-lan.service || echo "❌ not enabled"
+	@echo "🔧 role unit:"; $(run_as_root) systemctl is-enabled tailscaled-lan.service || echo "❌ not enabled"
 	@echo "📊 connected nodes:"; $(run_as_root) $(TS_BIN) status | awk '{print $$1, $$2, $$3}'
 	@echo "📊 monthly traffic:"; vnstat -i tailscale0 -m || true
-	@echo "⚡ connection events (1h):"; \
+	@echo "⚙️ connection events (1h):"; \
 		$(run_as_root) journalctl -u tailscaled --since "1 hour ago" \
 		| grep -i connection | wc -l | xargs echo "events"
-	@echo "📄 versions:"
+	@echo "📋 versions:"
 	@echo "    CLI:"; $(TS_BIN) version || true
 	@echo "    Daemon:"; $(run_as_root) tailscaled --version || true
 

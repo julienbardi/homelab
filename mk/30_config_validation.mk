@@ -32,11 +32,11 @@ check-public-dns:
 		cname=$$(dig @1.1.1.1 $$host CNAME +short | sed '/^$$/d'); \
 		if [ -z "$$cname" ]; then \
 			echo "❌ $$host must resolve to exactly one CNAME record"; \
-			echo "👉 Define public DNS CNAME in Infomaniak"; exit 1; \
+			echo "➡️ Define public DNS CNAME in Infomaniak"; exit 1; \
 		fi; \
 		if printf "%s" "$$cname" | grep -vqE '\.bardi\.ch\.?$$'; then \
 			echo "❌ $$host CNAME target is incorrect: $$cname"; \
-			echo "👉 Must point to canonical *.bardi.ch target"; \
+			echo "➡️ Must point to canonical *.bardi.ch target"; \
 			exit 1; \
 		fi; \
 	done
@@ -54,7 +54,7 @@ check-caddy-internal-hosts:
 	for host in $$hosts; do \
 		if ! grep -qx "$$host" $(CADDY_INTERNAL_HOSTS_FILE); then \
 			echo "❌ $$host is internal but not restricted in Caddy"; \
-			echo "👉 Add it to $(CADDY_INTERNAL_HOSTS_FILE)"; \
+			echo "➡️ Add it to $(CADDY_INTERNAL_HOSTS_FILE)"; \
 			exit 1; \
 		fi; \
 	done
@@ -81,7 +81,7 @@ dns-postflight: \
 	check-dnsdist-doh-local
 
 check-unbound-internal-resolution:
-	@echo "🧩 Verifying Unbound resolves internal hosts to private IPs"
+	@echo "🔧 Verifying Unbound resolves internal hosts to private IPs"
 	@command -v dig >/dev/null || \
 		( echo "❌ dig not available"; exit 1 )
 	@test -f $(CADDY_INTERNAL_HOSTS_SRC) || \

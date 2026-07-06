@@ -170,7 +170,7 @@ deploy_caddy() {
     run_as_root mkdir -p "$SSL_DEPLOY_DIR_CADDY"
 
     if ! service_exists caddy; then
-        log "📍 caddy not installed — skipping"
+        log " caddy not installed — skipping"
         return 0
     fi
 

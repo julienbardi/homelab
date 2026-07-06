@@ -249,7 +249,7 @@ Address = ${ipv4}/32, ${ipv6}/128
 DNS = $(
     case "$os" in
         android|iphone)
-            # Mobile-safe DNS: pure IPs only, fastest-first (NAS IPv6 → Router IPv4)
+            # Mobile-safe DNS: pure IPs only, fastest-first (NAS IPv6 ➡️ Router IPv4)
             echo "${WG_DNS_NAS_IPV6}, ${WG_DNS_ROUTER_IPV4}"
             ;;
         *)

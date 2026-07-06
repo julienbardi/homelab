@@ -84,5 +84,5 @@ apt-proxy-auto-status:
 	@echo "🔍 apt-proxy-auto status"
 	@$(run_as_root) systemctl is-active --quiet apt-proxy-auto.timer || \
 		( echo "❌ apt-proxy-auto.timer not active"; exit 1 )
-	@echo "📄 Current APT proxy config (/etc/apt/apt.conf.d/01proxy):"
+	@echo "📋 Current APT proxy config (/etc/apt/apt.conf.d/01proxy):"
 	@$(run_as_root) sh -c 'test -f /etc/apt/apt.conf.d/01proxy && cat /etc/apt/apt.conf.d/01proxy || echo "(absent -> direct mirrors)"'

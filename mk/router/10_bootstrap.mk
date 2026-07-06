@@ -132,7 +132,7 @@ router-bootstrap: \
 
 .PHONY: ensure-router-ula
 ensure-router-ula: secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)
-	@echo "🧩 Ensuring router ULA ($(ROUTER_ULA_VALUE))"
+	@echo "🔧 Ensuring router ULA ($(ROUTER_ULA_VALUE))"
 
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_ULA)", \
 		$(call WITH_SECRETS, sh -c '\
@@ -259,21 +259,21 @@ router-scripts-invariants: | router-ssh-check
 		if [ -d /jffs/scripts ]; then \
 			/jffs/scripts/run-as-root chown -R julie:root /jffs/scripts; \
 			\
-			# Hook scripts (executed by AsusWRT) → 755 \
+			# Hook scripts (executed by AsusWRT) ➡️ 755 \
 			for f in services-start firewall-start wan-event dnsmasq-ready.sh wg-firewall.sh; do \
 				if [ -f /jffs/scripts/$$f ]; then \
 					/jffs/scripts/run-as-root chmod 755 /jffs/scripts/$$f; \
 				fi; \
 			done; \
 			\
-			# Control-plane scripts → 700 \
+			# Control-plane scripts ➡️ 700 \
 			for f in ipv6-watchdog.sh wan-reset.sh common.sh homelab-prefix-watchdog.sh; do \
 				if [ -f /jffs/scripts/$$f ]; then \
 					/jffs/scripts/run-as-root chmod 700 /jffs/scripts/$$f; \
 				fi; \
 			done; \
 			\
-			# State files → 600 \
+			# State files ➡️ 600 \
 			for f in .ipv6_watchdog_state dhcp6c-state; do \
 				if [ -f /jffs/scripts/$$f ]; then \
 					/jffs/scripts/run-as-root chmod 600 /jffs/scripts/$$f; \

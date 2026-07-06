@@ -27,4 +27,4 @@ echo "🔍 secrets changed — running scan"
 
 # Update stamp
 printf '%s\n' "$current_hash" > "$STAMP"
-echo "🆗 secrets stamp updated"
+echo "🟢 secrets stamp updated"

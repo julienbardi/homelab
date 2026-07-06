@@ -13,7 +13,7 @@ ACL_DST ?= /etc/headscale/acl.json
 
 .PHONY: headscale-acls
 headscale-acls: $(ACL_SRC)
-	@echo "🛂 Validating and Installing headscale ACL policy..."
+	@echo "🛡️ Validating and Installing headscale ACL policy..."
 	@# Corrected flag from --policy to --file
 	@$(run_as_root) headscale policy check --file $(ACL_SRC) || { echo "❌ ACL validation failed"; exit 1; }
 	@# Install with change tracking

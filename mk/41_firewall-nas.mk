@@ -25,7 +25,7 @@ $(if $(wildcard $(IP6TABLES)),,$(error ip6tables not found at $(IP6TABLES)))
 ifneq ($(strip $(ROUTER_WG_SUBNET6)),)
 
 firewall-nas: /var/lib/homelab/wg-subnets.mk
-	@echo "🔥 Allowing router-terminated WireGuard clients to access NAS"
+	@echo "🔓 Allowing router-terminated WireGuard clients to access NAS"
 
 	@if ! $(run_as_root) $(IPTABLES) -C INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT 2>/dev/null; then \
 		  $(run_as_root) $(IPTABLES) -I INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT; \
@@ -46,7 +46,7 @@ firewall-nas: /var/lib/homelab/wg-subnets.mk
 else
 
 firewall-nas: /var/lib/homelab/wg-subnets.mk
-	@echo "🔥 Allowing router-terminated WireGuard clients to access NAS (IPv4 only)"
+	@echo "🔓 Allowing router-terminated WireGuard clients to access NAS (IPv4 only)"
 
 	@if ! $(run_as_root) $(IPTABLES) -C INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT 2>/dev/null; then \
 		  $(run_as_root) $(IPTABLES) -I INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT; \

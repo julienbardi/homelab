@@ -22,14 +22,14 @@ apt-uninstall-installed: | $(run_as_root)
 		[ -z "$$REAL" ] && REAL="$$pkg"; \
 		printf "📦 Removing %-25s (pkg: %-20s) ... " "$$pkg" "$$REAL"; \
 		if $(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get remove -y "$$REAL" >/dev/null 2>&1; then \
-			echo "OK ✔"; \
+			echo "OK ✅"; \
 		else \
 			echo "not installed or failed"; \
 		fi; \
 	done; \
-	echo "🧹 Autoremoving leftover dependencies"; \
+	echo " Autoremoving leftover dependencies"; \
 	$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get autoremove -y >/dev/null 2>&1 || true; \
-	echo "🔎 Done."
+	echo "🔍 Done."
 
 
 # ------------------------------------------------------------
@@ -215,7 +215,7 @@ assert-scripts-layout:
 		echo "❌ Layout Violation: Unexpected executable scripts found:"; \
 		echo "$$bad" | sed 's/^/   - /'; \
 		echo ""; \
-		echo "👉 Scripts must be organized into functional subdirectories."; \
+		echo "➡️ Scripts must be organized into functional subdirectories."; \
 		exit 1; \
 	fi
 

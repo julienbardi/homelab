@@ -69,7 +69,7 @@ YQ_LATEST_CACHE := $(YQ_DIR).yq_latest_tag
 
 .PHONY: check-yq-latest
 check-yq-latest:
-	@echo "🔎 checking latest yq release for $(YQ_GITHUB_REPO)"
+	@echo "🔍 checking latest yq release for $(YQ_GITHUB_REPO)"
 	@$(WITH_SECRETS) \
 		if [ "$${CI:-}" = "true" ]; then \
 			echo "ℹ️ CI detected; skipping check-yq-latest"; \
@@ -101,7 +101,7 @@ install-yq: | $(YQ_DIR) $(INSTALL_PATH)/install_github_asset.sh
 
 $(YQ_STAMP): install-yq
 	@test -f "$@" || { echo "ERROR: expected stamp $@ missing"; exit 1; }
-	@echo "📄 yq installed — stamp updated: $@"
+	@echo "📋 yq installed — stamp updated: $@"
 
 # ------------------------------------------------------------
 # System tool requirements

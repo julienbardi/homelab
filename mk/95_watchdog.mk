@@ -22,7 +22,7 @@ install-router-prefix-watchdog:
 			"" "" "$(WATCHDOG_UNIT_DST)" \
 			"$(ROOT_UID)" "$(ROOT_GID)" "0644" || status=$$?; \
 		\
-		# IFC exit code 3 = "changed" → treat as non-fatal
+		# IFC exit code 3 = "changed" ➡️ treat as non-fatal
 		if [ $$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 			changed=1; \
 			status=0; \

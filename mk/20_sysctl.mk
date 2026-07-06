@@ -58,7 +58,7 @@ endef
 
 define set_ipv6_token
 { \
-	echo "📍 Checking IPv6 ULA address convergence ($(NAS_LAN_IP6))..."; \
+	echo " Checking IPv6 ULA address convergence ($(NAS_LAN_IP6))..."; \
 	for iface in eth0; do \
 		if [ -d "/sys/class/net/$$iface" ]; then \
 			if ip -6 addr show dev $$iface scope global | grep -q " $(NAS_LAN_IP6)/"; then \

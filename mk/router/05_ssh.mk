@@ -15,7 +15,7 @@ export ROUTER_BOOTSTRAP ?=
 
 .PHONY: router-ssh-check
 router-ssh-check: install-ssh-config
-	@echo "🔎 Checking router SSH ($(SSH_USER_ROUTER)@$(ROUTER_ADDR):$(ROUTER_SSH_PORT))"
+	@echo "🔍 Checking router SSH ($(SSH_USER_ROUTER)@$(ROUTER_ADDR):$(ROUTER_SSH_PORT))"
 
 	# 1. Dependency check
 	@command -v nc >/dev/null 2>&1 || { \
@@ -46,13 +46,13 @@ router-require-run-as-root: | router-ssh-check
 	# Skip check during bootstrap
 	@if [ "$(ROUTER_BOOTSTRAP)" = "1" ]; then exit 0; fi
 
-	@echo "🔎 Checking router run-as-root helper"
+	@echo "🔍 Checking router run-as-root helper"
 
 	@ssh "$(SSH_HOST_ROUTER)" \
 		'test -x /jffs/scripts/run-as-root' >/dev/null 2>&1 || { \
 			echo "❌ run-as-root missing on router"; \
 			echo "ℹ️  Router helpers not installed"; \
-			echo "📍 Recovery: make router-bootstrap"; \
+			echo " Recovery: make router-bootstrap"; \
 			exit 1; \
 		}
 

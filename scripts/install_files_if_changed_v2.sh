@@ -3,8 +3,8 @@
 # scripts/install_files_if_changed_v2.sh
 # --------------------------------------------------------------------
 # Vectorized IFC wrapper with batched drift detection.
-# If all remote files match all local files → exit 0 immediately.
-# Otherwise → call install_files_if_changed_v2 (per-file IFC).
+# If all remote files match all local files ➡️ exit 0 immediately.
+# Otherwise ➡️ call install_files_if_changed_v2 (per-file IFC).
 # --------------------------------------------------------------------
 
 # 1. Locate and source common.sh
@@ -108,7 +108,7 @@ REMOTE_COMBINED_HASH="$(
 # 6. Fast-path: skip IFC if hashes match
 # --------------------------------------------------------------------
 if [ "$LOCAL_COMBINED_HASH" = "$REMOTE_COMBINED_HASH" ]; then
-    # No drift → no file changed
+    # No drift ➡️ no file changed
     exit 0
 fi
 

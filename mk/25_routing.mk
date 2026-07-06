@@ -47,7 +47,7 @@ ensure-default-route:
 	if [ "$$current_gw" != "$(LAN_ROUTER)" ]; then \
 		echo "⚠️  IPv4 default route drift detected: $$current_gw (dev $$current_dev)"; \
 		if [ "$(FORCE)" != "1" ]; then \
-			echo "👉 Re-run with: FORCE=1 make homelab-all"; \
+			echo "➡️ Re-run with: FORCE=1 make homelab-all"; \
 			exit 1; \
 		fi; \
 		echo "🔧 Forcing IPv4 default route to $(LAN_ROUTER)"; \
@@ -91,7 +91,7 @@ ensure-default-route:
 # IPv6 default route — learned via RA from the router.
 # Requires net.ipv6.conf.eth0.accept_ra = 2 (see mk/20_sysctl.mk).
 # Without accept_ra=2, forwarding=1 suppresses RA reception and this
-# route never appears → IPv6 black hole for all wgN clients.
+# route never appears ➡️ IPv6 black hole for all wgN clients.
 # ------------------------------------------------------------
 
 ensure-ipv6-default-route:

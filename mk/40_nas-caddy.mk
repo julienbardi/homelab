@@ -16,7 +16,7 @@ nas-caddy: gitcheck nas-assert-caddy-ports-free deploy-caddy
 	$(run_as_root) chown -R root:caddy /etc/ssl/caddy; \
 	$(run_as_root) chmod 750 /etc/ssl/caddy; \
 	$(run_as_root) chmod 640 /etc/ssl/caddy/bardi.ch.cer /etc/ssl/caddy/bardi.ch.key; \
-	echo "📄⬇️ Installing Caddyfile"; \
+	echo "📋⬇️ Installing Caddyfile"; \
 	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
 	changed=0; \
 	rc=0; \
@@ -38,7 +38,7 @@ nas-caddy: gitcheck nas-assert-caddy-ports-free deploy-caddy
 		exit 1; \
 	fi; \
 	VERSION=$$("$(NAS_CADDY_BIN)" version); \
-	echo "✔ Caddy verified with rate_limit plugin: $$VERSION"; \
+	echo "✅ Caddy verified with rate_limit plugin: $$VERSION"; \
 	echo "version=$$VERSION installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		| $(run_as_root) tee "$(NAS_STAMP_CADDY)" >/dev/null; \
 	\
@@ -66,14 +66,14 @@ nas-caddy: gitcheck nas-assert-caddy-ports-free deploy-caddy
 nas-caddy-validate:
 	@if ! sudo [ -f /etc/ssl/caddy/bardi.ch.cer ]; then \
 	  echo "⚠️ Certs missing (/etc/ssl/caddy/bardi.ch.cer); skipping full validation"; \
-	  echo "👉 Run 'make deploy-caddy' or 'make caddy' once to install certs."; \
+	  echo "➡️ Run 'make deploy-caddy' or 'make caddy' once to install certs."; \
 	  exit 0; \
 	fi
 	@echo "🔍 Validating Caddyfile"
 	@sudo "$(NAS_CADDY_BIN)" validate --config "$(SRC_NAS_CADDYFILE)"
 
 nas-caddy-fmt:
-	@echo "🧹 Formatting Caddyfile"
+	@echo " Formatting Caddyfile"
 	@sudo "$(NAS_CADDY_BIN)" fmt --overwrite "$(SRC_NAS_CADDYFILE)"
 
 .PHONY: nas-assert-caddy-ports-free
@@ -83,14 +83,14 @@ nas-assert-caddy-ports-free:
 		echo "❌ ERROR: Port 80 or 443 is already in use:"; \
 		echo "$$conflict"; \
 		echo ""; \
-		echo "👉 UGOS nginx is likely still redirecting these ports."; \
+		echo "➡️ UGOS nginx is likely still redirecting these ports."; \
 		echo ""; \
 		echo "Please go to:"; \
 		echo "  Control Panel -> Device Connection -> Portal Settings"; \
 		echo ""; \
 		echo "Then DISABLE:"; \
-		echo "  ☐ Redirect port 80 to HTTP port"; \
-		echo "  ☐ Redirect port 443 to HTTPS port"; \
+		echo "   Redirect port 80 to HTTP port"; \
+		echo "   Redirect port 443 to HTTPS port"; \
 		echo ""; \
 		echo "Apply the settings, then re-run:"; \
 		echo "  make caddy"; \

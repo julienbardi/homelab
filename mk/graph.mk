@@ -108,7 +108,7 @@ include $(REPO_ROOT)/mk/99_lint.mk
 bootstrap: sanity security-bootstrap acme-bootstrap install-pkg-sops ensure-known-hosts check-secrets-src
 	@echo "------------------------------------------------------------"
 	@echo "✅ GLOBAL BOOTSTRAP COMPLETE"
-	@echo "📍 Next Step: make all"
+	@echo " Next Step: make all"
 	@echo "------------------------------------------------------------"
 
 # ============================================================
@@ -133,12 +133,12 @@ ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
 .PHONY: gitcheck update
 gitcheck:
 	$(call git_clone_or_fetch,$(REPO_ROOT),$(HOMELAB_REPO),main)
-	@echo "📍 homelab repo at commit $$(git -C $(REPO_ROOT) rev-parse --short HEAD)"
+	@echo " homelab repo at commit $$(git -C $(REPO_ROOT) rev-parse --short HEAD)"
 
 update: gitcheck
 	@echo "⬆️ Updating homelab repo"
 	@git -C $(REPO_ROOT) pull --rebase || true
-	@echo "🧬 Repo now at commit $$(git -C $(REPO_ROOT) rev-parse --short HEAD)"
+	@echo "🔧 Repo now at commit $$(git -C $(REPO_ROOT) rev-parse --short HEAD)"
 
 .PHONY: all gen0 gen1 gen2 deps install-go remove-go install-checkmake remove-checkmake
 .PHONY: test logs clean-soft
@@ -146,7 +146,7 @@ update: gitcheck
 .PHONY: clean
 clean:
 	@$(run_as_root) sh -c '\
-		echo "🧹 Removing tailscaled role units"; \
+		echo " Removing tailscaled role units"; \
 		systemctl disable tailscaled-lan.service >/dev/null 2>&1 || true; \
 		rm -f /etc/systemd/system/tailscaled-lan.service || true; \
 		systemctl daemon-reload >/dev/null 2>&1; \
@@ -171,7 +171,7 @@ restart:
 	'
 
 test: logs
-	@echo "🧩 Running run_as_root harness"
+	@echo "🔧 Running run_as_root harness"
 	@$(run_as_root) bash $(INSTALL_PATH)/test_run_as_root.sh
 
 .PHONY: headscale-stack
@@ -179,7 +179,7 @@ headscale-stack: \
 	headscale \
 	headscale-users \
 	headscale-acls
-	@echo "🧠 Headscale control plane ready"
+	@echo "🔧 Headscale control plane ready"
 
 .PHONY: tailscaled
 
@@ -190,7 +190,7 @@ tailscaled: \
 	start-tailscaled \
 	tailscaled-status
 	@COMMIT_HASH=$$(git -C $(REPO_ROOT) rev-parse --short HEAD); \
-		echo "🧬 Completed tailscaled orchestration at commit $$COMMIT_HASH"
+		echo "🔧 Completed tailscaled orchestration at commit $$COMMIT_HASH"
 
 .PHONY: install-nft-apply nft-apply nft-confirm nft-install nft-status nft-install nft-verify nft-install-rollback
 .NOTPARALLEL: nft-confirm nft-apply
@@ -207,7 +207,7 @@ nft-apply: install-nft-apply nft-sync
 		echo "🔧 Applying nftables ruleset"; \
 		$(INSTALL_PATH)/homelab-nft-apply.sh >/dev/null 2>&1 || true; \
 		sha256sum "$(HOMELAB_NFT_RULESET)" | awk "{print \$$1}" > "$(HOMELAB_NFT_HASH_FILE)"; \
-		echo "📄 Recorded nftables ruleset hash"; \
+		echo "📋 Recorded nftables ruleset hash"; \
 	'
 
 nft-confirm:

@@ -66,13 +66,13 @@ desired_end="$(DHCP_DYNAMIC_END)"; \
 changed=0; \
 \
 if [ "$$cur_start" != "$$desired_start" ]; then \
-	echo "🔧 dhcp_start → $$desired_start"; \
+	echo "🔧 dhcp_start ➡️ $$desired_start"; \
 	nvram set dhcp_start="$$desired_start"; \
 	changed=1; \
 fi; \
 \
 if [ "$$cur_end" != "$$desired_end" ]; then \
-	echo "🔧 dhcp_end → $$desired_end"; \
+	echo "🔧 dhcp_end ➡️ $$desired_end"; \
 	nvram set dhcp_end="$$desired_end"; \
 	changed=1; \
 fi; \
@@ -138,7 +138,7 @@ router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-boo
 			echo "🔄 DNS configuration changed (pending restart)"; \
 			ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
 		else \
-			echo "✔️ DNS configuration up-to-date (no restart needed)"; \
+			echo "✅ DNS configuration up-to-date (no restart needed)"; \
 		fi; \
 	)
 
@@ -163,7 +163,7 @@ router-dnsmasq-conf: secrets-ready ensure-host-default-route router-bootstrap-pr
 		echo "🔄 dnsmasq.conf.add changed (pending restart)"; \
 		ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
 	elif [ $$RC -eq 0 ]; then \
-		echo "✔️ dnsmasq.conf.add up-to-date"; \
+		echo "✅ dnsmasq.conf.add up-to-date"; \
 	else \
 		exit 1; \
 	fi
@@ -178,7 +178,7 @@ router-dnsmasq-conf: secrets-ready ensure-host-default-route router-bootstrap-pr
 			/usr/sbin/dnsmasq --log-async; \
 			echo "🟢 dnsmasq restarted cleanly"; \
 		else \
-			echo "✔️ dnsmasq config unchanged — no restart needed"; \
+			echo "✅ dnsmasq config unchanged — no restart needed"; \
 		fi \
 	'
 

@@ -15,7 +15,7 @@ install-dns-health:
 
 .PHONY: install-nas-prefix-watchdog
 install-nas-prefix-watchdog:
-	@echo "🧩 Installing NAS IPv6 prefix watchdog"
+	@echo "🔧 Installing NAS IPv6 prefix watchdog"
 
 	# Install script
 	$(run_as_root) install -m 755 $(REPO_ROOT)/scripts/homelab-prefix-converge.sh /usr/local/bin/
@@ -35,7 +35,7 @@ install-nas-prefix-watchdog:
 .PHONY: install-systemd enable-systemd verify-systemd uninstall-systemd
 
 install-systemd: install-dns-health
-	@echo "🧩 Installing systemd units"
+	@echo "🔧 Installing systemd units"
 	@if [ ! -d "$(REPO_ROOT)/$(REPO_SYSTEMD)" ]; then \
 		echo "ERROR: $(REPO_ROOT)/$(REPO_SYSTEMD) not found"; exit 1; \
 	fi

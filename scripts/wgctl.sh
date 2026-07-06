@@ -57,7 +57,7 @@ do_install() {
 }
 
 do_up() {
-	log "Bringing up interfaces..."
+	log "🔌 Bringing up interfaces..."
 	if [[ "$TARGET" == "router" ]]; then
 		# Ensure eth0 exists
 		if [[ ! -d /sys/class/net/eth0 ]]; then
@@ -95,7 +95,7 @@ do_up() {
 			ip link set wgs1 up
 
 			# Apply WireGuard config
-			echo 'Applying WireGuard configuration'
+			echo '🔧 Applying WireGuard configuration'
 			wg setconf wgs1 ${ROUTER_WG_DIR}/wgs1.conf
 
 			# Assign IPv4 server address
@@ -213,5 +213,5 @@ case "$MODE" in
 	down)       do_down ;;
 	status)     do_status ;;
 	install-up) do_install; do_up ;;
-	*)          echo "Unknown mode: $MODE for target: $TARGET"; exit 1 ;;
+	*)          echo "❌ Unknown mode: $MODE for target: $TARGET"; exit 1 ;;
 esac

@@ -177,7 +177,7 @@ define HEADSCALE_VERIFY_FN
 	echo "[verify] 🔍 Running headscale verification"; \
 	$(run_as_root) systemctl status headscale --no-pager; \
 	$(run_as_root) journalctl -u headscale -n 200 --no-pager; \
-	echo "[verify] 🧠 Headscale control plane ready"
+	echo "[verify] 🔧 Headscale control plane ready"
 endef
 
 headscale-verify:
@@ -189,7 +189,7 @@ headscale-verify:
 		rm -f "$(HEADSCALE_CHANGED_STAMP)" && \
 		echo "[verify] 🎉 Parallel verification complete"; \
 	else \
-		echo "🧠 Headscale deployment state holds zero drift — skipping heavy verification loops"; \
+		echo "🔧 Headscale deployment state holds zero drift — skipping heavy verification loops"; \
 	fi
 
 # Deterministic sequential validation wrapper target
@@ -269,7 +269,7 @@ headscale-metrics:
 rotate-noise-key-dangerous: rotate-noise-key
 
 rotate-noise-key: headscale-bin
-	@echo "🔥 ROTATE HEADSCALE NOISE KEY — this will disconnect all clients"
+	@echo "⚠️ ROTATE HEADSCALE NOISE KEY — this will disconnect all clients"
 	@read -p "Type YES to ROTATE THE NOISE KEY: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1)
 	@echo "⚠️ Proceeding with Noise key rotation — clients must re-authenticate"
 	@$(run_as_root) systemctl stop headscale

@@ -87,10 +87,10 @@ $(STAMP_DIR_ROOT):
 		exit 1; \
 	fi; \
 	if [ ! -d "$(STAMP_DIR_ROOT)" ]; then \
-		echo "📁 [root] Creating STAMP_DIR_ROOT: $(STAMP_DIR_ROOT)"; \
+		echo "📋 [root] Creating STAMP_DIR_ROOT: $(STAMP_DIR_ROOT)"; \
 		$(run_as_root) install -d -m 0775 -o root -g $(PRIMARY_ADMIN_GROUP) "$(STAMP_DIR_ROOT)"; \
 	else \
-		[ "$(VERBOSE)" = "1" ] && echo "📁 [root] STAMP_DIR_ROOT exists: $(STAMP_DIR_ROOT)"; \
+		[ "$(VERBOSE)" = "1" ] && echo "📋 [root] STAMP_DIR_ROOT exists: $(STAMP_DIR_ROOT)"; \
 	fi; \
 	# Autocorrect owner/group
 	if [ "$$(stat -c %u $(STAMP_DIR_ROOT))" != "0" ] || \
@@ -106,10 +106,10 @@ $(STAMP_DIR_ROOT):
 .PHONY: $(STAMP_DIR_USER)
 $(STAMP_DIR_USER):
 	@if [ ! -d "$(STAMP_DIR_USER)" ]; then \
-		echo "📁 [user] Creating STAMP_DIR_USER: $(STAMP_DIR_USER)"; \
+		echo "📋 [user] Creating STAMP_DIR_USER: $(STAMP_DIR_USER)"; \
 		mkdir -p "$(STAMP_DIR_USER)"; \
 	else \
-		[ "$(VERBOSE)" = "1" ] && echo "📁 [user] STAMP_DIR_USER exists: $(STAMP_DIR_USER)"; \
+		[ "$(VERBOSE)" = "1" ] && echo "📋 [user] STAMP_DIR_USER exists: $(STAMP_DIR_USER)"; \
 	fi; \
 	# Autocorrect ownership
 	if [ "$$(stat -c %u $(STAMP_DIR_USER))" != "$$(id -u)" ]; then \

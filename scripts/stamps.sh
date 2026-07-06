@@ -119,7 +119,7 @@ stamp_git_filelist() {
         fi
     fi
 
-    # Cache is stale → regenerate
+    # Cache is stale ➡️ regenerate
     git ls-files > "$list"
     printf '%s\n' "$current" > "$stamp"
 

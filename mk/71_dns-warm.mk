@@ -49,7 +49,7 @@ update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-war
 prereqs-dns-warm-verify:
 	@command -v funzip >/dev/null || { \
 		echo "❌ funzip missing (required for tranco list extraction)"; \
-		echo "👉 Run: make prereqs"; \
+		echo "➡️ Run: make prereqs"; \
 		exit 1; \
 	}
 
@@ -57,7 +57,7 @@ prereqs-dns-warm-verify:
 prereqs-dns-warm-install:
 	$(call apt_install, funzip, unzip)
 
-# Wire install → verify
+# Wire install ➡️ verify
 prereqs-dns-warm: prereqs-dns-warm-install prereqs-dns-warm-verify
 
 # -------------------------------------------------

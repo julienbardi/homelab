@@ -44,7 +44,7 @@ iptables -t nat -F HOMELAB_NAT
 iptables -F HOMELAB_FWD
 iptables -F HOMELAB_INPUT
 
-# 2b. Allow LAN → WAN forwarding (restore baseline)
+# 2b. Allow LAN ➡️ WAN forwarding (restore baseline)
 iptables -A HOMELAB_FWD -i br0 -o eth0 -j ACCEPT
 iptables -A HOMELAB_FWD -i br0 -o ppp0 -j ACCEPT 2>/dev/null || true
 iptables -A HOMELAB_FWD -m state --state ESTABLISHED,RELATED -j ACCEPT
@@ -186,11 +186,11 @@ router-nat-install: router-install-scripts
 			if (enabled != "1") next; \
 			if (port == "0")    next; \
 			if (host == "nas") {
-				# WAN → NAS:wgX_port (allowed)
+				# WAN ➡️ NAS:wgX_port (allowed)
 				printf "iptables -t nat -A HOMELAB_NAT -p udp --dport %s -j DNAT --to-destination %s:%s\n", port, lan_nas, port;
 				printf "iptables -A HOMELAB_FWD -p udp -d %s --dport %s -j ACCEPT\n", lan_nas, port;
 
-				# LAN → NAS:wgX_port (REJECT — hairpin protection) -> LAN clients will fail fast instead of black‑holing traffic in a loop
+				# LAN ➡️ NAS:wgX_port (REJECT — hairpin protection) -> LAN clients will fail fast instead of black‑holing traffic in a loop
 				printf "iptables -A HOMELAB_FWD -s 10.89.12.0/24 -d %s -p udp --dport %s -j REJECT\n", lan_nas, port;
 			}
 			else if (host == "router") {

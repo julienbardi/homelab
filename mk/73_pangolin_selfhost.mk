@@ -20,7 +20,7 @@ pangolin-selfhost-install:
 
 	@if [ ! -f $(PANGOLIN_SELF_SECRET) ]; then \
 		echo "❌ Missing self-hosted Pangolin site-secret"; \
-		echo "👉 Create it at $(PANGOLIN_SELF_SECRET) (from your self-hosted UI)"; \
+		echo "➡️ Create it at $(PANGOLIN_SELF_SECRET) (from your self-hosted UI)"; \
 		exit 1; \
 	fi
 

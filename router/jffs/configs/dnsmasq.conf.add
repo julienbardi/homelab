@@ -27,6 +27,12 @@ local=/lan.bardi.ch/
 # Allow shortnames (e.g., 'nas') to resolve as 'nas.bardi.ch'
 expand-hosts
 
+# Static router hostname (LAN + WG)
+address=/router.lan.bardi.ch/10.89.12.1
+address=/router.bardi.ch/10.89.12.1
+# Optional IPv6:
+address=/router.lan.bardi.ch/fd89:7a3b:42c0::1
+address=/router.bardi.ch/fd89:7a3b:42c0::1
 
 # --- PART B: UPSTREAM RESOLVER SELECTION -------------------------------------
 # Forward ALL external DNS queries to Unbound on the NAS

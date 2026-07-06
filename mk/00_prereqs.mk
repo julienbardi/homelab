@@ -130,7 +130,7 @@ prereqs-public-dns-verify: | ensure-host-default-route
 		case "$$out" in \
 			*"network unreachable"*) \
 				echo "❌ Network unreachable: NAS has no default route"; \
-				echo "👉 Fix: ip route add default via $$router_addr dev eth0"; \
+				echo "➡️ Fix: ip route add default via $$router_addr dev eth0"; \
 				exit 1;; \
 			*"no servers could be reached"*) \
 				echo "❌ Cannot reach DNS server $$PUBLIC_DNS"; \
@@ -162,7 +162,7 @@ prereqs-tailscale-repo-verify: | ensure-host-default-route
 			echo "❌ Tailscale repo missing signed-by=$(TAILSCALE_KEYRING):"; \
 			echo "$$bad"; \
 			echo ""; \
-			echo "👉 To repair this, run:"; \
+			echo "➡️ To repair this, run:"; \
 			echo "   make fix-tailscale-repo"; \
 			exit 1; \
 		fi; \
@@ -299,7 +299,7 @@ prereqs-python-venv-verify:
 PYTHON_MIN ?= 3.11.2
 
 prereqs-python-venv: | ensure-host-default-route
-	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "📍 Ensuring python3-venv is installed (need >= $(PYTHON_MIN))"; fi
+	@if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo " Ensuring python3-venv is installed (need >= $(PYTHON_MIN))"; fi
 	@python3 -c 'import sys,importlib,pkgutil; min_ver=tuple(int(p) for p in "$(PYTHON_MIN)".split(".")); ver=tuple(sys.version_info[:len(min_ver)]); has_venv=(hasattr(importlib,"util") and importlib.util.find_spec("venv") is not None) or (pkgutil.find_loader("venv") is not None); sys.exit(0 if ver>=min_ver and has_venv else 1)' >/dev/null 2>&1 || { \
 	$(call apt_update_if_needed); \
 	if [ -z "$(VERBOSE)" ] || [ "$(VERBOSE)" = "0" ]; then \
@@ -358,7 +358,7 @@ ensure-bootstrap-dns:
 	echo "⚠️ Bootstrap DNS ($(LAN_ROUTER)) unreachable, checking fallback..."; \
 	\
 	# ------------------------------------------------------------ \
-	# Step 2: If resolvectl exists → use systemd-resolved path \
+	# Step 2: If resolvectl exists ➡️ use systemd-resolved path \
 	# ------------------------------------------------------------ \
 	if command -v resolvectl >/dev/null 2>&1; then \
 		if resolvectl query "$(DOMAIN)" >/dev/null 2>&1; then \
@@ -376,7 +376,7 @@ ensure-bootstrap-dns:
 	# Extract first nameserver \
 	ns="$$(awk '/^nameserver/ {print $$2}' /etc/resolv.conf | head -n1)"; \
 	\
-	# If no nameserver → inject router DNS temporarily \
+	# If no nameserver ➡️ inject router DNS temporarily \
 	if [ -z "$$ns" ]; then \
 		echo "⚠️  /etc/resolv.conf has no nameserver entry — injecting router DNS"; \
 		echo "nameserver $(LAN_ROUTER)" | $(run_as_root) tee /etc/resolv.conf >/dev/null; \

@@ -165,7 +165,7 @@ acme-migrate-and-deploy:
 		echo "🛡️ Fixing permissions..."; \
 		$(call acme_fix_perms,$(ACME_HOME)); \
 		\
-		echo "🧹 Clearing canonical TLS store..."; \
+		echo " Clearing canonical TLS store..."; \
 		rm -rf /var/lib/ssl/canonical/*; \
 		\
 		echo "🚀 Forcing full certificate redeploy..."; \

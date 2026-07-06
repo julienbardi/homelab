@@ -67,13 +67,13 @@ desired_end="$(DHCP_DYNAMIC_END)"; \
 changed=0; \
 \
 if [ "$$cur_start" != "$$desired_start" ]; then \
-	echo "🔧 dhcp_start → $$desired_start"; \
+	echo "🔧 dhcp_start ➡️ $$desired_start"; \
 	nvram set dhcp_start="$$desired_start"; \
 	changed=1; \
 fi; \
 \
 if [ "$$cur_end" != "$$desired_end" ]; then \
-	echo "🔧 dhcp_end → $$desired_end"; \
+	echo "🔧 dhcp_end ➡️ $$desired_end"; \
 	nvram set dhcp_end="$$desired_end"; \
 	changed=1; \
 fi; \
@@ -139,7 +139,7 @@ router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-boo
 			echo "🔄 DNS configuration changed (pending restart)"; \
 			ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
 		else \
-			echo "✔️ DNS configuration up-to-date (no restart needed)"; \
+			echo "✅ DNS configuration up-to-date (no restart needed)"; \
 		fi; \
 	)
 
@@ -162,14 +162,14 @@ router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
 		echo "🔧 Using ULA_PREFIX_NVRAM='\$$ULA_PREFIX_NVRAM' (router ULA \$$ROUTER_ULA_IP6)"; \
 		\
 		if [ "$$cur_prefix" != "$$ULA_PREFIX_NVRAM" ]; then \
-			echo "🔧 ipv6_ula_prefix → $$ULA_PREFIX_NVRAM"; \
+			echo "🔧 ipv6_ula_prefix ➡️ $$ULA_PREFIX_NVRAM"; \
 			nvram set ipv6_ula_prefix="$$ULA_PREFIX_NVRAM"; \
 			nvram set ipv6_ula_enable=1; \
 			changed=1; \
 		fi; \
 		\
 		if [ "$$cur_lan_addr" != "$$ROUTER_ULA_IP6" ]; then \
-			echo "🔧 ipv6_lan_addr → $$ROUTER_ULA_IP6"; \
+			echo "🔧 ipv6_lan_addr ➡️ $$ROUTER_ULA_IP6"; \
 			nvram set ipv6_lan_addr="$$ROUTER_ULA_IP6"; \
 			nvram set ipv6_lan_prefix=48; \
 			changed=1; \
@@ -189,12 +189,12 @@ router-ra-policy: router-bootstrap-primitives router-ssh-check
 	@ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 cur="$$(nvram get ipv6_accept_ra || echo unset)"; \
 if [ "$$cur" != "2" ]; then \
-	echo "🔧 ipv6_accept_ra → 2"; \
+	echo "🔧 ipv6_accept_ra ➡️ 2"; \
 	nvram set ipv6_accept_ra=2; \
 	echo "🟢 RA policy NVRAM updated (pending commit)"; \
 	touch /jffs/homelab_nvram_dirty; \
 else \
-	echo "✔️ RA policy already enforced (ipv6_accept_ra=2)"; \
+	echo "✅ RA policy already enforced (ipv6_accept_ra=2)"; \
 fi'
 
 # ------------------------------------------------------------
@@ -228,7 +228,7 @@ router-ddns: secrets-ready ensure-router-ula router-ssh-check
 	@echo "🔄 Executing DDNS update"
 	@ssh "$(SSH_HOST_ROUTER)" '$(ROUTER_SCRIPTS)/ddns-start'
 
-	@echo "🧹 Cleaning up RAM-only local DDNS secrets"
+	@echo " Cleaning up RAM-only local DDNS secrets"
 	@rm -f "$(TMP_DDNS_CONF)"
 
 	@echo "🟢 DDNS update complete"
@@ -270,8 +270,8 @@ router-dhcp-list-static-format: secrets-ready router-ssh-check
 
 # router-ssh-invariants:
 # Enforces LAN-only SSH by setting:
-#   ssh_wan=0  → disable SSH on WAN
-#   ssh_lan=1  → enable SSH on LAN
+#   ssh_wan=0  ➡️ disable SSH on WAN
+#   ssh_lan=1  ➡️ enable SSH on LAN
 # AsusWRT defaults to WAN-enabled SSH when ssh_wan is unset.
 # This target makes the invariant explicit and idempotent.
 .PHONY: router-ssh-invariants
@@ -292,13 +292,13 @@ router-ssh-invariants: router-ssh-check
 			changed=1; \
 		fi; \
 		if [ "$$changed" -eq 1 ]; then \
-			echo "💾 Committing NVRAM changes"; \
+			echo "📥 Committing NVRAM changes"; \
 			nvram commit; \
 			echo "🔁 Restarting SSH service"; \
 			service restart_ssh; \
 			echo "✅ SSH invariants enforced"; \
 		else \
-			echo "✔️ SSH invariants already satisfied"; \
+			echo "✅ SSH invariants already satisfied"; \
 		fi'
 
 # ------------------------------------------------------------
@@ -341,7 +341,7 @@ router-dnsmasq-conf: secrets-ready ensure-host-default-route router-bootstrap-pr
 		echo "🔄 dnsmasq.conf.add changed (pending restart)"; \
 		ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
 	elif [ $$RC -eq 0 ]; then \
-		echo "✔️ dnsmasq.conf.add up-to-date"; \
+		echo "✅ dnsmasq.conf.add up-to-date"; \
 	else \
 		exit 1; \
 	fi
@@ -362,7 +362,7 @@ router-dnsmasq-conf: secrets-ready ensure-host-default-route router-bootstrap-pr
 			\
 			echo "🟢 dnsmasq restarted cleanly"; \
 		else \
-			echo "✔️ dnsmasq config unchanged — no restart needed"; \
+			echo "✅ dnsmasq config unchanged — no restart needed"; \
 		fi \
 	'
 
@@ -388,7 +388,7 @@ router-nvram-converge: \
 		\
 		# NVRAM commit if dirty
 		if [ -f /jffs/homelab_nvram_dirty ]; then \
-			echo "💾 NVRAM dirty → committing"; \
+			echo "📥 NVRAM dirty ➡️ committing"; \
 			nvram commit; \
 			rm -f /jffs/homelab_nvram_dirty; \
 			RESTART=1; \
@@ -407,7 +407,7 @@ router-nvram-converge: \
 			echo "🔄 restart radvd"; \
 			service restart_radvd || true; \
 		else \
-			echo "✔️ No changes → no restarts"; \
+			echo "✅ No changes ➡️ no restarts"; \
 		fi; \
 		echo "🟢 router-nvram-converge complete"; \
 	'

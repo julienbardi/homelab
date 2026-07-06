@@ -7,7 +7,7 @@ IFC_STATUS_SCRIPT ?= $(INSTALL_PATH)/ifc-status.sh
 
 .PHONY: ifc-gc
 ifc-gc: install-all ensure-ifc-root
-	@echo "🧹 IFC GC: cleaning $(IFC_ROOT)"
+	@echo " IFC GC: cleaning $(IFC_ROOT)"
 	@$(run_as_root) sh -c '"$(IFC_GC_SCRIPT)" "$(IFC_ROOT)" "$(IFC_GC_TTL)"'
 
 # Default TTL for GC (7 days)
@@ -15,7 +15,7 @@ IFC_GC_TTL ?= 604800
 
 .PHONY: ifc-maintenance
 ifc-maintenance: install-all ensure-ifc-root ifc-gc
-	@echo "🧼 IFC maintenance complete"
+	@echo "✨ IFC maintenance complete"
 
 # IFC status tool
 .PHONY: ifc-status

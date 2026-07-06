@@ -17,13 +17,13 @@
 #   ❌ dnsdist MUST NOT bind 0.0.0.0:53
 #
 # dnsdist is responsible for:
-#   ✔ IPv6 plain DNS on loopback (::1:53)
-#   ✔ IPv6 plain DNS on all WireGuard gateway addresses
+#   ✅ IPv6 plain DNS on loopback (::1:53)
+#   ✅ IPv6 plain DNS on all WireGuard gateway addresses
 #       fd89:7a3b:42c0:N::1:53  (N = 0..15)
 #
-#   ✔ DoH on IPv4 loopback (127.0.0.1:8053)
-#   ✔ DoH on IPv6 loopback ([::1]:8053)
-#   ✔ DoH on all WireGuard IPv4/IPv6 gateway addresses
+#   ✅ DoH on IPv4 loopback (127.0.0.1:8053)
+#   ✅ DoH on IPv6 loopback ([::1]:8053)
+#   ✅ DoH on all WireGuard IPv4/IPv6 gateway addresses
 #
 # Required listeners for dnsdist:
 #

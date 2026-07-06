@@ -77,7 +77,7 @@ openssh9-install: openssh9-build
 	echo "📥 Installing OpenSSH $(OPENSSH9_VERSION)"; \
 	make install; \
 	if command -v ssh >/dev/null 2>&1; then \
-		echo "🔎 Installed ssh version: $$(ssh -V 2>&1)"; \
+		echo "🔍 Installed ssh version: $$(ssh -V 2>&1)"; \
 	else \
 		echo "⚠️ ssh not found in PATH after install"; \
 	fi; \

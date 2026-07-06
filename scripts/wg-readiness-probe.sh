@@ -14,10 +14,10 @@ set -eu
 INTERFACE="${1:?ERROR: Interface parameter missing}"
 CONFIG_FILE="${2:?ERROR: Config file parameter missing}"
 EXPECTED_GEN="${3:-0}"
-STAMP_DIR="${4:?ERROR: Stamp directory parameter missing}"
+RUNTIME_STAMP_DIR="${4:?ERROR: Stamp directory parameter missing}"
 TARGET_TYPE="${5:-nas}"  # Optional: defaults to nas, can be explicit 'router'
 
-STAMP_FILE="${STAMP_DIR}/wg_${INTERFACE}_runtime.gen"
+RUNTIME_STAMP_FILE="${RUNTIME_STAMP_DIR}/wg_${INTERFACE}_runtime.gen"
 
 # Fallback or initialization condition
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -60,8 +60,8 @@ fi
 
 # Step 2 & 3: Fast-Path Generation Check
 CURRENT_GEN="0"
-if [ -f "$STAMP_FILE" ]; then
-    if ! read -r CURRENT_GEN < "$STAMP_FILE"; then
+if [ -f "$RUNTIME_STAMP_FILE" ]; then
+    if ! read -r CURRENT_GEN < "$RUNTIME_STAMP_FILE"; then
         CURRENT_GEN="0"
     fi
 fi
@@ -119,7 +119,7 @@ if [ -n "$CONFIG_PUBKEY" ]; then
 fi
 
 # Step 5: Persist runtime status validation mapping if passing cleanly
-[ -d "$STAMP_DIR" ] || mkdir -p "$STAMP_DIR"
-echo "$EXPECTED_GEN" > "$STAMP_FILE"
+[ -d "$RUNTIME_STAMP_DIR" ] || mkdir -p "$RUNTIME_STAMP_DIR"
+echo "$EXPECTED_GEN" > "$RUNTIME_STAMP_FILE"
 
 exit 0

@@ -14,8 +14,8 @@
 # ------------------------------------------------------------
 # router-ssh-invariants:
 # Enforces LAN-only SSH by setting:
-#   ssh_wan=0  → disable SSH on WAN
-#   ssh_lan=1  → enable SSH on LAN
+#   ssh_wan=0  ➡️ disable SSH on WAN
+#   ssh_lan=1  ➡️ enable SSH on LAN
 # AsusWRT defaults to WAN-enabled SSH when ssh_wan is unset.
 # This target makes the invariant explicit and idempotent.
 # ------------------------------------------------------------
@@ -47,7 +47,7 @@ router-ssh-invariants: router-ssh-check
 		fi; \
 		\
 		# idempotent case
-		test -z \"$(VERBOSE)\" || echo \"✔️ SSH invariants already enforced (ssh_wan=0, ssh_lan=1)\"; \
+		test -z \"$(VERBOSE)\" || echo \"✅ SSH invariants already enforced (ssh_wan=0, ssh_lan=1)\"; \
 	"
 
 # ------------------------------------------------------------
@@ -128,7 +128,7 @@ router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
 			echo \"🟢 ULA prefix staged: ipv6_ula_prefix=$$ULA_PREFIX_NVRAM (commit in router-nvram-converge)\"; \
 			touch /jffs/homelab_nvram_dirty; \
 		else \
-			test -z \"$(VERBOSE)\" || echo \"✔️ ULA prefix already converged (ipv6_ula_prefix=$$ULA_PREFIX_NVRAM)\"; \
+			test -z \"$(VERBOSE)\" || echo \"✅ ULA prefix already converged (ipv6_ula_prefix=$$ULA_PREFIX_NVRAM)\"; \
 		fi; \
 		\
 		# ipv6_lan_addr converge
@@ -138,7 +138,7 @@ router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
 			echo \"🟢 ULA LAN addr staged: ipv6_lan_addr=$$ROUTER_ULA_IP6 (commit in router-nvram-converge)\"; \
 			touch /jffs/homelab_nvram_dirty; \
 		else \
-			test -z \"$(VERBOSE)\" || echo \"✔️ ULA LAN addr already converged (ipv6_lan_addr=$$ROUTER_ULA_IP6)\"; \
+			test -z \"$(VERBOSE)\" || echo \"✅ ULA LAN addr already converged (ipv6_lan_addr=$$ROUTER_ULA_IP6)\"; \
 		fi; \
 	"
 
@@ -152,7 +152,7 @@ router-ra-policy: router-bootstrap-primitives router-ssh-check
 	@ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 		cur="$$(nvram get ipv6_accept_ra || echo unset)"; \
 		if [ "$$cur" = "2" ]; then \
-			test -z "$(VERBOSE)" || echo "✔️ RA policy already enforced (ipv6_accept_ra=2)"; \
+			test -z "$(VERBOSE)" || echo "✅ RA policy already enforced (ipv6_accept_ra=2)"; \
 			exit 0; \
 		fi; \
 		nvram set ipv6_accept_ra=2; \
@@ -189,7 +189,7 @@ router-ddns: secrets-ready ensure-router-ula router-ssh-check
 	@echo "🔄 Executing DDNS update"
 	@ssh "$(SSH_HOST_ROUTER)" '$(ROUTER_SCRIPTS)/ddns-start'
 
-	@echo "🧹 Cleaning up RAM-only local DDNS secrets"
+	@echo " Cleaning up RAM-only local DDNS secrets"
 	@rm -f "$(TMP_DDNS_CONF)"
 
 	@echo "🟢 DDNS update complete"
@@ -233,7 +233,7 @@ router-nvram-converge: \
 		RESTART=0; \
 		\
 		if [ -f /jffs/homelab_nvram_dirty ]; then \
-			echo "💾 NVRAM dirty → committing"; \
+			echo "📥 NVRAM dirty ➡️ committing"; \
 			nvram commit; \
 			rm -f /jffs/homelab_nvram_dirty; \
 			RESTART=1; \
@@ -251,7 +251,7 @@ router-nvram-converge: \
 			echo "🔄 restart radvd"; \
 			service restart_radvd || true; \
 		else \
-			echo "✔️ No changes → no restarts"; \
+			echo "✅ No changes ➡️ no restarts"; \
 		fi; \
 		echo "🟢 router-nvram-converge complete"; \
 	'

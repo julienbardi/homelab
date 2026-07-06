@@ -190,7 +190,7 @@ require_bin() {
     local reason="${2:-Required for operation}"
     if ! command -v "${bin}" >/dev/null 2>&1; then
         log "❌ binary missing: ${bin} (${reason})"
-        log "ℹ️ 👉 Fix with: make prereqs"
+        log "ℹ️ ➡️ Fix with: make prereqs"
         exit 1
     fi
 }

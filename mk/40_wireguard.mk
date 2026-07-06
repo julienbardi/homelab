@@ -2,7 +2,7 @@
 # mk/40_wireguard.mk — WireGuard Control Plane
 # --------------------------------------------------------------------
 # CONTRACT:
-# - Orchestrates lifecycle (intent → gen → deploy → up) for NAS & Router.
+# - Orchestrates lifecycle (intent ➡️ gen ➡️ deploy ➡️ up) for NAS & Router.
 # - Configuration updates MUST trigger a local state tracking stamp.
 # - Subshell execution loops MUST be explicitly guarded against failure.
 # - Operations MUST handle Asuswrt-Merlin vs NAS paths deterministically.
@@ -160,7 +160,7 @@ router-ensure-wg-module: router-install-scripts
 
 .PHONY: router-bootstrap-wg-keys
 router-bootstrap-wg-keys:
-	@echo "🧬 [router] Ensuring WireGuard identity in NVRAM (wgs1)..."; \
+	@echo "🔧 [router] Ensuring WireGuard identity in NVRAM (wgs1)..."; \
 	ssh "$(SSH_HOST_ROUTER)" ' \
 		set -eu; \
 		priv="$$(nvram get wgs1_priv 2>/dev/null || true)"; \
@@ -194,13 +194,13 @@ $(INSTALL_PATH)/wg-generate-configs.sh: $(REPO_ROOT)/scripts/wg-generate-configs
 	$(call PUSH_WG_SCRIPT,$<,$@)
 
 wg-clean-out: wg-down-router wg-down-nas wg-clean-state
-	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🧹 Cleaning local scripts & SSH sockets"; fi
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo " Cleaning local scripts & SSH sockets"; fi
 	@$(WG_SUDO) rm -f "$(INSTALL_PATH)/wgctl.sh" \
 					"$(INSTALL_PATH)/wg-generate-configs.sh" \
 					"$(INSTALL_PATH)/wg-readiness-probe.sh"
 	@ssh -O exit "$(SSH_HOST_ROUTER)" 2>/dev/null || true;
 	@rm -f "$(SSH_SOCK_FILE_ROUTER)"
-	@echo "🧹 Cleaning remote router scripts"
+	@echo " Cleaning remote router scripts"
 	@ssh "$(SSH_HOST_ROUTER)" "rm -f $(ROUTER_SCRIPTS)/wg-firewall.sh"
 
 # --- Deployment ---
@@ -371,7 +371,7 @@ wg7-validate:
 	$(WG_SUDO) wg show wg7 >/dev/null 2>&1 \
 		&& echo "   ✅ wg7 interface present" \
 		|| { echo "   ❌ wg7 interface missing — run: make wg-install-nas"; exit 1; }; \
-	echo "🔍 [wg7] Step 2/5 — IPv4 connectivity (NAS → wg7 server addr)..."; \
+	echo "🔍 [wg7] Step 2/5 — IPv4 connectivity (NAS ➡️ wg7 server addr)..."; \
 	wg7_ip="$$( $(WG_SUDO) wg show wg7 2>/dev/null | awk '/address:/{print $$2}' | cut -d/ -f1 )"; \
 	if [ -n "$$wg7_ip" ]; then \
 		ping -c2 -W2 "$$wg7_ip" >/dev/null 2>&1 \
@@ -388,7 +388,7 @@ wg7-validate:
 	$(WG_SUDO) nft list chain ip6 homelab_nat6 postrouting 2>/dev/null | grep -q 'masquerade' \
 		&& echo "   ✅ homelab_nat6 masquerade rule active" \
 		|| echo "   ❌ homelab_nat6 masquerade not loaded — run: make nft-apply && make nft-confirm"; \
-	echo "🔍 [wg7] Step 5/5 — outbound IPv6 internet reachability (NAS → internet via NAT66)..."; \
+	echo "🔍 [wg7] Step 5/5 — outbound IPv6 internet reachability (NAS ➡️ internet via NAT66)..."; \
 	curl -6 -s --max-time 5 https://ifconfig.io > /dev/null 2>&1 \
 		&& echo "   ✅ IPv6 internet reachable from NAS (NAT66 egress working)" \
 		|| echo "   ⚠️  IPv6 internet unreachable from NAS (check global IPv6 on eth0 and default route)"; \
@@ -402,7 +402,7 @@ wg-router-ipv6-probe:
 		ip6tables -t nat -L 2>&1 || echo "  (not available — expected, wg7 uses NAS NAT66 instead)"; \
 		echo ""; \
 		echo "=== All global IPv6 addresses on router (required for prefix delegation) ==="; \
-		ip -6 addr show scope global 2>/dev/null || echo "  (no global IPv6 — enable in Merlin WAN → IPv6)"; \
+		ip -6 addr show scope global 2>/dev/null || echo "  (no global IPv6 — enable in Merlin WAN ➡️ IPv6)"; \
 		echo ""; \
 		echo "=== wgs1 IPv6 addresses ==="; \
 		ip -6 addr show dev wgs1 2>/dev/null || echo "  (wgs1 not up)"; \

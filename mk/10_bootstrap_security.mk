@@ -33,8 +33,8 @@ security-bootstrap: install-pkg-age
 	$(run_as_root) chown $(ROOT_UID):$(ROOT_GID) "$(AGE_KEY_FILE)"; \
 	$(run_as_root) chmod 600 "$(AGE_KEY_FILE)"; \
 	echo "✅ Identity created and locked to root."; \
-	echo "‼️ ACTION REQUIRED: Copy the private key from $(AGE_KEY_FILE) into KeePass NOW."; \
-	echo "📍 Public Encryption Key:"; \
+	echo "⚠️ ACTION REQUIRED: Copy the private key from $(AGE_KEY_FILE) into KeePass NOW."; \
+	echo " Public Encryption Key:"; \
 	$(run_as_root) age-keygen -y "$(AGE_KEY_FILE)"; \
 	echo "------------------------------------------------------------"
 

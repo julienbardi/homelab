@@ -23,4 +23,4 @@ echo "🔍 gitignore changed — running check"
 
 # Update stamp
 printf '%s\n' "$current_hash" > "$STAMP"
-echo "🆗 gitignore stamp updated"
+echo "🟢 gitignore stamp updated"

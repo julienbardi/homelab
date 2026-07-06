@@ -65,7 +65,7 @@ if [[ "$raw_v6" == "-" || -z "$raw_v6" ]]; then
 else
     addr_v6="${raw_v6%/*}"
 
-    # Router IPv6 must end in ::1 (host address → network prefix)
+    # Router IPv6 must end in ::1 (host address ➡️ network prefix)
     if [[ "$addr_v6" == *::1 ]]; then
         prefix_v6="${addr_v6%1}"
     else

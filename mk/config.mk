@@ -22,7 +22,7 @@ export LAN6_PREFIXLEN := 64
 # export LAN6_QNAP     := ...
 
 # WireGuard DNS topology (authoritative, non-secret)
-# Fastest-first ordering: DoH → Router IPv4 → NAS IPv6
+# Fastest-first ordering: DoH ➡️ Router IPv4 ➡️ NAS IPv6
 export WG_DOH_IPV4       := $(LAN_NAS):8053
 export WG_DOH_IPV6       := $(LAN6_NAS):8053
 export WG_DNS_ROUTER_IPV4 := $(LAN_ROUTER)

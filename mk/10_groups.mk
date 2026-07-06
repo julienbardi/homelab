@@ -7,7 +7,7 @@ enforce-groups: ensure-authorized-admin
 	@# Ensure all admin + service groups exist
 	@for g in $(ADMIN_GROUPS) $(SERVICE_GROUPS); do \
 		getent group "$$g" >/dev/null 2>&1 || { \
-			echo "📍 Creating group $$g"; \
+			echo " Creating group $$g"; \
 			$(run_as_root) groupadd --system "$$g"; \
 		}; \
 	done
@@ -17,7 +17,7 @@ enforce-groups: ensure-authorized-admin
 		id -u "$$u" >/dev/null 2>&1 || { echo "⚠️ Admin $$u not found"; continue; }; \
 		for g in $(ADMIN_GROUPS); do \
 			id -nG "$$u" | grep -qw "$$g" || { \
-				echo "📍 Adding $$u to $$g"; \
+				echo " Adding $$u to $$g"; \
 				$(run_as_root) usermod -aG "$$g" "$$u"; \
 				echo "ℹ️ Group membership for $$u updated — start a new login session to apply."; \
 			}; \
@@ -29,7 +29,7 @@ enforce-groups: ensure-authorized-admin
 		id -u "$$u" >/dev/null 2>&1 || { echo "⚠️ Admin $$u not found"; continue; }; \
 		if echo "$(SERVICE_GROUPS)" | grep -qw "ssl-cert"; then \
 			id -nG "$$u" | grep -qw "ssl-cert" || { \
-				echo "📍 Adding $$u to ssl-cert"; \
+				echo " Adding $$u to ssl-cert"; \
 				$(run_as_root) usermod -aG ssl-cert "$$u"; \
 				echo "ℹ️ Group membership for $$u updated — start a new login session to apply."; \
 			}; \
@@ -40,11 +40,11 @@ enforce-groups: ensure-authorized-admin
 	@for pair in $(SERVICE_MAP); do \
 		u=$${pair%%:*}; g=$${pair#*:}; \
 		getent group "$$g" >/dev/null 2>&1 || { \
-			echo "📍 Creating service group $$g"; \
+			echo " Creating service group $$g"; \
 			$(run_as_root) groupadd --system "$$g"; \
 		}; \
 		id -u "$$u" >/dev/null 2>&1 || { \
-			echo "📍 Creating service user $$u ($$g)"; \
+			echo " Creating service user $$u ($$g)"; \
 			$(run_as_root) useradd --system --gid "$$g" --shell /usr/sbin/nologin --home /nonexistent "$$u"; \
 		}; \
 	done
@@ -76,7 +76,7 @@ enforce-known-hosts: ensure-authorized-admin
 				stored_fp=$$(ssh-keygen -F "$$target" -f "$$kh" 2>/dev/null | awk '/^#/{next} {print}' | ssh-keygen -lf - 2>/dev/null || true); \
 				current_fp=$$(echo "$$keyline" | ssh-keygen -lf -); \
 				if [ -z "$$stored_fp" ]; then \
-					echo "📍 Adding new host key for $$target to $$u"; \
+					echo " Adding new host key for $$target to $$u"; \
 					echo "$$keyline" >> "$$kh"; \
 				elif [ "$$stored_fp" != "$$current_fp" ]; then \
 					echo "⚠️ Host key changed for $$target for $$u"; \

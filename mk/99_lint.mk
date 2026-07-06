@@ -37,7 +37,7 @@ MAKEFILES := $(REPO_ROOT)Makefile $(MK_FILES)
 define require_tool
 @if ! command -v $(1) >/dev/null 2>&1; then \
     echo "❌ $(1) not installed"; \
-    echo "👉 Run 'make deps' to install all lint dependencies"; \
+    echo "➡️ Run 'make deps' to install all lint dependencies"; \
     exit 2; \
 fi
 endef
@@ -280,7 +280,7 @@ check-exec-surface:
 
 .PHONY: lint-dda
 lint-dda:
-	@echo "🔎 Checking for DDA violations..."
+	@echo "🔍 Checking for DDA violations..."
 	@# Grep for /home/ but ignore lines containing 'nolint'
 	@if grep -r "/home/" . --exclude-dir=.git | grep -v "nolint"; then \
 		echo "❌ Found hardcoded home paths!"; exit 1; \

@@ -25,7 +25,7 @@ AUTHORIZED="$(
     ' "$REPO_ROOT/mk/config.mk"
 )"
 
-# If nothing extracted → fail hard
+# If nothing extracted ➡️ fail hard
 if [ -z "$AUTHORIZED" ]; then
     echo "❌ No LAN_* variables found in config.mk — cannot validate LAN IPs"
     exit 1
@@ -49,7 +49,7 @@ grep -RhoE "$LAN_PREFIX[0-9]+" "$REPO_ROOT" \
     --exclude="*.pdf" \
     > "$tmp_matches" || true
 
-# If no matches → OK
+# If no matches ➡️ OK
 if ! [ -s "$tmp_matches" ]; then
     echo "♻️  No LAN IPs found in repo — OK"
     exit 0
@@ -65,7 +65,7 @@ while IFS= read -r ip; do
     # Check if IP is authorized
     echo "$AUTHORIZED" | grep -qx "$ip" && continue
 
-    # If not authorized → find file(s) containing it
+    # If not authorized ➡️ find file(s) containing it
     echo "❌ Unauthorized LAN IP detected: $ip"
     grep -Rnl "$ip" "$REPO_ROOT" --exclude-dir=".git" || true
     errors=1
@@ -73,7 +73,7 @@ done < "$tmp_matches"
 
 if [ "$errors" -ne 0 ]; then
     echo "❌ LAN topology violation detected"
-    echo "   → All LAN IPs must originate from config.mk (LAN_*)"
+    echo "   ➡️ All LAN IPs must originate from config.mk (LAN_*)"
     exit 1
 fi
 

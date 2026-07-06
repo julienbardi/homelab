@@ -37,7 +37,7 @@ fi
 log "🟢 [dsm] Authenticated (SID acquired)"
 
 # 2. Upload
-log "📤 [dsm] Uploading certificate material…"
+log "📥 [dsm] Uploading certificate material…"
 curl -sk -b "$COOKIE_JAR" -X POST \
   -F "api=SYNO.Core.Certificate" -F "version=1" -F "method=import" -F "_sid=$SID" \
   -F "key=@${PRIVKEY};filename=privkey.pem" \

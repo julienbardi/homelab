@@ -53,7 +53,7 @@ define go_install_from_source
 	for f in $$TMP_BIN/*; do \
 		FILENAME=$$(basename $$f); \
 		TARGET="$(INSTALL_PATH)/$$FILENAME"; \
-		echo "🚚 Installing $$FILENAME via IFC"; \
+		echo "📦 Installing $$FILENAME via IFC"; \
 		RC=0; \
 		$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q "" "" "$$f" "" "" "$$TARGET" "$(ROOT_UID)" "$(ROOT_GID)" "0755" || RC=$$?; \
 		if [ "$$RC" -ne 0 ] && [ "$$RC" -ne "$(INSTALL_IF_CHANGED_EXIT_CHANGED)" ]; then \
@@ -242,7 +242,7 @@ verify-pkg-tailscale: ensure-host-default-route
 	if [ "$${CLI_VER}" != "$${DS_VER}" ]; then \
 		echo "❌ Version mismatch"; exit 1; \
 	fi; \
-	echo "✔ Versions aligned" \
+	echo "✅ Versions aligned" \
 	'
 
 # ------------------------------------------------------------

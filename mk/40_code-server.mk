@@ -31,7 +31,7 @@ code-server-version-check:
 	fi
 
 $(CODE_SERVER_CONFIG_DST): $(CODE_SERVER_CONFIG_SRC)
-	@echo "📄 Updating code-server config"
+	@echo "📋 Updating code-server config"
 	@mkdir -p "$(dir $(CODE_SERVER_CONFIG_DST))"
 	@install -m 600 "$(CODE_SERVER_CONFIG_SRC)" "$(CODE_SERVER_CONFIG_DST)"
 

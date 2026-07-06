@@ -16,7 +16,7 @@ pangolin-install: pangolin-node-check
 
 	@if [ ! -f $(PANGOLIN_SECRET) ]; then \
 		echo "❌ Missing Pangolin site-secret"; \
-		echo "👉 Create it at $(PANGOLIN_SECRET)"; \
+		echo "➡️ Create it at $(PANGOLIN_SECRET)"; \
 		exit 1; \
 	fi
 
@@ -55,7 +55,7 @@ pangolin-health:
 pangolin-node-check:
 	@if ! $(run_as_root) systemctl status pangolin-node.service >/dev/null 2>&1; then \
 		echo "❌ Pangolin Node Agent not detected."; \
-		echo "👉 You must install the Pangolin Node first:"; \
+		echo "➡️ You must install the Pangolin Node first:"; \
 		echo ""; \
 		echo "   curl -fsSL https://install.pangolin.dev/node/install.sh | sudo bash"; \
 		echo ""; \

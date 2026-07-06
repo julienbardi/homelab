@@ -26,5 +26,5 @@ headscale-users:
 
 .PHONY: headscale-users-list
 headscale-users-list:
-	@echo "👥 Active Headscale Users:"
+	@echo " Active Headscale Users:"
 	@$(run_as_root) "$(HS_BIN)" users list
