@@ -1,0 +1,6 @@
+#!/bin/sh
+# Ensure dnsmasq loads JFFS configs (post-regeneration patch)
+
+if ! grep -q "conf-dir=/jffs/configs" /etc/dnsmasq.conf 2>/dev/null; then
+    echo "conf-dir=/jffs/configs" >> /etc/dnsmasq.conf
+fi
