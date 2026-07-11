@@ -99,9 +99,4 @@ bogus-priv
 # - Prevents clients from caching old global prefixes indefinitely
 #ra-param=br0,64,1800
 
-# --- PART F: HOMELAB NODE IDENTITY -------------------------------------------
-
-# Proxmox node pve1 (LAN IPv4 + ULA IPv6)
-address=/pve1.bardi.ch/10.89.12.4
-address=/pve1.bardi.ch/fd89:7a3b:42c0::4
 
