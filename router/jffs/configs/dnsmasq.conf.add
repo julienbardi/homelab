@@ -34,6 +34,13 @@ address=/router.bardi.ch/10.89.12.1
 address=/router.lan.bardi.ch/fd89:7a3b:42c0::1
 address=/router.bardi.ch/fd89:7a3b:42c0::1
 
+# Proxmox node pve1 (LAN IPv4 + ULA IPv6)
+address=/pve1.lan.bardi.ch/10.89.12.4
+address=/pve1.lan.bardi.ch/fd89:7a3b:42c0::4
+
+address=/pve1.bardi.ch/10.89.12.4
+address=/pve1.bardi.ch/fd89:7a3b:42c0::4
+
 # --- PART B: UPSTREAM RESOLVER SELECTION -------------------------------------
 # Forward ALL external DNS queries to Unbound on the NAS
 # IPv4 path (primary)
