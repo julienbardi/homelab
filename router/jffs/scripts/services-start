@@ -29,14 +29,10 @@ for i in 1 2 3 4 5; do
     sleep 1
 done
 
-# Merlin already supports JFFS dnsmasq config injection via: 
-# - /jffs/scripts/dnsmasq.postconf
-# - /jffs/configs/dnsmasq.conf.add
-# so let's comment this as thsi blocks the official hook
-## 5b) Ensure ULA IPv6 address on br0
-#if ! ip -6 addr show dev br0 | grep -q "fd89:7a3b:42c0::1/64"; then
-#    ip -6 addr add fd89:7a3b:42c0::1/64 dev br0 2>/dev/null || true
-#fi
+# 5b) Ensure ULA IPv6 address on br0
+if ! ip -6 addr show dev br0 | grep -q "fd89:7a3b:42c0::1/64"; then
+    ip -6 addr add fd89:7a3b:42c0::1/64 dev br0 2>/dev/null || true
+fi
 
 # 5c) Ensure dnsmasq loads JFFS configs (critical invariant)
 if ! grep -q "conf-dir=/jffs/configs" /etc/dnsmasq.conf 2>/dev/null; then
