@@ -1,0 +1,8 @@
+#!/bin/sh
+# dnsmasq.postconf — ensure dnsmasq loads JFFS configs
+
+CONFIG="$1"
+
+if ! grep -q "conf-dir=/jffs/configs" "$CONFIG"; then
+    echo "conf-dir=/jffs/configs" >> "$CONFIG"
+fi
