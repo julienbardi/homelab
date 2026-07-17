@@ -16,7 +16,7 @@ Group=root
 
 # Hard fail on errors inside scripts
 Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
-EnvironmentFile=/volume1/homelab/homelab.env
+EnvironmentFile=/root/src/homelab/config/homelab.env
 
 # Compile authoritative intent (must succeed)
 ExecStart=/bin/bash -c 'exec "$WG_ROOT/scripts/wg-compile.sh"'
@@ -33,3 +33,4 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
+

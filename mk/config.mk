@@ -58,7 +58,7 @@ SSH_SOCK_FILE_ROUTER := /tmp/ssh-$(ACTUAL_USER)-router-$(ROUTER_SSH_PORT)
 export ROUTER_USER := $(SSH_USER_ROUTER)
 
 # Paths
-HOMELAB_DIR := /volume1/homelab
+HOMELAB_DIR := /root/src/homelab
 WG_ROOT     := $(HOMELAB_DIR)/wireguard
 
 # System
@@ -116,7 +116,7 @@ HUB01_LAN_IFACE := ens3 # ip route get 10.89.12.1 | awk '/dev/ {print $5}'
 
 # Certificates & Identity
 DOMAIN               := bardi.ch
-ACME_HOME := $(shell . /volume1/homelab/homelab.env && echo $$ACME_HOME)
+ACME_HOME := $(shell . /root/homelab/homelab.env && echo $$ACME_HOME)
 RENEW_THRESHOLD_DAYS := 30
 export APT_CNAME_EXPECTED   := bardi.ch
 

@@ -142,7 +142,7 @@ do_status() {
 
 	# Clean early guard for the TSV source of truth
 	if [[ ! -f "$PEER_MAP" ]]; then
-		PEER_MAP="/volume1/homelab/wireguard/output/peer-map.tsv"
+		PEER_MAP="/root/src/homelab/wireguard/output/peer-map.tsv"
 	fi
 	if [[ ! -f "$PEER_MAP" ]]; then
 		log "❌ peer-map.tsv missing from repository and fallback directory. Status inquiry aborted." >&2

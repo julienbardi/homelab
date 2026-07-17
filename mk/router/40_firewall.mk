@@ -72,12 +72,12 @@ $(if $(LAN_SYNOLOGY),$(ROUTER_NAT_SYNOLOGY))
 endef
 
 # Out-of-repo absolute path for topology isolation
-WG_INTERFACES_TSV := /volume1/homelab/wireguard/input/wg-interfaces.tsv
+WG_INTERFACES_TSV := /root/src/homelab/wireguard/input/wg-interfaces.tsv
 
 # NOTE: $(WG_INTERFACES_TSV) is NOT a Make prerequisite.
-# Because it lives under /volume1/... on the NAS, Make would treat it as a
+# Because it lives under /root/src/... on the NAS, Make would treat it as a
 # real file dependency and abort on non‑NAS hosts with:
-#      *** No rule to make target '/volume1/...'. Stop.
+#      *** No rule to make target '/root/src/...'. Stop.
 # We therefore check its existence at runtime instead of wiring it into the DAG.
 .PHONY: router-nat-install
 router-nat-install: router-install-scripts

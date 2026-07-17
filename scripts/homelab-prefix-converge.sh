@@ -95,7 +95,7 @@ else
 fi
 
 # 12. Assign global IPv6 to all NAS-hosted, enabled WG interfaces. Source of truth: wg-interfaces.tsv
-TSV="/volume1/homelab/wireguard/input/wg-interfaces.tsv"
+TSV="/root/src/homelab/wireguard/input/wg-interfaces.tsv"
 ULA_BASE="fd89:7a3b:42c0"
 WG_PREFIX_BASE=$(printf '%s' "$NEW_PREFIX" | sed 's/::$//')  # e.g. 2a01:8b81:4800:9c
 

@@ -5,7 +5,7 @@
 #   1. Never commit secrets or environment files.
 #   2. Only commit source templates, not generated configs.
 #   3. This repo is designed to live in ~/src/homelab.
-#   4. Identities and massive data live on /volume1/ (Physical Firewall).
+#   4. Identities and massive data live on /root/src/homelab/ (Physical Firewall).
 # ============================================================
 
 # === Logs, OS & IDE Junk ===
@@ -64,8 +64,9 @@ config/*.generated
 # PHYSICAL FIREWALL: The patterns below reference paths that live
 # OUTSIDE this git repository on the NAS storage pool. They are
 # included here as a safety measure in case of cross-mounting.
-/volume1/homelab/secrets/
-/volume1/homelab/wireguard/
+/root/src/homelab/secrets/
+/root/src/homelab/wireguard/keys/
+/root/src/homelab/wireguard/output/
 
 # === SOPS / Encryption Safety ===
 # Prevent accidentally committing decrypted buffers

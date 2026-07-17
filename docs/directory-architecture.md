@@ -18,7 +18,7 @@ This separation ensures:
 
 ---
 
-## 🧱 1. Operator Domain — `/volume1/homelab/`
+## 🧱 1. Operator Domain — `/root/src/homelab/`
 
 **Persistent, backed up, versioned, human‑authored.**
 This is the *source of truth* for the entire homelab.
@@ -38,26 +38,26 @@ This is the *source of truth* for the entire homelab.
 
 | Path | Purpose |
 |------|---------|
-| `/volume1/homelab/homelab.env` | Global operator configuration (env vars) |
-| `/volume1/homelab/docs/`       | Documentation, architecture, notes |
-| `/volume1/homelab/security/`   | Security metadata (e.g., compromised_keys.tsv) |
-| `/volume1/homelab/secrets/`    | Encrypted or WITH_SECRETS‑protected material |
+| `/root/src/homelab/homelab.env` | Global operator configuration (env vars) |
+| `/root/src/homelab/docs/`       | Documentation, architecture, notes |
+| `/root/src/homelab/security/`   | Security metadata (e.g., compromised_keys.tsv) |
+| `/root/src/homelab/secrets/`    | Encrypted or WITH_SECRETS‑protected material |
 
 ### 1.2 WireGuard (authoritative control plane)
 
 | Path | Purpose |
 |------|---------|
-| `/volume1/homelab/wireguard/input/`  | TSVs defining intent (clients, hosts, interfaces) |
-| `/volume1/homelab/wireguard/bin/`    | Generation scripts (operator‑maintained) |
-| `/volume1/homelab/wireguard/keys/`   | Long‑term private keys (must be backed up) |
-| `/volume1/homelab/wireguard/output/` | Delivered artifacts (configs, QR codes, router configs) |
+| `/root/src/homelab/wireguard/input/`  | TSVs defining intent (clients, hosts, interfaces) |
+| `/root/src/homelab/wireguard/bin/`    | Generation scripts (operator‑maintained) |
+| `/root/src/homelab/wireguard/keys/`   | Long‑term private keys (must be backed up) |
+| `/root/src/homelab/wireguard/output/` | Delivered artifacts (configs, QR codes, router configs) |
 
 **Important:**
 `wireguard/output/` stays here because it must survive SSD replacement and be backed up.
 
 ### 1.3 Git repository
 
-Your entire repo lives under `/volume1/homelab/`.
+Your entire repo lives under `/root/src/homelab/`.
 This is the declarative configuration layer.
 
 ---
@@ -127,10 +127,10 @@ This is the *state directory* for automation.
 
 # 🔐 3. Privilege Boundary Summary
 
-| Directory | Owner | Backed Up | Editable | Purpose |
-|-----------|--------|-----------|----------|----------|
-| `/volume1/homelab/` | julie:admin | **Yes** | **Yes** | Operator configuration & delivered artifacts |
-| `/var/lib/homelab/` | root:root | **No** | No | Generated state & converge metadata |
+| Directory | Owner  | Backed Up | Editable | Purpose |
+|-----------|--------|-----------|----------|---------|
+| `/root/src/homelab/` | julie:admin | **Yes** | **Yes** | Operator configuration & delivered artifacts |
+| `/var/lib/homelab/`  | root:root   | **No**  | No      | Generated state & converge metadata |
 
 This boundary is **non‑negotiable** for deterministic automation.
 
@@ -140,7 +140,7 @@ This boundary is **non‑negotiable** for deterministic automation.
 
 ### ✔️ SSD replacement becomes trivial
 
-All operator data lives on `/volume1`.
+All operator data lives on `/root/src`.
 All system state is regenerated.
 
 ### ✔️ Backups become clean
@@ -167,7 +167,7 @@ State is always regenerated from intent.
 ```
                           ┌──────────────────────────────────────────────┐
                           │            Operator Domain                   │
-                          │        /volume1/homelab/ (persistent)        │
+                          │        /root/src/homelab/ (persistent)       │
                           └──────────────────────────────────────────────┘
                                         ▲                 ▲
                                         │                 │
@@ -217,7 +217,7 @@ State is always regenerated from intent.
 ```
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │     /volume1/homelab/wireguard/input/        │
+                          │     /root/src/homelab/wireguard/input/       │
                           └──────────────────────────────────────────────┘
                                         ▲
                                         │  (TSVs define desired state)
@@ -231,8 +231,8 @@ State is always regenerated from intent.
                                         │  (generation scripts)
                                         ▼
                           ┌──────────────────────────────────────────────┐
-                          │      NAS: WireGuard Config Generation         │
-                          │   /volume1/homelab/wireguard/bin/*.sh         │
+                          │      NAS: WireGuard Config Generation        │
+                          │   /root/src/homelab/wireguard/bin/*.sh       │
                           └──────────────────────────────────────────────┘
                                         │
                                         │  (produce authoritative configs)
@@ -310,7 +310,7 @@ Everything flows from declarative inputs.
 ```
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │     /volume1/homelab/{env,tsv,keys}          │
+                          │     /root/src/homelab/{env,tsv,keys}         │
                           └──────────────────────────────────────────────┘
                                         │
                                         │  (inputs define desired state)
@@ -399,7 +399,7 @@ This diagram shows the complete lifecycle of router certificates:
 ```
                           ┌──────────────────────────────────────────────┐
                           │            Internal CA (NAS)                 │
-                          │   /volume1/homelab/security + certs store    │
+                          │   /root/src/homelab/security + certs store   │
                           └──────────────────────────────────────────────┘
                                         ▲
                                         │  (CA is authoritative)
@@ -498,7 +498,7 @@ This diagram shows the complete DNS pipeline:
 ```
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │     /volume1/homelab/{dns configs}           │
+                          │     /root/src/homelab/{dns configs}          │
                           │     - unbound.conf fragments                 │
                           │     - dnsdist configs                        │
                           │     - warm domain lists                      │
@@ -589,7 +589,7 @@ This diagram shows the complete ACL lifecycle:
 ```
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │   /volume1/homelab/headscale/acl/*.json      │
+                          │   /root/src/homelab/headscale/acl/*.json     │
                           │   - acl.json (authoritative policy)          │
                           │   - groups, tags, users                      │
                           └──────────────────────────────────────────────┘
@@ -677,7 +677,7 @@ This diagram shows the complete NAS firewall lifecycle:
 ```
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │   /volume1/homelab/wireguard/input/*.tsv     │
+                          │   /root/src/homelab/wireguard/input/*.tsv    │
                           │   - wg-interfaces.tsv                        │
                           │   - hosts.tsv                                │
                           │   - clients.tsv                              │
@@ -768,7 +768,7 @@ This diagram ties everything together:
 ```
                           ┌──────────────────────────────────────────────┐
                           │            Operator Domain                   │
-                          │        /volume1/homelab/ (persistent)        │
+                          │        /root/src/homelab/ (persistent)       │
                           │  - homelab.env                               │
                           │  - docs/                                     │
                           │  - security/                                 │

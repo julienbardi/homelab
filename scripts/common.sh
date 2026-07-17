@@ -33,7 +33,7 @@ readonly _HOMELAB_COMMON_SH_LOADED=1
 # If any trust condition fails, the file is skipped.
 # ============================================================
 
-HOMELAB_ENV="/volume1/homelab/homelab.env"
+HOMELAB_ENV="/root/src/homelab/homelab.env"
 TRUSTED_GROUP="admin"
 
 if [[ -f "$HOMELAB_ENV" ]]; then
