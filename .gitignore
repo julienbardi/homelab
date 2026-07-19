@@ -149,3 +149,10 @@ cookies.txt
 # === NetBird ===
 traefik.env
 crowdsec/
+# === NetBird env files (safe to track) ===
+!netbird/dashboard.env
+
+# === NetBird env files containing secrets (ignored) ===
+netbird/proxy.env
+netbird/traefik.env
+
