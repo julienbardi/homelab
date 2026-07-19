@@ -145,3 +145,7 @@ mk/config.mk
 # === Accidental Files ===
 missing
 cookies.txt
+
+# === NetBird ===
+traefik.env
+crowdsec/
