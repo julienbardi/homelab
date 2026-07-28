@@ -1,4 +1,28 @@
 #!/usr/bin/env bash
+# ------------------------------------------------------------------------------
+# homelab-firewall-safety-checks.sh
+#
+# PURPOSE:
+#   Validates the homelab nftables ruleset (scripts/homelab.nft) against
+#   NetBird, Tailscale, and WireGuard bit‑model safety constraints.
+#
+#   This script performs static pattern checks to ensure the firewall does not
+#   interfere with overlay networks, routing semantics, NAT boundaries, or
+#   conntrack behavior required by:
+#     - NetBird (wt0, marks, raw hooks, NAT ranges)
+#     - Tailscale (tailscale0 isolation, NAT, PMTUD, MSS clamp)
+#     - WireGuard (wgX interface isolation, NAT ranges, reject rules)
+#
+# CONTRACT:
+#   - Never mutates system state.
+#   - Reads only scripts/homelab.nft.
+#   - Exits non‑zero on safety violations.
+#   - Output is operator‑grade and machine‑parsable.
+#
+# NOTES:
+#   - This is a *static* validator: it does not parse nft syntax trees.
+#   - It is safe to run during CI, converge-network, or pre‑apply checks.
+# ------------------------------------------------------------------------------
 set -euo pipefail
 
 echo "[homelab-firewall] Running NetBird/Tailscale/WG safety checks..."
@@ -87,10 +111,9 @@ check "reject.*iifname \"eth0\"" "# WG reject rules must not target eth0."
 rm -f "$TMP"
 
 if [ "$FAIL" -eq 1 ]; then
-    echo ""
-    echo "❌ Validation failed — firewall safety violations detected."
+    echo "❌ Firewall validation failed"
     exit 1
 fi
 
-echo "[homelab-firewall] All safety checks passed ✔"
+echo "🟢 Firewall validation passed"
 exit 0

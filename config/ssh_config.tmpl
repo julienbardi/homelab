@@ -1,10 +1,9 @@
-# ssh_config
+# ssh_config (generated from config.mk)
 # ============================================================
-# GLOBAL HARDENED DEFAULTS (portable across Windows/Linux/macOS)
+# GLOBAL HARDENED DEFAULTS (portable across Linux/macOS/Windows)
 # ============================================================
 Host *
-    # Identity
-    IdentityFile ~/.ssh/id_ed25519
+    IdentityFile ${SSH_IDENTITY_FILE}
     IdentitiesOnly yes
 
     # Multiplexing (Linux/macOS use it; Windows ignores safely)
@@ -15,7 +14,7 @@ Host *
     # Safety & ergonomics
     ServerAliveInterval 30
     ServerAliveCountMax 3
-    StrictHostKeyChecking yes
+    StrictHostKeyChecking ${SSH_STRICT}
     UserKnownHostsFile ~/.ssh/known_hosts
 
     # Modern ciphers
@@ -26,23 +25,23 @@ Host *
 # ROUTER — Asus RT-AX86U Pro
 # ============================================================
 Host router
-    HostName 10.89.12.1
-    Port 2222
-    User julie
+    HostName ${LAN_ROUTER}
+    Port ${SSH_PORT_ROUTER}
+    User ${SSH_USER_ROUTER}
 
 # IP fallback (required because some systems resolve "router" via /etc/hosts")
-Host 10.89.12.1
-    User julie
-    Port 2222
+Host ${LAN_ROUTER}
+    User ${SSH_USER_ROUTER}
+    Port ${SSH_PORT_ROUTER}
 
 
 # ============================================================
 # DISKSTATION — Synology DS218play (legacy SSH)
 # ============================================================
 Host diskstation
-    HostName 10.89.12.2
+    HostName ${LAN_SYNOLOGY}
     Port 2222
-    User julie
+    User ${SSH_USER_SYNOLOGY}
 
     # Synology DS218play requires legacy algorithms
     KexAlgorithms +diffie-hellman-group14-sha1
@@ -54,33 +53,32 @@ Host diskstation
 # QNAP — TS210 (legacy OpenSSH)
 # ============================================================
 Host qnap
-    HostName 10.89.12.3
+    HostName ${LAN_QNAP}
     Port 2222
-    User admin
+    User ${SSH_USER_QNAP}
 
 
 # ============================================================
-# NAS — Ugreen DXP4800+
-# Requires PQ-KEX suppression
+# NAS — Ugreen DXP4800+ (PQ-KEX suppression)
 # ============================================================
 Host nas
-    HostName 10.89.12.4
+    HostName ${LAN_NAS}
     Port 2222
-    User julie
+    User ${SSH_USER_NAS}
     KexAlgorithms -sntrup761x25519-sha512@openssh.com
 
 
-# ==============================================================================
+# ============================================================
 # PVE — Proxmox VE (operator + root)
-# ==============================================================================
+# ============================================================
 Host pve-julie
-    HostName 10.89.12.4
-    Port 22
-    User julie
+    HostName ${LAN_NAS}
+    Port ${SSH_PORT_DEFAULT}
+    User ${SSH_USER_NAS}
 
 Host pve-root
-    HostName 10.89.12.4
-    Port 22
+    HostName ${LAN_NAS}
+    Port ${SSH_PORT_DEFAULT}
     User root
 
 
@@ -88,15 +86,15 @@ Host pve-root
 # ACCESS POINT — Asus RT-AC86U
 # ============================================================
 Host ac86u
-    HostName 10.89.12.6
+    HostName ${LAN_AC86U}
     Port 2222
-    User admin
+    User ${SSH_USER_AC86U}
 
 
 # ============================================================
 # HUB01 — Cryptomator Hub VM
 # ============================================================
 Host hub01
-    HostName 10.89.12.11
-    Port 22
-    User julie
+    HostName ${LAN_HUB01}
+    Port ${SSH_PORT_DEFAULT}
+    User ${SSH_USER_HUB01}

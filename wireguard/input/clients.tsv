@@ -1,0 +1,5 @@
+client	iface	mode	enabled
+wg7	wg7	full	1
+acer-julie-full	wg7	full	1
+acer-julie-split	wg7	split	1
+

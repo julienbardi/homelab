@@ -1,0 +1,6 @@
+host	role	enabled
+pve	nas	1
+wg7	client	1
+acer-julie-full	client	1
+acer-julie-split	client	1
+

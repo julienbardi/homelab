@@ -58,8 +58,8 @@ SSH_SOCK_FILE_ROUTER := /tmp/ssh-$(ACTUAL_USER)-router-$(ROUTER_SSH_PORT)
 export ROUTER_USER := $(SSH_USER_ROUTER)
 
 # Paths
-HOMELAB_DIR := /root/src/homelab
-WG_ROOT     := $(HOMELAB_DIR)/wireguard
+export HOMELAB_DIR := /root/src/homelab
+export WG_ROOT     := $(HOMELAB_DIR)/wireguard
 
 # System
 SYSTEMD_DIR       := /etc/systemd/system
@@ -116,7 +116,7 @@ HUB01_LAN_IFACE := ens3 # ip route get 10.89.12.1 | awk '/dev/ {print $5}'
 
 # Certificates & Identity
 DOMAIN               := bardi.ch
-ACME_HOME := $(shell . /root/homelab/homelab.env && echo $$ACME_HOME)
+ACME_HOME := $(shell . $(HOMELAB_DIR)/config/homelab.env && echo $$ACME_HOME)
 RENEW_THRESHOLD_DAYS := 30
 export APT_CNAME_EXPECTED   := bardi.ch
 
@@ -166,3 +166,28 @@ APT_INSTALLABLE_PACKAGES := \
 	build-essential shellcheck pup codespell aspell aspell-en ndppd \
 	knot-dnsutils apt-cacher-ng unzip git-filter-repo rclone \
 	wireguard-tools qrencode
+
+# ----------------------------------------------------------------------------
+# SSH Configuration (authoritative, non-secret)
+# ----------------------------------------------------------------------------
+# These variables define the canonical SSH parameters used by the homelab
+# when generating ~/.ssh/config via the Makefile template.
+#
+# - SSH_IDENTITY_FILE: Deterministic identity path resolved via ACTUAL_HOME.
+# - SSH_STRICT: StrictHostKeyChecking policy. "accept-new" ensures automation
+#               survives router/NAS key regeneration events.
+# - SSH_PORT_ROUTER: Router SSH port (Merlin always uses 2222).
+# - SSH_PORT_DEFAULT: Default SSH port for all other LAN hosts.
+#
+# These variables are intentionally minimal. All host IPs and SSH users are
+# already defined above (LAN_* and SSH_USER_*), so the SSH template can be
+# rendered without introducing redundant or duplicated configuration.
+#
+# This block is safe to commit and contains no secrets.
+# ----------------------------------------------------------------------------
+
+export SSH_IDENTITY_FILE := $(ACTUAL_HOME)/.ssh/id_ed25519
+export SSH_STRICT := accept-new
+
+export SSH_PORT_ROUTER := $(ROUTER_SSH_PORT)
+export SSH_PORT_DEFAULT := 22

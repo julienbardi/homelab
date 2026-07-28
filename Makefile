@@ -76,3 +76,17 @@ include $(REPO_ROOT)/mk/targets/homelab-lmstudio.mk
 include $(REPO_ROOT)/mk/targets/homelab-all-lmstudio.mk
 include $(REPO_ROOT)/mk/targets/homelab-all-extend.mk
 endif
+
+# ----------------------------------------------------------------------------
+# SSH Config Rendering (deterministic, non-secret)
+# ----------------------------------------------------------------------------
+# Renders ~/.ssh/config from config/ssh_config.tmpl using the authoritative
+# variables exported in config.mk. This produces a portable, hardened SSH
+# configuration for all homelab hosts.
+#
+# Safe: contains no secrets. Deterministic: uses envsubst. Idempotent.
+# ----------------------------------------------------------------------------
+ssh-config:
+	@echo "🔧 Rendering SSH config → ~/.ssh/config"
+	envsubst < config/ssh_config.tmpl > ~/.ssh/config
+	@echo "✅ SSH config updated"
