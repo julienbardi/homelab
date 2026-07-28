@@ -49,8 +49,47 @@ export SECRETS_FILE
 # Load non-secret config
 include $(REPO_ROOT)/mk/config.mk
 
+# SSH config target BEFORE graph.mk
+# ----------------------------------------------------------------------------
+# SSH Config Rendering (deterministic, idempotent, non-secret)
+# ----------------------------------------------------------------------------
+# Renders ~/.ssh/config from config/ssh_config.tmpl using authoritative
+# variables exported in config.mk. On Windows, the template is patched to
+# disable multiplexing and relax StrictHostKeyChecking.
+#
+# Idempotent: ~/.ssh/config is only rewritten if the rendered output differs.
+# Silent unless VERBOSE=1.
+# ----------------------------------------------------------------------------
+.PHONY: ssh-config
+ssh-config: config/ssh_config.tmpl
+	@[ "$(VERBOSE)" = "1" ] && echo "🔧 Rendering SSH config for platform: $(SSH_PLATFORM)"
+
+	@tmpfile=$$(mktemp); \
+	if [ "$(SSH_PLATFORM)" = "windows" ]; then \
+		sed \
+			-e 's/ControlMaster auto/ControlMaster no/' \
+			-e 's#ControlPath ~/.ssh/cm-%r@%h:%p#ControlPath none#' \
+			-e 's/ControlPersist 10m/ControlPersist no/' \
+			-e 's/StrictHostKeyChecking .*/StrictHostKeyChecking accept-new/' \
+			< config/ssh_config.tmpl | envsubst > $$tmpfile; \
+	else \
+		envsubst < config/ssh_config.tmpl > $$tmpfile; \
+	fi; \
+	\
+	if ! cmp -s $$tmpfile ~/.ssh/config; then \
+		[ "$(VERBOSE)" = "1" ] && echo "📝 Updating ~/.ssh/config for platform: $(SSH_PLATFORM)"; \
+		mv $$tmpfile ~/.ssh/config; \
+		echo "✅ ~/.ssh/config updated for platform: $(SSH_PLATFORM)"; \
+	else \
+		[ "$(VERBOSE)" = "1" ] && echo "ℹ️ ~/.ssh/config already up-to-date"; \
+		rm $$tmpfile; \
+	fi
+
+# Do NOT load the DAG when running ssh-config
+ifeq ($(MAKECMDGOALS),ssh-config)
+# skip DAG
+else ifeq ($(LMSTUDIO_GOALS)$(DEBUG_GOALS),)
 # Load full homelab DAG only when NOT running LM Studio or debug targets
-ifeq ($(LMSTUDIO_GOALS)$(DEBUG_GOALS),)
 include $(REPO_ROOT)/mk/graph.mk
 endif
 
@@ -87,38 +126,3 @@ include $(REPO_ROOT)/mk/targets/homelab-lmstudio.mk
 include $(REPO_ROOT)/mk/targets/homelab-all-lmstudio.mk
 include $(REPO_ROOT)/mk/targets/homelab-all-extend.mk
 endif
-
-# ----------------------------------------------------------------------------
-# SSH Config Rendering (deterministic, idempotent, non-secret)
-# ----------------------------------------------------------------------------
-# Renders ~/.ssh/config from config/ssh_config.tmpl using authoritative
-# variables exported in config.mk. On Windows, the template is patched to
-# disable multiplexing and relax StrictHostKeyChecking.
-#
-# Idempotent: ~/.ssh/config is only rewritten if the rendered output differs.
-# Silent unless VERBOSE=1.
-# ----------------------------------------------------------------------------
-.PHONY: ssh-config
-ssh-config: config/ssh_config.tmpl
-	@[ "$(VERBOSE)" = "1" ] && echo "🔧 Rendering SSH config for platform: $(SSH_PLATFORM)"
-
-	@tmpfile=$$(mktemp); \
-	if [ "$(SSH_PLATFORM)" = "windows" ]; then \
-		sed \
-			-e 's/ControlMaster auto/ControlMaster no/' \
-			-e 's#ControlPath ~/.ssh/cm-%r@%h:%p#ControlPath none#' \
-			-e 's/ControlPersist 10m/ControlPersist no/' \
-			-e 's/StrictHostKeyChecking .*/StrictHostKeyChecking accept-new/' \
-			< config/ssh_config.tmpl | envsubst > $$tmpfile; \
-	else \
-		envsubst < config/ssh_config.tmpl > $$tmpfile; \
-	fi; \
-	\
-	if ! cmp -s $$tmpfile ~/.ssh/config; then \
-		[ "$(VERBOSE)" = "1" ] && echo "📝 Updating ~/.ssh/config for platform: $(SSH_PLATFORM)"; \
-		mv $$tmpfile ~/.ssh/config; \
-		echo "✅ ~/.ssh/config updated for platform: $(SSH_PLATFORM)"; \
-	else \
-		[ "$(VERBOSE)" = "1" ] && echo "ℹ️ ~/.ssh/config already up-to-date"; \
-		rm $$tmpfile; \
-	fi
