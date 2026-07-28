@@ -33,7 +33,7 @@ readonly _HOMELAB_COMMON_SH_LOADED=1
 # If any trust condition fails, the file is skipped.
 # ============================================================
 
-HOMELAB_ENV="/root/src/homelab/homelab.env"
+HOMELAB_ENV="/root/src/homelab/config/homelab.env"
 TRUSTED_GROUP="admin"
 
 if [[ -f "$HOMELAB_ENV" ]]; then
@@ -42,7 +42,7 @@ if [[ -f "$HOMELAB_ENV" ]]; then
     _env_mode=$(stat -c "%a" "$HOMELAB_ENV")
 
     # Extract octal digits (owner/group/other)
-	
+
     _env_o=${_env_mode:0:1}
     _env_g=${_env_mode:1:1}
     _env_t=${_env_mode:2:1}
