@@ -1,19 +1,19 @@
 #!/usr/sbin/nft -f
-# homelab.nft
+# homelab.nft (NetBird-compatible)
 # Declarative firewall ruleset for the homelab network
 #
-# First-run safe: replaces the entire ruleset atomically when loaded via `nft -f`.
-# NOTE: WG interfaces never route to each other
-# NOTE: No delegated global IPv6 to WG clients
-# NOTE: IPv6 Internet requires NAT66 by design
+# IMPORTANT:
+# - Does NOT flush the ruleset.
+# - Does NOT touch table ip netbird or table ip6 netbird.
+# - Filter chains use policy accept to avoid breaking NetBird.
+# - NAT tables are additive (priority 100).
 
-flush ruleset
 # -----------------------------------------------------------------------------
 # Filter table (inet)
 # -----------------------------------------------------------------------------
 table inet homelab_filter {
     chain input {
-        type filter hook input priority 0; policy drop;
+        type filter hook input priority 100; policy accept;
 
         # Baseline
         ct state established,related counter accept comment "sr:input-ct"
@@ -24,25 +24,22 @@ table inet homelab_filter {
         iifname "lo" tcp dport 15335 accept comment "sr:input-lo-dns-tcp"
 
         # dnsdist sends from 127.0.0.1 to 10.89.12.4 → must be allowed
-        iifname "lo" ip daddr 10.89.12.4 udp dport 15335 accept comment "sr:input-lo-to-lanip-dns-udp"
-        iifname "lo" ip daddr 10.89.12.4 tcp dport 15335 accept comment "sr:input-lo-to-lanip-dns-tcp"
+        iifname "lo" ip  daddr 10.89.12.4 udp dport 15335 accept comment "sr:input-lo-to-lanip-dns-udp"
+        iifname "lo" ip  daddr 10.89.12.4 tcp dport 15335 accept comment "sr:input-lo-to-lanip-dns-tcp"
         iifname "lo" ip6 daddr fd89:7a3b:42c0::4 udp dport 15335 accept comment "sr:input-lo-to-lanip-dns-v6-udp"
         iifname "lo" ip6 daddr fd89:7a3b:42c0::4 tcp dport 15335 accept comment "sr:input-lo-to-lanip-dns-v6-tcp"
 
-       # Allow dnsdist (sandboxed) to reach Unbound via LAN IPv4/IPv6
-       iifname "eth0" ip  daddr 10.89.12.4        tcp dport 15335 accept comment "sr:input-unbound-lan-v4-tcp"
-       iifname "eth0" ip  daddr 10.89.12.4        udp dport 15335 accept comment "sr:input-unbound-lan-v4-udp"
-       iifname "eth0" ip6 daddr fd89:7a3b:42c0::4 tcp dport 15335 accept comment "sr:input-unbound-lan-v6-tcp"
-       iifname "eth0" ip6 daddr fd89:7a3b:42c0::4 udp dport 15335 accept comment "sr:input-unbound-lan-v6-udp"
+        # Allow dnsdist (sandboxed) to reach Unbound via LAN IPv4/IPv6
+        iifname "eth0" ip  daddr 10.89.12.4        tcp dport 15335 accept comment "sr:input-unbound-lan-v4-tcp"
+        iifname "eth0" ip  daddr 10.89.12.4        udp dport 15335 accept comment "sr:input-unbound-lan-v4-udp"
+        iifname "eth0" ip6 daddr fd89:7a3b:42c0::4 tcp dport 15335 accept comment "sr:input-unbound-lan-v6-tcp"
+        iifname "eth0" ip6 daddr fd89:7a3b:42c0::4 udp dport 15335 accept comment "sr:input-unbound-lan-v6-udp"
 
         # Host Access
         iifname "eth0" ip  saddr 10.89.12.0/24 accept comment "sr:input-lan-v4"
-        # LAN IPv6: accept link-local (pre-RA) and ULA (post-RA homelab prefix).
-        # Global IPv6 from teh internet is NOT accepted here - established/related
-        # return traffic is already handled by the ct rule above.
         iifname "eth0" ip6 saddr { fe80::/10, fd89:7a3b:42c0::/48 } accept comment "sr:input-lan-v6"
-        ip protocol icmp accept comment "sr:input-icmp-v4"
-        ip6 nexthdr icmpv6 accept comment "sr:input-icmp-v6"
+        ip  protocol icmp   accept comment "sr:input-icmp-v4"
+        ip6 nexthdr icmpv6  accept comment "sr:input-icmp-v6"
 
         # Trusted Router Clients
         iifname "eth0" ip  saddr 10.6.0.0/24        accept comment "sr:input-trusted-v4"
@@ -51,22 +48,17 @@ table inet homelab_filter {
         # WS-Discovery multicast (Windows Network Discovery)
         iifname "eth0" ip daddr 239.255.255.250 udp dport 3702 accept comment "sr:input-wsdd2-mc-v4"
 
-        # Essential Services - reacheable from all internal interfaces
+        # Essential Services - reachable from all internal interfaces
         iifname { "lo", "eth0", "wg+", "tailscale0" } tcp dport { 22, 443, 2222, 9443, 9999 } accept comment "sr:input-svc-tcp"
         iifname { "lo", "eth0", "wg+", "tailscale0" } udp dport { 53, 1900, 3702, 15335 } accept comment "sr:input-svc-udp"
 
         # LAN/WG-only services (SMB and apt-cacher MUST not be internet-facing)
         iifname { "eth0", "wg+" } tcp dport { 445, 3142 } accept comment "sr:input-svc-lan-tcp"
 
-        # NOTE: DNS enforcement (blocking clients from using external resolvers, DoH,
-        # DoT) must live in the FORWARD chain, not INPUT. Rules in INPUT see only
-        # packets destined for the NAS itself - forwarded LAN->WAN DNS traffic is
-        # invisible here. Add FORWARD drop rules if DNS interception is required.
-
         # WireGuard Handshake Range
         iifname "eth0" udp dport 51420-51435 ct state new,established accept comment "sr:input-wg-hs-range"
 
-        # --- WireGuard: host access rules + per-iface handshake ports (wg0..wg15) ---
+        # WireGuard host access + per-iface handshake ports (wg0..wg15)
         iifname "wg0"  ip  saddr 10.0.0.0/16  accept comment "sr:input-wg0-host-v4"
         iifname "eth0" udp dport 51420 ct state new,established accept comment "sr:input-wg0-hs"
 
@@ -115,6 +107,7 @@ table inet homelab_filter {
         iifname "wg15" ip  saddr 10.15.0.0/16 accept comment "sr:input-wg15-host-v4"
         iifname "eth0" udp dport 51435 ct state new,established accept comment "sr:input-wg15-hs"
 
+        # IPv6 ULA for WG interfaces
         iifname "wg0"  ip6 saddr fd89:7a3b:42c0:0::/64  accept comment "sr:input-wg0-host-ula-v6"
         iifname "wg1"  ip6 saddr fd89:7a3b:42c0:1::/64  accept comment "sr:input-wg1-host-ula-v6"
         iifname "wg2"  ip6 saddr fd89:7a3b:42c0:2::/64  accept comment "sr:input-wg2-host-ula-v6"
@@ -132,34 +125,32 @@ table inet homelab_filter {
         iifname "wg14" ip6 saddr fd89:7a3b:42c0:14::/64 accept comment "sr:input-wg14-host-ula-v6"
         iifname "wg15" ip6 saddr fd89:7a3b:42c0:15::/64 accept comment "sr:input-wg15-host-ula-v6"
 
-        # --- Tailscale ---
+        # Tailscale
         iifname "tailscale0" ip  saddr 100.64.0.0/10  accept comment "sr:input-ts-v4"
         iifname "tailscale0" ip6 saddr fd7a:115c:a1e0::/48 accept comment "sr:input-ts-v6"
 
         # Allow tailscaled to communicate on port 41641
-        iifname "eth0" tcp dport 41641 accept comment "sr:input-tailscale-udp"
-        iifname "eth0" udp dport 41641 accept comment "sr:input-tailscale-tcp"
+        iifname "eth0" tcp dport 41641 accept comment "sr:input-tailscale-tcp"
+        iifname "eth0" udp dport 41641 accept comment "sr:input-tailscale-udp"
     }
 
     chain forward {
-        type filter hook forward priority 0; policy drop;
+        type filter hook forward priority 100; policy accept;
 
         ct state established,related counter accept comment "sr:forward-ct"
 
-        # PMTUD — ICMP errors must traverse the forward chain unconditionally.
-        # Without these rules, "fragmentation needed" (v4) and "packet too big" (v6)
-        # are dropped by the default-deny policy, causing silent TCP stalls on WG tunnels
-        # (WG MTU ~1420 vs LAN MTU 1500).
+        iifname "eth0" oifname "eth0" ip saddr 10.89.12.0/24 ip daddr != 10.89.12.0/24 accept comment "sr:forward-lan-inet-v4"
+
+        # PMTUD
         ip  protocol icmp  icmp  type { destination-unreachable, time-exceeded } accept comment "pmtud:icmpv4-fwd"
         ip6 nexthdr  icmpv6 icmpv6 type { packet-too-big, destination-unreachable, time-exceeded } accept comment "pmtud:icmpv6-fwd"
 
-        # TCP MSS clamping for WireGuard tunnels (prevents black holes without requiring PMTUD)
+        # TCP MSS clamping for WireGuard tunnels
         iifname "wg+" oifname "eth0"  tcp flags & (syn|rst) == syn tcp option maxseg size set rt mtu comment "mss-clamp:wg-to-lan"
         iifname "eth0" oifname "wg+"  tcp flags & (syn|rst) == syn tcp option maxseg size set rt mtu comment "mss-clamp:lan-to-wg"
 
         # Trusted Router -> LAN
         iifname "eth0" oifname "eth0" ip  saddr 10.6.0.0/24        ip  daddr 10.89.12.0/24        accept comment "sr:forward-trusted-lan-v4"
-        # Trusted router to any global IPv6 on LAN (non-ULA)
         iifname "eth0" oifname "eth0" ip6 saddr fd5e:d23d:70e:111::/64 ip6 daddr != fd89:7a3b:42c0::/48 accept comment "sr:forward-trusted-lan-v6"
 
         # --- WireGuard forwarding (wg1..wg15) based on the original bit model ---
@@ -273,67 +264,54 @@ table inet homelab_filter {
 
         # Tailscale -> Internet v6 (anything non-ULA via eth0)
         iifname "tailscale0" oifname "eth0" ip6 saddr fd7a:115c:a1e0::/48 ip6 daddr != fd89:7a3b:42c0::/48 counter accept comment "sr:forward-ts-inet-v6"
+        iifname "eth0" oifname "tailscale0" ip6 saddr != fd89:7a3b:42c0::/48 ip6 daddr fd7a:115c:a1e0::/48 accept comment "sr:forward-ts-lan-v6-rev"
     }
 
     chain output {
-        type filter hook output priority 0; policy accept;
+        type filter hook output priority 100; policy accept;
 
-        # Allow established traffic
         ct state established,related accept comment "sr:output-ct"
 
-        # Allow ICMPv6 (PMTUD)
+        # Allow all outbound internet traffic (IPv4/IPv6)
+        oifname { "vmbr0", "eth0" } ct state new,established,related accept comment "sr:output-inet-any"
+
+        # ICMPv6 (PMTUD)
         ip6 nexthdr icmpv6 accept comment "sr:output-icmpv6"
 
-        # -------------------------------
-        # UNBOUND → INTERNET (CRITICAL)
-        # -------------------------------
-
-        # Classic DNS (UDP/TCP 53)
+        # UNBOUND → INTERNET (critical)
         oifname "eth0" udp dport 53  accept comment "sr:output-unbound-dns-udp"
         oifname "eth0" tcp dport 53  accept comment "sr:output-unbound-dns-tcp"
-
         # DNS-over-TLS (TCP 853)
         oifname "eth0" tcp dport 853 accept comment "sr:output-unbound-dot"
-
         # DNS-over-HTTPS bootstrap (TCP 443)
         oifname "eth0" tcp dport 443 accept comment "sr:output-unbound-doh"
-
         # DNSSEC timing (NTP)
         oifname "eth0" udp dport 123 accept comment "sr:output-unbound-ntp"
-
         # Allow Unbound to send ANY response packets
         oifname "eth0" udp sport 15335 accept comment "sr:output-unbound-any-udp"
         oifname "eth0" tcp sport 15335 accept comment "sr:output-unbound-any-tcp"
 
-        # -------------------------------
         # ALL PROCESSES → DNS (IPv4/IPv6)
-        # -------------------------------
-
         oifname "eth0" udp dport 53 accept comment "sr:output-any-dns-udp"
         oifname "eth0" tcp dport 53 accept comment "sr:output-any-dns-tcp"
-
         oifname "eth0" ip6 nexthdr udp udp dport 53 accept comment "sr:output-any-dns-v6-udp"
         oifname "eth0" ip6 nexthdr tcp tcp dport 53 accept comment "sr:output-any-dns-v6-tcp"
 
-        # -------------------------------
         # UNBOUND → dnsdist replies
-        # -------------------------------
-
         iifname "lo" udp sport 15335 accept comment "sr:output-lo-dns-udp"
         iifname "lo" tcp sport 15335 accept comment "sr:output-lo-dns-tcp"
     }
-
 }
 
 # -----------------------------------------------------------------------------
-# NAT table (IPv4)
+# NAT table (IPv4) — additive, after NetBird
 # -----------------------------------------------------------------------------
 table ip homelab_nat {
     chain postrouting {
         type nat hook postrouting priority 100; policy accept;
 
-        # NAT LAN replies to wg7 clients (IPv4). This NAT66 rule is also wrong for a server interface. It forces the NAS to NAT its own ULA IPv6 into wg7.
-        #oifname "wg7" ip saddr 10.89.12.0/24 masquerade comment "sr:nat-wg7-lan-v4"
+        # LAN → WAN NAT
+        oifname "eth0" ip saddr 10.89.12.0/24 masquerade comment "sr:nat-lan-wan"
 
         # WG internet IPv4 bit (ifnum has bit1 set): masquerade
         oifname "eth0" ip saddr 10.2.0.0/16  masquerade comment "sr:nat-wg2-inet-v4"
@@ -347,36 +325,20 @@ table ip homelab_nat {
 
         # Tailscale NAT (IPv4)
         oifname "eth0" ip saddr 100.64.0.0/10 masquerade comment "sr:nat-ts-v4"
-
-        # WG LAN IPv4 NAT (LAN access bit set)
-        # Routing on the router, no NAT for LAN on the NAS -> keep commented
-        #oifname "eth0" ip saddr 10.1.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg1-lan-v4"
-        #oifname "eth0" ip saddr 10.3.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg3-lan-v4"
-        #oifname "eth0" ip saddr 10.5.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg5-lan-v4"
-        #oifname "eth0" ip saddr 10.7.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg7-lan-v4"
-        #oifname "eth0" ip saddr 10.9.0.0/16  ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg9-lan-v4"
-        #oifname "eth0" ip saddr 10.11.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg11-lan-v4"
-        #oifname "eth0" ip saddr 10.13.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg13-lan-v4"
-        #oifname "eth0" ip saddr 10.15.0.0/16 ip daddr 10.89.12.0/24 masquerade comment "sr:nat-wg15-lan-v4"
     }
 }
 
 # -----------------------------------------------------------------------------
-# NAT66 for WG interfaces with IPv6 Internet bit set
-# NAT66 is already gated by forwarding rules, Interfaces without IPv6 Internet never reach this chain
+# NAT66 table (IPv6) — additive, after NetBird
 # -----------------------------------------------------------------------------
 table ip6 homelab_nat6 {
     chain postrouting {
         type nat hook postrouting priority 100; policy accept;
 
-        # NAT LAN replies to wg7 clients (IPv6). This NAT66 rule is also wrong for a server interface. It forces the NAS to NAT its own ULA IPv6 into wg7. NAS becomes unreachable.
-        # oifname "wg7" ip6 saddr fd89:7a3b:42c0::/64 masquerade comment "sr:nat-wg7-lan-v6"
-
         # Any ULA from fd89:7a3b:42c0::/48 leaving via eth0 is NAT66'd
         oifname "eth0" ip6 saddr fd89:7a3b:42c0::/48 masquerade comment "sr:nat-wg-inet-v6"
 
         # NAT66 for WireGuard clients leaving via router WAN (wan0)
-        # Required when router has no global IPv6 (e.g., 4G) and only link-local IPv6
         oifname "wan0" ip6 saddr fd89:7a3b:42c0::/48 masquerade comment "sr:nat-wg-router-v6"
     }
 }
