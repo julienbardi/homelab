@@ -13,6 +13,15 @@
 REPO_ROOT := $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
 export REPO_ROOT
 
+UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
+
+ifeq ($(UNAME_S),Windows)
+	SSH_PLATFORM := windows
+else
+	SSH_PLATFORM := unix
+endif
+export SSH_PLATFORM
+
 # Detect LM Studio targets
 LMSTUDIO_GOALS := $(filter lmstudio% homelab-lmstudio homelab-all-lmstudio,$(MAKECMDGOALS))
 
@@ -87,6 +96,19 @@ endif
 # Safe: contains no secrets. Deterministic: uses envsubst. Idempotent.
 # ----------------------------------------------------------------------------
 ssh-config:
-	@echo "🔧 Rendering SSH config → ~/.ssh/config"
+	@echo "🔧 Rendering SSH config for platform: $(SSH_PLATFORM)"
+
+ifeq ($(SSH_PLATFORM),windows)
+	# Patch Linux template → Windows-safe version
+	sed \
+		-e 's/ControlMaster auto/ControlMaster no/' \
+		-e 's#ControlPath ~/.ssh/cm-%r@%h:%p#ControlPath none#' \
+		-e 's/ControlPersist 10m/ControlPersist no/' \
+		-e 's/StrictHostKeyChecking .*/StrictHostKeyChecking accept-new/' \
+		< config/ssh_config.tmpl | envsubst > ~/.ssh/config
+else
+	# Use template as-is
 	envsubst < config/ssh_config.tmpl > ~/.ssh/config
+endif
+
 	@echo "✅ SSH config updated"
