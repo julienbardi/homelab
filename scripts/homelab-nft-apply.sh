@@ -18,6 +18,12 @@ if [[ ! -f "$HOMELAB_NFT_RULES_SRC" ]]; then
   exit 1
 fi
 
+log "🛡️ Running homelab firewall safety validator..."
+run_as_root /usr/local/bin/validate-nft.sh || {
+    log "❌ Firewall safety validation failed — aborting apply"
+    exit 1
+}
+
 log "🔧 Ensuring nftables config directory exists..."
 run_as_root install -d -o root -g root -m 0755 "$HOMELAB_NFT_ETC_DIR"
 
