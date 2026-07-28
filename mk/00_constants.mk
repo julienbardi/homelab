@@ -80,8 +80,10 @@ ROOT_HOME := $(shell getent passwd root | cut -d: -f6)
 
 PRIMARY_ADMIN_GROUP := $(word 1,$(ADMIN_GROUPS))
 
-.PHONY: $(STAMP_DIR_ROOT)
-$(STAMP_DIR_ROOT):
+$(STAMP_DIR_ROOT): ensure-stamp-root
+
+.PHONY: ensure-stamp-root
+ensure-stamp-root:
 	@if [ ! -x "$(run_as_root)" ]; then \
 		echo "❌ run_as_root missing — run 'make install-all'"; \
 		exit 1; \
@@ -103,8 +105,10 @@ $(STAMP_DIR_ROOT):
 		echo "🔧 [root] Fixing permissions of $(STAMP_DIR_ROOT)"; \
 		$(run_as_root) chmod 775 "$(STAMP_DIR_ROOT)"; \
 	fi
-.PHONY: $(STAMP_DIR_USER)
-$(STAMP_DIR_USER):
+
+$(STAMP_DIR_USER): ensure-stamp-user
+.PHONY: ensure-stamp-user
+ensure-stamp-user:
 	@if [ ! -d "$(STAMP_DIR_USER)" ]; then \
 		echo "📋 [user] Creating STAMP_DIR_USER: $(STAMP_DIR_USER)"; \
 		mkdir -p "$(STAMP_DIR_USER)"; \

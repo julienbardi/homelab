@@ -58,6 +58,8 @@ endif
 .PHONY: sanity
 sanity: assert-sanity
 
+.DEFAULT_GOAL := help
+
 .PHONY: all
 all: homelab-all
 
@@ -87,28 +89,36 @@ include $(REPO_ROOT)/mk/targets/homelab-all-extend.mk
 endif
 
 # ----------------------------------------------------------------------------
-# SSH Config Rendering (deterministic, non-secret)
+# SSH Config Rendering (deterministic, idempotent, non-secret)
 # ----------------------------------------------------------------------------
-# Renders ~/.ssh/config from config/ssh_config.tmpl using the authoritative
-# variables exported in config.mk. This produces a portable, hardened SSH
-# configuration for all homelab hosts.
+# Renders ~/.ssh/config from config/ssh_config.tmpl using authoritative
+# variables exported in config.mk. On Windows, the template is patched to
+# disable multiplexing and relax StrictHostKeyChecking.
 #
-# Safe: contains no secrets. Deterministic: uses envsubst. Idempotent.
+# Idempotent: ~/.ssh/config is only rewritten if the rendered output differs.
+# Silent unless VERBOSE=1.
 # ----------------------------------------------------------------------------
-ssh-config:
-	@echo "🔧 Rendering SSH config for platform: $(SSH_PLATFORM)"
+.PHONY: ssh-config
+ssh-config: config/ssh_config.tmpl
+	@[ "$(VERBOSE)" = "1" ] && echo "🔧 Rendering SSH config for platform: $(SSH_PLATFORM)"
 
-ifeq ($(SSH_PLATFORM),windows)
-	# Patch Linux template → Windows-safe version
-	sed \
-		-e 's/ControlMaster auto/ControlMaster no/' \
-		-e 's#ControlPath ~/.ssh/cm-%r@%h:%p#ControlPath none#' \
-		-e 's/ControlPersist 10m/ControlPersist no/' \
-		-e 's/StrictHostKeyChecking .*/StrictHostKeyChecking accept-new/' \
-		< config/ssh_config.tmpl | envsubst > ~/.ssh/config
-else
-	# Use template as-is
-	envsubst < config/ssh_config.tmpl > ~/.ssh/config
-endif
-
-	@echo "✅ SSH config updated"
+	@tmpfile=$$(mktemp); \
+	if [ "$(SSH_PLATFORM)" = "windows" ]; then \
+		sed \
+			-e 's/ControlMaster auto/ControlMaster no/' \
+			-e 's#ControlPath ~/.ssh/cm-%r@%h:%p#ControlPath none#' \
+			-e 's/ControlPersist 10m/ControlPersist no/' \
+			-e 's/StrictHostKeyChecking .*/StrictHostKeyChecking accept-new/' \
+			< config/ssh_config.tmpl | envsubst > $$tmpfile; \
+	else \
+		envsubst < config/ssh_config.tmpl > $$tmpfile; \
+	fi; \
+	\
+	if ! cmp -s $$tmpfile ~/.ssh/config; then \
+		[ "$(VERBOSE)" = "1" ] && echo "📝 Updating ~/.ssh/config for platform: $(SSH_PLATFORM)"; \
+		mv $$tmpfile ~/.ssh/config; \
+		echo "✅ ~/.ssh/config updated for platform: $(SSH_PLATFORM)"; \
+	else \
+		[ "$(VERBOSE)" = "1" ] && echo "ℹ️ ~/.ssh/config already up-to-date"; \
+		rm $$tmpfile; \
+	fi

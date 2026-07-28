@@ -14,7 +14,7 @@ help-docs-install: install-all
 	@if [ -z "$(DOCS_DIR)" ]; then echo "❌ Error: DOCS_DIR is empty."; exit 1; fi
 	@$(run_as_root) mkdir -p "$(DOCS_DIR)"
 	# We use admin here because it's the Ugreen privileged group
-	@$(run_as_root) chown $(ROOT_UID):admin "$(DOCS_DIR)"
+	@$(run_as_root) chown $(ROOT_UID):$(PRIMARY_ADMIN_GROUP)  "$(DOCS_DIR)"
 	@$(run_as_root) chmod 0775 "$(DOCS_DIR)"
 	@$(call install_file,$(REPO_ROOT)/docs/help.md,$(DOCS_DIR)/help.md,$(ROOT_UID),$(ROOT_GID),0644)
 
