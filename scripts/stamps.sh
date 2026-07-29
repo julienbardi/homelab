@@ -1,18 +1,25 @@
 #!/bin/sh
 # ============================================================
-# Unified stamp library — deterministic, BusyBox-safe
-# ============================================================
-# Provides:
-#   stamp_dir
-#   stamp_init
-#   stamp_compute_hash
-#   stamp_should_skip
-#   stamp_update
+# stamps.sh — Unified stamp library (runtime version)
 #
-# This file lives in scripts/ (flat), so install-all picks it up.
+# DEPENDS:
+#   - gitignore-check.sh
+#   - secrets-check.sh
+#   - secrets-stamp.sh
+#   - gitignore-stamp.sh
+#
+# CONTRACT:
+# - This script is installed into /usr/local/bin by `make install-all`.
+# - It MUST NOT reference repo paths (./scripts/... or $REPO_ROOT/...).
+# - It MUST reference sibling installed scripts via $SCRIPT_DIR.
+# - All dependent scripts MUST be installed into the same directory.
+# - Repo scripts are source-only and must never be executed.
+# - BusyBox-safe: no arrays, no bashisms, no xargs -0.
 # ============================================================
 
 set -eu
+
+SCRIPT_DIR="$(dirname "$0")"
 
 # ------------------------------------------------------------
 # Resolve user-level stamp directory (privilege-correct)
@@ -48,18 +55,17 @@ stamp_compute_hash() {
 #   stamp_compute_hash_files file1 file2 ...
 # ------------------------------------------------------------
 stamp_compute_hash_files() {
-    # BusyBox-safe: no arrays, no xargs -0
     sha256sum "$@" | sha256sum | awk '{print $1}'
 }
 
 # ------------------------------------------------------------
-# Gitignore invariant hash
+# Gitignore invariant hash (runtime version)
 # ------------------------------------------------------------
 stamp_compute_hash_gitignore() {
     stamp_compute_hash_files \
-        "$REPO_ROOT/.gitignore" \
-        "$REPO_ROOT/scripts/gitignore-check.sh" \
-        "$REPO_ROOT/mk/20_gitignore.mk"
+        "$SCRIPT_DIR/gitignore-check.sh" \
+        "$SCRIPT_DIR/gitignore-stamp.sh" \
+        "$SCRIPT_DIR/secrets-stamp.sh"
 }
 
 # ------------------------------------------------------------
@@ -113,13 +119,11 @@ stamp_git_filelist() {
     if [ -f "$stamp" ]; then
         stored="$(cat "$stamp")"
         if [ "$current" = "$stored" ]; then
-            # Cache is valid
             printf '%s' "$list"
             return 0
         fi
     fi
 
-    # Cache is stale ➡️ regenerate
     git ls-files > "$list"
     printf '%s\n' "$current" > "$stamp"
 
