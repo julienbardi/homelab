@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 COMMON="$SCRIPT_DIR/common.sh"
+[[ -f "$COMMON" ]] || { echo "❌ Error: $COMMON not found" >&2; exit 1; }
 source "$COMMON"
 
 # verify_and_install_known_hosts.sh — Gold Version (refactored)

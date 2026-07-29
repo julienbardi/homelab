@@ -16,10 +16,12 @@ set -eu
 # - Repo-preflight executes this script directly.
 # - Repo scripts are source-only and must never be executed.
 
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Use installed stamps.sh
-. "$SCRIPT_DIR/stamps.sh"
+# Load shared stamp primitives
+COMMON="$SCRIPT_DIR/stamps.sh"
+[[ -f "$COMMON" ]] || { echo "❌ Error: $COMMON not found" >&2; exit 1; }
+source "$COMMON"
 
 DIR="$(stamp_init)"
 STAMP="$DIR/gitignore-check.stamp"
