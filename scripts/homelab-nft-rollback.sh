@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-HOMELAB_NFT_ROLLBACK_FLAG="/run/homelab-nft.pending"
+: "${HOMELAB_NFT_ROLLBACK_FLAG:=/run/homelab-nft.pending}"
 
 # shellcheck disable=SC2034
 SCRIPT_NAME="homelab-nft-rollback"

@@ -9,8 +9,6 @@
 set -u
 LC_ALL=C; export LC_ALL
 
-: "${VERBOSE:=0}"
-
 quiet=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -57,7 +55,7 @@ else
 fi
 
 [ -n "$SRC_HASH" ] || {
-    echo "❌ IFCv3: Failed to calculate source hash for $SRC_PATH" >&2
+    echo "❌ Failed to calculate source hash for $SRC_PATH" >&2
     exit 1
 }
 
@@ -78,11 +76,11 @@ else
 fi
 
 if [ "$SRC_HASH" = "$DST_HASH" ]; then
-    [ "$VERBOSE" -ge 1 ] && log "🟢 IFCv3: already up-to-date: $DST_PATH"
+    log "🟢 already up-to-date: $DST_PATH"
     exit 0
 fi
 
-log "🔄 IFCv3: updating $DST_PATH..."
+log "🔄 updating $DST_PATH..."
 
 # --- 3. Local buffer (always) ---
 BUFFER="${TMPDIR}/.ifc_v3_${PID}_$$"
@@ -95,7 +93,7 @@ fi
 
 BUF_HASH=$(sha256sum "$BUFFER" | awk '{print $1}')
 if [ "$BUF_HASH" != "$SRC_HASH" ]; then
-    echo "❌ IFCv3: buffer corruption detected" >&2
+    echo "❌ buffer corruption detected" >&2
     rm -f "$BUFFER"
     exit 1
 fi
@@ -112,7 +110,7 @@ if [ -z "$DST_HOST" ]; then
     trap 'rm -rf "$LOCK" "$BUFFER" 2>/dev/null || true' EXIT
 
     if ! mkdir "$LOCK" 2>/dev/null; then
-        echo "❌ IFCv3: lock held: $LOCK" >&2
+        echo "❌ lock held: $LOCK" >&2
         rm -f "$BUFFER"
         exit 1
     fi
@@ -125,7 +123,7 @@ if [ -z "$DST_HOST" ]; then
         rm -rf "$LOCK"
         sync || true
     else
-        echo "❌ IFCv3: atomic move failed" >&2
+        echo "❌ atomic move failed" >&2
         rm -rf "$LOCK"
         rm -f "$BUFFER"
         exit 1
@@ -144,7 +142,7 @@ else
         -o IdentityFile="$SSH_IDENTITY" \
         "$DST_HOST" "cat > '$REM_TMP'" < "$BUFFER" \
         || {
-            echo "❌ IFCv3: remote transfer failed" >&2
+            echo "❌ remote transfer failed" >&2
             rm -f "$BUFFER"
             exit 1
         }
@@ -175,10 +173,10 @@ else
             mv -f \"\$T\" \"\$DST\" || { echo '❌ IFCv3[remote]: move failed' >&2; exit 1; }
             sync 2>/dev/null || true
         " || {
-        echo "❌ IFCv3: remote install failed" >&2
+        echo "❌ remote install failed" >&2
         exit 1
     }
 fi
 
-log "🚀 IFCv3: installed $DST_PATH"
+log "🚀 installed $DST_PATH"
 exit 3

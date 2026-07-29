@@ -60,6 +60,40 @@ export SECRETS_FILE
 # Load non-secret config
 include $(REPO_ROOT)/mk/config.mk
 
+# Do NOT load the DAG when running ssh-config
+ifeq ($(MAKECMDGOALS),ssh-config)
+	# skip DAG entirely
+else
+	include $(REPO_ROOT)/mk/graph.mk
+endif
+
+# --------------------------------------------------------------------
+# Modular variable guard system (only when DAG is loaded)
+# --------------------------------------------------------------------
+define REQUIRE_VAR
+$(if $($(1)),,$(error $(1) is not set — check mk/config.mk))
+endef
+
+REQUIRED_VARS := \
+	INSTALL_PATH \
+	INSTALL_SBIN_PATH \
+	INSTALL_FILE_IF_CHANGED \
+	INSTALL_FILES_IF_CHANGED \
+	INSTALL_IF_CHANGED_EXIT_CHANGED \
+	ROOT_UID \
+	ROOT_GID \
+	RUN_ROOT_SRC \
+	IFC_V3_SINGLE_SRC \
+	IFC_V3_PLURAL_SRC \
+	COMMON_SRC \
+	REPO_ROOT \
+	WG_PLAN_SUBNETS \
+	YQ_GITHUB_REPO \
+	YQ_VERSION \
+	YQ_SHA256
+
+$(foreach v,$(REQUIRED_VARS),$(eval $(call REQUIRE_VAR,$(v))))
+
 # SSH config target BEFORE graph.mk
 # ----------------------------------------------------------------------------
 # SSH Config Rendering (deterministic, idempotent, non-secret)
@@ -73,7 +107,7 @@ include $(REPO_ROOT)/mk/config.mk
 # ----------------------------------------------------------------------------
 .PHONY: ssh-config
 ssh-config: config/ssh_config.tmpl
-	@[ "$(VERBOSE)" = "1" ] && echo "🔧 Rendering SSH config for platform: $(SSH_PLATFORM)"
+	@if [ "$(VERBOSE)" -ge "2" ]; then echo "🔧 Rendering SSH config for platform: $(SSH_PLATFORM)"; fi
 
 	@tmpfile=$$(mktemp); \
 	if [ "$(SSH_PLATFORM)" = "windows" ]; then \
@@ -88,21 +122,13 @@ ssh-config: config/ssh_config.tmpl
 	fi; \
 	\
 	if ! cmp -s $$tmpfile ~/.ssh/config; then \
-		[ "$(VERBOSE)" = "1" ] && echo "📝 Updating ~/.ssh/config for platform: $(SSH_PLATFORM)"; \
+		if [ "$(VERBOSE)" -ge "1" ]; then echo "🔄 Updating ~/.ssh/config for platform: $(SSH_PLATFORM)..."; fi; \
 		mv $$tmpfile ~/.ssh/config; \
-		echo "✅ ~/.ssh/config updated for platform: $(SSH_PLATFORM)"; \
+		echo "🚀 installed ~/.ssh/config for platform: $(SSH_PLATFORM)"; \
 	else \
-		[ "$(VERBOSE)" = "1" ] && echo "ℹ️ ~/.ssh/config already up-to-date"; \
+		if [ "$(VERBOSE)" -ge "0" ]; then echo "🟢 already up-to-date: ~/.ssh/config for platform: $(SSH_PLATFORM)"; fi; \
 		rm $$tmpfile; \
 	fi
-
-# Do NOT load the DAG when running ssh-config
-ifeq ($(MAKECMDGOALS),ssh-config)
-# skip DAG
-else ifeq ($(LMSTUDIO_GOALS)$(DEBUG_GOALS),)
-# Load full homelab DAG only when NOT running LM Studio or debug targets
-include $(REPO_ROOT)/mk/graph.mk
-endif
 
 # Global Makefile invariants
 .PHONY: sanity
@@ -137,3 +163,4 @@ include $(REPO_ROOT)/mk/targets/homelab-lmstudio.mk
 include $(REPO_ROOT)/mk/targets/homelab-all-lmstudio.mk
 include $(REPO_ROOT)/mk/targets/homelab-all-extend.mk
 endif
+

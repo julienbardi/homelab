@@ -9,6 +9,58 @@
 #   to ensure the wrapper exists before invocation.
 # --------------------------------------------------------------------
 
+# Authorization guard (used by multiple modules)
+.PHONY: ensure-authorized-admin
+ensure-authorized-admin:
+	@echo "$(AUTHORIZED_ADMINS)" | grep -qw "$(OPERATOR_USER)" || \
+		{ echo "❌ User $(OPERATOR_USER) not authorized for this mutation"; exit 1; }
+
+$(STAMP_DIR_ROOT): ensure-stamp-root
+
+.PHONY: ensure-stamp-root
+ensure-stamp-root:
+	@if [ ! -x "$(run_as_root)" ]; then \
+		echo "❌ run_as_root missing — run 'make install-all'"; \
+		exit 1; \
+	fi; \
+	if [ ! -d "$(STAMP_DIR_ROOT)" ]; then \
+		echo "📋 [root] Creating STAMP_DIR_ROOT: $(STAMP_DIR_ROOT)"; \
+		$(run_as_root) install -d -m 0775 -o root -g $(PRIMARY_ADMIN_GROUP) "$(STAMP_DIR_ROOT)"; \
+	else \
+		[ "$(VERBOSE)" = "1" ] && echo "📋 [root] STAMP_DIR_ROOT exists: $(STAMP_DIR_ROOT)"; \
+	fi; \
+	# Autocorrect owner/group
+	if [ "$$(stat -c %u $(STAMP_DIR_ROOT))" != "0" ] || \
+	[ "$$(stat -c %g $(STAMP_DIR_ROOT))" != "$$(getent group $(PRIMARY_ADMIN_GROUP) | cut -d: -f3)" ]; then \
+		echo "🔧 [root] Fixing owner/group of $(STAMP_DIR_ROOT)"; \
+		$(run_as_root) chown root:$(PRIMARY_ADMIN_GROUP) "$(STAMP_DIR_ROOT)"; \
+	fi; \
+	# Autocorrect permissions
+	if [ "$$(stat -c %a $(STAMP_DIR_ROOT))" != "775" ]; then \
+		echo "🔧 [root] Fixing permissions of $(STAMP_DIR_ROOT)"; \
+		$(run_as_root) chmod 775 "$(STAMP_DIR_ROOT)"; \
+	fi
+
+$(STAMP_DIR_USER): ensure-stamp-user
+.PHONY: ensure-stamp-user
+ensure-stamp-user:
+	@if [ ! -d "$(STAMP_DIR_USER)" ]; then \
+		echo "📋 [user] Creating STAMP_DIR_USER: $(STAMP_DIR_USER)"; \
+		mkdir -p "$(STAMP_DIR_USER)"; \
+	else \
+		[ "$(VERBOSE)" = "1" ] && echo "📋 [user] STAMP_DIR_USER exists: $(STAMP_DIR_USER)"; \
+	fi; \
+	# Autocorrect ownership
+	if [ "$$(stat -c %u $(STAMP_DIR_USER))" != "$$(id -u)" ]; then \
+		echo "🔧 [user] Fixing owner of $(STAMP_DIR_USER)"; \
+		chown "$$(id -u):$$(id -g)" "$(STAMP_DIR_USER)"; \
+	fi; \
+	# Autocorrect permissions
+	if [ "$$(stat -c %a $(STAMP_DIR_USER))" -lt 700 ]; then \
+		echo "🔧 [user] Fixing permissions of $(STAMP_DIR_USER)"; \
+		chmod 700 "$(STAMP_DIR_USER)"; \
+	fi
+
 .PHONY: apt-uninstall-installed
 apt-uninstall-installed: | $(run_as_root)
 	@echo "🗑️  Removing all homelab APT packages (best-effort)..."
@@ -67,12 +119,12 @@ $(INSTALL_FILES_IF_CHANGED): $(IFC_V3_PLURAL_SRC) | $(INSTALL_FILE_IF_CHANGED_V3
 # Arguments for install_file_if_changed_v3.sh:
 # 1: SRC_PATH, 2: DST_PATH, 3: OWNER, 4: GROUP, 5: MODE
 define install_file
-	test -n "$(INSTALL_PATH)" || { echo "❌ Error: INSTALL_PATH is empty. Check mk/config.mk." >&2; exit 1; }; \
 	status=0; \
 	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) \
 		"" "" "$(1)" \
 		"" "" "$(2)" \
 		"$(3)" "$(4)" "$(5)" || status=$$$$?; \
+	case "$$$$status" in ''|*[!0-9]*) status=1 ;; esac; \
 	{ [ $$$$status -eq 0 ] || [ $$$$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; } || { \
 		echo "❌ IFC: Fatal error (exit $$$$status) installing $(2)" >&2; \
 		exit $$$$status; \

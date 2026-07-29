@@ -5,7 +5,7 @@
 #
 # Deterministic Declarative Architecture (DDA):
 #   - All policy (versions, repos, assets, checksums) is defined
-#     centrally in mk/00_constants.mk.
+#     centrally in mk/config.mk.
 #   - This module contains *logic only*:
 #       • bootstrapping local developer tools
 #       • enforcing pinned versions
