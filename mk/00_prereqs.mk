@@ -275,17 +275,28 @@ prereqs-operator-ssh-key:
 	fi
 
 install-ssh-config: prereqs-operator-ssh-key
-	@$(call WITH_SECRETS, sh -c '\
+	@sh -c '\
 		U_NAME=$${operator_user:-$$(id -un)}; \
 		G_NAME=$${operator_group:-$$(id -gn)}; \
 		U_HOME=$${operator_home:-$$HOME}; \
-		if [ -n "$$VERBOSE" ] && [ "$$VERBOSE" != "0" ]; then \
-			echo "🔧 Ensuring SSH config is up to date for $$U_NAME"; \
-		fi; \
 		sudo install -d -m 700 "$$U_HOME/.ssh"; \
 		sudo chown "$$U_NAME:$$G_NAME" "$$U_HOME/.ssh"; \
-		$(call install_file,$(REPO_ROOT)/config/ssh_config,$$U_HOME/.ssh/config,$$U_NAME,$$G_NAME,600); \
-	')
+		tmpfile=$$(mktemp); \
+		if [ "$(SSH_PLATFORM)" = "windows" ]; then \
+			sed \
+				-e '\''s/ControlMaster auto/ControlMaster no/'\'' \
+				-e '\''s#ControlPath ~/.ssh/cm-%r@%h:%p#ControlPath none#'\'' \
+				-e '\''s/ControlPersist 10m/ControlPersist no/'\'' \
+				-e '\''s/StrictHostKeyChecking .*/StrictHostKeyChecking accept-new/'\'' \
+				< $(REPO_ROOT)/config/ssh_config.tmpl | envsubst > $$tmpfile; \
+		else \
+			envsubst < $(REPO_ROOT)/config/ssh_config.tmpl > $$tmpfile; \
+		fi; \
+		sudo mv $$tmpfile "$$U_HOME/.ssh/config"; \
+		sudo chown "$$U_NAME:$$G_NAME" "$$U_HOME/.ssh/config"; \
+		sudo chmod 600 "$$U_HOME/.ssh/config"; \
+	'
+
 
 prereqs-python-venv-verify:
 	@python3 -c 'import venv' >/dev/null 2>&1 || { \

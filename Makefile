@@ -48,7 +48,7 @@ endif
 # ---------------------------------------------------------------------------
 
 # SOPS binary and secrets file
-SOPS_BIN := /usr/local/bin/sops
+SOPS_BIN := $(shell command -v sops 2>/dev/null)
 
 # Ensure SOPS can decrypt inside Make recipes
 SOPS_AGE_KEY_FILE := /etc/sops/keys/age.key
