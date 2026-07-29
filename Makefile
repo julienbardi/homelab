@@ -32,6 +32,13 @@ LMSTUDIO_GOALS := $(filter lmstudio% homelab-lmstudio homelab-all-lmstudio,$(MAK
 # Detect debug targets
 DEBUG_GOALS := $(filter debug-vars debug-targets,$(MAKECMDGOALS))
 
+export VERBOSE ?= 0
+
+# Normalize: if VERBOSE is non-numeric → set to 3
+ifeq ($(shell printf "%s" "$(VERBOSE)" | grep -Eq '^[0-9]+$$' && echo num || echo str),str)
+export VERBOSE := 3
+endif
+
 # Canonical entrypoint wrapper
 # This file exists ONLY to forward to the real graph.
 

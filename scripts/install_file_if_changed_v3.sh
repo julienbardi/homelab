@@ -9,6 +9,8 @@
 set -u
 LC_ALL=C; export LC_ALL
 
+: "${VERBOSE:=0}"
+
 quiet=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -76,7 +78,7 @@ else
 fi
 
 if [ "$SRC_HASH" = "$DST_HASH" ]; then
-    log "🟢 IFCv3: already up-to-date: $DST_PATH"
+    [ "$VERBOSE" -ge 1 ] && log "🟢 IFCv3: already up-to-date: $DST_PATH"
     exit 0
 fi
 

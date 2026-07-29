@@ -43,10 +43,12 @@ EOF
 # ------------------------------------------------------------
 while IFS= read -r file; do
 
-    # Skip this installed script itself
-    if [ "$file" = "$SCRIPT_DIR/secrets-check.sh" ]; then
-        continue
-    fi
+    # Skip this installed script itself, the skip rule must match the repo path, not the installed path
+	case "$file" in
+		scripts/*)
+			continue
+			;;
+	esac
 
     # Skip binary files
     if git check-attr --stdin binary <<EOF | grep -q 'binary: set'

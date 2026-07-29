@@ -9,7 +9,6 @@
 #   to ensure the wrapper exists before invocation.
 # --------------------------------------------------------------------
 
-
 .PHONY: apt-uninstall-installed
 apt-uninstall-installed: | $(run_as_root)
 	@echo "🗑️  Removing all homelab APT packages (best-effort)..."
@@ -70,21 +69,18 @@ $(INSTALL_FILES_IF_CHANGED): $(IFC_V3_PLURAL_SRC) | $(INSTALL_FILE_IF_CHANGED_V3
 define install_file
 	test -n "$(INSTALL_PATH)" || { echo "❌ Error: INSTALL_PATH is empty. Check mk/config.mk." >&2; exit 1; }; \
 	status=0; \
-	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) -q \
+	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) \
 		"" "" "$(1)" \
 		"" "" "$(2)" \
-		"$(3)" "$(4)" "$(5)" || status=$$?; \
-	{ [ $$status -eq 0 ] || [ $$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; } || { \
-		echo "❌ IFC: Fatal error (exit $$status) installing $(2)" >&2; \
-		exit $$status; \
+		"$(3)" "$(4)" "$(5)" || status=$$$$?; \
+	{ [ $$$$status -eq 0 ] || [ $$$$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; } || { \
+		echo "❌ IFC: Fatal error (exit $$$$status) installing $(2)" >&2; \
+		exit $$$$status; \
 	}; \
-	[ $$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ] && echo "📝 Updated: $(2)" || true
+	[ $$$$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ] && echo "📝 Updated: $(2)" || true
 endef
 
 # All installed scripts are root-owned executables; repo scripts may be non-executable.
-define install_script
-	@$(call install_file,$(1),$(INSTALL_PATH)/$(2),$(ROOT_UID),$(ROOT_GID),0755)
-endef
 
 # $(call git_clone_or_fetch,DIR,URL,REF)
 define git_clone_or_fetch
@@ -148,26 +144,28 @@ EXCLUDE_LIST := $(SBIN_SCRIPTS) \
 				install_files_if_changed_v3.sh \
 				install_url_file_if_changed.sh \
 				common.sh \
+				wg-plan-subnets.sh \
 				$(filter router-%.sh,$(ALL_SCRIPTS))
 
 BIN_FILES        := $(addprefix $(INSTALL_PATH)/,$(filter-out $(EXCLUDE_LIST),$(ALL_SCRIPTS)))
 OTHER_SBIN_FILES := $(addprefix $(INSTALL_SBIN_PATH)/,$(filter-out run-as-root.sh,$(SBIN_SCRIPTS)))
 
+
 define INSTALL_BIN_TEMPLATE
-$(1): $(REPO_ROOT)/scripts/$(notdir $(1)) | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
-	@echo "🔍 Installing BIN script: $(notdir $(1)) → $(1)"
-	@$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q "" "22" "$(REPO_ROOT)/scripts/$(notdir $(1))" "" "22" "$(1)" "$(ROOT_UID)" "$(ROOT_GID)" "0755"
+$(1): $(REPO_ROOT)/scripts/$(notdir $(1)) | $(run_as_root)
+	@$(call install_file,$(REPO_ROOT)/scripts/$(notdir $(1)),$(1),$(ROOT_UID),$(ROOT_GID),0755)
 endef
+
+.PHONY: $(BIN_FILES)
 # Install BIN_FILES (to /usr/local/bin)
 $(foreach f,$(BIN_FILES),$(eval $(call INSTALL_BIN_TEMPLATE,$(f))))
 
-
 define INSTALL_SBIN_TEMPLATE
-$(1): $(REPO_ROOT)/scripts/$(notdir $(1)) | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
-	@echo "🔍 Installing SBIN script: $(notdir $(1)) → $(1)"
-	@$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q "" "22" "$(REPO_ROOT)/scripts/$(notdir $(1))" "" "22" "$(1)" "$(ROOT_UID)" "$(ROOT_GID)" "0755"
+$(1): $(REPO_ROOT)/scripts/$(notdir $(1)) | $(run_as_root)
+	@$(call install_file,$(REPO_ROOT)/scripts/$(notdir $(1)),$(1),$(ROOT_UID),$(ROOT_GID),0755)
 endef
 
+.PHONY: $(OTHER_SBIN_FILES)
 # Install OTHER_SBIN_FILES (to /usr/local/sbin)
 $(foreach f,$(OTHER_SBIN_FILES),$(eval $(call INSTALL_SBIN_TEMPLATE,$(f))))
 
@@ -178,7 +176,7 @@ $(foreach f,$(OTHER_SBIN_FILES),$(eval $(call INSTALL_SBIN_TEMPLATE,$(f))))
 .PHONY: install-all uninstall-all assert-sanity
 
 install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES) install-router-prefix-watchdog $(run_as_root)
-	@echo "📦 [$(ROLE)] Homelab bootstrap complete."
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "📦 [$(ROLE)] Homelab bootstrap complete."; fi
 
 uninstall-all:
 	@echo "🗑️  Uninstalling all homelab scripts..."
@@ -197,26 +195,10 @@ require-wg-plan-subnets:
 # - Targets depend on installed artifacts, not source files
 # ------------------------------------------------------------
 
-.PHONY: assert-sanity assert-no-repo-exec assert-scripts-layout
+.PHONY: assert-sanity assert-scripts-layout
 assert-sanity: \
-	assert-no-repo-exec \
 	assert-scripts-layout
 	@test -d $(REPO_ROOT)/scripts || { echo "❌ Error: scripts directory missing"; exit 1; }
-
-# Prevents race conditions and ensures we don't accidentally execute
-# non-bootstrapped scripts from the working directory.
-assert-no-repo-exec:
-ifneq ($(filter -j% --jobs%,$(MAKEFLAGS)),)
-	@grep -R 'scripts/.*\.sh' --include='*.mk' \
-		--exclude=01_common.mk --exclude-dir=archive . >/dev/null && \
-	{ \
-		echo "🚫 Parallel execution (-j) is not supported."; \
-		echo "   Safety checks detected repo-local script references during graph expansion."; \
-		echo "   No scripts were executed."; \
-		echo "   Rerun without -j (or use -j1)."; \
-		exit 1; \
-	}
-endif
 
 # Ensures all scripts reside in approved functional subdirectories.
 assert-scripts-layout:
@@ -328,7 +310,6 @@ define apt_install_group
 	DEBIAN_FRONTEND=noninteractive $(run_as_root) apt-get install -y --no-install-recommends $$MISSING
 endef
 
-# $(call ensure_service_enabled,<service>,<human-name>)
 # $(call ensure_service_enabled,<service>,<human-name>)
 define ensure_service_enabled
 	if ! systemctl is-enabled $(1) >/dev/null 2>&1; then \

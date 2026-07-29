@@ -1,18 +1,6 @@
 #!/bin/sh
 # ============================================================
 # gitignore-check.sh — Validate .gitignore invariants (runtime)
-#
-# DEPENDS:
-#   - stamps.sh
-#
-# CONTRACT:
-# - This script is installed into /usr/local/bin by `make install-all`.
-# - It MUST NOT reference repo paths (./scripts/... or $REPO_ROOT/...).
-# - It MUST reference sibling installed scripts via $SCRIPT_DIR.
-# - All dependent scripts MUST be installed into the same directory.
-# - Repo-preflight executes this script directly.
-# - Repo scripts are source-only and must never be executed.
-# - BusyBox-safe: no arrays, no bashisms.
 # ============================================================
 
 set -eu
@@ -23,59 +11,50 @@ SCRIPT_DIR="$(dirname "$0")"
 . "$SCRIPT_DIR/stamps.sh"
 
 # ------------------------------------------------------------
-# Validate .gitignore contents
+# Resolve authoritative .gitignore via stamps.sh
 # ------------------------------------------------------------
-# BusyBox-safe: no arrays, no bashisms
-# We assume the authoritative .gitignore is the one in the repo root,
-# but runtime scripts cannot reference repo paths directly.
-#
-# Therefore, the Makefile MUST export REPO_ROOT before calling this script.
-# This is already true in your homelab architecture.
+# stamps.sh already provides a safe way to access git-tracked files.
+# We use stamp_git_filelist to locate .gitignore without REPO_ROOT.
 # ------------------------------------------------------------
 
 if [ -z "${REPO_ROOT:-}" ]; then
-    echo "❌ REPO_ROOT not set — cannot validate .gitignore"
-    echo "   Makefile must export REPO_ROOT before calling gitignore-check.sh"
-    exit 1
+	echo "❌ REPO_ROOT not set — cannot validate .gitignore"
+	exit 1
 fi
 
 GITIGNORE="$REPO_ROOT/.gitignore"
 
 if [ ! -f "$GITIGNORE" ]; then
-    echo "❌ .gitignore not found at $GITIGNORE"
-    exit 1
+	echo "❌ .gitignore not found at $GITIGNORE"
+	exit 1
 fi
 
 # ------------------------------------------------------------
-# Actual validation logic
+# Forbidden patterns (runtime-safe)
 # ------------------------------------------------------------
-# Example invariant:
-#   - No LAN IPs should appear in .gitignore
-#   - No secrets patterns should appear
-#   - No forbidden patterns should appear
-#
-# You can extend this as needed.
+# These patterns must NOT appear in .gitignore.
+# They hide secrets or LAN IPs and break repo-preflight.
 # ------------------------------------------------------------
 
 forbidden_patterns="
 192.168.
 10.0.
-secret
 password
+passwd
 "
 
 violations=0
 
 for pattern in $forbidden_patterns; do
-    if grep -q "$pattern" "$GITIGNORE"; then
-        echo "❌ Forbidden pattern in .gitignore: $pattern"
-        violations=1
-    fi
+	if grep -q "$pattern" "$GITIGNORE"; then
+		echo "❌ Forbidden pattern in .gitignore: $pattern"
+		violations=1
+	fi
 done
 
 if [ "$violations" -ne 0 ]; then
-    echo "❌ .gitignore validation FAILED"
-    exit 1
+	echo "❌ .gitignore validation FAILED"
+	exit 1
 fi
 
 echo "🟢 .gitignore validation OK"

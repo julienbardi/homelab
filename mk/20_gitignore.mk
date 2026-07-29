@@ -22,7 +22,7 @@ RUNTIME_SCRIPTS := \
 # ------------------------------------------------------------
 .PHONY: lint-gitignore
 lint-gitignore: $(GITIGNORE_CHECK_SCRIPT)
-	@bash $(GITIGNORE_CHECK_SCRIPT)
+	@REPO_ROOT="$(REPO_ROOT)" bash $(GITIGNORE_CHECK_SCRIPT)
 
 # ------------------------------------------------------------
 # Repo-preflight
@@ -30,14 +30,15 @@ lint-gitignore: $(GITIGNORE_CHECK_SCRIPT)
 .PHONY: repo-preflight
 repo-preflight: $(RUNTIME_SCRIPTS)
 	@echo "🚨 Running repo-preflight..."
-	@bash $(SECRETS_CHECK_SCRIPT)
+	@REPO_ROOT="$(REPO_ROOT)" bash $(SECRETS_CHECK_SCRIPT)
 
 	@fails=0; \
-	bash $(GITIGNORE_STAMP_SCRIPT) --check || fails=1; \
-	bash $(SECRETS_STAMP_SCRIPT) --check || fails=1; \
-	bash $(LAN_IP_CHECK_SCRIPT) --check || fails=1; \
+	REPO_ROOT="$(REPO_ROOT)" bash $(GITIGNORE_STAMP_SCRIPT) --check || fails=1; \
+	REPO_ROOT="$(REPO_ROOT)" bash $(SECRETS_STAMP_SCRIPT) --check || fails=1; \
+	REPO_ROOT="$(REPO_ROOT)" bash $(LAN_IP_CHECK_SCRIPT) --check || fails=1; \
 	if [ $$fails -ne 0 ]; then \
 		echo "❌ repo-preflight FAILED"; \
 		exit 1; \
 	fi; \
 	echo "✅ repo-preflight OK"
+
