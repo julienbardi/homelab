@@ -3,7 +3,7 @@
 # Uses shared common.sh for logging and safety
 set -euo pipefail
 
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- MINIMALIST LOGGING ---
 # Setting this to empty tells common.sh to suppress the [certs-deploy] prefix

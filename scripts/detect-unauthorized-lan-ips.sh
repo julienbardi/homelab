@@ -17,10 +17,12 @@
 
 set -eu
 
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Load shared stamp primitives
-. "$SCRIPT_DIR/stamps.sh"
+COMMON="$SCRIPT_DIR/stamps.sh"
+[[ -f "$COMMON" ]] || { echo "❌ Error: $COMMON not found" >&2; exit 1; }
+source "$COMMON"
 
 DIR="$(stamp_init)"
 STAMP="$DIR/lan-ip-check.stamp"
