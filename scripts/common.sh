@@ -194,32 +194,3 @@ require_bin() {
         exit 1
     fi
 }
-
-# Vectorized wrapper for IFCv3:
-#   - Processes arguments in groups of 9
-#   - Tracks whether any file changed
-#   - Aborts on any non‑zero, non‑changed exit code
-install_files_if_changed_v2() {
-    local -n _changed_ref=$1
-    shift
-    local total_args=$#
-    require_file "$INSTALL_FILE_IF_CHANGED"
-
-    for (( i=1; i<=total_args; i+=9 )); do
-        set +e
-        (
-            set +e
-            "$INSTALL_FILE_IF_CHANGED" "${@:i:9}"
-        )
-        rc=$?
-        set -e
-
-        if [[ "$rc" -eq "$INSTALL_IF_CHANGED_EXIT_CHANGED" ]]; then
-            _changed_ref=1
-        elif [[ "$rc" -ne 0 ]]; then
-            local failed_arg="${@:i+2:1}"
-            log "❌ $INSTALL_FILE_IF_CHANGED failed (rc=$rc) for ${failed_arg}"
-            exit 1
-        fi
-    done
-}

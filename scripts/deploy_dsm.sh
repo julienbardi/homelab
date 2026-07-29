@@ -1,5 +1,5 @@
 #!/bin/sh
-# scripts/deploy_dsm.sh
+# deploy_dsm.sh
 # Idempotent DSM certificate deployment via WebAPI
 
 set -eu

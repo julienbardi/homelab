@@ -3,14 +3,14 @@
 # Uses shared common.sh for logging and safety
 set -euo pipefail
 
+SCRIPT_DIR="$(dirname "$0")"
+
 # --- MINIMALIST LOGGING ---
 # Setting this to empty tells common.sh to suppress the [certs-deploy] prefix
 SCRIPT_NAME=""
 
-# Sourcing the COMMON to provide the install_files_if_changed_v2 function
-COMMON="/usr/local/bin/common.sh"
+COMMON="$SCRIPT_DIR/common.sh"
 [[ -f "$COMMON" ]] || { echo "❌ Error: $COMMON not found" >&2; exit 1; }
-# shellcheck source=scripts/common.sh
 source "$COMMON"
 
 CA_KEY="/etc/ssl/private/ca/homelab_bardi_CA.key"

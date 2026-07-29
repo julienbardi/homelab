@@ -1,15 +1,33 @@
 #!/bin/sh
-# secrets-check.sh
+# ============================================================
+# secrets-check.sh — Scan git-tracked files for secret material
+#
+# DEPENDS:
+#   - stamps.sh
+#
+# CONTRACT:
+# - This script is installed into /usr/local/bin by `make install-all`.
+# - It MUST NOT reference repo paths (./scripts/... or $REPO_ROOT/...).
+# - It MUST reference sibling installed scripts via $SCRIPT_DIR.
+# - Repo-preflight executes this script directly.
+# - Repo scripts are source-only and must never be executed.
+# - BusyBox-safe: no arrays, no bashisms, no xargs -0.
+# ============================================================
+
 set -eu
+
+SCRIPT_DIR="$(dirname "$0")"
+
+# Load shared stamp primitives
+. "$SCRIPT_DIR/stamps.sh"
 
 echo "🔍 Scanning git-tracked files for secret material..."
 
 errors=0
 
-# ---------------------------------------------------------------------------
+# ------------------------------------------------------------
 # 1. Fixed-string signatures (private keys, PGP, AGE)
-# ---------------------------------------------------------------------------
-
+# ------------------------------------------------------------
 tmp_sig="$(mktemp)"
 cat <<'EOF' > "$tmp_sig"
 -----BEGIN RSA PRIVATE KEY-----
@@ -20,14 +38,13 @@ cat <<'EOF' > "$tmp_sig"
 age-secret-key-
 EOF
 
-# ---------------------------------------------------------------------------
-# 2. Iterate over git-tracked files WITHOUT pipes (avoids subshell)
-# ---------------------------------------------------------------------------
-
+# ------------------------------------------------------------
+# 2. Iterate over git-tracked files WITHOUT pipes (BusyBox-safe)
+# ------------------------------------------------------------
 while IFS= read -r file; do
 
-    # Skip this script itself
-    if [ "$file" = "scripts/secrets-check.sh" ]; then
+    # Skip this installed script itself
+    if [ "$file" = "$SCRIPT_DIR/secrets-check.sh" ]; then
         continue
     fi
 
@@ -39,17 +56,17 @@ EOF
         continue
     fi
 
-    # -----------------------------------------------------------------------
+    # --------------------------------------------------------
     # 2A. Fixed-string signature scan
-    # -----------------------------------------------------------------------
+    # --------------------------------------------------------
     if grep -F -f "$tmp_sig" -q -- "$file" 2>/dev/null; then
         echo "❌ Secret signature found in: $file"
         errors=1
     fi
 
-    # -----------------------------------------------------------------------
+    # --------------------------------------------------------
     # 2B. Regex-based secret scans
-    # -----------------------------------------------------------------------
+    # --------------------------------------------------------
 
     # WireGuard keys
     if grep -Eq "^PrivateKey=[A-Za-z0-9+/=]{32,}" -- "$file"; then
@@ -73,27 +90,26 @@ EOF
         errors=1
     fi
 
-    # Cloudflare: flag only literal token-like values
-    if grep -Eq "CF_API_[A-Z_]*=[A-Za-z0-9+/=]\{24,\}" -- "$file"; then
+    # Cloudflare tokens
+    if grep -Eq "CF_API_[A-Z_]*=[A-Za-z0-9+/=]{24,}" -- "$file"; then
         echo "❌ Cloudflare token found in: $file"
         errors=1
     fi
 
-    # Infomaniak: flag only literal token-like values
-    if grep -Eq "INFOMANIAK_[A-Z_]*=[A-Za-z0-9+/=]\{24,\}" -- "$file"; then
+    # Infomaniak tokens
+    if grep -Eq "INFOMANIAK_[A-Z_]*=[A-Za-z0-9+/=]{24,}" -- "$file"; then
         echo "❌ Infomaniak token found in: $file"
         errors=1
     fi
 
-    # password= (only flag real password= lines, not passwd=)
+    # password=
     if grep -Eq "^password=[^ ]" -- "$file"; then
         echo "❌ password= found in: $file"
         errors=1
     fi
 
-    # passwd= (whitelist variable references)
+    # passwd=
     if grep -q "passwd=" -- "$file"; then
-        # Allow passwd=$(...), passwd=${...}, passwd=$VAR
         if ! grep -q "passwd=\$(" -- "$file" \
         && ! grep -q "passwd=\${" -- "$file" \
         && ! grep -q "passwd=\$[A-Za-z0-9_]" -- "$file"
@@ -115,7 +131,7 @@ EOF
         errors=1
     fi
 
-    # ACME account.key references (whitelist paths and comments)
+    # ACME account.key references
     if grep -Eq "account\.key" -- "$file"; then
         if ! grep -Eq "/account\.key|account\.key\)" -- "$file"; then
             echo "❌ ACME account.key reference found in: $file"
@@ -145,14 +161,13 @@ EOF
 
 rm -f "$tmp_sig"
 
-# ---------------------------------------------------------------------------
+# ------------------------------------------------------------
 # Final result
-# ---------------------------------------------------------------------------
-
+# ------------------------------------------------------------
 if [ "$errors" -ne 0 ]; then
     echo "❌ Plaintext secret material detected"
     exit 1
 fi
 
-echo "✅ No secret material found"
+echo "🟢 No secret material found"
 exit 0

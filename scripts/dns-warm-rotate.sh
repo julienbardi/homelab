@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# scripts/dns-warm-rotate.sh
-# to deploy, use
-#   make dns-warm-install
+# dns-warm-rotate.sh, to deploy, use make install-all
 set -euo pipefail
 
 # ----------------------------

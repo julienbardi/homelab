@@ -247,11 +247,11 @@ deploy_router() {
         return 0
     fi
     local changed=0
-    run_as_root install_files_if_changed_v2 changed \
-        "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
+    run_as_root install_files_if_changed_v3 changed \
+        "" "22" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" \
         julie root 0644 \
-        "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
+        "" "22" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
         julie root 0600
     if [[ "$changed" -eq 1 ]]; then

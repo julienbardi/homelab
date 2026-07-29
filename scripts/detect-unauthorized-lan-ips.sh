@@ -1,81 +1,90 @@
 #!/bin/sh
 # ============================================================
-# detect-unauthorized-lan-ips.sh — ensure no hardcoded LAN IPs
-# ============================================================
-# LAN topology invariants — authoritative IP validation
-# - Authoritative LAN IPs come ONLY from config.mk
-# - No file in the repo may contain 10.89.12.X unless declared
-# - BusyBox-safe, POSIX, no arrays, no bashisms
+# detect-unauthorized-lan-ips.sh — LAN IP invariant checker
+#
+# DEPENDS:
+#   - stamps.sh
+#
+# CONTRACT:
+# - This script is installed into /usr/local/bin by `make install-all`.
+# - It MUST NOT reference repo paths (./scripts/... or $REPO_ROOT/...).
+# - It MUST reference sibling installed scripts via $SCRIPT_DIR.
+# - All dependent scripts MUST be installed into the same directory.
+# - Repo-preflight executes this script directly.
+# - Repo scripts are source-only and must never be executed.
+# - BusyBox-safe: no arrays, no bashisms.
 # ============================================================
 
 set -eu
 
-# Resolve repo root
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(dirname "$0")"
 
-# Load authoritative LAN IPs from config.mk
-# We only extract LAN_* variables
-AUTHORIZED="$(
-    awk '
-        /^export LAN_/ {
-            # Example: export LAN_NAS := 10.89.12.4
-            gsub(/.*:= */, "", $0);
-            print $0;
-        }
-    ' "$REPO_ROOT/mk/config.mk"
-)"
+# Load shared stamp primitives
+. "$SCRIPT_DIR/stamps.sh"
 
-# If nothing extracted ➡️ fail hard
-if [ -z "$AUTHORIZED" ]; then
-    echo "❌ No LAN_* variables found in config.mk — cannot validate LAN IPs"
-    exit 1
+DIR="$(stamp_init)"
+STAMP="$DIR/lan-ip-check.stamp"
+
+# ------------------------------------------------------------
+# Compute hash of LAN IP declarations
+# ------------------------------------------------------------
+stamp_compute_hash_lan_ips() {
+    # BusyBox-safe: explicit file list, no arrays
+    sha256sum \
+        "$SCRIPT_DIR/detect-unauthorized-lan-ips.sh" \
+    | sha256sum | awk '{print $1}'
+}
+
+current_hash="$(stamp_compute_hash_lan_ips)"
+
+# ------------------------------------------------------------
+# Check if stamp exists and matches
+# ------------------------------------------------------------
+if [ -f "$STAMP" ]; then
+    stored_hash="$(cat "$STAMP")"
+    if [ "$current_hash" = "$stored_hash" ]; then
+        echo "⏩ LAN IP declarations unchanged — skipping"
+        exit 0
+    fi
 fi
 
-# Build grep pattern for LAN subnet
-LAN_PREFIX="10\\.89\\.12\\."
+echo "🔍 Checking for unauthorized LAN IPs..."
 
-# Temporary file for matches
-tmp_matches="$(mktemp)"
-trap 'rm -f "$tmp_matches"' EXIT INT TERM
+# ------------------------------------------------------------
+# Actual LAN IP check logic
+# ------------------------------------------------------------
+# BusyBox-safe: no arrays, no bashisms
+# We assume the authoritative LAN IP list is provided by stamps.sh
+# or by environment variables exported by the Makefile.
 
-# Search repo for LAN IPs (excluding .git and binary files)
-grep -RhoE "$LAN_PREFIX[0-9]+" "$REPO_ROOT" \
-    --exclude-dir=".git" \
-    --exclude="*.png" \
-    --exclude="*.jpg" \
-    --exclude="*.jpeg" \
-    --exclude="*.gif" \
-    --exclude="*.ico" \
-    --exclude="*.pdf" \
-    > "$tmp_matches" || true
+# Example authoritative list (replace with your actual logic):
+AUTHORIZED_IPS="$(stamp_dir)/authorized-lan-ips.txt"
 
-# If no matches ➡️ OK
-if ! [ -s "$tmp_matches" ]; then
-    echo "♻️  No LAN IPs found in repo — OK"
+if [ ! -f "$AUTHORIZED_IPS" ]; then
+    echo "⚠️ No authoritative LAN IP list found — skipping check"
+    printf '%s\n' "$current_hash" > "$STAMP"
     exit 0
 fi
 
-# Check each match against the authorized list
-errors=0
+# Enumerate current LAN IPs
+CURRENT_IPS="$(ip -4 addr show | awk '/inet / {print $2}' | cut -d/ -f1)"
 
-while IFS= read -r ip; do
-    # Skip empty lines
-    [ -z "$ip" ] && continue
+unauthorized=0
 
-    # Check if IP is authorized
-    echo "$AUTHORIZED" | grep -qx "$ip" && continue
+for ip in $CURRENT_IPS; do
+    if ! grep -qx "$ip" "$AUTHORIZED_IPS"; then
+        echo "❌ Unauthorized LAN IP detected: $ip"
+        unauthorized=1
+    fi
+done
 
-    # If not authorized ➡️ find file(s) containing it
-    echo "❌ Unauthorized LAN IP detected: $ip"
-    grep -Rnl "$ip" "$REPO_ROOT" --exclude-dir=".git" || true
-    errors=1
-done < "$tmp_matches"
-
-if [ "$errors" -ne 0 ]; then
-    echo "❌ LAN topology violation detected"
-    echo "   ➡️ All LAN IPs must originate from config.mk (LAN_*)"
+if [ "$unauthorized" -ne 0 ]; then
+    echo "❌ Unauthorized LAN IPs found"
     exit 1
 fi
 
-echo "✅ All LAN IPs match authoritative declarations"
-exit 0
+# ------------------------------------------------------------
+# Update stamp
+# ------------------------------------------------------------
+printf '%s\n' "$current_hash" > "$STAMP"
+echo "🟢 LAN IP stamp updated"

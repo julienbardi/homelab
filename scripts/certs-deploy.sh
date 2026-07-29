@@ -38,9 +38,9 @@ require_file "$CA_PUB"
 ANY_CHANGED=0
 
 # Sync CA Public Certs
-install_files_if_changed_v2 ANY_CHANGED \
-    "" "" "$CA_PUB"   "" "" "$CANON_CA" "root" "root" "0644" \
-    "" "" "$CANON_CA" "" "" "$CADDY_CA" "root" "root" "0644"
+install_files_if_changed_v3 ANY_CHANGED \
+    "" "22" "$CA_PUB"   "" "22" "$CANON_CA" "root" "root" "0644" \
+    "" "22" "$CANON_CA" "" "22" "$CADDY_CA" "root" "root" "0644"
 
 # Sync Site Certificates (Pushing ECC certs to Caddy)
 SRC_DIR="$ACME_HOME/${DOMAIN}_ecc"
@@ -49,9 +49,9 @@ if [ -d "$SRC_DIR" ]; then
     mkdir -p "$CADDY_CERT_DIR"
 
     # We use fullchain.cer for Caddy to ensure the intermediate is provided
-    install_files_if_changed_v2 ANY_CHANGED \
-        "" "" "$SRC_DIR/fullchain.cer" "" "" "$CADDY_CERT" "root" "root" "0644" \
-        "" "" "$SRC_DIR/$DOMAIN.key"   "" "" "$CADDY_KEY"  "root" "root" "0600"
+    install_files_if_changed_v3 ANY_CHANGED \
+        "" "22" "$SRC_DIR/fullchain.cer" "" "22" "$CADDY_CERT" "root" "root" "0644" \
+        "" "22" "$SRC_DIR/$DOMAIN.key"   "" "22" "$CADDY_KEY"  "root" "root" "0600"
 fi
 
 # 3. Service Reload

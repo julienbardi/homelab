@@ -1,14 +1,13 @@
 #!/bin/sh
-# =================================================================----
-# scripts/wg-readiness-probe.sh — WireGuard Runtime State Probe
-# =================================================================----
+# wg-readiness-probe.sh — WireGuard Runtime State Probe
+# =================================================================
 # CONTRACT:
 # - Performs low-overhead, read-only interrogation of active kernel state.
 # - Validates live cryptography keys and interfaces against target configs.
 # - Fast-path execution MUST be entirely free of external network side-effects.
 # - Extracted WG_GENERATION markers are matched against persistent state.
 # - Outputs exit code 0 if fully converged (skip deploy), 1 if drifted (trigger deploy).
-# =================================================================----
+# =================================================================
 set -eu
 
 INTERFACE="${1:?ERROR: Interface parameter missing}"

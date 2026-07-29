@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/wg-install-nas.sh
+# wg-install-nas.sh
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,7 +13,7 @@ source /usr/local/bin/common.sh
 # shellcheck disable=SC2034
 SCRIPT_NAME="wg-install-nas"
 
-log "Installing NAS WireGuard configs (vectorized IFC_v2)"
+log "Installing NAS WireGuard configs (vectorized IFC_v3)"
 
 # --- Determine which interfaces belong to NAS -------------------------------
 
@@ -30,7 +30,7 @@ fi
 
 sudo mkdir -p "${NAS_WG_DIR}"
 
-# --- Build IFC_v2 argument vector -------------------------------------------
+# --- Build IFC_v3 argument vector -------------------------------------------
 
 args=()
 
@@ -41,13 +41,13 @@ for iface in "${NAS_IFACES[@]}"; do
     require_file "${SRC}"
 
     # Append 9-tuple for this file
-    args+=("" "" "${SRC}" "" "" "${DST}" "root" "root" "0600")
+    args+=("" "22" "${SRC}" "" "22" "${DST}" "root" "root" "0600")
 done
 
-# --- Execute IFC_v2 once -----------------------------------------------------
+# --- Execute IFC_v3 once -----------------------------------------------------
 
 changed=0
-install_files_if_changed_v2 changed "${args[@]}"
+install_files_if_changed_v3 changed "${args[@]}"
 
 if [[ "$changed" -eq 1 ]]; then
     log "🚀 NAS WireGuard configs updated"

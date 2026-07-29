@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# wg-plan-subnets.sh
 set -euo pipefail
 
 : "${WG_ROOT:?WG_ROOT must be exported}"
