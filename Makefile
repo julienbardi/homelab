@@ -13,6 +13,10 @@
 REPO_ROOT := $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
 export REPO_ROOT
 
+ifeq ($(REPO_ROOT),)
+$(error ❌ REPO_ROOT is empty — run make from inside the homelab repo)
+endif
+
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
 
 ifeq ($(UNAME_S),Windows)

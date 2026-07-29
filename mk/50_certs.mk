@@ -94,9 +94,6 @@ install-helpers: $(INSTALL_PATH)/common.sh \
 	$(INSTALL_PATH)/deploy_dsm.sh
 	@echo "🛠️ Helpers verified and synced"
 
-$(INSTALL_PATH)/deploy_certificates.sh: $(REPO_ROOT)/scripts/deploy_certificates.sh | $(BOOTSTRAP_FILES)
-	$(call install_script,$<,$(notdir $@))
-
 # ============================================================
 # prepare: run CERTS_DEPLOY prepare + compute canonical hash
 # ============================================================

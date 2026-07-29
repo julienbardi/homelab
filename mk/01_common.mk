@@ -9,6 +9,7 @@
 #   to ensure the wrapper exists before invocation.
 # --------------------------------------------------------------------
 
+
 .PHONY: apt-uninstall-installed
 apt-uninstall-installed: | $(run_as_root)
 	@echo "🗑️  Removing all homelab APT packages (best-effort)..."
@@ -137,15 +138,9 @@ BOOTSTRAP_FILES := \
 	$(INSTALL_URL_FILE_IF_CHANGED) \
 	$(INSTALL_PATH)/common.sh
 
-# Install only non-router scripts
-$(INSTALL_PATH)/%.sh: $(REPO_ROOT)/scripts/%.sh | $(BOOTSTRAP_FILES)
-	@$(call install_script,$<,$(notdir $<))
-
-$(INSTALL_SBIN_PATH)/%.sh: $(REPO_ROOT)/scripts/%.sh | $(run_as_root)
-	@$(call install_script,$<,$(notdir $<))
+ALL_SCRIPTS := $(notdir $(wildcard $(REPO_ROOT)/scripts/*.sh))
 
 SBIN_SCRIPTS := apt-proxy-auto.sh run-as-root.sh
-ALL_SCRIPTS := $(notdir $(wildcard $(REPO_ROOT)/scripts/*.sh))
 
 # Exclude bootstrap files and sbin files from the generic bin list
 EXCLUDE_LIST := $(SBIN_SCRIPTS) \
@@ -157,6 +152,24 @@ EXCLUDE_LIST := $(SBIN_SCRIPTS) \
 
 BIN_FILES        := $(addprefix $(INSTALL_PATH)/,$(filter-out $(EXCLUDE_LIST),$(ALL_SCRIPTS)))
 OTHER_SBIN_FILES := $(addprefix $(INSTALL_SBIN_PATH)/,$(filter-out run-as-root.sh,$(SBIN_SCRIPTS)))
+
+define INSTALL_BIN_TEMPLATE
+$(1): $(REPO_ROOT)/scripts/$(notdir $(1)) | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
+	@echo "🔍 Installing BIN script: $(notdir $(1)) → $(1)"
+	@$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q "" "22" "$(REPO_ROOT)/scripts/$(notdir $(1))" "" "22" "$(1)" "$(ROOT_UID)" "$(ROOT_GID)" "0755"
+endef
+# Install BIN_FILES (to /usr/local/bin)
+$(foreach f,$(BIN_FILES),$(eval $(call INSTALL_BIN_TEMPLATE,$(f))))
+
+
+define INSTALL_SBIN_TEMPLATE
+$(1): $(REPO_ROOT)/scripts/$(notdir $(1)) | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
+	@echo "🔍 Installing SBIN script: $(notdir $(1)) → $(1)"
+	@$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q "" "22" "$(REPO_ROOT)/scripts/$(notdir $(1))" "" "22" "$(1)" "$(ROOT_UID)" "$(ROOT_GID)" "0755"
+endef
+
+# Install OTHER_SBIN_FILES (to /usr/local/sbin)
+$(foreach f,$(OTHER_SBIN_FILES),$(eval $(call INSTALL_SBIN_TEMPLATE,$(f))))
 
 # ------------------------------------------------------------
 # Main Targets
@@ -235,7 +248,6 @@ define apt_install
 			-o Dpkg::Options::="--force-confdef" $(2); \
 	}
 endef
-
 
 # ------------------------------------------------------------
 # apt_remove

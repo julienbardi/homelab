@@ -179,20 +179,6 @@ router-bootstrap-wg-keys:
 		echo "✅ Router WireGuard identity stored in NVRAM (wgs1_priv / wgs1_pub)."; \
 	'
 
-# --- File Operations ---
-define PUSH_WG_SCRIPT
-	$(call install_script,$(1),$(notdir $(2)))
-endef
-
-$(INSTALL_PATH)/wgctl.sh: $(REPO_ROOT)/scripts/wgctl.sh | $(BOOTSTRAP_FILES)
-	$(call PUSH_WG_SCRIPT,$<,$@)
-
-$(INSTALL_PATH)/wg-readiness-probe.sh: $(REPO_ROOT)/scripts/wg-readiness-probe.sh | $(BOOTSTRAP_FILES)
-	$(call PUSH_WG_SCRIPT,$<,$@)
-
-$(INSTALL_PATH)/wg-generate-configs.sh: $(REPO_ROOT)/scripts/wg-generate-configs.sh | $(BOOTSTRAP_FILES)
-	$(call PUSH_WG_SCRIPT,$<,$@)
-
 wg-clean-out: wg-down-router wg-down-nas wg-clean-state
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo " Cleaning local scripts & SSH sockets"; fi
 	@$(WG_SUDO) rm -f "$(INSTALL_PATH)/wgctl.sh" \

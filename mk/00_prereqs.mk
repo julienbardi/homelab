@@ -173,9 +173,6 @@ prereqs-tailscale-repo-verify: | ensure-host-default-route
 # Main Prereqs Target
 # ------------------------------------------------------------
 
-$(INSTALL_SBIN_PATH)/apt-proxy-auto.sh: $(REPO_ROOT)/scripts/apt-proxy-auto.sh | $(run_as_root)
-	@$(call install_script,$<,apt-proxy-auto.sh)
-
 # 1. Granular network-bound prerequisites
 .PHONY: prereqs-network-deps
 prereqs-network-deps: ensure-host-default-route ensure-bootstrap-dns prereqs-tailscale-repo-verify prereqs-dns-warm
