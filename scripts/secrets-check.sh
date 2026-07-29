@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -euo pipefail
 # ============================================================
 # secrets-check.sh — Scan git-tracked files for secret material
 #
@@ -13,8 +14,6 @@
 # - Repo scripts are source-only and must never be executed.
 # - BusyBox-safe: no arrays, no bashisms, no xargs -0.
 # ============================================================
-
-set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

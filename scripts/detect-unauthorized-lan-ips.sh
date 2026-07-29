@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -euo pipefail
 # ============================================================
 # detect-unauthorized-lan-ips.sh — LAN IP invariant checker
 #
@@ -14,8 +15,6 @@
 # - Repo scripts are source-only and must never be executed.
 # - BusyBox-safe: no arrays, no bashisms.
 # ============================================================
-
-set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
