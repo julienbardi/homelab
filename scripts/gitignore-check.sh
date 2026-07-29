@@ -1,9 +1,6 @@
-#!/bin/sh
-# ============================================================
+#!/bin/bash
+set -euo pipefail
 # gitignore-check.sh — Validate .gitignore invariants (runtime)
-# ============================================================
-
-set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
