@@ -62,7 +62,7 @@ prereqs-run: $(PREREQS_SOURCES) | $(STAMP_DIR_ROOT)
 		echo "✅ nft present"; \
 	'
 
-prereqs-ok: $(PREREQS_SOURCES)
+prereqs-ok:
 	@if [ -f "$(STAMP_PREREQS_OK)" ]; then \
 		echo "⏩ prereqs-ok (fast-path OK)"; \
 		exit 0; \

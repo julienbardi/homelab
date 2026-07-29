@@ -15,10 +15,11 @@ ensure-authorized-admin:
 	@echo "$(AUTHORIZED_ADMINS)" | grep -qw "$(OPERATOR_USER)" || \
 		{ echo "❌ User $(OPERATOR_USER) not authorized for this mutation"; exit 1; }
 
-$(STAMP_DIR_ROOT): ensure-stamp-root
+$(STAMP_DIR_ROOT): | ensure-stamp-root
+	@mkdir -p "$(STAMP_DIR_ROOT)"
 
 .PHONY: ensure-stamp-root
-ensure-stamp-root:
+ensure-stamp-root: ;
 	@if [ ! -x "$(run_as_root)" ]; then \
 		echo "❌ run_as_root missing — run 'make install-all'"; \
 		exit 1; \

@@ -10,12 +10,21 @@
 #   the directory containing the top-level Makefile, regardless of how many
 #   other .mk files are included or where they live.
 #
+
+# Default goal only when no explicit target is given
+ifeq ($(MAKECMDGOALS),)
+.DEFAULT_GOAL := help
+endif
+
 REPO_ROOT := $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
 export REPO_ROOT
 
 ifeq ($(REPO_ROOT),)
 $(error ❌ REPO_ROOT is empty — run make from inside the homelab repo)
 endif
+
+# Ensure all included files are parsed before DAG evaluation
+$(MAKEFILE_LIST): ;
 
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
 
@@ -133,8 +142,6 @@ ssh-config: config/ssh_config.tmpl
 # Global Makefile invariants
 .PHONY: sanity
 sanity: assert-sanity
-
-.DEFAULT_GOAL := help
 
 .PHONY: all
 all: homelab-all
