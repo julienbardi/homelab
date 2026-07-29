@@ -344,13 +344,6 @@ network-status:
 		fi; \
 	}
 
-# ------------------------------------------------------------
-# nftables verification
-# ------------------------------------------------------------
-HOMELAB_NFT_ETC_DIR   := /etc/nftables
-HOMELAB_NFT_RULESET   := $(HOMELAB_NFT_ETC_DIR)/homelab.nft
-HOMELAB_NFT_HASH_FILE := /var/lib/homelab/nftables.applied.sha256
-
 nft-verify: check-forwarding
 	@echo "🔍 Verifying nftables applied state"
 

@@ -191,3 +191,9 @@ export SSH_STRICT := accept-new
 
 export SSH_PORT_ROUTER := $(ROUTER_SSH_PORT)
 export SSH_PORT_DEFAULT := 22
+
+# System‑Level nftables Configuration
+export HOMELAB_NFT_ETC_DIR       := /etc/nftables
+export HOMELAB_NFT_RULESET       := $(HOMELAB_NFT_ETC_DIR)/homelab.nft
+export HOMELAB_NFT_HASH_FILE     := /var/lib/homelab/nftables.applied.sha256
+export HOMELAB_NFT_ROLLBACK_FLAG := "/run/homelab-nft.pending"

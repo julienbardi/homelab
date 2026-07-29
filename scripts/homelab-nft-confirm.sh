@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-HOMELAB_NFT_ETC_DIR="/etc/nftables"
-HOMELAB_NFT_RULESET="${HOMELAB_NFT_ETC_DIR}/homelab.nft"
-HOMELAB_NFT_HASHFILE="/var/lib/homelab/nftables.applied.sha256"
-HOMELAB_NFT_ROLLBACK_FLAG="/run/homelab-nft.pending"
+: "${HOMELAB_NFT_ETC_DIR:=/etc/nftables}"
+: "${HOMELAB_NFT_RULESET:=${HOMELAB_NFT_ETC_DIR}/homelab.nft}"
+: "${HOMELAB_NFT_HASH_FILE:=/var/lib/homelab/nftables.applied.sha256}"
+: "${HOMELAB_NFT_ROLLBACK_FLAG:=/run/homelab-nft.pending}"
 
 # shellcheck disable=SC2034
 SCRIPT_NAME="homelab-nft-confirm"
