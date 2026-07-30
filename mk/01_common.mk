@@ -30,12 +30,12 @@ ensure-stamp-user:
 	else \
 		[ "$(VERBOSE)" = "1" ] && echo "📋 [user] STAMP_DIR_USER exists: $(STAMP_DIR_USER)"; \
 	fi; \
-	# Autocorrect ownership
+	# Autocorrect ownership \
 	if [ "$$(stat -c %u $(STAMP_DIR_USER))" != "$$(id -u)" ]; then \
 		echo "🔧 [user] Fixing owner of $(STAMP_DIR_USER)"; \
 		chown "$$(id -u):$$(id -g)" "$(STAMP_DIR_USER)"; \
 	fi; \
-	# Autocorrect permissions
+	# Autocorrect permissions \
 	if [ "$$(stat -c %a $(STAMP_DIR_USER))" -lt 700 ]; then \
 		echo "🔧 [user] Fixing permissions of $(STAMP_DIR_USER)"; \
 		chmod 700 "$(STAMP_DIR_USER)"; \
@@ -114,18 +114,23 @@ $(INSTALL_FILES_IF_CHANGED): $(IFC_V3_PLURAL_SRC) | $(INSTALL_FILE_IF_CHANGED_V3
 # Arguments for install_file_if_changed_v3.sh:
 # 1: SRC_PATH, 2: DST_PATH, 3: OWNER, 4: GROUP, 5: MODE
 define install_file
-	status=0; \
-	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) $(INSTALL_FILE_IF_CHANGED) \
+	rc=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
 		"" "" "$(1)" \
 		"" "" "$(2)" \
-		"$(3)" "$(4)" "$(5)" || status=$$$$?; \
-	case "$$$$status" in ''|*[!0-9]*) status=1 ;; esac; \
-	{ [ $$$$status -eq 0 ] || [ $$$$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; } || { \
-		echo "❌ IFC: Fatal error (exit $$$$status) installing $(2)" >&2; \
-		exit $$$$status; \
-	}; \
-	[ $$$$status -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ] && echo "📝 Updated: $(2)" || true
+		"$(3)" "$(4)" "$(5)" \
+		|| rc=$$?; \
+	\
+	# normalize IFC_v3 return code: 0 = OK, 3 = changed, others = fatal \
+	case "$$rc" in \
+		0) ;; \
+		3) echo "📝 Updated: $(2)" ;; \
+		''|*[!0-9]*) ;; \
+		*) echo "❌ IFC: Fatal error (exit $$rc) installing $(2)" >&2; exit "$$rc" ;; \
+	esac
 endef
+
+
 
 # All installed scripts are root-owned executables; repo scripts may be non-executable.
 
@@ -159,6 +164,17 @@ endef
 
 # ------------------------------------------------------------
 # Script Discovery & Classification
+# common.sh is the shell platform contract for all homelab
+# scripts. It loads homelab.env, provides logging, safety
+# wrappers, operator identity, and canonical path resolution.
+#
+# Because every script sources common.sh, and common.sh itself
+# loads homelab.env, the installation of common.sh MUST depend
+# on homelab-env. This ensures that the canonical environment
+# file is always generated before any script can be executed.
+#
+# This single dependency collapses the need for dozens of
+# per-target homelab-env dependencies across the DAG.
 # ------------------------------------------------------------
 
 # Minimal set required for the install_file macro to function
@@ -168,7 +184,7 @@ BOOTSTRAP_CORE := \
 	$(INSTALL_FILES_IF_CHANGED)
 
 # 4. Common library (Uses Macro)
-$(INSTALL_PATH)/common.sh: $(COMMON_SRC) | $(BOOTSTRAP_CORE)
+$(INSTALL_PATH)/common.sh: $(COMMON_SRC) homelab-env | $(BOOTSTRAP_CORE)
 	@$(call install_file,$<,$@,$(ROOT_UID),$(ROOT_GID),0755)
 
 # 5. URL-based IFC Engine (Uses Macro)
