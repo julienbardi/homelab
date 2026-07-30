@@ -43,6 +43,7 @@ PRESERVE_ENV="$(
     SOPS_AGE_KEY_FILE \
     SOPS \
     SECRETS_FILE \
+    STAMP_SALT \
     YQ \
   | sed 's/,$//'
 )"

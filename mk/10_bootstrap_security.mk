@@ -1,26 +1,26 @@
 # mk/10_bootstrap_security.mk
+
 # ------------------------------------------------------------
 # Security & Identity Bootstrap (Root-Locked / Multi-Operator)
 # ------------------------------------------------------------
 
-AGE_KEY_DIR  := /etc/sops/keys
-AGE_KEY_FILE := $(AGE_KEY_DIR)/age.key
-
 .PHONY: security-bootstrap
 security-bootstrap: install-pkg-age
 	@set -euo pipefail; \
-	if $(run_as_root) test -f "$(AGE_KEY_FILE)"; then \
+	if $(run_as_root) test -f "$(SOPS_AGE_KEY_FILE)"; then \
 		echo "------------------------------------------------------------"; \
-		echo "🔒 AGE identity already exists at $(AGE_KEY_FILE)"; \
+		echo "🔒 AGE identity already exists at $(SOPS_AGE_KEY_FILE)"; \
 		echo "❌ Refusing to overwrite existing root-locked identity"; \
-		echo "   This is the canonical homelab key. Bootstrap will not modify it."; \
+		echo "   This is the canonical homelab key."; \
+		echo "   If you are reinstalling, restore the KeePass entry into:"; \
+		echo "     $(SOPS_AGE_KEY_FILE)"; \
 		echo "------------------------------------------------------------"; \
 		exit 0; \
 	fi; \
 	echo "------------------------------------------------------------"; \
 	echo "🔐 No AGE identity found. Creating canonical homelab identity..."; \
-	$(run_as_root) install -d -o $(ROOT_UID) -g $(ROOT_GID) -m 700 "$(AGE_KEY_DIR)"; \
-	$(run_as_root) age-keygen -o "$(AGE_KEY_FILE)"; \
+	$(run_as_root) install -d -o $(ROOT_UID) -g $(ROOT_GID) -m 700 "$(SOPS_AGE_KEY_DIR)"; \
+	$(run_as_root) age-keygen -o "$(SOPS_AGE_KEY_FILE)"; \
 	$(run_as_root) sh -c '\
 		printf "%s\n" \
 			"# ------------------------------------------------------------" \
@@ -28,15 +28,98 @@ security-bootstrap: install-pkg-age
 			"# Created by: mk/10_bootstrap_security.mk on $$(date)" \
 			"# Operator: $(OPERATOR_USER)" \
 			"# ------------------------------------------------------------" \
-			>> "$(AGE_KEY_FILE)" \
+			>> "$(SOPS_AGE_KEY_FILE)" \
 	'; \
-	$(run_as_root) chown $(ROOT_UID):$(ROOT_GID) "$(AGE_KEY_FILE)"; \
-	$(run_as_root) chmod 600 "$(AGE_KEY_FILE)"; \
+	$(run_as_root) chown $(ROOT_UID):$(ROOT_GID) "$(SOPS_AGE_KEY_FILE)"; \
+	$(run_as_root) chmod 600 "$(SOPS_AGE_KEY_FILE)"; \
 	echo "✅ Identity created and locked to root."; \
-	echo "⚠️ ACTION REQUIRED: Copy the private key from $(AGE_KEY_FILE) into KeePass NOW."; \
+	echo "⚠️ ACTION REQUIRED: Copy the private key from $(SOPS_AGE_KEY_FILE) into KeePass NOW."; \
 	echo " Public Encryption Key:"; \
-	$(run_as_root) age-keygen -y "$(AGE_KEY_FILE)"; \
+	$(run_as_root) age-keygen -y "$(SOPS_AGE_KEY_FILE)"; \
 	echo "------------------------------------------------------------"
 
+# ------------------------------------------------------------
+# AGE Identity Recovery (Default Mode)
+# ------------------------------------------------------------
+.PHONY: age-key-restore
+age-key-restore:
+	@set -e; \
+	echo "🔐 Checking homelab Age identity at $(SOPS_AGE_KEY_FILE)"; \
+	if [ -f "$(SOPS_AGE_KEY_FILE)" ]; then \
+		pub="$$(age-keygen -y "$(SOPS_AGE_KEY_FILE)" 2>/dev/null || echo UNKNOWN)"; \
+		if [ "$$pub" != "UNKNOWN" ]; then \
+			echo "🟢 Age key with public key $$pub already exists — recovery not required"; \
+			exit 0; \
+		fi; \
+	fi; \
+	\
+	echo "⚠️ No Age key found — entering RECOVERY MODE"; \
+	$(run_as_root) install -d -o $(ROOT_UID) -g $(ROOT_GID) -m 700 "$(SOPS_AGE_KEY_DIR)"; \
+	\
+	$(run_as_root) sh -c '\
+		printf "%s\n" \
+			"# ------------------------------------------------------------" \
+			"# Homelab Age Private Key (RECOVERY MODE)" \
+			"# Paste your AGE-SECRET-KEY from KeePassXC here into $(SOPS_AGE_KEY_FILE)" \
+			"# To generate a NEW keypair: make security-bootstrap-new-key" \
+			"# ------------------------------------------------------------" \
+			"AGE-SECRET-KEY-PLACEHOLDER" \
+			> "$(SOPS_AGE_KEY_FILE)" \
+	'; \
+	\
+	$(run_as_root) chown $(ROOT_UID):$(ROOT_GID) "$(SOPS_AGE_KEY_FILE)"; \
+	$(run_as_root) chmod 600 "$(SOPS_AGE_KEY_FILE)"; \
+	\
+	echo "🔑 ACTION REQUIRED:"; \
+	echo "   Paste your AGE-SECRET-KEY from KeePassXC into:"; \
+	echo "     $(SOPS_AGE_KEY_FILE)"; \
+	echo ""; \
+	echo "   Then run: make age-key-verify"
+
+# ------------------------------------------------------------
+# AGE Identity Verification
+# ------------------------------------------------------------
+.PHONY: age-key-verify
+age-key-verify:
+	@set -e; \
+	echo "🔍 Verifying Age private key $(SOPS_AGE_KEY_FILE)..."; \
+	pub="$$(age-keygen -y "$(SOPS_AGE_KEY_FILE)" 2>/dev/null || echo UNKNOWN)"; \
+	if [ "$$pub" = "UNKNOWN" ]; then \
+		echo "❌ Invalid Age private key — please paste the correct key into $(SOPS_AGE_KEY_FILE)"; \
+		exit 1; \
+	fi; \
+	echo "🟢 $(SOPS_AGE_KEY_FILE) is valid and has public key $$pub"
+
+# ------------------------------------------------------------
+# NEW KEYPAIR GENERATION (Explicit Operator Action)
+# ------------------------------------------------------------
+.PHONY: security-bootstrap-new-key
+security-bootstrap-new-key:
+	@set -e; \
+	if [ -f "$(SOPS_AGE_KEY_FILE)" ]; then \
+		echo "❌ Refusing to overwrite existing Age identity."; \
+		exit 1; \
+	fi; \
+	\
+	$(run_as_root) install -d -o $(ROOT_UID) -g $(ROOT_GID) -m 700 "$(SOPS_AGE_KEY_DIR)"; \
+	$(run_as_root) age-keygen -o "$(SOPS_AGE_KEY_FILE)"; \
+	pub="$$(age-keygen -y "$(SOPS_AGE_KEY_FILE)" 2>/dev/null || echo UNKNOWN)"; \
+	$(run_as_root) chmod 600 "$(SOPS_AGE_KEY_FILE)"; \
+	\
+	echo "🟢 New Age identity created with public key $$pub"; \
+	echo "⚠️ Copy the private key into KeePassXC NOW for entry $(SOPS_AGE_KEY_FILE)"; \
+	echo "All slated hashes are no longer valid. No deleted automatically."
 
 
+define HOMELAB_SOPS_ENV_CONTENT
+# Homelab SOPS Environment (DO NOT EDIT, generated by bootstrap-sops-env)
+export SOPS_AGE_KEY_FILE="$(SOPS_AGE_KEY_FILE)"
+endef
+export HOMELAB_SOPS_ENV_CONTENT
+
+bootstrap-sops-env: $(run_as_root)
+	@tmp="$$(mktemp)"; \
+	$(file >$$tmp,$(value HOMELAB_SOPS_ENV_CONTENT)) \
+	install -D -o "$(ROOT_UID)" -g "$(ROOT_GID)" -m 0644 "$$tmp" "/etc/profile.d/homelab-sops.sh"; \
+	rm -f "$$tmp"; \
+	echo "🔐 installed /etc/profile.d/homelab-sops.sh"

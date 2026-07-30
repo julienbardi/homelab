@@ -26,7 +26,6 @@
 # There is NO duplication: they perform fundamentally different jobs.
 # ============================================================================
 
-ACME_BIN  := $(ACME_HOME)/acme.sh
 
 # ----------------------------------------------------------------------------
 # 1. Normal ACME Renewal (safe, idempotent, daily)
