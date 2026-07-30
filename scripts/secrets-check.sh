@@ -44,6 +44,9 @@ EOF
 # ------------------------------------------------------------
 while IFS= read -r file; do
 
+	# Skip files that no longer exist locally
+	[ -f "$file" ] || continue
+
     # Skip this installed script itself, the skip rule must match the repo path, not the installed path
 	case "$file" in
 		scripts/*)
