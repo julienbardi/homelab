@@ -253,7 +253,7 @@ OPERATOR_HOME  := $(shell getent passwd $(OPERATOR_USER) | cut -d: -f6)
 AUTHORIZED_ADMINS := julie
 
 # Human-admin groups (must exist; enforced by mk/10_groups.mk)
-ADMIN_GROUPS := systemd-journal docker sudo adm dnscrypt
+ADMIN_GROUPS := root systemd-journal docker sudo adm dnscrypt
 
 # Service-owned groups (no human membership)
 SERVICE_GROUPS := headscale _dnsdist ssl-cert dnswarm
@@ -270,8 +270,6 @@ SERVICE_MAP := \
 ROOT_UID  := $(shell id -u root 2>/dev/null || echo 0)
 ROOT_GID  := $(shell id -g root 2>/dev/null || echo 0)
 ROOT_HOME := $(shell getent passwd root | cut -d: -f6)
-
-PRIMARY_ADMIN_GROUP := $(word 1,$(ADMIN_GROUPS))
 
 # ----------------------------------------------------------------------------
 # 5. Documentation Directory (Deferred assignment)
