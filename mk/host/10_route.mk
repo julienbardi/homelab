@@ -22,22 +22,44 @@ endef
 # ------------------------------------------------------------
 # HOST DEFAULT ROUTE HEALER (always safe, always local)
 # ------------------------------------------------------------
+# ------------------------------------------------------------
+# ensure-host-default-route
+# ------------------------------------------------------------
+STAMP_DIR_ROOT       := /var/lib/homelab
+STAMP_HOST_ROUTE_TS  := $(STAMP_DIR_ROOT)/host-default-route.last-check
+STAMP_TTL_SECONDS    := 30
+
 .PHONY: ensure-host-default-route
-ensure-host-default-route: secrets-ready
-	@$(call WITH_SECRETS, sh -c '\
-		IFACE=$$(ip route get "$$ROUTER_ADDR" | awk "/dev/ {print \$$5}"); \
+ensure-host-default-route: | $(STAMP_DIR_ROOT) $(run_as_root)
+	@{ \
+		NOW=$$(date +%s); \
+		LAST=0; \
+		if [ -f "$(STAMP_HOST_ROUTE_TS)" ]; then \
+			LAST=$$(cat "$(STAMP_HOST_ROUTE_TS)" 2>/dev/null || echo 0); \
+		fi; \
+		AGE=$$(expr $$NOW - $$LAST); \
+		if [ $$AGE -lt $(STAMP_TTL_SECONDS) ]; then \
+			echo "⏩ ensure-host-default-route (fast-path, age $$AGE s < $(STAMP_TTL_SECONDS)s)"; \
+			exit 0; \
+		fi; \
+		\
+		IFACE=$$(ip route get "$$ROUTER_ADDR" | \
+			awk '{for(i=1;i<=NF;i++) if($$i=="dev") print $$(i+1)}' | head -n1); \
 		if [ -z "$$IFACE" ]; then \
 			echo "❌ Cannot determine host LAN interface for reaching $$ROUTER_ADDR"; \
 			exit 1; \
 		fi; \
 		if ! ip route show default | grep -q "$$ROUTER_ADDR"; then \
-			echo "⚠️ Default gateway missing! Restoring path to $$ROUTER_ADDR via $$IFACE..."; \
-			$(run_as_root) ip route add default via "$$ROUTER_ADDR" dev "$$IFACE" 2>/dev/null || true; \
-			echo "✅ Default gateway restored"; \
+			$(run_as_root) ip route add default via "$$ROUTER_ADDR" dev "$$IFACE" || true; \
+			echo "✅ Default route via $$ROUTER_ADDR on $$IFACE added"; \
 		else \
-			echo "🟢 Default gateway OK"; \
-		fi \
-	')
+			echo "🟢 Default route already via $$ROUTER_ADDR on $$IFACE"; \
+		fi; \
+		echo $$NOW | $(run_as_root) tee "$(STAMP_HOST_ROUTE_TS)" >/dev/null; \
+	}
+
+
+
 
 # ------------------------------------------------------------
 # HOST SPECIFIC ROUTE HEALER
