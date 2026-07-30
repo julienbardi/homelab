@@ -11,7 +11,6 @@ PROBES_STAMP        := $(STAMP_DIR_ROOT)/deps-probes.checked
 STAMP_PREREQS_OK    := $(STAMP_DIR_ROOT)/prereqs-ok.stamp
 STAMP_INSTALLERS_OK := $(STAMP_DIR_ROOT)/installers-ok.stamp
 STAMP_DEPS_OK       := $(STAMP_DIR_ROOT)/deps-ok.stamp
-STAMP_HOST_ROUTE_OK := $(STAMP_DIR_ROOT)/host-default-route.ok
 STAMP_GO            := $(STAMP_DIR_ROOT)/go.installed
 
 GO_MODERN_VERSION := 1.25.5
@@ -171,19 +170,6 @@ define verbose_echo
 	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "$(1)"; fi
 endef
 
-# $(call ensure_default_route)
-define ensure_default_route
-	SECS="$$( $(SOPS_BIN) -d "$(SECRETS_FILE)" | $(YQ) -r 'to_entries | .[] | "\(.key)=\(.value)"' )"; \
-	export $$SECS; \
-	IFACE=$$(ip route get "$$ROUTER_ADDR" | awk "/dev/ {print \$$5}"); \
-	if [ -z "$$IFACE" ]; then echo "❌ Cannot determine host LAN interface"; exit 1; fi; \
-	if ! ip route show default | grep -q "$$ROUTER_ADDR"; then \
-		echo "⚠️ Default gateway missing, restoring..."; \
-		$(run_as_root) ip route add default via "$$ROUTER_ADDR" dev "$$IFACE" || true; \
-	fi; \
-	echo "🟢 Default gateway OK"
-endef
-
 # Removes only regular files or symlinks.
 define remove_file_or_link_if_exists
 	sh -c '\
@@ -257,7 +243,6 @@ endef
 	remove-pkg-headscale \
 	deps-probes \
 	dns-ok tailscale-hygiene-ok watchdog-ok vnstat-ok \
-	ensure-host-default-route \
 	install-pkg-go install-pkg-age install-pkg-sops install-pkg-yq \
 	install-pkg-kopia install-pkg-pandoc install-pkg-checkmake
 
@@ -607,18 +592,3 @@ vnstat-ok: | $(STAMP_DIR_ROOT)
 	fi
 	@$(call ensure_service,vnstat)
 	@$(run_as_root) touch "$(STAMP_VNSTAT_OK)"
-
-# ------------------------------------------------------------
-# ensure-host-default-route
-# ------------------------------------------------------------
-
-$(STAMP_HOST_ROUTE_OK): | $(STAMP_DIR_ROOT)
-	@if [ -f "$@" ]; then \
-		echo "⏩ ensure-host-default-route (fast-path OK)"; \
-		exit 0; \
-	fi
-	@echo "🔍 Checking host default route..."
-	@( $(call ensure_default_route) )
-	@echo ok | $(run_as_root) tee "$@" >/dev/null
-
-ensure-host-default-route: $(STAMP_HOST_ROUTE_OK)

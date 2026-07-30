@@ -15,31 +15,10 @@ ensure-authorized-admin:
 	@echo "$(AUTHORIZED_ADMINS)" | grep -qw "$(OPERATOR_USER)" || \
 		{ echo "❌ User $(OPERATOR_USER) not authorized for this mutation"; exit 1; }
 
-$(STAMP_DIR_ROOT): | ensure-stamp-root
-	@mkdir -p "$(STAMP_DIR_ROOT)"
-
-.PHONY: ensure-stamp-root
-ensure-stamp-root: ;
-	@if [ ! -x "$(run_as_root)" ]; then \
-		echo "❌ run_as_root missing — run 'make install-all'"; \
-		exit 1; \
-	fi; \
-	if [ ! -d "$(STAMP_DIR_ROOT)" ]; then \
-		echo "📋 [root] Creating STAMP_DIR_ROOT: $(STAMP_DIR_ROOT)"; \
-		$(run_as_root) install -d -m 0775 -o root -g $(PRIMARY_ADMIN_GROUP) "$(STAMP_DIR_ROOT)"; \
-	else \
-		[ "$(VERBOSE)" = "1" ] && echo "📋 [root] STAMP_DIR_ROOT exists: $(STAMP_DIR_ROOT)"; \
-	fi; \
-	# Autocorrect owner/group
-	if [ "$$(stat -c %u $(STAMP_DIR_ROOT))" != "0" ] || \
-	[ "$$(stat -c %g $(STAMP_DIR_ROOT))" != "$$(getent group $(PRIMARY_ADMIN_GROUP) | cut -d: -f3)" ]; then \
-		echo "🔧 [root] Fixing owner/group of $(STAMP_DIR_ROOT)"; \
-		$(run_as_root) chown root:$(PRIMARY_ADMIN_GROUP) "$(STAMP_DIR_ROOT)"; \
-	fi; \
-	# Autocorrect permissions
-	if [ "$$(stat -c %a $(STAMP_DIR_ROOT))" != "775" ]; then \
-		echo "🔧 [root] Fixing permissions of $(STAMP_DIR_ROOT)"; \
-		$(run_as_root) chmod 775 "$(STAMP_DIR_ROOT)"; \
+$(STAMP_DIR_ROOT):
+	@if [ ! -d "$@" ]; then \
+		echo "📋 [root] Creating STAMP_DIR_ROOT: $@"; \
+		install -d -m 0755 -o root -g root "$@"; \
 	fi
 
 $(STAMP_DIR_USER): ensure-stamp-user
@@ -116,6 +95,21 @@ $(INSTALL_FILES_IF_CHANGED): $(IFC_V3_PLURAL_SRC) | $(INSTALL_FILE_IF_CHANGED_V3
 # ------------------------------------------------------------
 # Macros (Fixed for Shell Compatibility)
 # ------------------------------------------------------------
+
+# --------------------------------------------------------------------
+# install_file — strict‑numeric IFC wrapper (local SRC→DST convenience)
+# --------------------------------------------------------------------
+# Usage:
+#    $(call install_file, SRC_PATH, DST_PATH, OWNER, GROUP, MODE)
+#
+# Guarantees:
+#    - Always returns numeric exit status: 0, 1, or CHANGED_EXIT_CODE
+#    - Never emits corrupted exit codes
+#    - Never concatenates $? with strings
+#    - Never uses eval
+#    - Safe under any Makefile expansion
+#    - No need for numeric sanitization in calling recipes
+# --------------------------------------------------------------------
 
 # Arguments for install_file_if_changed_v3.sh:
 # 1: SRC_PATH, 2: DST_PATH, 3: OWNER, 4: GROUP, 5: MODE

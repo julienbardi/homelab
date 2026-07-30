@@ -71,6 +71,7 @@ include $(REPO_ROOT)/mk/30_config_validation.mk
 include $(REPO_ROOT)/mk/40_acme.mk
 include $(REPO_ROOT)/mk/40_code-server.mk
 include $(REPO_ROOT)/mk/40_nas-caddy.mk
+# STAMP_DIR_ROOT must be defined before any WG DAG fragments are included
 include $(REPO_ROOT)/mk/40_wireguard.mk
 include $(REPO_ROOT)/mk/41_firewall-nas.mk
 include $(REPO_ROOT)/mk/50_certs.mk
@@ -197,13 +198,12 @@ install-nft-apply:
 	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)/scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
 
 nft-sync:
-	@[ "$(VERBOSE)" = "1" ] && echo "🔄 Syncing homelab.nft ruleset"
 	@status=0; \
 	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 		$(INSTALL_FILE_IF_CHANGED) \
 			"" "" "$(REPO_ROOT)/scripts/homelab.nft" \
 			"" "" "$(HOMELAB_NFT_RULESET)" \
-			root root 0644 \
+			"$(ROOT_UID)" "$(ROOT_GID)" "0644" \
 		|| status=$$?; \
 	case "$$status" in ''|*[!0-9]*) status=1 ;; esac; \
 	if [ $$status -ne 0 ] && [ $$status -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
