@@ -24,7 +24,8 @@ $(error ❌ REPO_ROOT is empty — run make from inside the homelab repo)
 endif
 
 # Ensure all included files are parsed before DAG evaluation
-$(MAKEFILE_LIST): ;
+# $(MAKEFILE_LIST): ;
+# (disabled — breaks include order)
 
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
 
@@ -50,21 +51,6 @@ endif
 
 # Canonical entrypoint wrapper
 # This file exists ONLY to forward to the real graph.
-
-# ---------------------------------------------------------------------------
-# Secrets are NEVER loaded into Make variables.
-# Secrets are injected ONLY inside a single shell via sops exec-env.
-# ---------------------------------------------------------------------------
-
-# SOPS binary and secrets file
-SOPS_BIN := $(shell command -v sops 2>/dev/null)
-
-# Ensure SOPS can decrypt inside Make recipes
-SOPS_AGE_KEY_FILE := /etc/sops/keys/age.key
-SECRETS_FILE := $(REPO_ROOT)/secrets.enc.yaml
-
-export SOPS_AGE_KEY_FILE
-export SECRETS_FILE
 
 # Load non-secret config
 include $(REPO_ROOT)/mk/config.mk
@@ -96,6 +82,7 @@ REQUIRED_VARS := \
 	IFC_V3_PLURAL_SRC \
 	COMMON_SRC \
 	REPO_ROOT \
+	SSH_PLATFORM \
 	WG_PLAN_SUBNETS \
 	YQ_GITHUB_REPO \
 	YQ_VERSION \

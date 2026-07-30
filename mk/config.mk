@@ -28,6 +28,9 @@ export WG_DOH_IPV6       := $(LAN6_NAS):8053
 export WG_DNS_ROUTER_IPV4 := $(LAN_ROUTER)
 export WG_DNS_NAS_IPV6    := $(LAN6_NAS)
 
+# operator key at make runtime
+SSH_PUBLIC_KEY := $(shell cat ~/.ssh/id_ed25519.pub)
+
 # SSH users per host
 export SSH_USER_ROUTER   := julie
 export SSH_USER_NAS      := julie
@@ -103,25 +106,64 @@ DHCP_DYNAMIC_END   := $(LAN_PREFIX).254
 
 # 2.Synology constants
 SYNO_LAN_IFACE := eth0
+export SSH_PORT_SYNOLOGY := 2222
 
 # 3. QNAP constants
 QNAP_LAN_IFACE := eth0
 
 # 4. NAS constants
-NAS_LAN_IFACE := eth0
+# on proxmox vmbr0 , on ugos eth0, see ip -o link show
+export NAS_LAN_IFACE := vmbr0
+export NAS_SSH_PORT := 22
 
 # 5. HUB01 constants
 HUB01_ADDR := 10.89.12.11
 HUB01_LAN_IFACE := ens3 # ip route get 10.89.12.1 | awk '/dev/ {print $5}'
 
-# Certificates & Identity
+export SSH_PORT_AC86U := 2222
+# ============================================================================
+# ACME Configuration (Option C: FHS-compliant, system-level)
+# ============================================================================
+
+# Homelab domain (canonical identity)
 DOMAIN               := bardi.ch
-ACME_HOME := $(shell . $(HOMELAB_DIR)/config/homelab.env && echo $$ACME_HOME)
+export DOMAIN
 RENEW_THRESHOLD_DAYS := 30
 export APT_CNAME_EXPECTED   := bardi.ch
 
+# ------------------------------------------------------------
+# ACME binary (operator-installed)
+# ------------------------------------------------------------
+ACME_BIN := /usr/local/bin/acme.sh
+export ACME_BIN
+# ------------------------------------------------------------
+# ACME state (root-owned, system-level), used by depoy scripts
+# ------------------------------------------------------------
+ACME_HOME := /var/lib/acme
+export ACME_HOME
+
+# ------------------------------------------------------------
+# Canonical TLS store, used by dnsdist, traefik, homepage, router, etc.
+# ------------------------------------------------------------
+TLS_CANONICAL := /var/lib/ssl/canonical
+export TLS_CANONICAL
+
+# ------------------------------------------------------------
+# DDNS environment file (root-owned), used in mk/07_secrets.mk
+# ------------------------------------------------------------
+DDNS_ENV_FILE := /etc/homelab/ddns.env
+export DDNS_ENV_FILE
+
 # Canonical certificate store
 SSL_CANONICAL_DIR := /var/lib/ssl/canonical
+
+# ------------------------------------------------------------
+# ACME systemd units, used in mk/40_acme.mk
+# ------------------------------------------------------------
+ACME_SERVICE_FILE := /etc/systemd/system/acme-renewal.service
+ACME_TIMER_FILE   := /etc/systemd/system/acme-renewal.timer
+export ACME_SERVICE_FILE
+export ACME_TIMER_FILE
 
 # ECC certificates (preferred)
 SSL_CERT_ECC  := $(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer
@@ -236,7 +278,7 @@ KNOWN_HOSTS := \
 	10.89.12.1:2222 \
 	10.89.12.2:2222 \
 	10.89.12.3:2222 \
-	10.89.12.4:2222
+	10.89.12.4:22
 
 # ----------------------------------------------------------------------------
 # 1. Operator Identity (Dynamic build-time discovery)
@@ -328,8 +370,11 @@ GEN_CLIENT_WRAPPER := $(ROUTER_SCRIPTS)/gen-client-cert-wrapper.sh
 
 # ----------------------------------------------------------------------------
 # 9. Security & Identity (Public key only — no secrets)
+# This is the canonical expected Age public key. All homelab secrets are
+# encrypted with this identity. If you rotate the Age key, you MUST update
+# this value and re-encrypt all SOPS-managed secrets stored in KeePass.
 # ----------------------------------------------------------------------------
-SOPS_AGE_PUBKEY := age1rzyyxnn2ejkchp4jewdpw92av689wdtj2kgrv3ys4p3chn862vjqc3fs5n
+SOPS_AGE_PUBKEY_EXPECTED := age1rzyyxnn2ejkchp4jewdpw92av689wdtj2kgrv3ys4p3chn862vjqc3fs5n
 
 # ----------------------------------------------------------------------------
 # 10. SSH Configuration for Router (Non-secret)
@@ -382,3 +427,132 @@ TMP_ROUTER_ULA := /run/user/$(shell id -u)/homelab/.router_ula_$$PPID
 TMP_ROUTER_NAT := /run/user/$(shell id -u)/homelab/.router_nat
 
 export WG_PLAN_SUBNETS := $(INSTALL_PATH)/wg-plan-subnets.sh
+
+# ------------------------------------------------------------
+# Homelab Age Identity (SOPS)
+# Secrets are NEVER loaded into Make variables.
+# Secrets are injected ONLY inside a single shell via sops exec-env.
+# ------------------------------------------------------------
+
+# Ensure SOPS can decrypt inside Make recipes
+SOPS_AGE_KEY_FILE := /etc/sops/keys/age.key
+export SOPS_AGE_KEY_FILE
+
+SECRETS_FILE := $(REPO_ROOT)/secrets.enc.yaml
+export SECRETS_FILE
+
+SOPS_AGE_KEY_DIR := $(dir $(SOPS_AGE_KEY_FILE))
+
+SOPS_BIN := $(shell command -v sops 2>/dev/null)
+
+SYSCTL_BIN := $(shell command -v sysctl)
+
+SYSCTL_SRC := $(REPO_ROOT)/config/sysctl.d/99-homelab-forwarding.conf.in
+SYSCTL_DST := /etc/sysctl.d/99-homelab-forwarding.conf
+
+
+.PHONY: homelab-env-v1
+homelab-env-v1: $(BOOTSTRAP_CORE) $(run_as_root)
+	@tmp="$$(mktemp)"; \
+	printf "%s\n" "# Canonical Network Environment (DO NOT EDIT, generated by homelab-env)" > "$$tmp"; \
+	printf "%s\n" "HOMELAB_ROOT=\"$(HOMELAB_DIR)\"" >> "$$tmp"; \
+	printf "%s\n" "# Required by mk/config.mk" >> "$$tmp"; \
+	printf "%s\n" "ACME_HOME=\"$(ACME_HOME)\"" >> "$$tmp"; \
+	printf "%s\n" "# Required by IFC v3" >> "$$tmp"; \
+	printf "%s\n" "INSTALL_PATH=\"$(INSTALL_PATH)\"" >> "$$tmp"; \
+	printf "%s\n" "INSTALL_SBIN_PATH=\"$(INSTALL_SBIN_PATH)\"" >> "$$tmp"; \
+	printf "%s\n" "# Required by graph.mk (WireGuard plan)" >> "$$tmp"; \
+	printf "%s\n" "WG_PLAN_SUBNETS=\"$(WG_PLAN_SUBNETS)\"" >> "$$tmp"; \
+	rc=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
+		"" "" "$$tmp" \
+		"" "" "$(HOMELAB_DIR)/config/homelab.env" \
+		"$(ROOT_UID)" "$(ROOT_GID)" "0644" \
+		|| rc=$$?; \
+	rm -f "$$tmp"; \
+	case "$$rc" in \
+		0|3|'') exit 0 ;; \
+		*[!0-9]* ) exit 0 ;; \
+		*) exit "$$rc" ;; \
+	esac
+
+define INSTALL_FILE_NORMALIZED
+	rc=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
+		"$(1)" "$(2)" "$(3)" \
+		"$(4)" "$(5)" "$(6)" \
+		"$(7)" "$(8)" "$(9)" \
+		|| rc=$$?; \
+	case "$$rc" in \
+		0|3|'') exit 0 ;; \
+		*[!0-9]* ) exit 0 ;; \
+		*) exit "$$rc" ;; \
+	esac
+endef
+
+define GENERATE_AND_INSTALL_FILE
+	tmp="$$(mktemp)"; \
+	$(file >$$tmp,$(value $(1))) \
+	newhash="$$(sha256sum "$$tmp" | awk '{print $$1}')"; \
+	\
+	# compute path identity hash (no salt)
+	path="$(2)"; \
+	key_hash="$$(printf '%s' "$$path" | sha256sum | awk '{print $$1}')"; \
+	dir1="$${key_hash:0:2}"; \
+	dir2="$${key_hash:2:5}"; \
+	meta="$(STAMP_DIR_ROOT)/$$dir1/$$dir2/$$key_hash"; \
+	\
+	# read old hash from sharded metadata file (if any)
+	if [ -f "$$meta" ]; then \
+		oldhash="$$(cat "$$meta")"; \
+	else \
+		oldhash=""; \
+	fi; \
+	\
+	# fast path: content unchanged, skip IFC_v3
+	if [ "$$newhash" = "$$oldhash" ]; then \
+		rm -f "$$tmp"; \
+		echo "🟢 already up-to-date: $(2)"; \
+		exit 0; \
+	fi; \
+	\
+	# slow path: install via IFC_v3
+	rc=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
+		"" "" "$$tmp" \
+		"" "" "$(2)" \
+		"$(ROOT_UID)" "$(ROOT_GID)" "$(3)" \
+		|| rc=$$?; \
+	\
+	# update sharded metadata file with new content hash
+	mkdir -p "$(STAMP_DIR_ROOT)/$$dir1/$$dir2"; \
+	echo "$$newhash" > "$$meta"; \
+	rm -f "$$tmp"; \
+	\
+	# normalize IFC_v3 return code
+	case "$$rc" in \
+		0|3|'') exit 0 ;; \
+		*[!0-9]* ) exit 0 ;; \
+		*) exit "$$rc" ;; \
+	esac
+endef
+
+define HOMELAB_ENV_CONTENT
+# Canonical Network Environment (DO NOT EDIT, generated by homelab-env)
+HOMELAB_ROOT="$(HOMELAB_DIR)"
+# Required by mk/config.mk
+ACME_HOME="$(ACME_HOME)"
+# Required by IFC v3
+INSTALL_PATH="$(INSTALL_PATH)"
+INSTALL_SBIN_PATH="$(INSTALL_SBIN_PATH)"
+# Required by graph.mk (WireGuard plan)
+WG_PLAN_SUBNETS="$(WG_PLAN_SUBNETS)"
+endef
+export HOMELAB_ENV_CONTENT
+
+homelab-env: $(BOOTSTRAP_CORE)
+	@tmp="$$(mktemp)"; \
+	$(file >$$tmp,$(value HOMELAB_ENV_CONTENT)) \
+	install -D -o "$(ROOT_UID)" -g "$(ROOT_GID)" -m 0644 "$$tmp" "$(HOMELAB_DIR)/config/homelab.env"; \
+	rm -f "$$tmp"; \
+	echo "🚀 installed $(HOMELAB_DIR)/config/homelab.env"
