@@ -178,39 +178,39 @@ runtime-diff: prefix-bootstrap
 	echo "⚠️  Runtime network drift detected"; \
 	$(run_as_root) sh -c 'sed "s/^/   - /" "$$1"' _ "$$difffile"; \
 	\
-	# ------------------------------------------------------------
-	# Drift cause classification (non-authoritative, best-effort)
-	# ------------------------------------------------------------
+	# ------------------------------------------------------------ \
+	# Drift cause classification (non-authoritative, best-effort) \
+	# ------------------------------------------------------------ \
 	echo "🔍 Classifying drift cause..."; \
 	cause="unknown"; \
 	\
-	# Case A: nftables reload or firewall re-apply
+	# Case A: nftables reload or firewall re-apply \
 	if $(run_as_root) sh -c 'journalctl --since "30 seconds ago" -u nftables 2>/dev/null | grep -q "Reloading"' ; then \
 		cause="firewall_reload"; \
 	fi; \
 	\
-	# Case B: sysctl reload or IPv6 token re-application
+	# Case B: sysctl reload or IPv6 token re-application \
 	if $(run_as_root) sh -c 'journalctl --since "30 seconds ago" -u systemd-sysctl 2>/dev/null | grep -q "Finished Apply Kernel Variables"' ; then \
 		cause="sysctl_reload"; \
 	fi; \
 	\
-	# Case C: router-prefix-watchdog triggered a prefix check
+	# Case C: router-prefix-watchdog triggered a prefix check \
 	if $(run_as_root) sh -c 'journalctl --since "30 seconds ago" -u router-prefix-watchdog 2>/dev/null | grep -q "prefix check"' ; then \
 		cause="router_prefix_watchdog"; \
 	fi; \
 	\
-	# Case D: interface bounced (link flap)
+	# Case D: interface bounced (link flap) \
 	if $(run_as_root) sh -c 'journalctl --since "30 seconds ago" -k 2>/dev/null | grep -Eq "link is (up|down)"' ; then \
 		cause="interface_bounce"; \
 	fi; \
 	\
-	# Case E: headscale restart (affects routes)
+	# Case E: headscale restart (affects routes) \
 	if $(run_as_root) sh -c 'journalctl --since "30 seconds ago" -u headscale 2>/dev/null | grep -q "Started Headscale coordination server"' ; then \
 		cause="headscale_restart"; \
 	fi; \
 	\
-	# Emit classification
-	case "$$cause" in \
+	# Emit classification \
+	case "$${cause:-unknown}" in \
 		firewall_reload)        echo "   ➡️ Cause: firewall reload (nftables)";; \
 		sysctl_reload)          echo "   ➡️ Cause: sysctl reload (kernel parameters)";; \
 		router_prefix_watchdog) echo "   ➡️ Cause: router-prefix-watchdog activity";; \
@@ -259,7 +259,7 @@ runtime-diff: prefix-bootstrap
 	  fi; \
 	fi; \
 	\
-	# Case 4: WireGuard drift but final normalized wg.dump matches desired
+	# Case 4: WireGuard drift but final normalized wg.dump matches desired \
 	if grep -q '^WG_CHANGED=1' "$$difffile"; then \
 	tmp_before="$$(mktemp)"; \
 	tmp_after="$$(mktemp)"; \
@@ -326,7 +326,7 @@ converge-forwarding:
 
 network-status:
 	@echo "🔍 Kernel forwarding"
-	@$(run_as_root) sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
+	@$(run_as_root) $(SYSCTL_BIN) net.ipv4.ip_forward net.ipv6.conf.all.forwarding
 	@echo
 	@echo "🔍 nftables ruleset"
 	@{ \
