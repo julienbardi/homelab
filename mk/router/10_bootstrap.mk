@@ -35,17 +35,17 @@ router-ensure-scripts-dir:
 
 .PHONY: router-bootstrap-primitives
 router-bootstrap-primitives: secrets-ready ensure-host-default-route
-	@echo "🛡️ Bootstrapping router primitives"
-
-	# Ensure necessary directories exist for $(INSTALL_FILE_IF_CHANGED)
-	@ssh $(SSH_HOST_ROUTER) "mkdir -p /jffs/scripts /etc/homelab"
+	@echo "🛡️ Bootstrapping router primitives"; \
 	\
-	# Step 1: local hashes
+	# Ensure necessary directories exist for $(INSTALL_FILE_IF_CHANGED) \
+	ssh $(SSH_HOST_ROUTER) "mkdir -p /jffs/scripts /etc/homelab"; \
+	\
+	# Step 1: local hashes \
 	LOCAL_HASH_RUN_AS_ROOT="$$(sha256sum "$(REPO_ROOT)/router/jffs/scripts/run-as-root.sh" | awk '{print $$1}')" ; \
 	LOCAL_HASH_INSTALL_CERT="$$(sha256sum "$(REPO_ROOT)/router/jffs/scripts/install-cert.sh" | awk '{print $$1}')" ; \
 	LOCAL_HASH_RESET_ROUTER="$$(sha256sum "$(REPO_ROOT)/router/jffs/scripts/reset-router.sh" | awk '{print $$1}')" ; \
 	\
-	# Step 2: single SSH — ensure dirs, verify known_hosts cleanly, fetch remote hashes with structured tags
+	# Step 2: single SSH — ensure dirs, verify known_hosts cleanly, fetch remote hashes with structured tags \
 	REMOTE_DATA="$$(ssh $(SSH_HOST_ROUTER) '\
 		mkdir -p /jffs/scripts && chmod 755 /jffs/scripts && chown 0:0 /jffs/scripts ; \
 		mkdir -p /root/.ssh && chmod 700 /root/.ssh ; \
@@ -60,30 +60,51 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 		echo -n "HASH_RESET_ROUTER:" ; [ -f /jffs/scripts/reset-router.sh ] && sha256sum /jffs/scripts/reset-router.sh | awk "{print \$$1}" || echo "MISSING" ; \
 	')" ; \
 	\
-	REMOTE_KNOWN_HOST="$$(printf "%s" "$$REMOTE_DATA" | grep "^STATUS_KNOWN_HOST:" | cut -d: -f2)" ; \
-	REMOTE_HASH_RUN_AS_ROOT="$$(printf "%s" "$$REMOTE_DATA" | grep "^HASH_RUN_AS_ROOT:" | cut -d: -f2)" ; \
-	REMOTE_HASH_INSTALL_CERT="$$(printf "%s" "$$REMOTE_DATA" | grep "^HASH_INSTALL_CERT:" | cut -d: -f2)" ; \
-	REMOTE_HASH_RESET_ROUTER="$$(printf "%s" "$$REMOTE_DATA" | grep "^HASH_RESET_ROUTER:" | cut -d: -f2)" ; \
+	# Extract tags — SINGLE-LINE, MAKE-SAFE, NO COLLAPSING \
+	REMOTE_KNOWN_HOST="$$(printf "%s" "$$REMOTE_DATA" | grep "^STATUS_KNOWN_HOST:" | cut -d: -f2 || echo UNSET)" ; \
+	if [ "$$REMOTE_KNOWN_HOST" = "UNSET" ]; then \
+		echo "❌ router-bootstrap: missing STATUS_KNOWN_HOST tag in remote output"; \
+		printf "%s\n" "$$REMOTE_DATA"; \
+		exit 1; \
+	fi; \
 	\
-	# Step 3: fix known-hosts if missing
+	REMOTE_HASH_RUN_AS_ROOT="$$(printf "%s" "$$REMOTE_DATA" | grep "^HASH_RUN_AS_ROOT:" | cut -d: -f2 || echo UNSET)" ; \
+	REMOTE_HASH_INSTALL_CERT="$$(printf "%s" "$$REMOTE_DATA" | grep "^HASH_INSTALL_CERT:" | cut -d: -f2 || echo UNSET)" ; \
+	REMOTE_HASH_RESET_ROUTER="$$(printf "%s" "$$REMOTE_DATA" | grep "^HASH_RESET_ROUTER:" | cut -d: -f2 || echo UNSET)" ; \
+	\
+	if [ "$$REMOTE_HASH_RUN_AS_ROOT" = "UNSET" ] || \
+	   [ "$$REMOTE_HASH_INSTALL_CERT" = "UNSET" ] || \
+	   [ "$$REMOTE_HASH_RESET_ROUTER" = "UNSET" ]; then \
+		echo "❌ router-bootstrap: missing one or more HASH_* tags in remote output"; \
+		printf "%s\n" "$$REMOTE_DATA"; \
+		exit 1; \
+	fi; \
+	\
+	# Step 3: fix known-hosts if missing \
 	if [ "$$REMOTE_KNOWN_HOST" = "MISSING" ]; then \
 		echo "🔑 Adding NAS host key to router root context" ; \
-		NAS_KEY_LINE="$$(ssh-keyscan -p 2222 $(LAN_NAS) 2>/dev/null)" ; \
-		if [ -z "$$NAS_KEY_LINE" ]; then \
+		NAS_KEY_LINES="$$(ssh-keyscan -p $(NAS_SSH_PORT) $(LAN_NAS) 2>/dev/null)" ; \
+		if [ -z "$$NAS_KEY_LINES" ]; then \
 			echo "❌ Failed to obtain NAS host key via ssh-keyscan" ; \
 			exit 1 ; \
 		fi ; \
-		ssh $(SSH_HOST_ROUTER) "echo \"$$NAS_KEY_LINE\" >> /root/.ssh/known_hosts && chmod 600 /root/.ssh/known_hosts" ; \
+		printf "%s\n" "$$NAS_KEY_LINES" | while IFS= read -r line; do \
+			ssh $(SSH_HOST_ROUTER) "\
+				touch /root/.ssh/known_hosts && \
+				chmod 600 /root/.ssh/known_hosts && \
+				grep -Fqx \"$$line\" /root/.ssh/known_hosts || echo \"$$line\" >> /root/.ssh/known_hosts \
+			"; \
+		done ; \
 	fi ; \
 	\
-	# Step 4: compare hashes cleanly via exact variable matches
+	# Step 4: compare hashes cleanly via exact variable matches \
 	if [ "$$REMOTE_HASH_RUN_AS_ROOT" = "$$LOCAL_HASH_RUN_AS_ROOT" ] && \
 	   [ "$$REMOTE_HASH_INSTALL_CERT" = "$$LOCAL_HASH_INSTALL_CERT" ] && \
 	   [ "$$REMOTE_HASH_RESET_ROUTER" = "$$LOCAL_HASH_RESET_ROUTER" ] ; then \
 		echo "🟢 Bootstrap primitives already up-to-date" ; \
 		exit 0 ; \
 	else \
-		# Step 5: slow path — stream all three
+		# Step 5: slow path — stream all three \
 		echo "📝 Updating bootstrap primitives on router (content drift detected)" ; \
 		\
 		cat "$(REPO_ROOT)/router/jffs/scripts/run-as-root.sh" | \
@@ -180,8 +201,7 @@ router-install-scripts: install-ssh-config \
 	ensure-router-known-hosts router-scripts-invariants \
 	$(INSTALL_FILE_IF_CHANGED) $(INSTALL_FILES_IF_CHANGED) \
 	| ensure-router-ula
-	@echo "🔍 Router script converge ($(ROUTER_IFC_MODE), deterministic)"
-
+	@echo "🔍 Router script converge ($(ROUTER_IFC_MODE), deterministic)";
 	@set -e; \
 	case "$(ROUTER_IFC_MODE)" in \
 		vector) \
@@ -195,7 +215,7 @@ router-install-scripts: install-ssh-config \
 				echo "⚠️ Skipping $$f — source $$src not found"; \
 				continue; \
 			fi; \
-			# Append one full 9-arg tuple:
+			# Append one full 9-arg tuple: \
 			# SRC_HOST SRC_PORT SRC_PATH DST_HOST DST_PORT DST_PATH OWNER GROUP MODE \
 			set -- "$$@" "" "" "$$src" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$$dst" "$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)"; \
 			done; \
@@ -236,9 +256,8 @@ router-install-scripts: install-ssh-config \
 		  fi; \
 		done \
 		;; \
-	esac
-
-	@echo "🟢 All router scripts processed"
+	esac; \
+	echo "🟢 All router scripts processed"
 
 .PHONY: router-scripts-invariants
 router-scripts-invariants: | router-ssh-check

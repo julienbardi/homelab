@@ -20,7 +20,7 @@
 #   - The NAS MUST have an IPv6 default route via the router.
 #
 # Rationale:
-#   - NAT66 masquerade on the NAS requires a global source address on eth0.
+#   - NAT66 masquerade on the NAS requires a global source address on $(NAS_LAN_IFACE).
 #   - Without it, wg7 IPv6 internet silently black-holes (ULA not routable by ISPs).
 #   - The delegated global prefix is used ONLY for egress NAT66; it is NOT
 #     advertised to WG clients or LAN hosts (no delegated IPv6 in tunnel configs).
@@ -40,7 +40,7 @@ ensure-default-route:
 	# ------------------------------------------------------------ \
 	if [ -z "$$current_gw" ]; then \
 		echo "⚠️  No IPv4 default route present. Applying converge route..."; \
-		$(run_as_root) ip route add default via "$(LAN_ROUTER)" dev eth0; \
+		$(run_as_root) ip route add default via "$(LAN_ROUTER)" dev $(NAS_LAN_IFACE); \
 		exit 0; \
 	fi; \
 	\
@@ -51,7 +51,7 @@ ensure-default-route:
 			exit 1; \
 		fi; \
 		echo "🔧 Forcing IPv4 default route to $(LAN_ROUTER)"; \
-		$(run_as_root) ip route replace default via "$(LAN_ROUTER)" dev eth0; \
+		$(run_as_root) ip route replace default via "$(LAN_ROUTER)" dev $(NAS_LAN_IFACE); \
 		exit 0; \
 	fi; \
 	\
@@ -69,17 +69,17 @@ ensure-default-route:
 	fi; \
 	\
 	# 2. Require global IPv6 address (2xxx::/3) — needed for NAT66 masquerade source \
-	if ! ip -6 addr show dev eth0 | grep -q 'inet6 2'; then \
-		echo "⚠️ No global IPv6 address on eth0 — router not yet delegating a prefix."; \
+	if ! ip -6 addr show dev $(NAS_LAN_IFACE) | grep -q 'inet6 2'; then \
+		echo "⚠️ No global IPv6 address on $(NAS_LAN_IFACE) — router not yet delegating a prefix."; \
 		echo "   NAT66 will fallback to IPv4-only egress."; \
 		echo "   This is non-fatal: see docs/network-contract.md IPv6 Internet section."; \
 	else \
-		echo "✅ Global IPv6 address present on eth0 (NAT66 masquerade source ready)"; \
+		echo "✅ Global IPv6 address present on $(NAS_LAN_IFACE) (NAT66 masquerade source ready)"; \
 	fi; \
 	\
-	# 3+4. Require ULA IPv6 on eth0 AND router ULA advertisement \
-	if ! ip -6 addr show dev eth0 | grep -q 'inet6 fd'; then \
-		echo "❌ No ULA IPv6 address detected on eth0 — required invariant"; \
+	# 3+4. Require ULA IPv6 on $(NAS_LAN_IFACE) AND router ULA advertisement \
+	if ! ip -6 addr show dev $(NAS_LAN_IFACE) | grep -q 'inet6 fd'; then \
+		echo "❌ No ULA IPv6 address detected on $(NAS_LAN_IFACE) — required invariant"; \
 		echo "❌ Router is NOT advertising a ULA prefix — LAN IPv6 broken"; \
 		exit 1; \
 	fi; \
@@ -89,19 +89,19 @@ ensure-default-route:
 
 # ------------------------------------------------------------
 # IPv6 default route — learned via RA from the router.
-# Requires net.ipv6.conf.eth0.accept_ra = 2 (see mk/20_sysctl.mk).
+# Requires net.ipv6.conf.$(NAS_LAN_IFACE).accept_ra = 2 (see mk/20_sysctl.mk).
 # Without accept_ra=2, forwarding=1 suppresses RA reception and this
 # route never appears ➡️ IPv6 black hole for all wgN clients.
 # ------------------------------------------------------------
 
 ensure-ipv6-default-route:
 	@set -euo pipefail; \
-	echo "🔍 Ensuring IPv6 default route (via router RA on eth0)"; \
+	echo "🔍 Ensuring IPv6 default route (via router RA on $(NAS_LAN_IFACE))"; \
 	current_gw6=$$(ip -6 route show default | awk '/default/ {print $$3; exit}'); \
 	\
 	if [ -z "$$current_gw6" ]; then \
 		echo "❌ No IPv6 default route present."; \
-		echo "   Likely cause: net.ipv6.conf.eth0.accept_ra != 2"; \
+		echo "   Likely cause: net.ipv6.conf.$(NAS_LAN_IFACE).accept_ra != 2"; \
 		echo "   Fix: make install-homelab-sysctl && make ensure-accept-ra"; \
 		exit 1; \
 	fi; \

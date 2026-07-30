@@ -1,33 +1,11 @@
 # mk/20_sysctl.mk
 
-# --- CONFIGURATION & PATHS ---
-SYSCTL_SRC := $(REPO_ROOT)/config/sysctl.d/99-homelab-forwarding.conf
-SYSCTL_DST := /etc/sysctl.d/99-homelab-forwarding.conf
-SYSCTL_BIN := /sbin/sysctl
-
 # Extract IID from constants (e.g., ::4)
 NAS_IID_TOKEN := ::$(shell echo "$(NAS_LAN_IP6)" | sed 's/.*:://')
 
-.PHONY: install-homelab-sysctl sysctl-inspect sysctl-preflight set-ipv6-token rotate-ipv6-secrets ensure-accept-ra
+.PHONY: sysctl-inspect set-ipv6-token ensure-accept-ra install-homelab-sysctl rotate-ipv6-secrets
 
-# --- OPERATOR-GRADE MACROS ---
-
-define sysctl_preflight_check
-{ \
-	echo "🔍 Verifying system dependencies..."; \
-	for cmd in ip awk sed grep python3 openssl; do \
-		if ! command -v $$cmd >/dev/null 2>&1; then \
-			echo "❌ ERROR: Required command '$$cmd' not found."; exit 1; \
-		fi; \
-	done; \
-	if [ ! -f "$(SYSCTL_SRC)" ]; then \
-		echo "❌ ERROR: Source config $(SYSCTL_SRC) missing."; exit 1; \
-	fi; \
-	if ! grep -q 'net.ipv6.conf.eth0.accept_ra' "$(SYSCTL_SRC)"; then \
-		echo "❌ ERROR: $(SYSCTL_SRC) is missing sysctl config missing net.ipv6.conf.eth0.accept_ra = 2 (IPv6 black-hole guard)."; exit 1; \
-	fi; \
-}
-endef
+# --- 1. OPERATOR-GRADE MACROS ---
 
 define inspect_ipv6_identity
 { \
@@ -42,8 +20,8 @@ define inspect_ipv6_identity
 		printf "%-11s | Interface: %-6s | Addr: %s\n", status, $$2, addr; \
 	}' | sort -u; \
 	echo "--------------------------------------------------------------------------------"; \
-	echo "🔍 accept_ra status (must be 2 on eth0 to survive forwarding=1):"; \
-	for iface in eth0; do \
+	echo "🔍 accept_ra status (must be 2 on $(NAS_LAN_IFACE) to survive forwarding=1):"; \
+	for iface in $(NAS_LAN_IFACE); do \
 		[ -f "/proc/sys/net/ipv6/conf/$$iface/accept_ra" ] || continue; \
 		val=$$(cat "/proc/sys/net/ipv6/conf/$$iface/accept_ra"); \
 		if [ "$$val" = "2" ]; then \
@@ -59,7 +37,7 @@ endef
 define set_ipv6_token
 { \
 	echo " Checking IPv6 ULA address convergence ($(NAS_LAN_IP6))..."; \
-	for iface in eth0; do \
+	for iface in $(NAS_LAN_IFACE); do \
 		if [ -d "/sys/class/net/$$iface" ]; then \
 			if ip -6 addr show dev $$iface scope global | grep -q " $(NAS_LAN_IP6)/"; then \
 				echo "✅ $$iface: ULA IPv6 address already converged to $(NAS_LAN_IP6)."; \
@@ -81,41 +59,52 @@ define inject_ipv6_secrets
 	s1=$$(echo $$pool | cut -c1-32 | sed "s/\(..\)/\1:/g; s/:$$//"); \
 	{ \
 		printf "\n# --- Homelab IPv6 Stable Secrets ---\n"; \
-		[ -d /sys/class/net/eth0 ] && printf "net.ipv6.conf.eth0.stable_secret = %s\n" "$$s1"; \
+		[ -d /sys/class/net/$(NAS_LAN_IFACE) ] && printf "net.ipv6.conf.$(NAS_LAN_IFACE).stable_secret = %s\n" "$$s1"; \
 	} | $(run_as_root) tee -a "$(SYSCTL_DST)" >/dev/null; \
 }
 endef
 
-# --- TARGETS ---
+# --- 2. TARGETS ---
 
-sysctl-preflight:
-	@set -eu; ( $(sysctl_preflight_check) )
-
-sysctl-inspect: sysctl-preflight
+sysctl-inspect: install-homelab-sysctl
 	@set -eu; ( $(inspect_ipv6_identity) )
 
 set-ipv6-token:
 	@set -eu; ( $(set_ipv6_token) )
 
-# Verify effective accept_ra =2 on eth0 without touching sysctl files.
+# Verify effective accept_ra =2 on $(NAS_LAN_IFACE) without touching sysctl files.
 # Run after install-homelab-sysctl to confirm the kernel absorbed the setting.
 ensure-accept-ra:
 	@set -eu; \
-	val=$$(cat /proc/sys/net/ipv6/conf/eth0/accept_ra 2>/dev/null || echo "missing"); \
+	val=$$(cat /proc/sys/net/ipv6/conf/$(NAS_LAN_IFACE)/accept_ra 2>/dev/null || echo "missing"); \
 	if [ "$$val" != "2" ]; then \
-		echo "❌ eth0: net.ipv6.conf.eth0.accept_ra = $$val (expected 2). Run: make install-homelab-sysctl"; \
+		echo "❌ $(NAS_LAN_IFACE): net.ipv6.conf.$(NAS_LAN_IFACE).accept_ra = $$val (expected 2). Run: make install-homelab-sysctl"; \
 		exit 1; \
 	fi; \
-	echo "✅ net.ipv6.conf.eth0.accept_ra = 2 - IPv6 default route will be accepted from router RA."; \
+	echo "✅ net.ipv6.conf.$(NAS_LAN_IFACE).accept_ra = 2 - IPv6 default route will be accepted from router RA."; \
 
-install-homelab-sysctl: sysctl-preflight set-ipv6-token
+install-homelab-sysctl: set-ipv6-token
 	@set -eu; \
-	echo "🔄 Syncing functional sysctl configuration..."; \
-	$(run_as_root) install -o root -g root -m 0644 "$(SYSCTL_SRC)" "$(SYSCTL_DST)"; \
+	echo "🔄 Rendering sysctl config for NAS_LAN_IFACE=$(NAS_LAN_IFACE) ..."; \
+	tmpfile=$$(mktemp); \
+	envsubst < "$(SYSCTL_SRC)" > $$tmpfile; \
+	echo "🔍 Validating rendered sysctl..."; \
+	if ! grep -q "net.ipv6.conf.$(NAS_LAN_IFACE).accept_ra = 2" $$tmpfile; then \
+		echo "❌ ERROR: Rendered sysctl missing net.ipv6.conf.$(NAS_LAN_IFACE).accept_ra = 2"; \
+		rm -f $$tmpfile; exit 1; \
+	fi; \
+	if ! grep -q "net.ipv6.conf.$(NAS_LAN_IFACE).forwarding = 1" $$tmpfile; then \
+		echo "❌ ERROR: Rendered sysctl missing net.ipv6.conf.$(NAS_LAN_IFACE).forwarding = 1"; \
+		rm -f $$tmpfile; exit 1; \
+	fi; \
+	echo "🔧 Installing sysctl configuration to $(SYSCTL_DST) ..."; \
+	$(run_as_root) install -o root -g root -m 0644 $$tmpfile "$(SYSCTL_DST)"; \
+	rm -f $$tmpfile; \
+	echo "🔄 Applying sysctl configuration ..."; \
 	$(run_as_root) $(SYSCTL_BIN) -p "$(SYSCTL_DST)" >/dev/null; \
-	echo "✨ Convergence verified: NAS IPv6 address is $(NAS_LAN_IP6)/64 (RA-independent)"; \
+	echo "✨ Convergence verified: NAS IPv6 address is $(NAS_LAN_IP6)/64 (RA-independent)";
 
-rotate-ipv6-secrets: sysctl-preflight
+rotate-ipv6-secrets: install-homelab-sysctl
 	@echo "🔄 Scrambling IPv6 identity (RFC 7217)..."
 	@set -eu; \
 	$(run_as_root) sh -e -c '\
@@ -124,7 +113,7 @@ rotate-ipv6-secrets: sysctl-preflight
 		s1=$$(echo $$pool | cut -c1-32 | sed "s/\(..\)/\1:/g; s/:$$//"); \
 		{ \
 			printf "\n\n# --- Homelab IPv6 Stable Secrets ---\n"; \
-			[ -d /sys/class/net/eth0 ] && printf "net.ipv6.conf.eth0.stable_secret = %s\n" "$$s1"; \
+			[ -d /sys/class/net/$(NAS_LAN_IFACE) ] && printf "net.ipv6.conf.$(NAS_LAN_IFACE).stable_secret = %s\n" "$$s1"; \
 		} >> "$(SYSCTL_DST)"; \
 		sleep 5; \
 		reboot; \

@@ -58,9 +58,6 @@ ensure-host-default-route: | $(STAMP_DIR_ROOT) $(run_as_root)
 		echo $$NOW | $(run_as_root) tee "$(STAMP_HOST_ROUTE_TS)" >/dev/null; \
 	}
 
-
-
-
 # ------------------------------------------------------------
 # HOST SPECIFIC ROUTE HEALER
 # ------------------------------------------------------------
@@ -74,29 +71,21 @@ ensure-hub01-default-route: install-ssh-config secrets-ready
 
 # NAS
 nas-bootstrap: install-ssh-config ensure-host-default-route
-nas-bootstrap:
-	@if ! ping -c1 $(NAS_ADDR) >/dev/null 2>&1; then \
-		echo "⚠️ NAS unreachable — skipping nas-bootstrap"; \
+	@if ping -c1 $(LAN_NAS) >/dev/null 2>&1; then \
+		echo "🟢 NAS $(LAN_NAS) reachable"; \
+	else \
+		echo "⚠️ NAS $(LAN_NAS) unreachable"; \
 		exit 0; \
-	fi; \
-	echo "🔧 NAS reachable — healing route…"; \
-	$(call REMOTE_DEFAULT_ROUTE_HEALER,$(SSH_HOST_NAS),$(NAS_LAN_IFACE)); \
-	echo "🔧 Running NAS bootstrap…"; \
-	# TODO: NAS bootstrap commands here
-
+	fi
 
 # Synology
 synology-bootstrap: install-ssh-config ensure-host-default-route
-synology-bootstrap:
-	@if ! ping -c1 $(SYNOLOGY_ADDR) >/dev/null 2>&1; then \
-		echo "⚠️ Synology unreachable — skipping synology-bootstrap"; \
+	@if ping -c1 $(LAN_SYNOLOGY) >/dev/null 2>&1; then \
+		echo "🟢 NAS $(LAN_SYNOLOGY) reachable"; \
+	else \
+		echo "⚠️ NAS $(LAN_SYNOLOGY) unreachable"; \
 		exit 0; \
-	fi; \
-	echo "🔧 Synology reachable — healing route…"; \
-	$(call REMOTE_DEFAULT_ROUTE_HEALER,$(SSH_HOST_SYNOLOGY),$(SYNO_LAN_IFACE)); \
-	echo "🔧 Running Synology bootstrap…"; \
-	# TODO: Synology bootstrap commands here
-
+	fi
 
 # QNAP
 qnap-bootstrap: install-ssh-config ensure-host-default-route

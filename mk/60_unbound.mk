@@ -34,7 +34,7 @@ deploy-unbound-sysctl:
 	esac; \
 	if [ $$changed -eq 1 ]; then \
 		echo "🔄 sysctl config updated — reloading"; \
-		$(run_as_root) sysctl --system >/dev/null; \
+		$(run_as_root) $(SYSCTL_BIN) --system >/dev/null; \
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
 	fi
 

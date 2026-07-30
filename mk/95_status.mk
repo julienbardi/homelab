@@ -17,12 +17,12 @@
 	status-monitoring
 
 status-kernel:
-	@ipv4=$$($(run_as_root) /sbin/sysctl -n net.ipv4.ip_forward); \
-	ipv6=$$($(run_as_root) /sbin/sysctl -n net.ipv6.conf.all.forwarding); \
+	@ipv4=$$($(run_as_root) $(SYSCTL_BIN) -n net.ipv4.ip_forward); \
+	ipv6=$$($(run_as_root) $(SYSCTL_BIN) -n net.ipv6.conf.all.forwarding); \
 	if [ "$$ipv4" = "1" ] && [ "$$ipv6" = "1" ]; then \
-	    echo "✅ Kernel forwarding enabled (IPv4 + IPv6)"; \
+		echo "✅ Kernel forwarding enabled (IPv4 + IPv6)"; \
 	else \
-	    echo "❌ Kernel forwarding disabled"; exit 1; \
+		echo "❌ Kernel forwarding disabled"; exit 1; \
 	fi
 
 status-firewall:
