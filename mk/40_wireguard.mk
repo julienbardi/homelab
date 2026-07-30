@@ -384,23 +384,27 @@ wg7-validate:
 wg-router-ipv6-probe:
 	@echo "🔍 Probing router IPv6 stack..."; \
 	ssh "$(SSH_HOST_ROUTER)" ' \
-		echo "=== ip6tables nat table (expected: FAIL — Asus Merlin lacks CONFIG_IP6_NF_NAT) ==="; \
-		ip6tables -t nat -L 2>&1 || echo "  (not available — expected, wg7 uses NAS NAT66 instead)"; \
+		echo "🛡️ NAT66 (ip6tables nat) — expected FAIL on Merlin"; \
+		ip6tables -t nat -L 2>&1 || echo "  ⚠️  NAT66 not available — expected (NAS performs NAT66)"; \
 		echo ""; \
-		echo "=== All global IPv6 addresses on router (required for prefix delegation) ==="; \
-		ip -6 addr show scope global 2>/dev/null || echo "  (no global IPv6 — enable in Merlin WAN ➡️ IPv6)"; \
+		echo "🌐 Router Global IPv6 Addresses (RA/PD source)"; \
+		ip -6 addr show scope global 2>/dev/null || echo "  ❌ No global IPv6 — enable IPv6 in WAN settings"; \
 		echo ""; \
-		echo "=== wgs1 IPv6 addresses ==="; \
-		ip -6 addr show dev wgs1 2>/dev/null || echo "  (wgs1 not up)"; \
+		echo "🔌 wgs1 IPv6 Addresses (WG server on router)"; \
+		ip -6 addr show dev wgs1 2>/dev/null || echo "  ⚠️  wgs1 not up"; \
 		echo ""; \
-		echo "=== IPv6 forwarding ==="; \
-		sysctl net.ipv6.conf.all.forwarding 2>/dev/null || true; \
+		echo "🔁 IPv6 Forwarding State"; \
+		if [ -f /proc/sys/net/ipv6/conf/all/forwarding ]; then \
+			printf "  forwarding: %s\n" "$$(cat /proc/sys/net/ipv6/conf/all/forwarding)"; \
+		else \
+			echo "  ⚠️ BusyBox build does not expose IPv6 forwarding"; \
+		fi; \
 		echo ""; \
-		echo "=== Merlin IPv6 service mode (NVRAM) ==="; \
-		printf "ipv6_service: %s\n" "$$(nvram get ipv6_service 2>/dev/null)"; \
+		echo "⚙️ Merlin IPv6 Service Mode (NVRAM)"; \
+		printf "  ipv6_service: %s\n" "$$(nvram get ipv6_service 2>/dev/null)"; \
 	'; \
 	echo ""; \
-	echo "=== NAS eth0 global IPv6 (should be received via router RA) ==="; \
-	$(WG_SUDO) ip -6 addr show dev eth0 scope global 2>/dev/null \
-		&& echo "(above is NAS eth0 — if empty, router RA/PD is not yet delegating)" \
-		|| echo "   ❌ NAS eth0 has no global IPv6 yet"
+	echo "📡 NAS $(NAS_LAN_IFACE) Global IPv6 (should come from router RA/PD)"; \
+	$(WG_SUDO) ip -6 addr show dev $(NAS_LAN_IFACE) scope global 2>/dev/null \
+		&& echo "  🟢 NAS receiving RA/PD correctly" \
+		|| echo "  ❌ NAS has no global IPv6 — router RA/PD not delegating"
