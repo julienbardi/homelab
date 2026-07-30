@@ -12,10 +12,10 @@ net.ipv4.ip_forward = 1
 
 # --- IPv6 Forwarding ---
 # Required for Symmetric GUA/ULA WireGuard contract (Option B).
-# Specifically enables routing for the physical interface (eth0).
+# Specifically enables routing for the physical interface (${NAS_LAN_IFACE}).
 net.ipv6.conf.all.forwarding = 1
 net.ipv6.conf.default.forwarding = 1
-net.ipv6.conf.eth0.forwarding = 1
+net.ipv6.conf.${NAS_LAN_IFACE}.forwarding = 1
 
 # --- IPv6 Router Advertisements Acceptance ---
 # INVARIANT: Setting net.ipv6.conf.all.forwarding = 1 (above) forces
@@ -24,8 +24,8 @@ net.ipv6.conf.eth0.forwarding = 1
 # via RA from the router, and wg7 clients tunnelling IPv6 traffic hit a
 # silent black hole.
 # Value 2 = "accepts RAs even when forwarding is enabled" (TFC 4861 §6.2.3).
-# Only eth0 (LAN) should receive RAs; wgN interfaces never do.
-net.ipv6.conf.eth0.accept_ra = 2
+# Only ${NAS_LAN_IFACE} (LAN) should receive RAs; wgN interfaces never do.
+net.ipv6.conf.${NAS_LAN_IFACE}.accept_ra = 2
 
 # --- IPv6 Stack Enforcement ---
 # Force-enables the IPv6 stack.

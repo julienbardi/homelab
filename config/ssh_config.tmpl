@@ -40,7 +40,11 @@ Host ${LAN_ROUTER}
 # ============================================================
 Host diskstation
     HostName ${LAN_SYNOLOGY}
-    Port 2222
+    Port ${SSH_PORT_SYNOLOGY}
+    User ${SSH_USER_SYNOLOGY}
+
+Host ${LAN_SYNOLOGY}
+    Port ${SSH_PORT_SYNOLOGY}
     User ${SSH_USER_SYNOLOGY}
 
     # Synology DS218play requires legacy algorithms
@@ -57,44 +61,62 @@ Host qnap
     Port 2222
     User ${SSH_USER_QNAP}
 
+Host ${LAN_QNAP}
+    Port 2222
+    User ${SSH_USER_QNAP}
 
 # ============================================================
-# NAS — Ugreen DXP4800+ (PQ-KEX suppression)
+# NAS — Ugreen DXP4800+ (PQ-KEX suppression) running PVE — Proxmox VE (operator + root)
 # ============================================================
 Host nas
     HostName ${LAN_NAS}
-    Port 2222
-    User ${SSH_USER_NAS}
+    Port ${NAS_SSH_PORT}
+    User root
     KexAlgorithms -sntrup761x25519-sha512@openssh.com
 
-
-# ============================================================
-# PVE — Proxmox VE (operator + root)
-# ============================================================
-Host pve-julie
+Host pve
     HostName ${LAN_NAS}
-    Port ${SSH_PORT_DEFAULT}
-    User ${SSH_USER_NAS}
+    Port ${NAS_SSH_PORT}
+    User root
+    KexAlgorithms -sntrup761x25519-sha512@openssh.com
+
+Host ${LAN_NAS}
+    Port ${NAS_SSH_PORT}
+    User root
+    KexAlgorithms -sntrup761x25519-sha512@openssh.com
 
 Host pve-root
     HostName ${LAN_NAS}
-    Port ${SSH_PORT_DEFAULT}
+    Port ${NAS_SSH_PORT}
     User root
+    KexAlgorithms -sntrup761x25519-sha512@openssh.com
 
+Host pve-julie
+    HostName ${LAN_NAS}
+    Port ${NAS_SSH_PORT}
+    User ${SSH_USER_NAS}
+    KexAlgorithms -sntrup761x25519-sha512@openssh.com
 
 # ============================================================
 # ACCESS POINT — Asus RT-AC86U
 # ============================================================
 Host ac86u
     HostName ${LAN_AC86U}
-    Port 2222
+    Port ${SSH_PORT_AC86U}
     User ${SSH_USER_AC86U}
 
+Host ${LAN_AC86U}
+    Port ${SSH_PORT_AC86U}
+    User ${SSH_USER_AC86U}
 
 # ============================================================
 # HUB01 — Cryptomator Hub VM
 # ============================================================
 Host hub01
     HostName ${LAN_HUB01}
+    Port ${SSH_PORT_DEFAULT}
+    User ${SSH_USER_HUB01}
+
+Host ${LAN_HUB01}
     Port ${SSH_PORT_DEFAULT}
     User ${SSH_USER_HUB01}
