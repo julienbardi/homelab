@@ -5,7 +5,6 @@
 # --------------------------------------------------------------------
 STAMP_DNS_OK        := $(STAMP_DIR_ROOT)/dns-ok.stamp
 STAMP_TS_OK         := $(STAMP_DIR_ROOT)/tailscale-hygiene.stamp
-STAMP_CARGO_OK      := $(STAMP_DIR_ROOT)/cargo-ok.stamp
 STAMP_WATCHDOG_OK   := $(STAMP_DIR_ROOT)/watchdog-ok.stamp
 STAMP_VNSTAT_OK     := $(STAMP_DIR_ROOT)/vnstat-ok.stamp
 PROBES_STAMP        := $(STAMP_DIR_ROOT)/deps-probes.checked
@@ -55,12 +54,11 @@ PANDOC_SHA256  := b419369915e0f3181be0afdb040ec8ecc6b70e72e5992652a0d83aed9e6bc1
 STAMP_PANDOC   := $(STAMP_DIR_ROOT)/pandoc.installed
 
 INSTALLERS := go pandoc checkmake strace age rclone kopia sops yq
-HYGIENE    := dns-ok tailscale-hygiene-ok cargo-ok watchdog-ok vnstat-ok prereqs-ok
+HYGIENE    := dns-ok tailscale-hygiene-ok watchdog-ok vnstat-ok prereqs-ok
 
 # Stamp directory order-only dependencies (root scope)
 $(STAMP_DNS_OK):        | $(STAMP_DIR_ROOT)
 $(STAMP_TS_OK):         | $(STAMP_DIR_ROOT)
-$(STAMP_CARGO_OK):      | $(STAMP_DIR_ROOT)
 $(STAMP_WATCHDOG_OK):   | $(STAMP_DIR_ROOT)
 $(STAMP_VNSTAT_OK):     | $(STAMP_DIR_ROOT)
 $(PROBES_STAMP):        | $(STAMP_DIR_ROOT)
@@ -258,7 +256,7 @@ endef
 	install-pkg-strace \
 	remove-pkg-headscale \
 	deps-probes \
-	dns-ok tailscale-hygiene-ok cargo-ok watchdog-ok vnstat-ok \
+	dns-ok tailscale-hygiene-ok watchdog-ok vnstat-ok \
 	ensure-host-default-route \
 	install-pkg-go install-pkg-age install-pkg-sops install-pkg-yq \
 	install-pkg-kopia install-pkg-pandoc install-pkg-checkmake
@@ -561,7 +559,6 @@ deps-probes: | $(STAMP_DIR_ROOT)
 
 	@{ $(call check_bootstrap_dns); } & \
 	{ $(call verify_tailscale_repo); } & \
-	{ cargo --version >/dev/null; } & \
 	{ $(call ensure_service,router-prefix-watchdog); } & \
 	{ $(call ensure_service,vnstat); } & \
 	{ dpkg -s golang-go >/dev/null 2>&1 && touch "$(STAMP_DIR_ROOT)/legacy-go.golang-go" || true; } & \
@@ -594,15 +591,6 @@ tailscale-hygiene-ok: | $(STAMP_DIR_ROOT)
 	@echo "🔍 Verifying Tailscale repo hygiene"
 	@$(call verify_tailscale_repo)
 	@$(run_as_root) touch "$(STAMP_TS_OK)"
-
-cargo-ok: | $(STAMP_DIR_ROOT)
-	@if [ -f "$(STAMP_CARGO_OK)" ]; then \
-		echo "⏩ cargo-ok (fast-path OK)"; \
-		exit 0; \
-	fi
-	@echo "🔍 Checking cargo presence..."
-	@cargo --version >/dev/null
-	@$(run_as_root) touch "$(STAMP_CARGO_OK)"
 
 watchdog-ok: | $(STAMP_DIR_ROOT)
 	@if [ -f "$(STAMP_WATCHDOG_OK)" ]; then \

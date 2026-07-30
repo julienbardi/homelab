@@ -35,7 +35,6 @@ INTERNAL_HOSTS := \
 
 # Step 1 — Core constants and prerequisites
 include $(REPO_ROOT)/mk/00_icons.mk
-include $(REPO_ROOT)/mk/00_prereqs-rust.mk
 include $(REPO_ROOT)/mk/00_prereqs.mk
 include $(REPO_ROOT)/mk/01_common.mk
 include $(REPO_ROOT)/mk/01_core.mk
