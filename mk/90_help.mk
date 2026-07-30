@@ -10,13 +10,21 @@ help: help-docs-install help-render
 
 # Opportunistic doc install (aligned with 01_common.mk contract)
 .PHONY: help-docs-install
-help-docs-install: install-all
+help-docs-install: install-all | $(run_as_root)
 	@if [ -z "$(DOCS_DIR)" ]; then echo "❌ Error: DOCS_DIR is empty."; exit 1; fi
-	@$(run_as_root) mkdir -p "$(DOCS_DIR)"
-	# We use admin here because it's the Ugreen privileged group
-	@$(run_as_root) chown $(ROOT_UID):$(PRIMARY_ADMIN_GROUP)  "$(DOCS_DIR)"
-	@$(run_as_root) chmod 0775 "$(DOCS_DIR)"
-	@$(call install_file,$(REPO_ROOT)/docs/help.md,$(DOCS_DIR)/help.md,$(ROOT_UID),$(ROOT_GID),0644)
+	@status=0; \
+	$(run_as_root) sh -c ' \
+		install -d -m 0775 -o "$(ROOT_UID)" -g "$(ROOT_GID)" "$(DOCS_DIR)" && \
+		CHANGED_EXIT_CODE="$(INSTALL_IF_CHANGED_EXIT_CHANGED)" "$(INSTALL_FILE_IF_CHANGED)" \
+			"" "" "$(REPO_ROOT)/docs/help.md" \
+			"" "" "$(DOCS_DIR)/help.md" \
+			"$(ROOT_UID)" "$(ROOT_GID)" "0644" \
+	' || status=$$?; \
+	case "$$status" in ''|*[!0-9]*) status=1 ;; esac; \
+	if [ $$status -ne 0 ] && [ $$status -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		echo "❌ Fatal error (exit $$status) installing $(DOCS_DIR)/help.md" >&2; \
+		exit $$status; \
+	fi
 
 # Help rendering (always unprivileged)
 .PHONY: help-render
@@ -38,26 +46,3 @@ help-render:
 	else \
 		cat "$(DOCS_DIR)/help.md"; \
 	fi
-
-.PHONY: bootstrap-acl
-bootstrap-acl:
-	@echo "🔧 Ensuring Ugreen-safe ACLs for docs directory"
-	@$(run_as_root) chown $(ROOT_UID):admin "$(DOCS_DIR)"
-	@$(run_as_root) chmod 0775 "$(DOCS_DIR)"
-
-UGREEN_ACL_DIRS := $(DOCS_DIR)
-
-.PHONY: audit-acl
-audit-acl:
-	@echo "🔍 Auditing Ugreen-ACL directories"
-	@for d in $(UGREEN_ACL_DIRS); do \
-		if [ ! -d "$$d" ]; then echo "❌ Missing: $$d"; continue; fi; \
-		owner=$$(stat -c "%U" "$$d"); \
-		group=$$(stat -c "%G" "$$d"); \
-		mode=$$(stat -c "%a" "$$d"); \
-		if [ "$$owner" = "root" ] && [ "$$group" = "admin" ] && [ "$$mode" = "775" ]; then \
-			echo "📝 $$d root:admin 775"; \
-		else \
-			echo "❌ $$d $$owner:$$group $$mode"; \
-		fi; \
-	done

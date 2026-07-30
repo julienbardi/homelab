@@ -7,8 +7,8 @@ WATCHDOG_UNIT_DST := /etc/systemd/system/router-prefix-watchdog.service
 install-router-prefix-watchdog:
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛠️ Installing router-prefix-watchdog service" || true; fi; \
 	tmp=$$(mktemp /run/homelab.watchdog.XXXXXX); \
-	OPERATOR_USER="$(OPERATOR_USER)" \
-	PRIMARY_ADMIN_GROUP="$(PRIMARY_ADMIN_GROUP)" \
+	ROOT_UID="$(ROOT_UID)" \
+	ROOT_GID="$(ROOT_GID)" \
 	REPO_ROOT="$(REPO_ROOT)" \
 	INSTALL_PATH="$(INSTALL_PATH)" \
 	envsubst < "$(WATCHDOG_UNIT_SRC)" > "$$tmp"; \
@@ -19,14 +19,13 @@ install-router-prefix-watchdog:
 		"$(ROOT_UID)" "$(ROOT_GID)" "0644"; \
 	IFC_STATUS=$$?; \
 	rm -f "$$tmp"; \
-	\
-	# Fatal on IFC failure
+	# Fatal on IFC failure \
 	if [ $$IFC_STATUS -ne 0 ] && [ $$IFC_STATUS -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		echo "❌ IFC: Fatal error (exit $$IFC_STATUS) installing router-prefix-watchdog.service"; \
 		exit $$IFC_STATUS; \
 	fi; \
 	\
-	# Normal success path
+	# Normal success path \
 	if [ $$IFC_STATUS -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		$(run_as_root) systemctl daemon-reload; \
 		$(run_as_root) systemctl enable --now router-prefix-watchdog.service; \
