@@ -29,4 +29,4 @@ tailnet-menu-deploy: $(TAILNET_MENU_BIN)
 .PHONY: tailnet-status
 tailnet-status:
 	@echo "🌐 Current Tailnet Nodes:"
-	@tailscale status || echo "⚠️ tailscaled not running or not authenticated"
+	@tailscale status >/dev/null 2>&1 || echo "⚠️ tailscaled not running or not authenticated"

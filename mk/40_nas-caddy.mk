@@ -10,14 +10,14 @@ SRC_NAS_CADDYFILE := $(REPO_ROOT)/config/caddy/Caddyfile
 NAS_CADDY_ADMIN_ADDR := 10.89.12.4:2019
 
 .PHONY: nas-caddy
-nas-caddy: gitcheck nas-assert-caddy-ports-free deploy-caddy
+nas-caddy: gitcheck nas-assert-caddy-ports-free deploy-caddy install-all
 	@set -euo pipefail; \
 	echo "🔐 Securing certificate permissions"; \
 	$(run_as_root) chown -R root:caddy /etc/ssl/caddy; \
 	$(run_as_root) chmod 750 /etc/ssl/caddy; \
 	$(run_as_root) chmod 640 /etc/ssl/caddy/bardi.ch.cer /etc/ssl/caddy/bardi.ch.key; \
 	echo "📋⬇️ Installing Caddyfile"; \
-	$(run_as_root) install -d -m 0755 -o root -g root /etc/caddy; \
+	$(run_as_root) install -d -m 0755 -o $(ROOT_UID) -g $(ROOT_GID) /etc/caddy; \
 	changed=0; \
 	rc=0; \
 	$(call install_file,$(SRC_NAS_CADDYFILE),$(NAS_CADDYFILE),root,root,0644) || rc=$$?; \

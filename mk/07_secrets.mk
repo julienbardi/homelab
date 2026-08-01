@@ -16,7 +16,7 @@ REQUIRED_SECRETS_VARS := \
 	SOPS_AGE_PUBKEY_EXPECTED \
 	ROOT_UID \
 	ROOT_GID \
-	OPERATOR_USER \
+	USER \
 	HOMELAB_RUNTIME_USER \
 	SECRETS_TMP_DIR \
 	YQ
@@ -50,7 +50,7 @@ $(SECRETS_TARGETS): secrets-vars-check
 # 0. RAM-only workspace (per-user)
 # ----------------------------------------------------------------------------
 
-HOMELAB_RUNTIME_BASE := /run/user/$(shell id -u)/homelab
+HOMELAB_RUNTIME_BASE := /run/user/$(USER_UID)/homelab
 HOMELAB_RUNTIME_USER := $(HOMELAB_RUNTIME_BASE)
 
 # Per-user secrets tmp dir (RAM-only)
@@ -68,12 +68,22 @@ SECRETS_LOCK_MAX_AGE := 30
 # environment or subsequent make recipe lines.
 define WITH_SECRETS
 	( \
-		SECS="$$( $(SOPS_BIN) -d "$(SECRETS_FILE)" | $(YQ) -r 'to_entries | .[] | "\(.key)=\(.value)"' )"; \
+		SECS="$$( $(SOPS_BIN) -d "$(SECRETS_FILE)" \
+		| $(YQ) -r '.. | select(tag == "!!str" or tag == "!!int" or tag == "!!bool") | (path | join("_")) + "=" + .' )"; \
 		export $$SECS; \
 		$(1) \
 	)
 endef
 
+
+define WITH_SECRETS_broken
+	( \
+		SECS="$$( $(SOPS_BIN) -d "$(SECRETS_FILE)" \
+		| $(YQ) -r 'paths(scalars) as $p | "\($p | join("_"))=\(getpath($p))"' )"; \
+		export $$SECS; \
+		$(1) \
+	)
+endef
 
 # ----------------------------------------------------------------------------
 # DHCP static lease aggregation (non-secret, derived from secrets)
@@ -132,6 +142,18 @@ secrets-break-lock:
 
 .PHONY: secrets-dump
 secrets-dump:
+	@if [ ! -f "$(SECRETS_FILE)" ]; then \
+		echo "❌ Secrets file not found: $(SECRETS_FILE)"; \
+		echo "   Use $(SECRETS_FILE) to create or decrypt secrets."; \
+		exit 1; \
+	fi
+	@echo "🔐 Dumping decrypted secrets (RAM-only):"
+	@$(SOPS_BIN) -d "$(SECRETS_FILE)" \
+		| yq -r '.. | select(tag == "!!str" or tag == "!!int" or tag == "!!bool") | (path | join("_")) + "=" + .'
+
+
+.PHONY: secrets-dump-v1
+secrets-dump-v1:
 	@if [ ! -f "$(SECRETS_FILE)" ]; then \
 		echo "❌ Secrets file not found: $(SECRETS_FILE)"; \
 		echo "   Use $(SECRETS_FILE) to create or decrypt secrets."; \
@@ -257,7 +279,7 @@ secrets-init:
 
 
 .PHONY: check-age-key
-check-age-key: ensure-authorized-admin
+check-age-key:
 	@echo "🔍 Checking system AGE key (/etc/sops/keys/age.key)"
 
 	@{ \
@@ -275,8 +297,8 @@ check-age-key: ensure-authorized-admin
 		fi; \
 	}
 
-	@if ! sudo -E -u "$(OPERATOR_USER)" sops -d "$(SECRETS_FILE)" >/dev/null 2>&1; then \
-		echo "❌ AGE key exists but cannot decrypt $(SECRETS_FILE) as $(OPERATOR_USER)"; \
+	@if ! sudo -E -u "$(USER)" sops -d "$(SECRETS_FILE)" >/dev/null 2>&1; then \
+		echo "❌ AGE key exists but cannot decrypt $(SECRETS_FILE) as $(USER)"; \
 		exit 1; \
 	fi
 
@@ -286,7 +308,7 @@ check-age-key: ensure-authorized-admin
 			echo "❌ AGE key is invalid or unreadable"; \
 			exit 1; \
 		fi; \
-		echo "🟢 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$pub user=$(OPERATOR_USER)"; \
+		echo "🟢 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$pub user=$(USER)"; \
 	}
 
 define WITH_SECRETS_v2
@@ -305,10 +327,13 @@ secrets-runtime-init:
 
 DDNS_ENV_FILE := /etc/homelab/ddns.env
 
+.PHONY: ddns-env-dir
+ddns-env-dir:
+	@$(run_as_root) mkdir -p /etc/homelab
+
 .PHONY: ddns-env
-ddns-env: secrets-runtime-init $(YQ_STAMP)
+ddns-env: ddns-env-dir secrets-runtime-init $(YQ_STAMP)
 	@{ \
-		# Export only NON-SECRET variables so run-as-root preserves them
 		export SOPS_BIN="$(SOPS_BIN)"; \
 		export SECRETS_FILE="$(SECRETS_FILE)"; \
 		export YQ="$(YQ)"; \
@@ -321,8 +346,8 @@ ddns-env: secrets-runtime-init $(YQ_STAMP)
 			eval "$$( \
 				"$$SOPS_BIN" -d "$$SECRETS_FILE" \
 				| "$$YQ" -r '\'' \
-					"INFOMANIAK_API_KEY=\(.infomaniak_api_key)", \
-					"INFOMANIAK_API_SECRET=\(.infomaniak_api_secret)" \
+					"INFOMANIAK_API_KEY=" + .infomaniak_api_key, \
+					"INFOMANIAK_API_SECRET=" + .infomaniak_api_secret \
 				'\'' \
 			)"; \
 			\
@@ -331,7 +356,7 @@ ddns-env: secrets-runtime-init $(YQ_STAMP)
 				"INFOMANIAK_API_SECRET=$$INFOMANIAK_API_SECRET" \
 				> "$$tmp"; \
 			\
-			install -m 600 -o $(ROOT_UID) -g $(ROOT_GID) "$$tmp" "$(DDNS_ENV_FILE)";
+			install -m 600 -o $(ROOT_UID) -g $(ROOT_GID) "$$tmp" "$(DDNS_ENV_FILE)"; \
 		'; \
 		echo "🔐 Updated $(DDNS_ENV_FILE)"; \
 	}

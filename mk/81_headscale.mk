@@ -9,8 +9,8 @@
 # --------------------------------------------------------------------
 
 HEADSCALE_BIN := $(INSTALL_PATH)/headscale
-HEADSCALE_URL := https://github.com/juanfont/headscale/releases/download/v0.28.0-beta.1/headscale_0.28.0-beta.1_linux_amd64
-HEADSCALE_SHA256 := f9ba05660cfbba72a1f6a51f8792c83b5cdabb335ec84b975468ddc8df95f56e
+HEADSCALE_URL := https://github.com/juanfont/headscale/releases/download/v0.29.3/headscale_0.29.3_linux_amd64
+HEADSCALE_SHA256 := 8dc183758024ed7095cf610fedea0790233613c71353bc8be2715d82ba29b92c
 
 HEADSCALE_STAMP := $(STAMP_DIR_ROOT)/headscale.installed
 # Headscale stamp directory order-only dependencies (root scope)
@@ -29,7 +29,7 @@ HEADSCALE_METRICS_ADDR := $(NAS_LAN_IP):9091
 HEADSCALE_METRICS_URL := http://$(HEADSCALE_METRICS_ADDR)/metrics
 HEADSCALE_HEALTH_URL := http://127.0.0.1:8910/health
 
-HEADSCALE_CACHE := $(REPO_ROOT).cache/headscale_0.28.0-beta.1_$(shell uname -m)
+HEADSCALE_CACHE := $(REPO_ROOT).cache/headscale_0.29.3-beta.1_$(shell uname -m)
 
 # Fast-Path Shadow Targets & Change Flags
 HEADSCALE_CHANGED_STAMP := $(STAMP_DIR_USER)/headscale_state_changed.stamp
@@ -50,38 +50,72 @@ $(HEADSCALE_OVERRIDE_SHADOW):    | $(STAMP_DIR_USER)
 .NOTPARALLEL: headscale headscale-restart headscale-acls headscale-verify
 
 .PHONY: \
-    headscale \
-    headscale-bin \
-    headscale-bootstrap \
-    headscale-runtime \
-    headscale-prereqs \
-    headscale-restart \
+	headscale \
+	headscale-bin \
+	headscale-bootstrap \
+	headscale-restart \
 	headscale-acls \
-    headscale-verify \
-    headscale-verify-run \
-    headscale-wait-ready \
-    headscale-metrics \
-    headscale-logs \
-    test-headscale-core \
-    test-headscale-unit \
-    test-headscale-override \
-    rotate-noise-key-dangerous \
-    rotate-noise-key
+	headscale-verify \
+	headscale-verify-run \
+	headscale-wait-ready \
+	headscale-metrics \
+	headscale-logs \
+	test-headscale-core \
+	test-headscale-unit \
+	test-headscale-override \
+	rotate-noise-key-dangerous \
+	rotate-noise-key \
+	headscale-user \
+	headscale-dirs
+
+
+# Ensure /etc/headscale directory and files have correct ownership and permissions
+# --------------------------------------------------------------------
+# Ensure /etc/headscale directory and files have correct ownership
+# --------------------------------------------------------------------
+.PHONY: headscale-perms
+headscale-perms:
+	@echo "🔧 Ensuring correct permissions for /etc/headscale..."; \
+	$(run_as_root) /bin/sh -c '\
+		chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale && \
+		chmod 0770 /etc/headscale && \
+		\
+		chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale/config.yaml && \
+		chmod 0640 /etc/headscale/config.yaml && \
+		\
+		chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale/acl.json && \
+		chmod 0640 /etc/headscale/acl.json && \
+		\
+		chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale/derp.yaml && \
+		chmod 0640 /etc/headscale/derp.yaml && \
+		\
+		if [ -f /etc/headscale/noise_private.key ]; then \
+			echo "🔐 Fixing permissions for existing Noise key"; \
+			chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale/noise_private.key && \
+			chmod 0640 /etc/headscale/noise_private.key; \
+		else \
+			echo "🔐 Noise key missing — headscale will create it on startup"; \
+		fi \
+	'; \
+	echo "✅ Headscale permissions enforced"
 
 # --------------------------------------------------------------------
 # Main Orchestration Target (Gated Fast-Path Entrypoint)
 # --------------------------------------------------------------------
 headscale: \
-    headscale-bin \
-    $(HEADSCALE_UNIT_SHADOW) \
-    $(HEADSCALE_OVERRIDE_SHADOW) \
-    $(HEADSCALE_CONFIG_SHADOW) \
-    $(HEADSCALE_DERP_SHADOW) \
+	headscale-user \
+	headscale-dirs \
+	headscale-perms \
+	headscale-bin \
+	$(HEADSCALE_UNIT_SHADOW) \
+	$(HEADSCALE_OVERRIDE_SHADOW) \
+	$(HEADSCALE_CONFIG_SHADOW) \
+	$(HEADSCALE_DERP_SHADOW) \
 	$(HEADSCALE_ACL_SHADOW) \
-    deploy-headscale \
-    headscale-restart \
-    headscale-acls \
-    headscale-verify
+	deploy-headscale \
+	headscale-restart \
+	headscale-acls \
+	headscale-verify
 	@$(run_as_root) systemctl status headscale --no-pager --lines=0
 	@echo "ℹ️  For detailed Headscale status:"
 	@echo "      sudo systemctl status headscale"
@@ -92,7 +126,7 @@ headscale: \
 # --------------------------------------------------------------------
 # Headscale binary (via centralized GitHub installer)
 # --------------------------------------------------------------------
-headscale-bin: install-all | $(INSTALL_PATH)/install_github_asset.sh
+headscale-bin: headscale-user headscale-dirs install-all | $(INSTALL_PATH)/install_github_asset.sh
 	@echo "📦 Ensuring Headscale binary"
 	@$(run_as_root) $(INSTALL_PATH)/install_github_asset.sh \
 			$(HEADSCALE_URL) \
@@ -127,7 +161,7 @@ $(HEADSCALE_OVERRIDE_SHADOW): config/systemd/headscale.service.d/override.conf |
 	  fi
 	@$(run_as_root) touch "$@"
 
-$(HEADSCALE_CONFIG_SHADOW): $(HEADSCALE_CONFIG_SRC) | headscale-bin
+$(HEADSCALE_CONFIG_SHADOW): $(HEADSCALE_CONFIG_SRC) install-all | headscale-bin
 	@OLD_HASH=$$(sha256sum "$(HEADSCALE_CONFIG_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
 	NEW_HASH=$$(sha256sum "$(HEADSCALE_CONFIG_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
@@ -137,7 +171,7 @@ $(HEADSCALE_CONFIG_SHADOW): $(HEADSCALE_CONFIG_SRC) | headscale-bin
 	  fi
 	@touch "$@"
 
-$(HEADSCALE_DERP_SHADOW): $(HEADSCALE_DERP_CONFIG_SRC) | headscale-bin
+$(HEADSCALE_DERP_SHADOW): $(HEADSCALE_DERP_CONFIG_SRC) install-all | headscale-bin
 	@OLD_HASH=$$(sha256sum "$(HEADSCALE_DERP_CONFIG_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
 	NEW_HASH=$$(sha256sum "$(HEADSCALE_DERP_CONFIG_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
@@ -147,7 +181,7 @@ $(HEADSCALE_DERP_SHADOW): $(HEADSCALE_DERP_CONFIG_SRC) | headscale-bin
 	  fi
 	@touch "$@"
 
-$(HEADSCALE_ACL_SHADOW): $(HEADSCALE_ACL_SRC) | headscale-bin
+$(HEADSCALE_ACL_SHADOW): $(HEADSCALE_ACL_SRC) install-all | headscale-bin
 	@OLD_HASH=$$(sha256sum "$(HEADSCALE_ACL_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
 	NEW_HASH=$$(sha256sum "$(HEADSCALE_ACL_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
@@ -160,7 +194,7 @@ $(HEADSCALE_ACL_SHADOW): $(HEADSCALE_ACL_SRC) | headscale-bin
 # --------------------------------------------------------------------
 # Service Lifecycle Control (Strictly Conditional)
 # --------------------------------------------------------------------
-headscale-restart:
+headscale-restart: headscale-user headscale-dirs
 	@NEED_RESTART=0; \
 	if [ -f "$(HEADSCALE_CHANGED_STAMP)" ]; then NEED_RESTART=1; fi; \
 	if ! $(run_as_root) systemctl is-active --quiet headscale 2>/dev/null; then NEED_RESTART=1; fi; \
@@ -180,7 +214,7 @@ define HEADSCALE_VERIFY_FN
 	echo "[verify] 🔧 Headscale control plane ready"
 endef
 
-headscale-verify:
+headscale-verify: headscale-user headscale-dirs
 	@RUN_VERIFY=0; \
 	if [ -f "$(HEADSCALE_CHANGED_STAMP)" ]; then RUN_VERIFY=1; fi; \
 	if ! $(run_as_root) systemctl is-active --quiet headscale 2>/dev/null; then RUN_VERIFY=1; fi; \
@@ -193,9 +227,9 @@ headscale-verify:
 	fi
 
 # Deterministic sequential validation wrapper target
-headscale-verify-run: headscale-wait-ready test-headscale-core test-headscale-unit test-headscale-override
+headscale-verify-run: headscale-user headscale-dirs headscale-wait-ready test-headscale-core test-headscale-unit test-headscale-override
 
-headscale-wait-ready:
+headscale-wait-ready: headscale-user headscale-dirs
 	@echo "ℹ️ Waiting for Headscale API"
 	@$(run_as_root) sh -c '\
 		i=1; \
@@ -211,7 +245,7 @@ headscale-wait-ready:
 		exit 1; \
 	'
 
-test-headscale-core:
+test-headscale-core: headscale-user headscale-dirs
 	@if ! $(run_as_root) systemctl is-active --quiet headscale; then \
 		echo "[verify] ❌ Service NOT active"; \
 		exit 1; \
@@ -245,12 +279,12 @@ test-headscale-core:
 		echo "[verify] ✅ Nodes reachable"; \
 	fi
 
-test-headscale-unit:
+test-headscale-unit: headscale-user headscale-dirs
 	@cmp -s config/systemd/headscale.service /etc/systemd/system/headscale.service \
 		&& echo "[verify] ✅ systemd unit matches repo" \
 		|| (echo "[verify] ❌ systemd unit differs from repo"; exit 1)
 
-test-headscale-override:
+test-headscale-override: headscale-user headscale-dirs
 	@cmp -s config/systemd/headscale.service.d/override.conf /etc/systemd/system/headscale.service.d/override.conf \
 		&& echo "[verify] ✅ override matches repo" \
 		|| (echo "[verify] ❌ override differs from repo"; exit 1)
@@ -268,7 +302,7 @@ headscale-metrics:
 
 rotate-noise-key-dangerous: rotate-noise-key
 
-rotate-noise-key: headscale-bin
+rotate-noise-key: headscale-user headscale-dirs headscale-bin
 	@echo "⚠️ ROTATE HEADSCALE NOISE KEY — this will disconnect all clients"
 	@read -p "Type YES to ROTATE THE NOISE KEY: " confirm && [ "$$confirm" = "YES" ] || (echo "aborting"; exit 1)
 	@echo "⚠️ Proceeding with Noise key rotation — clients must re-authenticate"
@@ -284,5 +318,20 @@ rotate-noise-key: headscale-bin
 
 # Deprecated backward compatibility targets
 headscale-bootstrap: headscale-bin
-headscale-runtime:
-headscale-prereqs:
+
+headscale-user:
+	@if ! id -u $(HEADSCALE_USER) >/dev/null 2>&1; then \
+		echo "🔧 Creating headscale user/group"; \
+		groupadd --system $(HEADSCALE_GROUP) || true; \
+		useradd --system --no-create-home \
+			--shell /usr/sbin/nologin \
+			--gid $(HEADSCALE_GROUP) \
+			$(HEADSCALE_USER) || true; \
+	else \
+		echo "🟢 headscale user already exists"; \
+	fi
+
+headscale-dirs: headscale-user
+	@mkdir -p /var/lib/headscale
+	@mkdir -p /var/run/headscale
+	@chown headscale:headscale /var/lib/headscale /var/run/headscale

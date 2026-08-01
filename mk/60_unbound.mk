@@ -24,7 +24,7 @@ UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
 # ------------------------------------------------------------
 # Sysctl (safe: kernel tuning only)
 # ------------------------------------------------------------
-deploy-unbound-sysctl:
+deploy-unbound-sysctl: install-all
 	@changed=0; rc=0; \
 	$(call install_file,$(SYSCTL_UNBOUND_SRC),$(SYSCTL_UNBOUND_DST),root,root,0644) || rc=$$?; \
 	case "$${rc:-0}" in \
@@ -68,7 +68,7 @@ $(STAMP_UNBOUND_ANCHOR):
 # ------------------------------------------------------------
 # Config deployment (pure, IGOS-safe)
 # ------------------------------------------------------------
-deploy-unbound-config: deploy-unbound-local-internal
+deploy-unbound-config: deploy-unbound-local-internal install-all
 	@$(run_as_root) install -d -m 0755 /etc/unbound /etc/unbound/unbound.conf.d
 	@changed=0; rc=0; \
 	$(call install_file,$(UNBOUND_CONF_SRC),$(UNBOUND_CONF_DST),root,root,0644) || rc=$$?; \
@@ -82,7 +82,7 @@ deploy-unbound-config: deploy-unbound-local-internal
 		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
 	fi
 
-deploy-unbound-local-internal:
+deploy-unbound-local-internal: install-all
 	@changed=0; rc=0; \
 	$(call install_file,$(UNBOUND_LOCAL_INTERNAL_SRC),$(UNBOUND_LOCAL_INTERNAL_DST),root,root,0644) || rc=$$?; \
 	case "$${rc:-0}" in \
@@ -145,7 +145,7 @@ unbound-health:
 
 .PHONY: enable-homelab-unbound
 
-enable-homelab-unbound:
+enable-homelab-unbound: deploy-homelab-unbound-service
 	@echo "🚀 Enabling homelab-unbound.service"
 	@if ! systemctl is-enabled --quiet homelab-unbound.service 2>/dev/null; then \
 		$(run_as_root) systemctl enable homelab-unbound.service; \
@@ -155,7 +155,7 @@ enable-homelab-unbound:
 	fi
 	@echo "🟢 homelab-unbound enabled and started"
 
-deploy-homelab-unbound-service:
+deploy-homelab-unbound-service: install-all
 	@changed=0; rc=0; \
 	$(call install_file,$(REPO_ROOT)/config/systemd/homelab-unbound.service,/etc/systemd/system/homelab-unbound.service,root,root,0644) || rc=$$?; \
 	case "$${rc:-0}" in \

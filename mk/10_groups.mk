@@ -3,7 +3,7 @@
 # ============================================================
 
 .PHONY: enforce-groups
-enforce-groups: ensure-authorized-admin
+enforce-groups:
 	@# Ensure all admin + service groups exist
 	@for g in $(ADMIN_GROUPS) $(SERVICE_GROUPS); do \
 		getent group "$$g" >/dev/null 2>&1 || { \
@@ -53,7 +53,7 @@ enforce-groups: ensure-authorized-admin
 # SSH Known Hosts Enforcement (Canonical & Idempotent)
 # ------------------------------------------------------------
 .PHONY: enforce-known-hosts
-enforce-known-hosts: ensure-authorized-admin
+enforce-known-hosts:
 	@for u in $(AUTHORIZED_ADMINS); do \
 		homedir=$$(getent passwd "$$u" | cut -d: -f6); \
 		if [ -z "$$homedir" ] || [ ! -d "$$homedir" ]; then \

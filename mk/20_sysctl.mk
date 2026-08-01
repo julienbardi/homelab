@@ -98,7 +98,7 @@ install-homelab-sysctl: set-ipv6-token
 		rm -f $$tmpfile; exit 1; \
 	fi; \
 	echo "🔧 Installing sysctl configuration to $(SYSCTL_DST) ..."; \
-	$(run_as_root) install -o root -g root -m 0644 $$tmpfile "$(SYSCTL_DST)"; \
+	$(run_as_root) install -o $(ROOT_UID) -g $(ROOT_GID) -m 0644 $$tmpfile "$(SYSCTL_DST)"; \
 	rm -f $$tmpfile; \
 	echo "🔄 Applying sysctl configuration ..."; \
 	$(run_as_root) $(SYSCTL_BIN) -p "$(SYSCTL_DST)" >/dev/null; \

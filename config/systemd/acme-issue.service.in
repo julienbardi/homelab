@@ -1,0 +1,15 @@
+[Unit]
+Description=ACME certificate issuance for ${DOMAIN}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DOMAIN=${DOMAIN}
+EnvironmentFile=/etc/homelab/ddns.env
+ExecStart=/usr/local/bin/acme-issue.sh
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

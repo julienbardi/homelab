@@ -1,32 +1,51 @@
 # 90_systemd.mk — Systemd unit management for homelab services
 
-SYSTEMD_DIR    := /etc/systemd/system
-REPO_SYSTEMD   := config/systemd
-
 # ------------------------------------------------------------
 # Per‑unit installers (explicit, privilege‑correct)
 # ------------------------------------------------------------
 
 .PHONY: install-dns-health
 install-dns-health:
-	@$(run_as_root) install -m 0644 -o root -g root \
-		$(REPO_ROOT)/$(REPO_SYSTEMD)/homelab-dns-health.service \
+	@$(run_as_root) install -m 0644 -o $(ROOT_UID) -g $(ROOT_GID) \
+		$(REPO_SYSTEMD)/homelab-dns-health.service \
 		$(SYSTEMD_DIR)/homelab-dns-health.service
 
 .PHONY: install-nas-prefix-watchdog
 install-nas-prefix-watchdog:
+	@$(run_as_root) sh -c '\
+		# --- NAS IPv6 prefix watchdog --- \
+		rc="$$( \
+			$(INSTALL_FILES_IF_CHANGED) RC \
+				"" "" "$(REPO_ROOT)/scripts/homelab-prefix-converge.sh" \
+				"" "" "/usr/local/bin/homelab-prefix-converge.sh" \
+				"$(ROOT_UID)" "$(ROOT_GID)" "0755" \
+				"" "" "$(REPO_ROOT)/config/systemd/homelab-prefix-converge.service" \
+				"" "" "/etc/systemd/system/homelab-prefix-converge.service" \
+				"$(ROOT_UID)" "$(ROOT_GID)" "0644" \
+				"" "" "$(REPO_ROOT)/config/systemd/homelab-prefix-converge.timer" \
+				"" "" "/etc/systemd/system/homelab-prefix-converge.timer" \
+				"$(ROOT_UID)" "$(ROOT_GID)" "0644" \
+			; printf "%d" $$? \
+		)"; \
+		if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+			systemctl daemon-reload; \
+			systemctl enable --now homelab-prefix-converge.timer; \
+		elif [ "$$rc" -ne $(INSTALL_IF_CHANGED_EXIT_UNCHANGED) ]; then \
+			exit "$$rc"; \
+		fi \
+	'
+
+.PHONY: install-nas-prefix-watchdog-v1
+install-nas-prefix-watchdog-v1:
 	@echo "🔧 Installing NAS IPv6 prefix watchdog"
-
-	# Install script
-	$(run_as_root) install -m 755 $(REPO_ROOT)/scripts/homelab-prefix-converge.sh /usr/local/bin/
-
-	# Install systemd unit + timer
-	$(run_as_root) install -m 644 $(REPO_ROOT)/config/systemd/homelab-prefix-converge.service /etc/systemd/system/
-	$(run_as_root) install -m 644 $(REPO_ROOT)/config/systemd/homelab-prefix-converge.timer /etc/systemd/system/
-
-	# Reload systemd and enable timer
-	$(run_as_root) systemctl daemon-reload
-	$(run_as_root) systemctl enable --now homelab-prefix-converge.timer
+	@$(run_as_root) sh -c "\
+		set -e; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 755 \"$(REPO_ROOT)/scripts/homelab-prefix-converge.sh\" /usr/local/bin/; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 644 \"$(REPO_ROOT)/config/systemd/homelab-prefix-converge.service\" /etc/systemd/system/; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 644 \"$(REPO_ROOT)/config/systemd/homelab-prefix-converge.timer\" /etc/systemd/system/; \
+		systemctl daemon-reload; \
+		systemctl enable --now homelab-prefix-converge.timer \
+	"
 
 # ------------------------------------------------------------
 # Umbrella systemd installer
@@ -35,20 +54,21 @@ install-nas-prefix-watchdog:
 .PHONY: install-systemd enable-systemd verify-systemd uninstall-systemd
 
 install-systemd: install-dns-health
-	@echo "🔧 Installing systemd units"
-	@if [ ! -d "$(REPO_ROOT)/$(REPO_SYSTEMD)" ]; then \
-		echo "ERROR: $(REPO_ROOT)/$(REPO_SYSTEMD) not found"; exit 1; \
-	fi
 	@$(run_as_root) sh -c '\
-		mkdir -p $(SYSTEMD_DIR); \
-		\
 		# --- fix vendor-broken index_serv.service --- \
-		mkdir -p $(SYSTEMD_DIR)/index_serv.service.d; \
-		install -o root -g root -m 0644 \
-			$(REPO_ROOT)/$(REPO_SYSTEMD)/index_serv.service.d/10-fix-output.conf \
-			$(SYSTEMD_DIR)/index_serv.service.d/10-fix-output.conf; \
-		\
-		systemctl daemon-reload; \
+		mkdir -p "$(SYSTEMD_DIR)/index_serv.service.d"; \
+		rc="$$( \
+			$(INSTALL_FILE_IF_CHANGED) \
+				"" "" "$(REPO_SYSTEMD)/index_serv.service.d/10-fix-output.conf" \
+				"" "" "$(SYSTEMD_DIR)/index_serv.service.d/10-fix-output.conf" \
+				"$(ROOT_UID)" "$(ROOT_GID)" "0644"; \
+			printf "%d" $$? \
+		)"; \
+		if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+			systemctl daemon-reload; \
+		elif [ "$$rc" -ne $(INSTALL_IF_CHANGED_EXIT_UNCHANGED) ]; then \
+			exit "$$rc"; \
+		fi \
 	'
 
 # ------------------------------------------------------------
@@ -70,7 +90,6 @@ enable-systemd: install-systemd
 # ------------------------------------------------------------
 
 verify-systemd:
-	@echo "🔍 Status and socket ownership:"
 	@$(run_as_root) systemctl status unbound --no-pager || true
 
 # ------------------------------------------------------------
@@ -78,4 +97,4 @@ verify-systemd:
 # ------------------------------------------------------------
 
 uninstall-systemd:
-	@$(run_as_root) systemctl daemon-reload >/dev/null 2>&1 || true
+	$(run_as_root) systemctl daemon-reload

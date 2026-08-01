@@ -33,7 +33,7 @@ while [ "$#" -gt 0 ]; do
     MODE="$9"
 
     rc=0
-    install_file_if_changed_v3.sh \
+    /usr/local/bin/install_file_if_changed_v3.sh \
         "$SRC_HOST" "$SRC_PORT" "$SRC_PATH" \
         "$DST_HOST" "$DST_PORT" "$DST_PATH" \
         "$OWNER" "$GROUP" "$MODE" || rc=$?

@@ -26,7 +26,7 @@ security-bootstrap: install-pkg-age
 			"# ------------------------------------------------------------" \
 			"# Source: See KeePass (Homelab/Infrastructure/AgeKey)" \
 			"# Created by: mk/10_bootstrap_security.mk on $$(date)" \
-			"# Operator: $(OPERATOR_USER)" \
+			"# Operator: $(USER)" \
 			"# ------------------------------------------------------------" \
 			>> "$(SOPS_AGE_KEY_FILE)" \
 	'; \

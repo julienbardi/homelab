@@ -36,7 +36,9 @@ INTERNAL_HOSTS := \
 # Step 1 — Core constants and prerequisites
 include $(REPO_ROOT)/mk/00_icons.mk
 include $(REPO_ROOT)/mk/00_prereqs.mk
-include $(REPO_ROOT)/mk/01_common.mk
+include mk/common/core.mk
+include mk/common/scripts.mk
+include mk/common/macros.mk
 include $(REPO_ROOT)/mk/01_core.mk
 
 # Step 2 — Secrets subsystem
@@ -195,7 +197,7 @@ tailscaled: \
 .NOTPARALLEL: nft-confirm nft-apply
 
 install-nft-apply:
-	@$(run_as_root) install -o root -g root -m 0755 $(REPO_ROOT)/scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
+	@$(run_as_root) install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 $(REPO_ROOT)/scripts/homelab-nft-apply.sh $(INSTALL_PATH)/homelab-nft-apply.sh
 
 nft-sync:
 	@status=0; \
@@ -231,11 +233,11 @@ nft-confirm:
 nft-install: install-nft-apply
 	@$(run_as_root) sh -c '\
 		echo "🛡️ Installing homelab nftables firewall"; \
-		install -o root -g root -m 0755 $(REPO_ROOT)/scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh; \
-		install -o root -g root -m 0755 $(REPO_ROOT)/scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 $(REPO_ROOT)/scripts/homelab-nft-confirm.sh $(INSTALL_PATH)/homelab-nft-confirm.sh; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 0755 $(REPO_ROOT)/scripts/homelab-nft-rollback.sh $(INSTALL_PATH)/homelab-nft-rollback.sh; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft.service /etc/systemd/system/homelab-nft.service; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
 		systemctl daemon-reload >/dev/null 2>&1; \
 		systemctl enable homelab-nft.service homelab-nft-rollback.timer >/dev/null 2>&1 || true; \
 		echo "✅ Firewall units installed (not yet applied)"; \
@@ -247,8 +249,8 @@ nft-status:
 nft-install-rollback:
 	@$(run_as_root) sh -c '\
 		echo "⏪ Installing homelab nft rollback units"; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
-		install -o root -g root -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.service /etc/systemd/system/homelab-nft-rollback.service; \
+		install -o $(ROOT_UID) -g $(ROOT_GID) -m 0644 $(REPO_ROOT)/config/systemd/homelab-nft-rollback.timer /etc/systemd/system/homelab-nft-rollback.timer; \
 		systemctl daemon-reload >/dev/null 2>&1; \
 		systemctl enable homelab-nft-rollback.timer >/dev/null 2>&1 || true; \
 		echo "✅ nft rollback units installed"; \
@@ -261,6 +263,8 @@ homelab-all: \
 	repo-preflight \
 	nft-apply-phase \
 	router-install-scripts \
+	install-router-prefix-watchdog \
+	install-nas-prefix-watchdog \
 	wg-network-phase \
 	service-phase \
 	router-health \

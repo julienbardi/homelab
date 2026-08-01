@@ -29,12 +29,12 @@ PROMETHEUS_CONFIG_SHADOW := $(STAMP_DIR_USER)/prometheus_config.shadow
 PROMETHEUS_UNIT_SHADOW := $(STAMP_DIR_USER)/prometheus_unit.shadow
 
 .PHONY: \
-    monitoring \
-    prometheus \
-    prometheus-install \
-    prometheus-enable \
-    prometheus-restart \
-    prometheus-status
+	monitoring \
+	prometheus \
+	prometheus-install \
+	prometheus-enable \
+	prometheus-restart \
+	prometheus-status
 
 # --------------------------------------------------------------------
 # Entrypoints
@@ -43,11 +43,11 @@ monitoring: prometheus
 	@echo "📊 Monitoring stack ready"
 
 prometheus: \
-    prometheus-install \
-    $(PROMETHEUS_UNIT_SHADOW) \
-    $(PROMETHEUS_CONFIG_SHADOW) \
-    prometheus-enable \
-    prometheus-restart
+	prometheus-install \
+	$(PROMETHEUS_UNIT_SHADOW) \
+	$(PROMETHEUS_CONFIG_SHADOW) \
+	prometheus-enable \
+	prometheus-restart
 	@echo "📊 Prometheus UI reachable at: http://$(PROMETHEUS_ADDR)"
 	@echo "🚀 Prometheus observability ready"
 
@@ -64,7 +64,7 @@ prometheus-install: | ensure-host-default-route
 # --------------------------------------------------------------------
 # Systemd Unit Deployment via Shadow Invariant Check
 # --------------------------------------------------------------------
-$(PROMETHEUS_UNIT_SHADOW): $(PROMETHEUS_UNIT_SRC) $(PROMETHEUS_UNIT_DST) | prometheus-install
+$(PROMETHEUS_UNIT_SHADOW): $(PROMETHEUS_UNIT_SRC) $(PROMETHEUS_UNIT_DST) install-all | prometheus-install
 	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
 	NEW_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
@@ -81,7 +81,7 @@ $(PROMETHEUS_UNIT_SHADOW): $(PROMETHEUS_UNIT_SRC) $(PROMETHEUS_UNIT_DST) | prome
 # --------------------------------------------------------------------
 # Configuration Deployment via Shadow Invariant Check
 # --------------------------------------------------------------------
-$(PROMETHEUS_CONFIG_SHADOW): $(PROMETHEUS_CONFIG_SRC) | prometheus-install
+$(PROMETHEUS_CONFIG_SHADOW): $(PROMETHEUS_CONFIG_SRC) install-all | prometheus-install
 	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_CONFIG_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
 	NEW_HASH=$$(sha256sum "$(PROMETHEUS_CONFIG_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
@@ -129,3 +129,16 @@ prometheus-restart:
 # --------------------------------------------------------------------
 prometheus-status:
 	@$(run_as_root) systemctl status $(PROMETHEUS_SERVICE) --no-pager
+
+$(PROMETHEUS_UNIT_DST): | install-all
+	@changed=0; rc=0; \
+	$(call install_file,$(PROMETHEUS_UNIT_SRC),$(PROMETHEUS_UNIT_DST),$(ROOT_UID),$(ROOT_GID),0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		*) exit "$$rc" ;; \
+	esac; \
+	if [ $$changed -eq 1 ]; then \
+		echo "🔄 prometheus.service updated — reloading systemd context"; \
+		$(systemctl_daemon_reload); \
+	fi

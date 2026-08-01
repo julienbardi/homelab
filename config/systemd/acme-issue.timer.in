@@ -1,0 +1,9 @@
+[Unit]
+Description=Run ACME issuance for ${DOMAIN} once at boot
+
+[Timer]
+OnBootSec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

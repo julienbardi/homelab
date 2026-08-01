@@ -66,6 +66,7 @@ export WG_ROOT     := $(HOMELAB_DIR)/wireguard
 
 # System
 SYSTEMD_DIR       := /etc/systemd/system
+REPO_SYSTEMD      := $(REPO_ROOT)/config/systemd
 export INSTALL_PATH      := /usr/local/bin
 export INSTALL_SBIN_PATH := /usr/local/sbin
 
@@ -160,8 +161,8 @@ SSL_CANONICAL_DIR := /var/lib/ssl/canonical
 # ------------------------------------------------------------
 # ACME systemd units, used in mk/40_acme.mk
 # ------------------------------------------------------------
-ACME_SERVICE_FILE := /etc/systemd/system/acme-renewal.service
-ACME_TIMER_FILE   := /etc/systemd/system/acme-renewal.timer
+ACME_SERVICE_FILE := /etc/systemd/system/acme-renew.service
+ACME_TIMER_FILE   := /etc/systemd/system/acme-renew.timer
 export ACME_SERVICE_FILE
 export ACME_TIMER_FILE
 
@@ -183,9 +184,17 @@ ROLE := service
 # ----------------------------------------------------------------------------
 # 4. State / Stamp Directory Configuration
 # ----------------------------------------------------------------------------
-XDG_STATE_HOME := $(HOME)/.local/state
-STAMP_DIR_USER := $(XDG_STATE_HOME)/homelab
+
+# Ensure HOME is always set inside Make (sudo sometimes clears it)
+HOME ?= $(shell echo $$HOME)
+
+# User-level stamp directory
+STAMP_DIR_USER := $(HOME)/.local/state/homelab
+export STAMP_DIR_USER
+
+# System-wide stamp directory (never mixed with user stamps)
 STAMP_DIR_ROOT := /var/lib/homelab
+export STAMP_DIR_ROOT
 
 # Canonical marker path
 export ROUTER_PREFIX_MARKER := $(STAMP_DIR_ROOT)/router-prefix.changed
@@ -283,9 +292,7 @@ KNOWN_HOSTS := \
 # ----------------------------------------------------------------------------
 # 1. Operator Identity (Dynamic build-time discovery)
 # ----------------------------------------------------------------------------
-OPERATOR_USER  := $(shell id -un)
-OPERATOR_GROUP := $(shell id -gn)
-OPERATOR_HOME  := $(shell getent passwd $(OPERATOR_USER) | cut -d: -f6)
+
 
 # ----------------------------------------------------------------------------
 # 2. Global Security Policy (Admins, Groups, Service Accounts)
@@ -302,16 +309,27 @@ SERVICE_GROUPS := headscale _dnsdist ssl-cert dnswarm
 
 # Service accounts (user:primary_group)
 SERVICE_MAP := \
-	headscale:headscale \
+	$(HEADSCALE_USER):$(HEADSCALE_GROUP) \
 	_dnsdist:_dnsdist \
 	dnswarm:dnswarm
 
 # ----------------------------------------------------------------------------
-# 3. Root Ownership Defaults (Overrideable)
+# 3. Root Ownership Defaults
 # ----------------------------------------------------------------------------
-ROOT_UID  := $(shell id -u root 2>/dev/null || echo 0)
-ROOT_GID  := $(shell id -g root 2>/dev/null || echo 0)
-ROOT_HOME := $(shell getent passwd root | cut -d: -f6)
+
+# --- ROOT identity (1 syscall) ---
+ROOT_PASSWD := $(shell getent passwd root 2>/dev/null || echo "root:x:0:0:root:/root:/bin/sh")
+ROOT_UID    := $(word 3,$(subst :, ,$(ROOT_PASSWD)))
+ROOT_GID    := $(word 4,$(subst :, ,$(ROOT_PASSWD)))
+ROOT_HOME   := $(word 6,$(subst :, ,$(ROOT_PASSWD)))
+
+# --- USER identity (1 syscall), also called OPERATOR ---
+USER_PASSWD := $(shell uid=$$(id -u); gid=$$(id -g); \
+	getent passwd $$uid 2>/dev/null || echo "user:x:$$uid:$$gid:user:$$HOME:/bin/sh")
+USER_UID    := $(word 3,$(subst :, ,$(USER_PASSWD)))
+USER_GID    := $(word 4,$(subst :, ,$(USER_PASSWD)))
+USER_HOME   := $(word 6,$(subst :, ,$(USER_PASSWD)))
+USER        := $(word 1,$(subst :, ,$(USER_PASSWD)))
 
 # ----------------------------------------------------------------------------
 # 5. Documentation Directory (Deferred assignment)
@@ -343,6 +361,8 @@ export INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_change
 # ----------------------------------------------------------------------------
 N_WORKERS := $(shell nproc | awk '{print ($$1 > 1 ? $$1 - 1 : 1)}')
 INSTALL_IF_CHANGED_EXIT_CHANGED ?= 3
+INSTALL_IF_CHANGED_EXIT_UNCHANGED := 0
+INSTALL_IF_CHANGED_EXIT_ERROR := 1
 
 # ----------------------------------------------------------------------------
 # 8. Router Mappings (Non-secret)
@@ -414,17 +434,17 @@ ROUTER_HOST = $(SSH_USER_ROUTER)@$(ROUTER_ADDR)
 # ----------------------------------------------------------------------------
 # Ephemeral DDNS temp (RAM-only, per-user, per-invocation)
 # ----------------------------------------------------------------------------
-TMP_DDNS_CONF := /run/user/$(shell id -u)/homelab/.ddns_confidential_$$PPID
+TMP_DDNS_CONF := /run/user/$(USER_UID)/homelab/.ddns_confidential_$$PPID
 
-TMP_DNSMASQ_ADD := /run/user/$(shell id -u)/homelab/.dnsmasq_conf_add_$$PPID
-TMP_DNSMASQ_HOSTS := /run/user/$(shell id -u)/homelab/.dnsmasq_hosts_add_$$PPID
+TMP_DNSMASQ_ADD := /run/user/$(USER_UID)/homelab/.dnsmasq_conf_add_$$PPID
+TMP_DNSMASQ_HOSTS := /run/user/$(USER_UID)/homelab/.dnsmasq_hosts_add_$$PPID
 
-TMP_ROUTER_WG_FIREWALL := /run/user/$(shell id -u)/homelab/.wg_firewall_$$PPID
+TMP_ROUTER_WG_FIREWALL := /run/user/$(USER_UID)/homelab/.wg_firewall_$$PPID
 
-TMP_ROUTER_ULA := /run/user/$(shell id -u)/homelab/.router_ula_$$PPID
+TMP_ROUTER_ULA := /run/user/$(USER_UID)/homelab/.router_ula_$$PPID
 
 # $(file …) bypasses the shell, so $PPID never expands and the NAT script path must not depend on it
-TMP_ROUTER_NAT := /run/user/$(shell id -u)/homelab/.router_nat
+TMP_ROUTER_NAT := /run/user/$(USER_UID)/homelab/.router_nat
 
 export WG_PLAN_SUBNETS := $(INSTALL_PATH)/wg-plan-subnets.sh
 
@@ -450,31 +470,30 @@ SYSCTL_BIN := $(shell command -v sysctl)
 SYSCTL_SRC := $(REPO_ROOT)/config/sysctl.d/99-homelab-forwarding.conf.in
 SYSCTL_DST := /etc/sysctl.d/99-homelab-forwarding.conf
 
+# ============================================================
+# ACME systemd units + scripts
+# ============================================================
 
-.PHONY: homelab-env-v1
-homelab-env-v1: $(BOOTSTRAP_CORE) $(run_as_root)
-	@tmp="$$(mktemp)"; \
-	printf "%s\n" "# Canonical Network Environment (DO NOT EDIT, generated by homelab-env)" > "$$tmp"; \
-	printf "%s\n" "HOMELAB_ROOT=\"$(HOMELAB_DIR)\"" >> "$$tmp"; \
-	printf "%s\n" "# Required by mk/config.mk" >> "$$tmp"; \
-	printf "%s\n" "ACME_HOME=\"$(ACME_HOME)\"" >> "$$tmp"; \
-	printf "%s\n" "# Required by IFC v3" >> "$$tmp"; \
-	printf "%s\n" "INSTALL_PATH=\"$(INSTALL_PATH)\"" >> "$$tmp"; \
-	printf "%s\n" "INSTALL_SBIN_PATH=\"$(INSTALL_SBIN_PATH)\"" >> "$$tmp"; \
-	printf "%s\n" "# Required by graph.mk (WireGuard plan)" >> "$$tmp"; \
-	printf "%s\n" "WG_PLAN_SUBNETS=\"$(WG_PLAN_SUBNETS)\"" >> "$$tmp"; \
-	rc=0; \
-	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
-		"" "" "$$tmp" \
-		"" "" "$(HOMELAB_DIR)/config/homelab.env" \
-		"$(ROOT_UID)" "$(ROOT_GID)" "0644" \
-		|| rc=$$?; \
-	rm -f "$$tmp"; \
-	case "$$rc" in \
-		0|3|'') exit 0 ;; \
-		*[!0-9]* ) exit 0 ;; \
-		*) exit "$$rc" ;; \
-	esac
+ACME_ISSUE_SERVICE := /etc/systemd/system/acme-issue.service
+export ACME_ISSUE_SERVICE
+
+ACME_ISSUE_TIMER := /etc/systemd/system/acme-issue.timer
+export ACME_ISSUE_TIMER
+
+ACME_RENEW_SERVICE := /etc/systemd/system/acme-renew.service
+export ACME_RENEW_SERVICE
+
+ACME_RENEW_TIMER := /etc/systemd/system/acme-renew.timer
+export ACME_RENEW_TIMER
+
+ACME_ISSUE_SCRIPT := /usr/local/bin/acme-issue.sh
+export ACME_ISSUE_SCRIPT
+
+ACME_RENEW_SCRIPT := /usr/local/bin/acme-renew.sh
+export ACME_RENEW_SCRIPT
+
+HEADSCALE_USER := headscale
+HEADSCALE_GROUP := headscale
 
 define INSTALL_FILE_NORMALIZED
 	rc=0; \
@@ -537,22 +556,28 @@ define GENERATE_AND_INSTALL_FILE
 	esac
 endef
 
-define HOMELAB_ENV_CONTENT
-# Canonical Network Environment (DO NOT EDIT, generated by homelab-env)
-HOMELAB_ROOT="$(HOMELAB_DIR)"
-# Required by mk/config.mk
-ACME_HOME="$(ACME_HOME)"
-# Required by IFC v3
-INSTALL_PATH="$(INSTALL_PATH)"
-INSTALL_SBIN_PATH="$(INSTALL_SBIN_PATH)"
-# Required by graph.mk (WireGuard plan)
-WG_PLAN_SUBNETS="$(WG_PLAN_SUBNETS)"
-endef
-export HOMELAB_ENV_CONTENT
-
-homelab-env: $(BOOTSTRAP_CORE)
+.PHONY: homelab-env
+homelab-env: $(BOOTSTRAP_CORE) $(run_as_root)
 	@tmp="$$(mktemp)"; \
-	$(file >$$tmp,$(value HOMELAB_ENV_CONTENT)) \
-	install -D -o "$(ROOT_UID)" -g "$(ROOT_GID)" -m 0644 "$$tmp" "$(HOMELAB_DIR)/config/homelab.env"; \
+	printf "%s\n" "# Canonical Network Environment (DO NOT EDIT, generated by homelab-env)" > "$$tmp"; \
+	printf "%s\n" "HOMELAB_ROOT=\"$(HOMELAB_DIR)\"" >> "$$tmp"; \
+	printf "%s\n" "# Required by mk/config.mk" >> "$$tmp"; \
+	printf "%s\n" "ACME_HOME=\"$(ACME_HOME)\"" >> "$$tmp"; \
+	printf "%s\n" "# Required by IFC v3" >> "$$tmp"; \
+	printf "%s\n" "INSTALL_PATH=\"$(INSTALL_PATH)\"" >> "$$tmp"; \
+	printf "%s\n" "INSTALL_SBIN_PATH=\"$(INSTALL_SBIN_PATH)\"" >> "$$tmp"; \
+	printf "%s\n" "# Required by graph.mk (WireGuard plan)" >> "$$tmp"; \
+	printf "%s\n" "WG_PLAN_SUBNETS=\"$(WG_PLAN_SUBNETS)\"" >> "$$tmp"; \
+	$(run_as_root) chmod 640 "$$tmp"; \
+	rc=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
+		"" "" "$$tmp" \
+		"" "" "$(HOMELAB_DIR)/config/homelab.env" \
+		"$(ROOT_UID)" "$(ROOT_GID)" "0640" \
+		|| rc=$$?; \
 	rm -f "$$tmp"; \
-	echo "🚀 installed $(HOMELAB_DIR)/config/homelab.env"
+	case "$$rc" in \
+		0|3|'') exit 0 ;; \
+		*[!0-9]* ) exit 0 ;; \
+		*) exit "$$rc" ;; \
+	esac

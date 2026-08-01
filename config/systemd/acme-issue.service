@@ -1,8 +1,0 @@
-[Unit]
-Description=Issue ACME certificate for bardi.ch
-
-[Service]
-Type=oneshot
-User=root
-Group=root
-ExecStart=/usr/local/bin/acme-issue-if-needed.sh

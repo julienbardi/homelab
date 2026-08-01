@@ -72,7 +72,7 @@ certs-expiry:
 # ============================================================
 # ACME / service certificate workflow
 # ============================================================
-.PHONY: renew prepare \
+.PHONY: prepare \
 		deploy-caddy deploy-headscale deploy-dnsdist deploy-diskstation deploy-qnap deploy-dsm \
 		validate-caddy validate-headscale validate-diskstation validate-qnap validate-dsm validate-ac86u \
 		all-caddy all-headscale all-router all-diskstation all-qnap all-ac86u \
@@ -82,11 +82,6 @@ certs-expiry:
 		bootstrap-caddy bootstrap-headscale bootstrap-diskstation bootstrap-qnap \
 		bootstrap-all deploy-ac86u
 
-renew: install-helpers
-	@$(run_as_root) systemctl start acme-issue.service || { \
-		echo "❌ Failed to trigger ACME issuance via systemd"; \
-		exit 1; \
-	}
 
 install-helpers: $(INSTALL_PATH)/common.sh \
 	$(INSTALL_FILE_IF_CHANGED) \
@@ -97,7 +92,15 @@ install-helpers: $(INSTALL_PATH)/common.sh \
 # ============================================================
 # prepare: run CERTS_DEPLOY prepare + compute canonical hash
 # ============================================================
-$(STAMP_PREPARE): renew $(CERTS_DEPLOY)
+
+export SSL_CANONICAL_DIR
+export SSL_CERT_ECC
+export SSL_CHAIN_ECC
+export SSL_KEY_ECC
+export ACME_HOME
+export DOMAIN
+
+$(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY)
 	@$(call WITH_SECRETS, $(run_as_root) sh -c '\
 		set -euo pipefail; \
 		$(CERTS_DEPLOY) prepare; \
@@ -121,7 +124,7 @@ $(STAMP_CERTS_CANONICAL): $(STAMP_PREPARE)
 deploy-caddy:      $(STAMP_CERTS_CANONICAL) router-install-scripts
 	$(call WITH_SECRETS, $(call deploy_with_status,caddy))
 
-deploy-headscale:  $(STAMP_CERTS_CANONICAL)
+deploy-headscale: headscale-user headscale-dirs $(STAMP_CERTS_CANONICAL)
 	$(call WITH_SECRETS, $(call deploy_with_status,headscale))
 
 deploy-dnsdist:    $(STAMP_CERTS_CANONICAL)

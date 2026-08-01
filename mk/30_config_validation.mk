@@ -21,7 +21,7 @@ dns-preflight: \
 
 assert-tailnet:
 	@tailscale status >/dev/null 2>&1 || \
-		( echo "❌ Tailnet not connected — run: make tailnet"; exit 1 )
+		( echo "❌ Tailnet not connected (headscale may be down, skipping tailnet validation) — run: make tailnet"; exit 1 )
 
 check-public-dns:
 	@echo "🔍 Verifying public CNAMEs resolving to canonical names"

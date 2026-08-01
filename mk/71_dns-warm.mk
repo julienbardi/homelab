@@ -34,7 +34,7 @@ DNS_WARM_POLICY_DST := $(INSTALL_PATH)/dns-warm-update-domains
 	dns-warm-create-user dns-warm-dirs dns-warm-install-script \
 	dns-warm-install-systemd dns-warm-async dns-warm-health dns-warm-now
 
-install-dns-warm-policy:
+install-dns-warm-policy: install-all
 	@echo "📦 Deploying DNS warm policy script..."
 	@$(call install_file,$(DNS_WARM_POLICY_SRC),$(DNS_WARM_POLICY_DST),root,root,0755)
 
@@ -117,7 +117,7 @@ dns-warm-dirs:
 	@$(run_as_root) chown -R root:root $(DOMAINS_DIR)
 	@$(run_as_root) chmod 750 $(DNS_WARM_STATE_DIR)
 
-dns-warm-install-script: dns-warm-async-install
+dns-warm-install-script: dns-warm-async-install install-all
 	@$(call install_file,$(ROTATE_SCRIPT_SRC),$(ROTATE_SCRIPT_PATH),$(DNS_WARM_USER),$(DNS_WARM_GROUP),0755)
 	@$(run_as_root) bash -n $(ROTATE_SCRIPT_PATH)
 

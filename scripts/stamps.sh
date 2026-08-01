@@ -1,4 +1,5 @@
 #!/bin/bash
+# stamps.sh
 set -euo pipefail
 # ============================================================
 # stamps.sh — Unified stamp library (runtime version)
@@ -24,11 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Resolve user-level stamp directory (privilege-correct)
 # ------------------------------------------------------------
 stamp_dir() {
-    if [ -n "${XDG_STATE_HOME:-}" ]; then
-        printf '%s/homelab' "$XDG_STATE_HOME"
-    else
-        printf '%s/.local/state/homelab' "$HOME"
-    fi
+    printf '%s' "${STAMP_DIR_USER:?STAMP_DIR_USER is not set}"
 }
 
 # ------------------------------------------------------------

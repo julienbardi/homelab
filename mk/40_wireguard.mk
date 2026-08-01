@@ -86,7 +86,7 @@ wg-generate: $(WG_INTERFACE_LIST_STAMP) \
 	NAS_LAN_IP6="$(NAS_LAN_IP6)" \
 	LAN_ROUTER="$(LAN_ROUTER)" \
 	WG_ROOT="$(WG_ROOT)" \
-	OPERATOR_GROUP="$(OPERATOR_GROUP)" \
+	USER_GID="$(USER_GID)" \
 	ROUTER_LAN_IFACE="$(ROUTER_LAN_IFACE)" \
 	$(INSTALL_PATH)/wg-generate-configs.sh; \
 	ROUTER_NEW_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_NEW_HASH=""; \

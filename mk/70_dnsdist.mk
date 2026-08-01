@@ -134,7 +134,7 @@ dnsdist-systemd-dropin:
 		"" "" "$(DNSDIST_DROPIN_DST)" \
 		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		$(run_as_root) systemctl daemon-reload; \
+		$(systemctl_daemon_reload); \
 		echo "🔄 Systemd drop-in updated, restarting..."; \
 		$(DNSDIST_RESTART_CMD); \
 	fi
@@ -149,7 +149,7 @@ dnsdist-systemd-caps:
 		"" "" "$(DNSDIST_CAPS_DROPIN_DST)" \
 		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		$(run_as_root) systemctl daemon-reload; \
+		$(systemctl_daemon_reload); \
 		echo "🔄 dnsdist capability drop-in updated, restarting..."; \
 		$(DNSDIST_RESTART_CMD); \
 	fi

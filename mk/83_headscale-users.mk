@@ -17,7 +17,7 @@ HEADSCALE_USERS := \
 
 .PHONY: headscale-users
 
-headscale-users:
+headscale-users: headscale-user headscale-dirs
 	@echo "[headscale] Ensuring users exist..."
 	@for user in $(HEADSCALE_USERS); do \
 		echo "[headscale] Ensuring user $$user"; \
@@ -25,6 +25,6 @@ headscale-users:
 	done
 
 .PHONY: headscale-users-list
-headscale-users-list:
+headscale-users-list: headscale-user headscale-dirs
 	@echo " Active Headscale Users:"
 	@$(run_as_root) "$(HS_BIN)" users list

@@ -1,199 +1,250 @@
-# mk/40_acme.mk
 # ============================================================================
-# ACME Certificate Lifecycle Management
+# mk/40_acme.mk — ACME Subsystem (Authoritative)
+# ============================================================================
+# Responsibilities:
+#   - ACME bootstrap (scripts + systemd units)
+#   - ACME initial issuance (systemd-managed)
+#   - ACME renewal (systemd-managed, daily)
+#   - ACME migration (dangerous, one-time)
 #
-# There are TWO distinct operations in this file:
+# This file MUST NOT:
+#   - deploy canonical certificates
+#   - manage canonical cert stamps
+#   - interact with mk/50_certs.mk except via ACME output
 #
-#   1. acme-renew
-#      - The ONLY correct way to renew certificates.
-#      - Calls `acme.sh --cron` which performs:
-#           * expiry checks
-#           * challenge validation
-#           * issuance
-#           * deploy hooks
-#      - Runs daily via systemd.
-#
-#   2. acme-migrate-and-deploy (formerly acme-renew-all)
-#      - NOT a renewal mechanism.
-#      - One-time migration tool for legacy ACME state.
-#      - Copies old /root/.acme.sh state into /var/lib/acme.
-#      - Re-applies permissions.
-#      - Clears canonical TLS store.
-#      - Forces full redeploy of certificates.
-#      - MUST NOT be used during normal operation.
-#
-# These two targets MUST remain separate.
-# There is NO duplication: they perform fundamentally different jobs.
+# All ACME paths MUST be defined in mk/config.mk.
 # ============================================================================
 
+# ------------------------------------------------------------
+# Fail-fast validation of ACME paths (operator-friendly)
+# ------------------------------------------------------------
+# Real newline for foreach expansion
+define NL
 
-# ----------------------------------------------------------------------------
-# 1. Normal ACME Renewal (safe, idempotent, daily)
-# ----------------------------------------------------------------------------
-.PHONY: acme-renew
-acme-renew: ddns-env acme-install acme-write-infomaniak-token acme-timer-install
-	@$(run_as_root) bash -euo pipefail -c '\
-		DIR="$(ACME_HOME)/$(DOMAIN)_ecc"; \
-		if [ ! -d "$$DIR" ]; then \
-			echo "❌ No ACME identity found for $$DIR."; \
-			echo "   Run: make acme-issue first."; \
+
+endef
+.PHONY: acme-validate-paths
+acme-validate-paths:
+	@echo "🔍 Validating ACME configuration"; \
+	$(foreach var,ACME_ISSUE_SERVICE ACME_RENEW_SERVICE ACME_RENEW_TIMER ACME_ISSUE_SCRIPT ACME_RENEW_SCRIPT,\
+		if [ -z "$($(var))" ]; then \
+			echo "❌ $(var) is undefined in mk/config.mk"; exit 1; \
+		fi; \
+		if ! bash -c 'echo $$$(var)' | grep -q .; then \
+			echo "❌ $(var) is not exported to the shell"; \
+			echo "   ➡️ Add: export $(var) in mk/config.mk"; \
 			exit 1; \
 		fi; \
+	$(NL)) \
+	echo "🟢 ACME paths validated (Make + shell)"
+
+# ============================================================================
+# 1. ACME Bootstrap (idempotent)
+# ============================================================================
+# Installs:
+#   - ACME scripts (issue + renew)
+#   - ACME systemd units (issue + renew)
+#   - ACME renewal timer
+#
+# This is the ONLY correct way to install ACME infrastructure.
+# ============================================================================
+
+.PHONY: acme-bootstrap
+acme-bootstrap: acme-validate-paths
+	@$(run_as_root) bash -euo pipefail -c '\
+		echo "🔧 Installing ACME scripts"; \
+		install -m 0755 "$(REPO_ROOT)/scripts/acme-issue.sh" "$(ACME_ISSUE_SCRIPT)"; \
+		install -m 0755 "$(REPO_ROOT)/scripts/acme-renew.sh" "$(ACME_RENEW_SCRIPT)"; \
 		\
-		echo "🔄 Triggering ACME systemd timer (root-managed renewal)..."; \
-		systemctl start acme-renewal.service; \
+		echo "🔧 Rendering ACME systemd units"; \
+		envsubst < "$(REPO_ROOT)/config/systemd/acme-issue.service.in" > "$(ACME_ISSUE_SERVICE)"; \
+		envsubst < "$(REPO_ROOT)/config/systemd/acme-issue.timer.in"   > "$(ACME_ISSUE_TIMER)"; \
+		envsubst < "$(REPO_ROOT)/config/systemd/acme-renew.service.in" > "$(ACME_RENEW_SERVICE)"; \
+		envsubst < "$(REPO_ROOT)/config/systemd/acme-renew.timer.in"   > "$(ACME_RENEW_TIMER)"; \
+		chmod 0644 "$(ACME_ISSUE_SERVICE)" "$(ACME_ISSUE_TIMER)" "$(ACME_RENEW_SERVICE)" "$(ACME_RENEW_TIMER)"; \
 		\
-		echo "⏳ Waiting 3 seconds for service to settle..."; \
-		sleep 3; \
-		\
-		echo; echo "📋 Checking acme-renewal.service status:"; \
-		systemctl --no-pager --full status acme-renewal.service || true; \
-		\
-		echo; echo "📜 Last 20 log lines:"; \
-		journalctl -u acme-renewal.service -n 20 --no-pager || true; \
-		\
-		CERT="$${DIR}/fullchain.cer"; \
-		if [ -f "$$CERT" ]; then \
-			echo; echo "🔍 Certificate timestamps:"; \
-			openssl x509 -in "$$CERT" -noout -dates || true; \
-		else \
-			echo; echo "❌ No certificate found at $$CERT"; \
+		echo "🔄 Reloading systemd"; \
+		systemctl daemon-reload; \
+		systemctl enable --now acme-renew.timer; \
+		echo "🟢 ACME bootstrap complete"; \
+	'
+
+# ============================================================================
+# ACME Script Validation
+# ============================================================================
+.PHONY: acme-validate-scripts
+acme-validate-scripts:
+	@echo "🔍 Validating ACME scripts"; \
+	for f in "$(ACME_ISSUE_SCRIPT)" "$(ACME_RENEW_SCRIPT)"; do \
+		if [ ! -f "$$f" ]; then \
+			echo "❌ Missing ACME script: $$f"; exit 1; \
 		fi; \
-	'
+		if [ ! -x "$$f" ]; then \
+			echo "❌ ACME script not executable: $$f"; exit 1; \
+		fi; \
+	done; \
+	echo "🟢 ACME scripts validated"
 
-# ------------------------------------------------------------
-# ACME Renewal Timer (Systemd) - CLEAN + IDEMPOTENT VERSION
-# ------------------------------------------------------------
+# ============================================================================
+# ACME Systemd Unit Validation
+# ============================================================================
+.PHONY: acme-validate-units
+acme-validate-units:
+	@echo "🔍 Validating ACME systemd units"; \
+	for u in "$(ACME_ISSUE_SERVICE)" "$(ACME_ISSUE_TIMER)" "$(ACME_RENEW_SERVICE)" "$(ACME_RENEW_TIMER)"; do \
+		if [ ! -f "$$u" ]; then \
+			echo "❌ Missing ACME systemd unit: $$u"; exit 1; \
+		fi; \
+	done; \
+	echo "🟢 ACME systemd units validated"
 
-SERVICE_FILE := /etc/systemd/system/acme-renewal.service
-TIMER_FILE   := /etc/systemd/system/acme-renewal.timer
+# ============================================================================
+# ACME Systemd Syntax Validation
+# ============================================================================
+.PHONY: acme-validate-systemd
+acme-validate-systemd:
+	@echo "🔍 Validating systemd syntax"; \
+	systemctl daemon-reload; \
+	for u in acme-issue.service acme-renew.service acme-renew.timer; do \
+		if ! systemctl status "$$u" >/dev/null 2>&1; then \
+			echo "❌ systemd cannot load $$u"; exit 1; \
+		fi; \
+	done; \
+	echo "🟢 systemd syntax validated"
 
-define SERVICE_CONTENT
-[Unit]
-Description=Renew ACME Certificates
-After=network-online.target
+# ============================================================================
+# ACME Timer Validation
+# ============================================================================
+.PHONY: acme-validate-timer
+acme-validate-timer:
+	@echo "🔍 Validating ACME renewal timer"; \
+	if ! systemctl is-enabled acme-renew.timer >/dev/null 2>&1; then \
+		echo "❌ acme-renew.timer is not enabled"; exit 1; \
+	fi; \
+	echo "🟢 ACME renewal timer validated"
 
-[Service]
-Type=oneshot
-Environment=SOPS_AGE_KEY_FILE=/etc/sops/keys/age.key
-EnvironmentFile=/etc/homelab/ddns.env
-ExecStart=$(ACME_BIN) --cron --home $(ACME_HOME)
-User=root
-Group=root
-endef
+# ============================================================================
+# ACME_HOME Validation
+# ============================================================================
+.PHONY: acme-validate-home
+acme-validate-home:
+	@echo "🔍 Validating ACME_HOME"; \
+	if [ ! -d "$(ACME_HOME)" ]; then \
+		echo "❌ ACME_HOME missing: $(ACME_HOME)"; exit 1; \
+	fi; \
+	if [ ! -f "$(ACME_HOME)/acme.sh" ]; then \
+		echo "❌ acme.sh missing in ACME_HOME"; exit 1; \
+	fi; \
+	echo "🟢 ACME_HOME validated"
 
-define TIMER_CONTENT
-[Unit]
-Description=Daily ACME Certificate Renewal Check
+# ============================================================================
+# Infomaniak Token Validation
+# ============================================================================
+.PHONY: acme-validate-token
+acme-validate-token:
+	@echo "🔍 Validating Infomaniak token"; \
+	if [ ! -f "$(ACME_HOME)/infomaniak_token" ]; then \
+		echo "❌ Infomaniak token missing"; exit 1; \
+	fi; \
+	if ! grep -q . "$(ACME_HOME)/infomaniak_token"; then \
+		echo "❌ Infomaniak token empty"; exit 1; \
+	fi; \
+	echo "🟢 Infomaniak token validated"
 
-[Timer]
-OnCalendar=*-*-* 00:00:00
-RandomizedDelaySec=1h
-Persistent=true
+# ============================================================================
+# Issuance Directory Validation
+# ============================================================================
+.PHONY: acme-validate-issuance
+acme-validate-issuance:
+	@echo "🔍 Validating ACME issuance directory"; \
+	if [ ! -d "$(ACME_HOME)/$(DOMAIN)_ecc" ]; then \
+		echo "❌ No issuance directory for $(DOMAIN)"; exit 1; \
+	fi; \
+	echo "🟢 ACME issuance directory validated"
 
-[Install]
-WantedBy=timers.target
-endef
+# ============================================================================
+# ACME Convergence Target
+# ============================================================================
+.PHONY: acme-selftest
+acme-selftest: \
+	acme-validate-paths \
+	acme-validate-scripts \
+	acme-validate-units \
+	acme-validate-systemd \
+	acme-validate-timer \
+	acme-validate-home \
+	acme-validate-token \
+	acme-validate-issuance
+	@echo "🟢 ACME subsystem converged"
 
-export SERVICE_CONTENT
-export TIMER_CONTENT
+# ============================================================================
+# 2. ACME Initial Issuance (safe, idempotent, systemd-managed)
+# ============================================================================
+# This triggers the initial ACME issuance using acme-issue.service.
+# It is non-blocking and operator-visible.
+# ============================================================================
 
-.PHONY: acme-timer-install
-acme-timer-install:
-	@$(run_as_root) env \
-		SERVICE_CONTENT="$${SERVICE_CONTENT}" \
-		TIMER_CONTENT="$${TIMER_CONTENT}" \
-		bash -euo pipefail -c '\
-			CHANGED=0; \
-			\
-			if [ "$$(printf "%s" "$$SERVICE_CONTENT")" != "$$(cat "$(SERVICE_FILE)" 2>/dev/null)" ]; then \
-				echo "⏱️  Updating ACME service unit..."; \
-				printf "%s" "$$SERVICE_CONTENT" | install -m 644 /dev/stdin "$(SERVICE_FILE)"; \
-				CHANGED=1; \
-			fi; \
-			\
-			if [ "$$(printf "%s" "$$TIMER_CONTENT")" != "$$(cat "$(TIMER_FILE)" 2>/dev/null)" ]; then \
-				echo "⏱️  Updating ACME timer unit..."; \
-				printf "%s" "$$TIMER_CONTENT" | install -m 644 /dev/stdin "$(TIMER_FILE)"; \
-				CHANGED=1; \
-			fi; \
-			\
-			if [ $$CHANGED -eq 1 ]; then \
-				systemctl daemon-reload; \
-				systemctl enable --now acme-renewal.timer; \
-				echo "✅ ACME systemd timer updated and active."; \
-			else \
-				echo "ℹ️ ACME systemd timer is already up-to-date."; \
-			fi \
-	'
+.PHONY: acme-issue
+acme-issue: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
+	@$(run_as_root) systemctl start --no-block acme-issue.service
+	@echo "🚀 ACME issuance triggered (non-blocking)"
+	@echo "   View logs: sudo journalctl -u acme-issue.service -f"
 
 
-# ----------------------------------------------------------------------------
-# 2. Migration + Forced Redeploy (dangerous, manual, one-time)
+# ============================================================================
+# 3. ACME Renewal (safe, idempotent, daily)
+# ============================================================================
+# This triggers the daily ACME renewal using acme-renewal.service.
+# It is systemd-managed and uses acme.sh --cron.
+# ============================================================================
+
+.PHONY: acme-renew
+acme-renew: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
+	@$(run_as_root) systemctl start acme-renew.service
+	@echo "🔄 ACME renewal triggered"
+
+
+# ============================================================================
+# 4. ACME Migration (dangerous, one-time)
+# ============================================================================
+# This target:
+#   - requires MIGRATE=1
+#   - migrates legacy /root/.acme.sh state
+#   - fixes permissions
+#   - clears canonical TLS store
+#   - forces full certificate redeploy
 #
-# This target is intentionally protected:
-#   - Requires MIGRATE=1 to run.
-#   - Aborts if no legacy state exists.
-#   - Aborts if ACME_HOME already contains migrated state.
-#
-# This prevents accidental destructive use.
-# ----------------------------------------------------------------------------
+# MUST NOT be used during normal operation.
+# ============================================================================
+
 .PHONY: acme-migrate-and-deploy
 acme-migrate-and-deploy:
 	@$(run_as_root) bash -euo pipefail -c '\
-		# Guards
 		if [ "$${MIGRATE:-0}" != "1" ]; then \
-			echo "❌ REFUSING: This is a destructive migration target."; \
-			echo "   Use: make acme-migrate-and-deploy MIGRATE=1"; \
-			exit 1; \
+			echo "❌ MIGRATE=1 required"; exit 1; \
 		fi; \
-		\
 		if [ ! -d "/root/.acme.sh/bardi.ch_ecc" ]; then \
-			echo "❌ No legacy ACME state found in /root/.acme.sh — aborting."; \
-			exit 1; \
+			echo "❌ No legacy ACME state"; exit 1; \
 		fi; \
-		\
 		if [ -d "$(ACME_HOME)/bardi.ch_ecc" ]; then \
-			echo "❌ ACME_HOME already contains migrated state — aborting."; \
-			exit 1; \
+			echo "❌ ACME_HOME already migrated"; exit 1; \
 		fi; \
-		\
-		echo "🚚 Migrating legacy ACME state into $(ACME_HOME)..."; \
+		echo "🚚 Migrating legacy ACME state"; \
 		cp -rf /root/.acme.sh/* "$(ACME_HOME)"; \
-		\
-		echo "🛡️ Fixing permissions..."; \
 		$(call acme_fix_perms,$(ACME_HOME)); \
-		\
-		echo " Clearing canonical TLS store..."; \
+		echo "🧹 Clearing canonical TLS store"; \
 		rm -rf /var/lib/ssl/canonical/*; \
-		\
-		echo "🚀 Forcing full certificate redeploy..."; \
-		"$(REPO_ROOT)/scripts/deploy_certificates.sh" renew; \
-		"$(REPO_ROOT)/scripts/deploy_certificates.sh" prepare; \
-		"$(REPO_ROOT)/scripts/deploy_certificates.sh" deploy dnsdist; \
-		\
-		echo "✅ Migration + forced deploy complete."; \
+		echo "🚀 Forcing full certificate redeploy"; \
+		"$(CERTS_DEPLOY)" renew; \
+		"$(CERTS_DEPLOY)" prepare; \
+		"$(CERTS_DEPLOY)" deploy dnsdist; \
+		echo "🟢 Migration complete"; \
 	'
 
-# ----------------------------------------------------------------------------
-# 3. ACME Initial Issuance (safe, idempotent, systemd-managed)
-# ----------------------------------------------------------------------------
 
-.PHONY: acme-issue
-acme-issue: install-all secrets-ready ddns-env acme-install acme-write-infomaniak-token acme-issue-service-install systemd-reload
-	@$(run_as_root) systemctl start --no-block acme-issue.service
-	@echo "🚀 ACME issuance triggered via systemd (non-blocking)."
-	@echo "   Check progress with: sudo journalctl -u acme-issue.service -f"
-
-.PHONY: acme-issue-service-install
-acme-issue-service-install:
-	@$(run_as_root) bash -euo pipefail -c '\
-		SRC="$(REPO_ROOT)/config/systemd/acme-issue.service"; \
-		DST="/etc/systemd/system/acme-issue.service"; \
-		echo "⚙️  Installing acme-issue.service to $$DST"; \
-		install -m 644 "$$SRC" "$$DST"; \
-	'
-
+# ============================================================================
+# 5. Systemd Reload Helper
+# ============================================================================
 .PHONY: systemd-reload
 systemd-reload:
 	@$(run_as_root) systemctl daemon-reload

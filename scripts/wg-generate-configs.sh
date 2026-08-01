@@ -18,7 +18,7 @@ mkdir -p "$TMPDIR"
 : "${WG_DNS_NAS_IPV6:?WG_DNS_NAS_IPV6 must be exported}"
 
 # Mandatory variables for Firewall generation
-: "${OPERATOR_GROUP:?OPERATOR_GROUP must be exported}"
+: "${USER_GID:?USER_GID must be exported}"
 : "${ROUTER_LAN_IFACE:?ROUTER_LAN_IFACE must be exported}"
 : "${LAN_NAS:?LAN_NAS must be exported (DNS IPv4)}"
 : "${LAN6_NAS:?LAN6_NAS must be exported (DNS IPv6)}"
@@ -206,7 +206,7 @@ EOF
     if [ ! -d "${WG_ROOT}/psk" ]; then
         mkdir -p "${WG_ROOT}/psk"
         chmod 2770 "${WG_ROOT}/psk"
-        chown root:"${OPERATOR_GROUP}" "${WG_ROOT}/psk"
+        chown "${ROOT_UID}":"${USER_GID}" "${WG_ROOT}/psk"
     fi
     # shellcheck disable=SC2034
     while IFS=$'\t' read -r name dev os iface mode acc lan rest; do

@@ -1,5 +1,12 @@
 #!/bin/sh
-# install_file_if_changed_v3.1.sh — Dash/Alpine/BusyBox Compatible
+# install_file_if_changed_v3.sh — portable, zero-bootstrap, atomic file installer
+# Usage:
+#   install_file_if_changed_v3.sh [-q|--quiet] \
+#       SRC_HOST SRC_PORT SRC_PATH \
+#       DST_HOST DST_PORT DST_PATH \
+#       OWNER GROUP MODE
+# MODE may be passed as "755" or "0755"; normalize consistently
+
 set -u
 LC_ALL=C; export LC_ALL
 
@@ -23,15 +30,15 @@ OWNER="${7:-}"
 GROUP="${8:-}"
 MODE="${9:-}"
 
-if [ -z "$SRC_PATH" ] || [ -z "$DST_PATH" ] || [ -z "$OWNER" ] || [ -z "$GROUP" ] || [ -z "$MODE" ]; then
+[ -n "$SRC_PATH" ] && [ -n "$DST_PATH" ] && [ -n "$OWNER" ] && [ -n "$GROUP" ] && [ -n "$MODE" ] || {
     echo "❌ Usage: SRC_HOST SRC_PORT SRC_PATH DST_HOST DST_PORT DST_PATH OWNER GROUP MODE" >&2
     exit 1
-fi
+}
 
-PID=$$
+PID="$$"
 : "${TMPDIR:=/tmp}"
 
-# Resolve SSH identity
+# Resolve SSH identity: prefer SUDO_USER's key when running under sudo
 SSH_IDENTITY="$HOME/.ssh/id_ed25519"
 if [ -n "${SUDO_USER:-}" ] && [ -f "/home/${SUDO_USER}/.ssh/id_ed25519" ]; then
     SSH_IDENTITY="/home/${SUDO_USER}/.ssh/id_ed25519"
@@ -45,77 +52,70 @@ log() {
 if [ -z "$SRC_HOST" ]; then
     SRC_HASH=$(sha256sum "$SRC_PATH" 2>/dev/null | awk '{print $1}')
 else
-    # Dash-safe command substitution
     SRC_HASH=$(ssh -p "$SRC_PORT" -o BatchMode=yes "$SRC_HOST" "sha256sum '$SRC_PATH'" 2>/dev/null | awk '{print $1}')
-    [ -z "$SRC_HASH" ] && SRC_HASH="none"
 fi
 
-if [ -z "$SRC_HASH" ]; then
+[ -n "$SRC_HASH" ] || {
     echo "❌ Failed to calculate source hash for $SRC_PATH" >&2
     exit 1
-fi
+}
 
 # --- 2. Destination hash ---
 if [ -z "$DST_HOST" ]; then
-    DST_HASH=$(sha256sum "$DST_PATH" 2>/dev/null | awk '{print $1}')
-    [ -z "$DST_HASH" ] && DST_HASH="none"
+    DST_HASH=$(sha256sum "$DST_PATH" 2>/dev/null | awk '{print $1}') || DST_HASH="none"
 else
-    # Dash-safe: Ensure the whole block is captured correctly
-    DST_HASH=$(ssh -p "$DST_PORT" \
+    # Destination hash (remote)
+    DST_HASH=$(
+    ssh -p "$DST_PORT" \
         -o PreferredAuthentications=publickey \
         -o PubkeyAuthentication=yes \
         -o PasswordAuthentication=no \
         -o IdentityFile="$SSH_IDENTITY" \
-        "$DST_HOST" "sha256sum '$DST_PATH' 2>/dev/null" 2>/dev/null | awk '{print $1}') || DST_HASH="none"
+        "$DST_HOST" "sha256sum '$DST_PATH' 2>/dev/null" 2>/dev/null \
+    | awk '{print $1}'
+    ) || DST_HASH="none"
 fi
 
+# Initialize flags
 content_drift=0
 owner_drift=0
 group_drift=0
 mode_drift=0
 
+# Content drift (local or remote)
 [ "$SRC_HASH" != "$DST_HASH" ] && content_drift=1
 
-# Metadata drift (local only)
+# Metadata drift (local only because remote metadata cannot be reliably read)
 if [ -z "$DST_HOST" ]; then
-    # Dash-safe stat calls
-    dst_owner=""
-    dst_group=""
-    dst_mode=""
+    dst_owner="$(stat -c %u "$DST_PATH" 2>/dev/null || echo "")"
+    dst_group="$(stat -c %g "$DST_PATH" 2>/dev/null || echo "")"
+    dst_mode="$(stat -c %a "$DST_PATH" 2>/dev/null || echo "")"
 
-    if [ -e "$DST_PATH" ]; then
-        dst_owner=$(stat -c %u "$DST_PATH" 2>/dev/null || echo "$OWNER")
-        dst_group=$(stat -c %g "$DST_PATH" 2>/dev/null || echo "$GROUP")
-        dst_mode=$(stat -c %a "$DST_PATH" 2>/dev/null || echo "$MODE")
-        [ -z "$dst_owner" ] && dst_owner="$OWNER"
-        [ -z "$dst_group" ] && dst_group="$GROUP"
+    [ "$dst_owner" != "$OWNER" ] && owner_drift=1
+    [ "$dst_group" != "$GROUP" ] && group_drift=1
 
-        req_owner=$(id -u "$OWNER" 2>/dev/null || echo "$OWNER")
-        req_group=$(getent group "$GROUP" | awk -F: '{print $3}' 2>/dev/null || echo "$GROUP")
-    fi
+    # Normalize both modes by stripping leading zeros (dash + BusyBox safe) and  stripping whitespaces (BusyBox)
+    norm_dst_mode=$(printf "%s" "$dst_mode" | tr -d '[:space:]' | sed 's/^0*//')
+    norm_req_mode=$(printf "%s" "$MODE"     | tr -d '[:space:]' | sed 's/^0*//')
 
-    # numeric compare
-    [ -n "$dst_owner" ] && [ "$dst_owner" != "$req_owner" ] && owner_drift=1
-    [ -n "$dst_group" ] && [ "$dst_group" != "$req_group" ] && group_drift=1
-
-    # normalize modes
-    norm_dst_mode=$(echo "$dst_mode" | tr -d '[:space:]' | sed 's/^0*//')
-    norm_req_mode=$(echo "$MODE" | tr -d '[:space:]' | sed 's/^0*//')
-
+    # Empty means zero
     [ -z "$norm_dst_mode" ] && norm_dst_mode=0
     [ -z "$norm_req_mode" ] && norm_req_mode=0
 
     [ "$norm_dst_mode" != "$norm_req_mode" ] && mode_drift=1
 fi
 
-if [ "$content_drift" = 0 ] && [ "$owner_drift" = 0 ] && [ "$group_drift" = 0 ] && [ "$mode_drift" = 0 ]; then
+if [ "$content_drift" = 0 ] && \
+   [ "$owner_drift" = 0 ] && \
+   [ "$group_drift" = 0 ] && \
+   [ "$mode_drift"  = 0 ]; then
     log "🟢 already up-to-date: $DST_PATH"
     exit 0
 fi
 
 #log "🔄 updating $DST_PATH..."
 
-# --- 3. Local buffer ---
+# --- 3. Local buffer (always) ---
 BUFFER="${TMPDIR}/.ifc_v3_${PID}_$$"
 
 if [ -z "$SRC_HOST" ]; then
@@ -131,13 +131,15 @@ if [ "$BUF_HASH" != "$SRC_HASH" ]; then
     exit 1
 fi
 
-# --- 4. Install ---
+# --- 4. Local or remote install ---
 if [ -z "$DST_HOST" ]; then
+    # Local atomic install
     DST_DIR=$(dirname "$DST_PATH")
     LOCK="${DST_PATH}.lock"
 
     mkdir -p "$DST_DIR"
 
+    # Ensure lock + buffer are always cleaned up
     trap 'rm -rf "$LOCK" "$BUFFER" 2>/dev/null || true' EXIT
 
     if ! mkdir "$LOCK" 2>/dev/null; then
@@ -146,6 +148,7 @@ if [ -z "$DST_HOST" ]; then
         exit 1
     fi
 
+    # Apply metadata (portable mode: ignore failures)
     chown "$OWNER:$GROUP" "$BUFFER" 2>/dev/null || chown "$OWNER" "$BUFFER" 2>/dev/null || true
     chmod "$MODE" "$BUFFER" 2>/dev/null || true
 
@@ -159,29 +162,28 @@ if [ -z "$DST_HOST" ]; then
         exit 1
     fi
 else
-    # Remote install
+    # Remote atomic install via SSH only
     IFC_ID="$(date +%s).$$"
     REM_DIR="$(dirname "$DST_PATH")"
     REM_TMP="$REM_DIR/.ifc_v3_${IFC_ID}"
 
-    # Transfer
-    if ! ssh -p "$DST_PORT" \
+    # Stream buffer safely (BusyBox‑safe)
+    ssh -p "$DST_PORT" \
         -o PreferredAuthentications=publickey \
         -o PubkeyAuthentication=yes \
         -o PasswordAuthentication=no \
         -o IdentityFile="$SSH_IDENTITY" \
-        "$DST_HOST" "cat > '$REM_TMP'" < "$BUFFER"; then
-        echo "❌ remote transfer failed" >&2
-        rm -f "$BUFFER"
-        exit 1
-    fi
+        "$DST_HOST" "cat > '$REM_TMP'" < "$BUFFER" \
+        || {
+            echo "❌ remote transfer failed" >&2
+            rm -f "$BUFFER"
+            exit 1
+        }
 
     rm -f "$BUFFER"
 
-    # Remote finalize
-    # NOTE: We use double quotes for the outer shell to expand variables,
-    # but escape the inner variables for the remote shell.
-    if ! ssh -p "$DST_PORT" \
+    # Remote finalize (NAS-authoritative, no remote hash)
+    ssh -p "$DST_PORT" \
         -o PreferredAuthentications=publickey \
         -o PubkeyAuthentication=yes \
         -o PasswordAuthentication=no \
@@ -203,10 +205,10 @@ else
 
             mv -f \"\$T\" \"\$DST\" || { echo '❌ IFCv3[remote]: move failed' >&2; exit 1; }
             sync 2>/dev/null || true
-        "; then
+        " || {
         echo "❌ remote install failed" >&2
         exit 1
-    fi
+    }
 fi
 
 log "🚀 installed $DST_PATH (content:$content_drift owner:$owner_drift group:$group_drift mode:$mode_drift)"

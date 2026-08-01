@@ -3,13 +3,12 @@
 # --------------------------------------------------------------------
 # CONTRACT:
 # - Provides service-specific recipes for tailscaled:
-#   * ephemeral key onboarding (LAN / WAN roles)
-#   * systemd unit install/enable
-#   * status + logs
-# - ACLs are managed exclusively by mk/84_headscale-acls.mk
-# - Users and namespaces must already exist.
-# - Recipes must remain operator-safe: no secrets written to disk,
-#   ephemeral+non-reusable keys only, safe file ownership/permissions.
+#   * LAN role: stable node, advertises LAN + exit-node
+#   * WAN role: ephemeral roaming node, internet-only
+# - All enrollment happens against Headscale (custom control plane).
+# - NAS acts as authoritative exit-node + LAN router for the tailnet.
+# - DNS must remain under homelab control (no Tailscale DNS hijack).
+# - Routes must remain deterministic (NAS advertises, others do not).
 # --------------------------------------------------------------------
 
 TAILSCALE_KEYRING := /usr/share/keyrings/tailscale-archive-keyring.gpg
@@ -21,14 +20,17 @@ TAILSCALE_REPO_LINE := deb [signed-by=$(TAILSCALE_KEYRING)] https://pkgs.tailsca
 TS_BIN ?= /usr/bin/tailscale
 HS_BIN ?= /usr/local/bin/headscale
 
-# Define a function to get the headscale user ID based on username
+# Headscale user lookup:
+# Each device must authenticate using a Headscale preauth key.
+# LAN user = stable identity; WAN user = ephemeral identity.
 define headscale_user_id
 $(shell [ -x "$(HS_BIN)" ] && command -v jq >/dev/null 2>&1 && \
 	$(run_as_root) "$(HS_BIN)" users list --output json \
-	| jq -r '.[] | select(.name=="$(1)") | .id' || true)
+	| jq -r '.[]? // empty | select(.name=="$(1)") | .id')
 endef
+#	| jq -r '.[] | select(.name=="$(1)") | .id' || true)
 
-# Headscale users (namespaces already enforced upstream)
+
 HS_USER_LAN := $(call headscale_user_id,lan)
 HS_USER_WAN := $(call headscale_user_id,wan)
 
@@ -41,6 +43,7 @@ SYSTEMD_SRC_DIR := $(REPO_ROOT)/config/systemd
 
 # --------------------------------------------------------------------
 # Verify dependencies (fail fast)
+# tailscaled must exist, headscale must exist, jq must exist.
 # --------------------------------------------------------------------
 tailscaled-check-deps:
 	@for c in jq xargs $(TS_BIN) $(HS_BIN); do \
@@ -52,8 +55,13 @@ tailscaled-check-deps:
 # --------------------------------------------------------------------
 # LAN client (trusted: LAN + exit-node)
 # --------------------------------------------------------------------
-# Do not use --accept-dns=true as it hijacks DNS entries in /etc/resolv.conf
-# CONTRACT: This target is a no-op unless USE_TAILSCALED=1
+# NAS is the authoritative exit-node and LAN router for the tailnet.
+# - Advertises LAN routes (IPv4 + IPv6)
+# - Advertises exit-node (IPv4 + IPv6)
+# - Accepts routes from Headscale (safe because NAS is the only advertiser)
+# - Rejects DNS hijack (homelab DNS must remain authoritative)
+# - Never uses another exit-node (--exit-node=false)
+# --------------------------------------------------------------------
 tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
 		echo "ℹ️ tailscaled-lan: USE_TAILSCALED=$(USE_TAILSCALED); skipping LAN enrollment"; \
@@ -69,9 +77,11 @@ tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 		--login-server=https://vpn.bardi.ch \
 		--authkey="$$AUTH_KEY" \
 		--advertise-exit-node \
-		--advertise-routes=10.89.12.0/24 \
+		--advertise-exit-node-ipv6 \
+		--advertise-routes=10.89.12.0/24,fd89:7a3b:42c0::/64 \
 		--accept-dns=false \
-		--accept-routes=true
+		--accept-routes=true \
+		--exit-node=false
 	@echo "📊 LAN exit-node + subnet route advertised"
 	@$(run_as_root) $(TS_BIN) status --json | jq '.Self.CapMap'
 	@echo "✅ LAN client configured"
@@ -79,7 +89,13 @@ tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 # --------------------------------------------------------------------
 # WAN client (internet-only)
 # --------------------------------------------------------------------
-# CONTRACT: This target is a no-op unless USE_TAILSCALED=1
+# WAN role is for roaming devices:
+# - Ephemeral key (non-reusable, safe for mobile/laptop)
+# - No LAN advertisement
+# - No route acceptance
+# - No exit-node advertisement
+# - No DNS hijack
+# --------------------------------------------------------------------
 tailscaled-wan: tailscaled-check-deps
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
 		echo "ℹ️ tailscaled-wan: USE_TAILSCALED=$(USE_TAILSCALED); skipping WAN enrollment"; \
@@ -95,18 +111,21 @@ tailscaled-wan: tailscaled-check-deps
 	$(run_as_root) $(TS_BIN) up --reset \
 		--login-server=https://vpn.bardi.ch \
 		--authkey="$$AUTH_KEY" \
-		--accept-dns=false
+		--accept-dns=false \
+		--exit-node=false \
+		--accept-routes=false
 	@echo "✅ WAN client configured (internet-only)"
 
 # --------------------------------------------------------------------
 # Install and enable services at boot
+# tailscaled-lan.service ensures NAS stays enrolled + advertises routes.
 # --------------------------------------------------------------------
 enable-tailscaled:
 	@echo "🔧 Installing systemd role units"
-	@$(run_as_root) install -o root -g root -m 644 \
+	@$(run_as_root) install -o $(ROOT_UID) -g $(ROOT_GID) -m 644 \
 		$(SYSTEMD_SRC_DIR)/tailscaled-lan.service \
 		$(SYSTEMD_DIR)/tailscaled-lan.service
-	@$(run_as_root) systemctl daemon-reload
+	@$(systemctl_daemon_reload)
 	@$(run_as_root) systemctl enable tailscaled tailscaled-lan.service
 	@echo "🚀 Enabled at boot: tailscaled + role service"
 
@@ -141,7 +160,6 @@ tailscaled-status: install-pkg-vnstat
 	@echo "    CLI:"; $(TS_BIN) version || true
 	@echo "    Daemon:"; $(run_as_root) tailscaled --version || true
 
-
 tailscaled-logs:
 	@echo "📜 Tailing logs (Ctrl-C to exit)"
 	@$(run_as_root) journalctl -u tailscaled -u tailscaled-lan.service -f
@@ -151,39 +169,44 @@ tailscale-check:
 	@echo "CLI:"; $(TS_BIN) version || true
 	@echo "Daemon:"; $(run_as_root) tailscaled --version || true
 
-# optional tailscaled preflight
-# Set USE_TAILSCALED=1 to enable tailscaled installation/start/wait behavior.
-USE_TAILSCALED ?= 0
 
+# tailscaled is required for:
+# - NAS exit-node advertisement (IPv4 + IPv6)
+# - NAS LAN route advertisement (IPv4 + IPv6)
+# - Headscale enrollment
+# - fallback remote access
+# - deterministic routing
+USE_TAILSCALED ?= 1
+
+# --------------------------------------------------------------------
+# tailscaled preflight
+# Ensures:
+# - tailscaled installed
+# - tailscaled running
+# - tailscaled listening on control port :41641
+# Prevents partial enrollment or route advertisement during degraded state.
+# --------------------------------------------------------------------
 .PHONY: net-tunnel-preflight
-
-ifeq ($(USE_TAILSCALED),1)
-
 net-tunnel-preflight:
-	@set -euo pipefail; \
+	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
+		echo "ℹ️ net-tunnel-preflight: tailscaled disabled (USE_TAILSCALED=$(USE_TAILSCALED)); skipping tailscaled checks"; \
+		exit 0; \
+	fi; \
+	set -euo pipefail; \
 	if ! command -v tailscaled >/dev/null 2>&1; then \
-	  echo "ℹ️ tailscaled not found — attempting to install 'tailscale' package"; \
-	  $(run_as_root) sh -c 'test -x /usr/local/sbin/apt-proxy-auto.sh && /usr/local/sbin/apt-proxy-auto.sh || true'; \
-	  $(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get update -qq; \
-	  $(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tailscale || { echo "❌ apt install tailscale failed"; exit 1; }; \
+		echo "❌ tailscaled not installed — run 'make prereqs'"; \
+		exit 1; \
 	fi; \
 	if ! systemctl is-active --quiet tailscaled; then \
-	  echo "ℹ️ Starting tailscaled service"; \
-	  $(run_as_root) systemctl start tailscaled || true; \
+		echo "ℹ️ Starting tailscaled service"; \
+		$(run_as_root) systemctl start tailscaled || true; \
 	fi; \
 	timeout=30; \
 	while ! ss -ltnp 2>/dev/null | grep -q ':41641'; do \
-	  timeout=$$((timeout-1)); \
-	  if [ $$timeout -le 0 ]; then \
-		echo "❌ tailscaled not listening on control port :41641"; exit 1; \
-	  fi; \
-	  sleep 1; \
+		timeout=$$((timeout-1)); \
+		if [ $$timeout -le 0 ]; then \
+			echo "❌ tailscaled not listening on control port :41641"; exit 1; \
+		fi; \
+		sleep 1; \
 	done; \
 	echo "✅ net-tunnel preflight OK (tailscaled enabled)"
-
-else
-
-net-tunnel-preflight:
-	@echo "ℹ️ net-tunnel-preflight: tailscaled disabled (USE_TAILSCALED=$(USE_TAILSCALED)); skipping tailscaled checks"
-
-endif
