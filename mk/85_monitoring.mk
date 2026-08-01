@@ -64,7 +64,7 @@ prometheus-install: | ensure-host-default-route
 # --------------------------------------------------------------------
 # Systemd Unit Deployment via Shadow Invariant Check
 # --------------------------------------------------------------------
-$(PROMETHEUS_UNIT_SHADOW): $(PROMETHEUS_UNIT_SRC) | prometheus-install
+$(PROMETHEUS_UNIT_SHADOW): $(PROMETHEUS_UNIT_SRC) $(PROMETHEUS_UNIT_DST) | prometheus-install
 	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
 	NEW_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
@@ -100,7 +100,7 @@ $(PROMETHEUS_CONFIG_SHADOW): $(PROMETHEUS_CONFIG_SRC) | prometheus-install
 # --------------------------------------------------------------------
 # Enable and State Management
 # --------------------------------------------------------------------
-prometheus-enable:
+prometheus-enable: $(PROMETHEUS_UNIT_DST)
 	@if ! $(run_as_root) systemctl is-enabled --quiet $(PROMETHEUS_SERVICE) 2>/dev/null; then \
 		echo "⚙️ Enabling Prometheus service"; \
 		$(run_as_root) systemctl enable $(PROMETHEUS_SERVICE); \
