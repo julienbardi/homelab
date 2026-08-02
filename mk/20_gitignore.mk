@@ -42,3 +42,13 @@ repo-preflight: $(RUNTIME_SCRIPTS)
 	fi; \
 	echo "✅ repo-preflight OK"
 
+
+.PHONY: gitcheck update
+gitcheck:
+	$(call git_clone_or_fetch,$(REPO_ROOT),$(HOMELAB_REPO),main)
+	@echo " homelab repo at commit $$(git -C $(REPO_ROOT) rev-parse --short HEAD)"
+
+update: gitcheck
+	@echo "⬆️ Updating homelab repo"
+	@git -C $(REPO_ROOT) pull --rebase || true
+	@echo "🔧 Repo now at commit $$(git -C $(REPO_ROOT) rev-parse --short HEAD)"

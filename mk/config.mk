@@ -61,7 +61,7 @@ SSH_SOCK_FILE_ROUTER := /tmp/ssh-$(ACTUAL_USER)-router-$(ROUTER_SSH_PORT)
 export ROUTER_USER := $(SSH_USER_ROUTER)
 
 # Paths
-export HOMELAB_DIR := /root/src/homelab
+export HOMELAB_DIR := $(REPO_ROOT)
 export WG_ROOT     := $(HOMELAB_DIR)/wireguard
 
 # System

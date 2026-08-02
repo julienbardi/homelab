@@ -72,6 +72,9 @@ $(if $(LAN_SYNOLOGY),$(ROUTER_NAT_SYNOLOGY))
 endef
 
 # Out-of-repo absolute path for topology isolation
+WG_INPUT_DIR := /var/lib/homelab/wireguard/input
+WG_INTERFACES_TSV := $(WG_INPUT_DIR)/wg-interfaces.tsv
+
 WG_INTERFACES_TSV := /root/src/homelab/wireguard/input/wg-interfaces.tsv
 
 # NOTE: $(WG_INTERFACES_TSV) is NOT a Make prerequisite.

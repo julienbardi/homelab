@@ -1,48 +1,42 @@
 # ============================================================
-# mk/10_groups.mk — Hardened group membership enforcement
+# mk/10_groups.mk — Hardened group + user enforcement
 # ============================================================
 
 .PHONY: enforce-groups
 enforce-groups:
-	@# Ensure all admin + service groups exist
-	@for g in $(ADMIN_GROUPS) $(SERVICE_GROUPS); do \
-		getent group "$$g" >/dev/null 2>&1 || { \
-			echo " Creating group $$g"; \
+	@# Ensure admin groups exist (non-system)
+	@for g in $(ADMIN_GROUPS); do \
+		getent group "$$g" >/dev/null || { \
+			echo " Creating admin group $$g"; \
+			$(run_as_root) groupadd "$$g"; \
+		}; \
+	done
+
+	@# Ensure service groups exist (system)
+	@for g in $(SERVICE_GROUPS); do \
+		getent group "$$g" >/dev/null || { \
+			echo " Creating service group $$g"; \
 			$(run_as_root) groupadd --system "$$g"; \
 		}; \
 	done
 
-	@# Ensure all authorized admins belong to all admin groups
+	@# Ensure authorized admins exist and belong to admin groups
 	@for u in $(AUTHORIZED_ADMINS); do \
 		id -u "$$u" >/dev/null 2>&1 || { echo "⚠️ Admin $$u not found"; continue; }; \
+		groups=$$(id -nG "$$u"); \
 		for g in $(ADMIN_GROUPS); do \
-			id -nG "$$u" | grep -qw "$$g" || { \
+			echo "$$groups" | grep -qw "$$g" || { \
 				echo " Adding $$u to $$g"; \
 				$(run_as_root) usermod -aG "$$g" "$$u"; \
-				echo "ℹ️ Group membership for $$u updated — start a new login session to apply."; \
+				echo "ℹ️ $$u must re-login to apply group membership."; \
 			}; \
 		done; \
 	done
 
-	@# Ensure authorized admins belong to ssl-cert for read-only TLS access
-	@for u in $(AUTHORIZED_ADMINS); do \
-		id -u "$$u" >/dev/null 2>&1 || { echo "⚠️ Admin $$u not found"; continue; }; \
-		if echo "$(SERVICE_GROUPS)" | grep -qw "ssl-cert"; then \
-			id -nG "$$u" | grep -qw "ssl-cert" || { \
-				echo " Adding $$u to ssl-cert"; \
-				$(run_as_root) usermod -aG ssl-cert "$$u"; \
-				echo "ℹ️ Group membership for $$u updated — start a new login session to apply."; \
-			}; \
-		fi; \
-	done
-
-	@# Ensure all service users + service groups exist
+	@# Ensure service users exist
 	@for pair in $(SERVICE_MAP); do \
 		u=$${pair%%:*}; g=$${pair#*:}; \
-		getent group "$$g" >/dev/null 2>&1 || { \
-			echo " Creating service group $$g"; \
-			$(run_as_root) groupadd --system "$$g"; \
-		}; \
+		getent group "$$g" >/dev/null || $(run_as_root) groupadd --system "$$g"; \
 		id -u "$$u" >/dev/null 2>&1 || { \
 			echo " Creating service user $$u ($$g)"; \
 			$(run_as_root) useradd --system --gid "$$g" --shell /usr/sbin/nologin --home /nonexistent "$$u"; \

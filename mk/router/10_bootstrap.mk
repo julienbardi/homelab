@@ -200,7 +200,7 @@ ROUTER_IFC_MODE ?= vector
 router-install-scripts: install-ssh-config \
 	ensure-router-known-hosts router-scripts-invariants \
 	$(INSTALL_FILE_IF_CHANGED) $(INSTALL_FILES_IF_CHANGED) \
-	| ensure-router-ula
+	| repo-preflight ensure-router-ula
 	@echo "🔍 Router script converge ($(ROUTER_IFC_MODE), deterministic)";
 	@set -e; \
 	case "$(ROUTER_IFC_MODE)" in \

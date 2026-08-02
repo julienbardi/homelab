@@ -102,3 +102,15 @@ get-router-root-identity: router-require-run-as-root
 
 	@echo "🟢 Router identity OK — $$R_ID"
 
+# Path to the interactive known_hosts installer
+KNOWN_HOSTS_SCRIPT := $(INSTALL_PATH)/verify_and_install_known_hosts.sh
+
+# Allow skipping in CI or when explicitly requested
+SKIP_KNOWN_HOSTS ?= 0
+
+.PHONY: ensure-known-hosts
+ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
+	@echo "🔐 Ensuring known_hosts entries..."
+	@if [ "$(SKIP_KNOWN_HOSTS)" != "1" ]; then \
+		timeout 1.5 bash "$(KNOWN_HOSTS_SCRIPT)" || true; \
+	fi

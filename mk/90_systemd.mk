@@ -98,3 +98,30 @@ verify-systemd:
 
 uninstall-systemd:
 	$(run_as_root) systemctl daemon-reload
+
+.PHONY: clean
+clean:
+	@$(run_as_root) sh -c '\
+		echo " Removing tailscaled role units"; \
+		systemctl disable tailscaled-lan.service >/dev/null 2>&1 || true; \
+		rm -f /etc/systemd/system/tailscaled-lan.service || true; \
+		systemctl daemon-reload >/dev/null 2>&1; \
+		echo "✅ Cleaned tailscaled units and disabled services"; \
+	'
+
+.PHONY: reload
+reload:
+	@$(run_as_root) sh -c '\
+		echo "🔄 Reloading systemd units"; \
+		systemctl daemon-reload; \
+		echo "✅ systemd reloaded"; \
+	'
+
+.PHONY: restart
+restart:
+	@$(run_as_root) sh -c '\
+		echo "🔄 Restarting tailscaled services"; \
+		systemctl restart tailscaled >/dev/null 2>&1 || true; \
+		systemctl restart tailscaled-lan.service >/dev/null 2>&1 || true; \
+		echo "✅ tailscaled services restarted"; \
+	'
