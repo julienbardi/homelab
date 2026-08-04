@@ -37,7 +37,6 @@
 TOOLS_DIR := $(HOME)/.local/tools
 
 # Local tools use STAMP_DIR_USER (user-level stamps)
-YQ_STAMP := $(STAMP_DIR_USER)/yq.installed
 
 SPELLCHECK_FILES := *.md
 SPELLCHECK_MAKEFILES := Makefile mk/*.mk
@@ -46,8 +45,22 @@ SPELLCHECK_MAKEFILES := Makefile mk/*.mk
 # Deterministic local tools
 # ------------------------------------------------------------
 
-YQ := $(TOOLS_DIR)/yq/yq
+YQ := /usr/local/bin/yq
 YQ_DIR := $(dir $(YQ))
+
+ifeq ($(wildcard $(YQ)),)
+$(error "❌ yq missing — run make install-yq to install pinned system-wide version")
+endif
+
+.PHONY: install-yq
+install-yq: | $(INSTALL_PATH)/install_github_asset.sh
+	@echo "🔧 Installing system-wide yq $(YQ_VERSION) into /usr/local/bin"
+	@sudo $(INSTALL_PATH)/install_github_asset.sh \
+		"$(YQ_URL)" \
+		"$(YQ)" \
+		"$(YQ_SHA256)" \
+		"/usr/local/bin/yq.installed" \
+		"yq $(YQ_VERSION)"
 
 # ------------------------------------------------------------
 # Optional dev tool (best-effort)
@@ -60,48 +73,7 @@ CHECKMAKE := $(TOOLS_DIR)/checkmake
 # ------------------------------------------------------------
 
 .PHONY: tools
-tools: require-awk check-yq-latest | $(YQ_STAMP)
-
-$(YQ_DIR):
-	@mkdir -p "$@"
-
-YQ_LATEST_CACHE := $(YQ_DIR).yq_latest_tag
-
-.PHONY: check-yq-latest
-check-yq-latest:
-	@echo "🔍 checking latest yq release for $(YQ_GITHUB_REPO)"
-	@$(WITH_SECRETS) \
-		if [ "$${CI:-}" = "true" ]; then \
-			echo "ℹ️ CI detected; skipping check-yq-latest"; \
-			exit 0; \
-		fi; \
-		TOKEN_VAL=""; \
-		[ -n "$${GITHUB_TOKEN:-}" ] && TOKEN_VAL="Authorization: token $${GITHUB_TOKEN}"; \
-		if command -v jq >/dev/null 2>&1; then \
-			LATEST_TAG=$$(curl -fsS -H "$$TOKEN_VAL" https://api.github.com/repos/$(YQ_GITHUB_REPO)/releases/latest | jq -r .tag_name 2>/dev/null || true); \
-		else \
-			LATEST_TAG=$$(curl -fsS -H "$$TOKEN_VAL" https://api.github.com/repos/$(YQ_GITHUB_REPO)/releases/latest | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' 2>/dev/null || true); \
-		fi; \
-		if [ -z "$$LATEST_TAG" ]; then \
-			echo "⚠️ Could not determine latest yq release (GitHub API failed or rate-limited)"; \
-			rm -f "$(YQ_LATEST_CACHE)"; \
-		else \
-			printf '%s\n' "$$LATEST_TAG" > "$(YQ_LATEST_CACHE)"; \
-			echo "ℹ️ latest yq release: $$LATEST_TAG (cached at $(YQ_LATEST_CACHE))"; \
-		fi
-
-.PHONY: install-yq
-install-yq: | $(YQ_DIR) $(INSTALL_PATH)/install_github_asset.sh
-	@$(INSTALL_PATH)/install_github_asset.sh \
-		"$(YQ_URL)" \
-		"$(YQ)" \
-		"$(YQ_SHA256)" \
-		"$(YQ_STAMP)" \
-		"yq $(YQ_VERSION)"
-
-$(YQ_STAMP): install-yq
-	@test -f "$@" || { echo "ERROR: expected stamp $@ missing"; exit 1; }
-	@echo "📋 yq installed — stamp updated: $@"
+tools: require-awk
 
 # ------------------------------------------------------------
 # System tool requirements
