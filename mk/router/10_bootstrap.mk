@@ -151,7 +151,7 @@ router-bootstrap: \
 	router-disable-asus-ca
 	@echo "🛠️ Router bootstrap complete — all base services provisioned"
 
-.PHONY: ensure-runtime-dir:
+.PHONY: ensure-runtime-dir
 	@mkdir -p "$(RUNTIME_DIR)"
 
 .PHONY: ensure-router-ula
