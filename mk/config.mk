@@ -290,9 +290,10 @@ KNOWN_HOSTS := \
 	10.89.12.4:22
 
 # ----------------------------------------------------------------------------
-# 1. Operator Identity (Dynamic build-time discovery)
+# 1. some constants
 # ----------------------------------------------------------------------------
-
+HEADSCALE_USER := headscale
+HEADSCALE_GROUP := headscale
 
 # ----------------------------------------------------------------------------
 # 2. Global Security Policy (Admins, Groups, Service Accounts)
@@ -414,7 +415,7 @@ YQ_STAMP := $(STAMP_DIR_USER)/yq.installed
 
 # yq version policy:
 #   - Set to a pinned version (e.g. v4.53.2)
-#   - Or set to latest to always track upstream
+#   - Or set to latest to always track upstream, e.g. env YQ_VERSION=latest make install-yq
 YQ_VERSION ?= v4.53.2
 
 YQ_URL := https://github.com/$(YQ_GITHUB_REPO)/releases/download/$(YQ_VERSION)/$(YQ_ASSET)
@@ -432,19 +433,21 @@ NAS_LAN_IP6 = $(LAN6_NAS)
 ROUTER_HOST = $(SSH_USER_ROUTER)@$(ROUTER_ADDR)
 
 # ----------------------------------------------------------------------------
-# Ephemeral DDNS temp (RAM-only, per-user, per-invocation)
+# Runtime directory and files (RAM-only, per-user, per-invocation)
 # ----------------------------------------------------------------------------
-TMP_DDNS_CONF := /run/user/$(USER_UID)/homelab/.ddns_confidential_$$PPID
+export RUNTIME_DIR := /run/user/$(USER_UID)/homelab/
 
-TMP_DNSMASQ_ADD := /run/user/$(USER_UID)/homelab/.dnsmasq_conf_add_$$PPID
-TMP_DNSMASQ_HOSTS := /run/user/$(USER_UID)/homelab/.dnsmasq_hosts_add_$$PPID
+TMP_DDNS_CONF := $(RUNTIME_DIR)/.ddns_confidential_$$PPID
 
-TMP_ROUTER_WG_FIREWALL := /run/user/$(USER_UID)/homelab/.wg_firewall_$$PPID
+TMP_DNSMASQ_ADD := $(RUNTIME_DIR)/.dnsmasq_conf_add_$$PPID
+TMP_DNSMASQ_HOSTS := $(RUNTIME_DIR)/.dnsmasq_hosts_add_$$PPID
 
-TMP_ROUTER_ULA := /run/user/$(USER_UID)/homelab/.router_ula_$$PPID
+TMP_ROUTER_WG_FIREWALL := $(RUNTIME_DIR)/.wg_firewall_$$PPID
+
+TMP_ROUTER_ULA := $(RUNTIME_DIR)/.router_ula_$$PPID
 
 # $(file …) bypasses the shell, so $PPID never expands and the NAT script path must not depend on it
-TMP_ROUTER_NAT := /run/user/$(USER_UID)/homelab/.router_nat
+TMP_ROUTER_NAT := $(RUNTIME_DIR)/.router_nat
 
 export WG_PLAN_SUBNETS := $(INSTALL_PATH)/wg-plan-subnets.sh
 
@@ -491,9 +494,6 @@ export ACME_ISSUE_SCRIPT
 
 ACME_RENEW_SCRIPT := /usr/local/bin/acme-renew.sh
 export ACME_RENEW_SCRIPT
-
-HEADSCALE_USER := headscale
-HEADSCALE_GROUP := headscale
 
 # Out-of-repo absolute path for topology isolation of Wireguard input
 WG_INPUT_DIR := /var/lib/homelab/wireguard/input

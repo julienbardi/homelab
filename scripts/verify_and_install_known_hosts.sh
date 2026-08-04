@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-RUNTIME_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache}"
+RUNTIME_DIR="${RUNTIME_DIR:?RUNTIME_DIR must be exported}"
 KNOWN_HOSTS="$HOME/.ssh/known_hosts"
 HOSTSCAN_TIMEOUT=1
 LC_ALL=C; export LC_ALL
@@ -68,7 +68,7 @@ done <<< "$HOSTS"
 [ "$all_present" -eq 1 ] && exit 0
 
 # --- 2. Slow-path: parallel scan ---
-TMPDIR_SCAN="$(mktemp -p "$RUNTIME_DIR" -d homelab.XXXXXX)"
+TMPDIR_SCAN="$(mktemp -p "$RUNTIME_DIR" -d tmp.XXXXXX)"
 trap 'rm -rf "$TMPDIR_SCAN"' EXIT
 
 declare -a OUTFILES=()
@@ -102,16 +102,16 @@ done <<< "$HOSTS"
 wait
 
 # --- 3. Atomic update via IFCv3 ---
-tmp="$(mktemp -p "$RUNTIME_DIR" homelab.XXXXXX)"
-chmod 600 "$tmp"
-cp "$KNOWN_HOSTS" "$tmp"
+tmp="$(umask 077 && mktemp -p "$RUNTIME_DIR" tmp.XXXXXX)"
 
-for f in "${OUTFILES[@]}"; do
-    [ ! -s "$f" ] && continue
-    cat "$f" >> "$tmp"
-done
+{
+	cat "$KNOWN_HOSTS"
+	for f in "${OUTFILES[@]}"; do
+		[ -s "$f" ] && cat "$f"
+	done
+} | sort -u > "$tmp.sorted"
 
-sort -u "$tmp" > "$tmp.sorted"
+chmod 600 "$tmp.sorted"
 
 if [ "$DRY_RUN" -eq 1 ]; then
     echo "DRY-RUN: would update known_hosts"

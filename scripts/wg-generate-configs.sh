@@ -2,7 +2,7 @@
 # wg-generate-configs.sh
 set -euo pipefail
 
-TMPDIR="${TMPDIR:-${XDG_RUNTIME_DIR:-$HOME/.cache/homelab}}"
+TMPDIR="${RUNTIME_DIR:?RUNTIME_DIR must be exported}"
 mkdir -p "$TMPDIR"
 
 # --- 1. Environment Requirements ---

@@ -151,8 +151,11 @@ router-bootstrap: \
 	router-disable-asus-ca
 	@echo "🛠️ Router bootstrap complete — all base services provisioned"
 
+.PHONY: ensure-runtime-dir:
+	@mkdir -p "$(RUNTIME_DIR)"
+
 .PHONY: ensure-router-ula
-ensure-router-ula: secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)
+ensure-router-ula: ensure-runtime-dir secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)
 	@echo "🔧 Ensuring router ULA ($(ROUTER_ULA_VALUE))"
 
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_ULA)", \
@@ -303,8 +306,9 @@ router-scripts-invariants: | router-ssh-check
 		echo "🟢 /jffs/scripts invariants enforced"; \
 	'
 
-
-
+# Ensure runtime directory exists
+$(RUNTIME_DIR)/homelab:
+	@mkdir -p "$@"
 
 print-ROUTER_SCRIPT_FILES:
 	@printf '%q\n' $(ROUTER_SCRIPT_FILES)
