@@ -2,6 +2,12 @@
 # mk/wireguard/20_inputs.mk — WireGuard TSV Inputs & Dynamic Lists
 # --------------------------------------------------------------------
 
+# Ensure WG input directory permissions before generating any WG files
+$(WG_INTERFACE_LIST_STAMP): enforce-wireguard-input
+$(WG_SUBNETS_MK):
+$(WG_INTERFACES_TSV): enforce-wireguard-input
+
+
 # Generated subnet map (router + NAS WG subnets)
 $(WG_SUBNETS_MK): \
 		$(WG_ROOT)/input/wg-interfaces.tsv \
@@ -23,6 +29,8 @@ $(WG_INTERFACE_LIST_STAMP): $(WG_ROOT)/input/wg-interfaces.tsv | $(STAMP_DIR_ROO
 				| awk '{print "WG_INTERFACES_NAS := " $$0}' \
 				> "$(WG_INTERFACE_LIST_STAMP)"
 
--include $(WG_INTERFACE_LIST_STAMP)
-
-$(WG_INTERFACES_TSV): enforce-wg-permissions
+ifeq ($(wildcard $(WG_INTERFACES_MK)),)
+# file missing → do nothing
+else
+include $(WG_INTERFACES_MK)
+endif

@@ -23,4 +23,8 @@ wg-generate: $(WG_INTERFACE_LIST_STAMP) \
 wg-clean-state:
 		@$(WG_SUDO) rm -f "$(WG_SUBNETS_MK)" "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"
 
-$(WG_INTERFACES_MK): enforce-wg-permissions $(WG_INTERFACES_TSV)
+$(WG_INTERFACES_MK): $(WG_INTERFACES_TSV)
+	@echo "🔧 Writing WG interfaces mk file: $(WG_INTERFACES_MK)"
+	@interfaces="$$(cut -f1 $(WG_INTERFACES_TSV) | tail -n +2)"; \
+	echo "WG_INTERFACES := $$interfaces" | $(run_as_root) tee $(WG_INTERFACES_MK) >/dev/null; \
+	$(run_as_root) chmod 0644 $(WG_INTERFACES_MK)
