@@ -19,19 +19,19 @@ ensure-stamps:
 	# --- ROOT STAMP --- \
 	if [ ! -d "$(STAMP_DIR_ROOT)" ]; then \
 		echo "📁 Creating STAMP_DIR_ROOT: $(STAMP_DIR_ROOT)"; \
-		install -d -m 0755 -o $(ROOT_UID) -g $(ROOT_GID) "$(STAMP_DIR_ROOT)"; \
+		$(run_as_root) install -d -m 0755 -o $(ROOT_UID) -g $(ROOT_GID) "$(STAMP_DIR_ROOT)"; \
 	else \
-		chown "$(ROOT_UID):$(ROOT_GID)" "$(STAMP_DIR_ROOT)"; \
-		chmod 0755 "$(STAMP_DIR_ROOT)"; \
+		$(run_as_root) chown "$(ROOT_UID):$(ROOT_GID)" "$(STAMP_DIR_ROOT)"; \
+		$(run_as_root) chmod 0755 "$(STAMP_DIR_ROOT)"; \
 	fi; \
 	\
 	# --- USER STAMP --- \
 	if [ ! -d "$(STAMP_DIR_USER)" ]; then \
 		echo "📁 Creating STAMP_DIR_USER: $(STAMP_DIR_USER)"; \
-		install -d -m 0700 -o "$$(id -u)" -g "$$(id -g)" "$(STAMP_DIR_USER)"; \
+		$(run_as_root) install -d -m 0700 -o "$$(id -u)" -g "$$(id -g)" "$(STAMP_DIR_USER)"; \
 	else \
-		chown ""$$(id -u)":"$$(id -g)"" "$(STAMP_DIR_USER)"; \
-		chmod 700 "$(STAMP_DIR_USER)"; \
+		$(run_as_root) chown ""$$(id -u)":"$$(id -g)"" "$(STAMP_DIR_USER)"; \
+		$(run_as_root) chmod 700 "$(STAMP_DIR_USER)"; \
 	fi; \
 	}
 
@@ -41,14 +41,14 @@ ensure-stamps-v1: ensure-stamp-user ensure-stamp-root
 .PHONY: ensure-stamp-user
 ensure-stamp-user:
 	@mkdir -p "$(STAMP_DIR_USER)"; \
-	chown "$$(id -u):$$(id -g)" "$(STAMP_DIR_USER)"; \
-	chmod 0700 "$(STAMP_DIR_USER)"
+	$(run_as_root) chown "$$(id -u):$$(id -g)" "$(STAMP_DIR_USER)"; \
+	$(run_as_root) chmod 0700 "$(STAMP_DIR_USER)"
 
 .PHONY: ensure-stamp-root
 ensure-stamp-root:
-	@mkdir -p "$(STAMP_DIR_ROOT)"; \
-	chown "$(ROOT_UID):$(ROOT_GID)" "$(STAMP_DIR_ROOT)"; \
-	chmod 0755 "$(STAMP_DIR_ROOT)"
+	@$(run_as_root) mkdir -p "$(STAMP_DIR_ROOT)"; \
+	$(run_as_root) chown "$(ROOT_UID):$(ROOT_GID)" "$(STAMP_DIR_ROOT)"; \
+	$(run_as_root) chmod 0755 "$(STAMP_DIR_ROOT)"
 
 # --------------------------------------------------------------------
 # Bootstrap: Privilege Wrapper + IFC Engines

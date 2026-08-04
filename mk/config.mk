@@ -466,7 +466,8 @@ export SECRETS_FILE
 
 SOPS_AGE_KEY_DIR := $(dir $(SOPS_AGE_KEY_FILE))
 
-SOPS_BIN := $(shell command -v sops 2>/dev/null)
+SOPS_BIN := $(INSTALL_PATH)/sops
+export SOPS_BIN
 
 SYSCTL_BIN := $(shell command -v sysctl)
 

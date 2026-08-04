@@ -3,7 +3,7 @@
 # --------------------------------------------------------------------
 
 wg-generate: $(WG_INTERFACE_LIST_STAMP) \
-		$(WG_SUBNETS_MK) router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh | $(run_as_root)
+		wg-subnets router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh | $(run_as_root)
 		@echo "🔍 Staging configuration hash states before generation execution"; \
 		ROUTER_OLD_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_OLD_HASH=""; \
 		DNS_TOPDOMAIN_NAME="$$( $(call WITH_SECRETS, sh -c 'echo "$$ddns_topdomain"') )" \
@@ -21,7 +21,7 @@ wg-generate: $(WG_INTERFACE_LIST_STAMP) \
 		fi
 
 wg-clean-state:
-		@$(WG_SUDO) rm -f "$(WG_SUBNETS_MK)" "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"
+	@$(WG_SUDO) rm -f "$(WG_SUBNETS_MK)" "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"
 
 $(WG_INTERFACES_MK): $(WG_INTERFACES_TSV)
 	@echo "🔧 Writing WG interfaces mk file: $(WG_INTERFACES_MK)"

@@ -406,6 +406,8 @@ install-pkg-sops: install-pkg-go ensure-stamps
 	@$(call write_stamp,$(STAMP_SOPS),$(SOPS_VERSION),$(SOPS_BIN))
 	@echo "✅ sops ready"
 
+$(STAMP_SOPS): install-pkg-sops
+
 remove-pkg-sops:
 	@$(call remove_binary_with_stamp,$(SOPS_BIN),$(STAMP_SOPS),sops)
 

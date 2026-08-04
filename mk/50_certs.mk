@@ -100,7 +100,7 @@ export SSL_KEY_ECC
 export ACME_HOME
 export DOMAIN
 
-$(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY)
+$(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY) $(STAMP_SOPS)
 	@$(call WITH_SECRETS, $(run_as_root) sh -c '\
 		set -euo pipefail; \
 		$(CERTS_DEPLOY) prepare; \
@@ -121,16 +121,16 @@ $(STAMP_CERTS_CANONICAL): $(STAMP_PREPARE)
 # ============================================================
 # All deploy targets depend on canonical stamp
 # ============================================================
-deploy-caddy:      $(STAMP_CERTS_CANONICAL) router-install-scripts
+deploy-caddy:      $(STAMP_CERTS_CANONICAL) router-install-scripts $(STAMP_SOPS)
 	$(call WITH_SECRETS, $(call deploy_with_status,caddy))
 
-deploy-headscale: headscale-user headscale-dirs $(STAMP_CERTS_CANONICAL)
+deploy-headscale: headscale-user headscale-dirs $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
 	$(call WITH_SECRETS, $(call deploy_with_status,headscale))
 
-deploy-dnsdist:    $(STAMP_CERTS_CANONICAL)
+deploy-dnsdist:    $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
 	$(call WITH_SECRETS, $(call deploy_with_status,dnsdist))
 
-deploy-qnap:       $(STAMP_CERTS_CANONICAL)
+deploy-qnap:       $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
 	$(call WITH_SECRETS, $(call deploy_with_status,qnap))
 
 deploy-dsm:        $(STAMP_CERTS_CANONICAL)

@@ -15,7 +15,7 @@ else
 		echo "ℹ️  ethtool not required for ROLE=$(ROLE)"
 endif
 
-prereqs-public-dns-verify: | ensure-host-default-route
+prereqs-public-dns-verify: $(STAMP_SOPS) | ensure-host-default-route
 	@$(call WITH_SECRETS, sh -c '\
 		echo "🔍 Verifying public DNS CNAME for apt.bardi.ch"; \
 		out=$$(dig +short @$$PUBLIC_DNS apt.bardi.ch CNAME 2>&1); \

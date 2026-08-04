@@ -46,7 +46,7 @@ endef
 # ------------------------------------------------------------
 # SSH prereqs
 # ------------------------------------------------------------
-.PHONY: router-certs-prereqs-ssh
+.PHONY: router-certs-prereqs-ssh $(STAMP_SOPS)
 router-certs-prereqs-ssh:
 	@$(call WITH_SECRETS, \
 		ssh "$(SSH_HOST_ROUTER)" true \
@@ -59,14 +59,14 @@ router-certs-prereqs-ssh:
 # Prepare router-side deploy tooling
 # ------------------------------------------------------------
 .PHONY: router-certs-deploy-script
-router-certs-deploy-script:
+router-certs-deploy-script: $(STAMP_SOPS)
 	@$(call WITH_SECRETS, \
 		$(INSTALL_FILE_IF_CHANGED) "" "" "$(SRC_SCRIPTS)/certs-deploy.sh" \
 			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/scripts/certs-deploy.sh" \
 			$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE) \
 	)
 
-router-certs-prepare: install-all router-certs-deploy-script router-require-run-as-root
+router-certs-prepare: install-all router-certs-deploy-script router-require-run-as-root $(STAMP_SOPS)
 	@$(call WITH_SECRETS, \
 		ROUTER_ADDR="$(ROUTER_ADDR)" \
 		ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
@@ -79,19 +79,19 @@ router-certs-prepare: install-all router-certs-deploy-script router-require-run-
 # Namespaced deploy + validate
 # ------------------------------------------------------------
 .PHONY: router-certs-deploy
-router-certs-deploy: router-bootstrap-primitives install-all router-certs-prereqs-ssh router-certs-prepare
+router-certs-deploy: router-bootstrap-primitives install-all router-certs-prereqs-ssh router-certs-prepare $(STAMP_SOPS)
 	$(call WITH_SECRETS, $(call router_deploy_with_status,router))
 
 .PHONY: router-certs-validate
-router-certs-validate: router-certs-deploy
+router-certs-validate: router-certs-deploy $(STAMP_SOPS)
 	$(call WITH_SECRETS, $(call router_validate_with_status,router))
 
 .PHONY: router-certs-validate-caddy
-router-certs-validate-caddy: install-all router-certs-deploy
+router-certs-validate-caddy: install-all router-certs-deploy $(STAMP_SOPS)
 	$(call WITH_SECRETS, $(call router_validate_with_status,caddy))
 
 .PHONY: router-certs-status
-router-certs-status: router-bootstrap router-certs-prepare
+router-certs-status: router-bootstrap router-certs-prepare $(STAMP_SOPS)
 	@$(call WITH_SECRETS, sh -c '\
 		ROUTER_ADDR="$(ROUTER_ADDR)" \
 		ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \

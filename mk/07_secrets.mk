@@ -77,16 +77,6 @@ define WITH_SECRETS
 	)
 endef
 
-
-define WITH_SECRETS_broken
-	( \
-		SECS="$$( $(SOPS_BIN) -d "$(SECRETS_FILE)" \
-		| $(YQ) -r 'paths(scalars) as $p | "\($p | join("_"))=\(getpath($p))"' )"; \
-		export $$SECS; \
-		$(1) \
-	)
-endef
-
 # ----------------------------------------------------------------------------
 # DHCP static lease aggregation (non-secret, derived from secrets)
 # ----------------------------------------------------------------------------
@@ -239,7 +229,7 @@ secrets-edit:
 		true; \
 	}
 
-secrets-ready:
+secrets-ready: $(STAMP_SOPS)
 	@{ \
 		if [ ! -f "$(SECRETS_FILE)" ]; then \
 			echo "Error: cannot operate on non-existent file \"$(SECRETS_FILE)\""; \
@@ -312,12 +302,6 @@ check-age-key:
 		fi; \
 		echo "🟢 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$pub user=$(USER)"; \
 	}
-
-define WITH_SECRETS_v2
-	( export $$($(SOPS_BIN) -d "$(SECRETS_FILE)" \
-		| awk -F': ' '/: / {gsub(/"/, "", $$2); printf "%s=%q\n", $$1, $$2}'); \
-	$(1) )
-endef
 
 # Ensure per-user runtime secrets workspace exists (RAM-only, managed by systemd)
 .PHONY: secrets-runtime-init
@@ -399,11 +383,11 @@ ddns-runtime: $(YQ_STAMP) secrets-runtime-init
 	}
 
 .PHONY: test-infomaniak-token
-test-infomaniak-token:
+test-infomaniak-token: $(STAMP_SOPS)
 	@$(call WITH_SECRETS, printf "INFOMANIAK_API_TOKEN=%s\n" "$$INFOMANIAK_API_TOKEN")
 
 .PHONY: test-infomaniak-dns-api
-test-infomaniak-dns-api:
+test-infomaniak-dns-api: $(STAMP_SOPS)
 	@$(call WITH_SECRETS, \
 		curl -s -o /dev/null -w "HTTP=%{http_code}\n" \
 			-H "Authorization: Bearer $$INFOMANIAK_API_TOKEN" \
@@ -411,7 +395,7 @@ test-infomaniak-dns-api:
 	)
 
 .PHONY: test-infomaniak-txt-dryrun
-test-infomaniak-txt-dryrun:
+test-infomaniak-txt-dryrun: $(STAMP_SOPS)
 	@$(call WITH_SECRETS, \
 		domain="bardi.ch"; \
 		name="_acme-challenge.dryrun"; \

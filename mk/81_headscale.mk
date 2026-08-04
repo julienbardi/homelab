@@ -208,10 +208,12 @@ headscale-restart: headscale-user headscale-dirs
 # --------------------------------------------------------------------
 # Define a function instead of a target
 define HEADSCALE_VERIFY_FN
-	echo "[verify] 🔍 Running headscale verification"; \
-	$(run_as_root) systemctl status headscale --no-pager; \
-	$(run_as_root) journalctl -u headscale -n 200 --no-pager; \
-	echo "[verify] 🔧 Headscale control plane ready"
+	/bin/sh -c '\
+		echo "[verify] 🔍 Running headscale verification"; \
+		$(run_as_root) systemctl status headscale --no-pager; \
+		$(run_as_root) journalctl -u headscale -n 200 --no-pager; \
+		echo "[verify] 🔧 Headscale control plane ready" \
+	'
 endef
 
 headscale-verify: headscale-user headscale-dirs
@@ -220,7 +222,7 @@ headscale-verify: headscale-user headscale-dirs
 	if ! $(run_as_root) systemctl is-active --quiet headscale 2>/dev/null; then RUN_VERIFY=1; fi; \
 	if [ "$$RUN_VERIFY" -eq 1 ]; then \
 		$(call HEADSCALE_VERIFY_FN) && \
-		rm -f "$(HEADSCALE_CHANGED_STAMP)" && \
+		$(run_as_root) rm -f "$(HEADSCALE_CHANGED_STAMP)" && \
 		echo "[verify] 🎉 Parallel verification complete"; \
 	else \
 		echo "🔧 Headscale deployment state holds zero drift — skipping heavy verification loops"; \
@@ -332,6 +334,7 @@ headscale-user:
 	fi
 
 headscale-dirs: headscale-user
-	@mkdir -p /var/lib/headscale
-	@mkdir -p /var/run/headscale
-	@chown headscale:headscale /var/lib/headscale /var/run/headscale
+	@$(run_as_root) /bin/sh -c '\
+		mkdir -p /var/lib/headscale /var/run/headscale && \
+		chown headscale:headscale /var/lib/headscale /var/run/headscale \
+	'
