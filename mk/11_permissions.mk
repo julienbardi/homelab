@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------
 .PHONY: enforce-homelab-perms
 enforce-homelab-perms: enforce-groups
-	@echo "🔐 Enforcing homelab directory permissions"
+	@echo "🔐 Enforcing homelab directory permissions"; \
 	$(run_as_root) sh -c '\
 		install -d -m 770 -o root -g admins /var/lib/homelab && \
 		chown -R root:admins /var/lib/homelab && \
@@ -16,7 +16,7 @@ enforce-homelab-perms: enforce-groups
 
 .PHONY: enforce-wireguard-input
 enforce-wireguard-input: enforce-groups
-	@echo "🔐 Enforcing WireGuard input directory + file permissions"
+	@echo "🔐 Enforcing WireGuard input directory + file permissions"; \
 	$(run_as_root) sh -c '\
 		install -d -m 770 -o root -g admins "$(WG_INPUT_DIR)" && \
 		chown -R root:admins "$(WG_INPUT_DIR)" && \
