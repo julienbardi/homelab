@@ -199,7 +199,7 @@ export STAMP_DIR_ROOT
 # Canonical marker path
 export ROUTER_PREFIX_MARKER := $(STAMP_DIR_ROOT)/router-prefix.changed
 
-$(ROUTER_PREFIX_MARKER): | $(STAMP_DIR_ROOT)
+$(ROUTER_PREFIX_MARKER): ensure-stamps
 
 # Deterministic PATH for all recipes
 PATH := /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -411,7 +411,7 @@ SSH_OPTS   := -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes
 # yq GitHub repository and asset
 YQ_GITHUB_REPO := mikefarah/yq
 YQ_ASSET       := yq_linux_amd64
-YQ_STAMP := $(STAMP_DIR_USER)/yq.installed
+YQ_STAMP := $(STAMP_DIR_ROOT)/yq.installed
 
 # yq version policy:
 #   - Set to a pinned version (e.g. v4.53.2)

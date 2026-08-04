@@ -30,7 +30,7 @@ STAMP_HOST_ROUTE_TS  := $(STAMP_DIR_ROOT)/host-default-route.last-check
 STAMP_TTL_SECONDS    := 30
 
 .PHONY: ensure-host-default-route
-ensure-host-default-route: | $(STAMP_DIR_ROOT) $(run_as_root)
+ensure-host-default-route: ensure-stamps $(run_as_root)
 	@{ \
 		NOW=$$(date +%s); \
 		LAST=0; \

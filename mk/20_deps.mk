@@ -32,8 +32,6 @@ STAMP_AGE      := $(STAMP_DIR_ROOT)/age.installed
 SOPS_VERSION := v3.13.1
 STAMP_SOPS   := $(STAMP_DIR_ROOT)/sops.installed
 
-YQ_STAMP := $(STAMP_DIR_ROOT)/yq.installed
-
 KOPIA_VERSION := 0.23.1
 KOPIA_URL     := https://github.com/kopia/kopia/releases/download/v$(KOPIA_VERSION)/kopia_$(KOPIA_VERSION)_linux_$(GO_ARCH).deb
 KOPIA_SHA256  := 3998c96b2db3410880ec8f6723f3c127248915896c22e6b882b352693230253a
@@ -56,16 +54,16 @@ INSTALLERS := go pandoc checkmake strace age rclone kopia sops yq
 HYGIENE    := dns-ok tailscale-hygiene-ok watchdog-ok vnstat-ok prereqs-ok
 
 # Stamp directory order-only dependencies (root scope)
-$(STAMP_DNS_OK):        | $(STAMP_DIR_ROOT)
-$(STAMP_TS_OK):         | $(STAMP_DIR_ROOT)
-$(STAMP_WATCHDOG_OK):   | $(STAMP_DIR_ROOT)
-$(STAMP_VNSTAT_OK):     | $(STAMP_DIR_ROOT)
-$(PROBES_STAMP):        | $(STAMP_DIR_ROOT)
-$(STAMP_PREREQS_OK):    | $(STAMP_DIR_ROOT)
-$(STAMP_INSTALLERS_OK): | $(STAMP_DIR_ROOT)
-$(STAMP_DEPS_OK):       | $(STAMP_DIR_ROOT)
-$(STAMP_HOST_ROUTE_OK): | $(STAMP_DIR_ROOT)
-$(STAMP_GO):            | $(STAMP_DIR_ROOT)
+$(STAMP_DNS_OK):        ensure-stamps
+$(STAMP_TS_OK):         ensure-stamps
+$(STAMP_WATCHDOG_OK):   ensure-stamps
+$(STAMP_VNSTAT_OK):     ensure-stamps
+$(PROBES_STAMP):        ensure-stamps
+$(STAMP_PREREQS_OK):    ensure-stamps
+$(STAMP_INSTALLERS_OK): ensure-stamps
+$(STAMP_DEPS_OK):       ensure-stamps
+$(STAMP_HOST_ROUTE_OK): ensure-stamps
+$(STAMP_GO):            ensure-stamps
 
 # ------------------------------------------------------------
 # Generic helpers and macros
@@ -250,12 +248,12 @@ endef
 # Aggregate installers/deps
 # ------------------------------------------------------------
 
-$(STAMP_INSTALLERS_OK): $(addprefix install-pkg-,$(INSTALLERS)) | $(STAMP_DIR_ROOT)
+$(STAMP_INSTALLERS_OK): $(addprefix install-pkg-,$(INSTALLERS)) ensure-stamps
 	@echo "ok" | $(run_as_root) tee "$@" >/dev/null
 
 installers-ok: $(STAMP_INSTALLERS_OK)
 
-$(STAMP_DEPS_OK): $(HYGIENE) installers-ok | $(STAMP_DIR_ROOT)
+$(STAMP_DEPS_OK): $(HYGIENE) installers-ok ensure-stamps
 	@echo "ok" | $(run_as_root) tee "$@" >/dev/null
 	@echo "✅ deps-ok complete"
 
@@ -314,7 +312,7 @@ verify-pkg-tailscale: ensure-host-default-route
 # Go (Modern Binary Distribution)
 # ------------------------------------------------------------
 
-install-pkg-go: | $(STAMP_DIR_ROOT)
+install-pkg-go: ensure-stamps
 	@echo "📦 go $(GO_MODERN_VERSION)"
 	@$(call fastpath_binary_with_stamp,$(STAMP_GO),$(GO_MODERN_BIN),go)
 
@@ -385,7 +383,7 @@ remove-pkg-caddy:
 # Age (Source build via Go)
 # ------------------------------------------------------------
 
-install-pkg-age: | $(STAMP_DIR_ROOT)
+install-pkg-age: ensure-stamps
 	@echo "📦 age $(AGE_VERSION)"
 	@$(call fastpath_binary_with_stamp,$(STAMP_AGE),$(AGE_BIN),age)
 	@echo "🚀 installing age $(AGE_VERSION)"
@@ -400,7 +398,7 @@ remove-pkg-age:
 # SOPS (Secrets Operations - Source build via Go)
 # ------------------------------------------------------------
 
-install-pkg-sops: install-pkg-go | $(STAMP_DIR_ROOT)
+install-pkg-sops: install-pkg-go ensure-stamps
 	@echo "📦 sops $(SOPS_VERSION)"
 	@$(call fastpath_binary_with_stamp,$(STAMP_SOPS),$(SOPS_BIN),sops)
 	@echo "🚀 installing sops $(SOPS_VERSION)"
@@ -415,7 +413,9 @@ remove-pkg-sops:
 # yq
 # ------------------------------------------------------------
 
-install-pkg-yq: $(INSTALL_PATH)/install_github_asset.sh | $(STAMP_DIR_ROOT)
+$(YQ_STAMP): ensure-stamps install-pkg-yq
+
+install-pkg-yq: ensure-stamps $(INSTALL_PATH)/install_github_asset.sh
 	@echo "📦 yq $(YQ_VERSION)"
 	@$(call fastpath_binary_with_stamp,$(YQ_STAMP),$(INSTALL_PATH)/yq,yq)
 	@echo "🚀 installing yq $(YQ_VERSION)"
@@ -440,7 +440,7 @@ remove-pkg-rclone:
 # Kopia
 # ------------------------------------------------------------
 
-install-pkg-kopia: $(INSTALL_PATH)/install_github_asset.sh | $(STAMP_DIR_ROOT)
+install-pkg-kopia: $(INSTALL_PATH)/install_github_asset.sh ensure-stamps
 	@echo "📦 kopia $(KOPIA_VERSION)"
 	@$(call fastpath_binary_with_stamp,$(KOPIA_STAMP),$(INSTALL_PATH)/kopia,kopia)
 	@echo "🚀 installing kopia $(KOPIA_VERSION)"
@@ -494,7 +494,7 @@ remove-pkg-strace:
 # Headscale
 # ------------------------------------------------------------
 
-headscale-build: install-pkg-go ensure-host-default-route | $(STAMP_DIR_ROOT)
+headscale-build: install-pkg-go ensure-host-default-route ensure-stamps
 	@$(call fastpath_binary_with_stamp,$(STAMP_HEADSCALE),$(INSTALL_PATH)/headscale,headscale)
 	@$(call go_install_from_source,headscale,github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION))
 	@$(call write_stamp,$(STAMP_HEADSCALE),$(HEADSCALE_VERSION),$(INSTALL_PATH)/headscale)
@@ -507,7 +507,7 @@ remove-pkg-headscale:
 # Pandoc
 # ------------------------------------------------------------
 
-install-pkg-pandoc: | $(STAMP_DIR_ROOT)
+install-pkg-pandoc: ensure-stamps
 	@echo "📦 pandoc $(PANDOC_VERSION)"
 	@$(call fastpath_binary_with_stamp,$(STAMP_PANDOC),$(INSTALL_PATH)/pandoc,pandoc)
 	@echo "🚀 installing pandoc $(PANDOC_VERSION)"
@@ -534,7 +534,7 @@ remove-pkg-pandoc:
 # deps-probes and hygiene stamps
 # ------------------------------------------------------------
 
-deps-probes: | $(STAMP_DIR_ROOT)
+deps-probes: ensure-stamps
 	@if [ -f "$(PROBES_STAMP)" ]; then \
 		echo "⏩ deps-probes (fast-path OK)"; \
 		exit 0; \
@@ -559,7 +559,7 @@ deps-probes: | $(STAMP_DIR_ROOT)
 	@$(run_as_root) rm -f "$(STAMP_DIR_ROOT)/legacy-go.golang-go" "$(STAMP_DIR_ROOT)/legacy-go.golang-1.19-go"
 	@echo "✅ deps-probes complete (parallel)"
 
-dns-ok: | $(STAMP_DIR_ROOT)
+dns-ok: ensure-stamps
 	@if [ -f "$(STAMP_DNS_OK)" ]; then \
 		echo "⏩ dns-ok (fast-path OK)"; \
 		exit 0; \
@@ -568,7 +568,7 @@ dns-ok: | $(STAMP_DIR_ROOT)
 	@$(call check_bootstrap_dns)
 	@$(run_as_root) touch "$(STAMP_DNS_OK)"
 
-tailscale-hygiene-ok: | $(STAMP_DIR_ROOT)
+tailscale-hygiene-ok: ensure-stamps
 	@if [ -f "$(STAMP_TS_OK)" ]; then \
 		echo "⏩ tailscale-hygiene-ok (fast-path OK)"; \
 		exit 0; \
@@ -577,7 +577,7 @@ tailscale-hygiene-ok: | $(STAMP_DIR_ROOT)
 	@$(call verify_tailscale_repo)
 	@$(run_as_root) touch "$(STAMP_TS_OK)"
 
-watchdog-ok: | $(STAMP_DIR_ROOT)
+watchdog-ok: ensure-stamps
 	@if [ -f "$(STAMP_WATCHDOG_OK)" ]; then \
 		echo "⏩ watchdog-ok (fast-path OK)"; \
 		exit 0; \
@@ -585,7 +585,7 @@ watchdog-ok: | $(STAMP_DIR_ROOT)
 	@$(call ensure_service,router-prefix-watchdog)
 	@$(run_as_root) touch "$(STAMP_WATCHDOG_OK)"
 
-vnstat-ok: | $(STAMP_DIR_ROOT)
+vnstat-ok: ensure-stamps
 	@if [ -f "$(STAMP_VNSTAT_OK)" ]; then \
 		echo "⏩ vnstat-ok (fast-path OK)"; \
 		exit 0; \

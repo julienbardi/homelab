@@ -28,6 +28,7 @@ secrets-vars-check:
 			exit 1; \
 		fi; \
 	done
+
 SECRETS_TARGETS := \
 	ops-init \
 	secrets-status \
@@ -46,6 +47,7 @@ SECRETS_TARGETS := \
 	compute-stamp-salt
 
 $(SECRETS_TARGETS): secrets-vars-check
+
 # ----------------------------------------------------------------------------
 # 0. RAM-only workspace (per-user)
 # ----------------------------------------------------------------------------

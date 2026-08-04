@@ -152,6 +152,7 @@ router-bootstrap: \
 	@echo "🛠️ Router bootstrap complete — all base services provisioned"
 
 .PHONY: ensure-runtime-dir
+ensure-runtime-dir:
 	@mkdir -p "$(RUNTIME_DIR)"
 
 .PHONY: ensure-router-ula
