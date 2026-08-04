@@ -71,12 +71,6 @@ iptables -A HOMELAB_INPUT -p tcp --dport 53 -j ACCEPT
 $(if $(LAN_SYNOLOGY),$(ROUTER_NAT_SYNOLOGY))
 endef
 
-# Out-of-repo absolute path for topology isolation
-WG_INPUT_DIR := /var/lib/homelab/wireguard/input
-WG_INTERFACES_TSV := $(WG_INPUT_DIR)/wg-interfaces.tsv
-
-WG_INTERFACES_TSV := /root/src/homelab/wireguard/input/wg-interfaces.tsv
-
 # NOTE: $(WG_INTERFACES_TSV) is NOT a Make prerequisite.
 # Because it lives under /root/src/... on the NAS, Make would treat it as a
 # real file dependency and abort on non‑NAS hosts with:

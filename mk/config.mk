@@ -299,13 +299,13 @@ KNOWN_HOSTS := \
 # ----------------------------------------------------------------------------
 
 # Human operators allowed to mutate system state
-AUTHORIZED_ADMINS := julie
+AUTHORIZED_ADMINS := julie leona
 
 # Human-admin groups (must exist; enforced by mk/10_groups.mk)
-ADMIN_GROUPS := root systemd-journal docker sudo adm dnscrypt
+ADMIN_GROUPS := admins docker
 
 # Service-owned groups (no human membership)
-SERVICE_GROUPS := headscale _dnsdist ssl-cert dnswarm
+SERVICE_GROUPS := headscale _dnsdist ssl-cert dnswarm dnscrypt
 
 # Service accounts (user:primary_group)
 SERVICE_MAP := \
@@ -495,6 +495,10 @@ export ACME_RENEW_SCRIPT
 HEADSCALE_USER := headscale
 HEADSCALE_GROUP := headscale
 
+# Out-of-repo absolute path for topology isolation of Wireguard input
+WG_INPUT_DIR := /var/lib/homelab/wireguard/input
+WG_INTERFACES_TSV := $(WG_INPUT_DIR)/wg-interfaces.tsv
+
 define INSTALL_FILE_NORMALIZED
 	rc=0; \
 	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
@@ -581,3 +585,4 @@ homelab-env: $(BOOTSTRAP_CORE) $(run_as_root)
 		*[!0-9]* ) exit 0 ;; \
 		*) exit "$$rc" ;; \
 	esac
+
