@@ -24,3 +24,5 @@ $(WG_INTERFACE_LIST_STAMP): $(WG_ROOT)/input/wg-interfaces.tsv | $(STAMP_DIR_ROO
 				> "$(WG_INTERFACE_LIST_STAMP)"
 
 -include $(WG_INTERFACE_LIST_STAMP)
+
+$(WG_INTERFACES_TSV): enforce-wg-permissions

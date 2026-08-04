@@ -22,3 +22,5 @@ wg-generate: $(WG_INTERFACE_LIST_STAMP) \
 
 wg-clean-state:
 		@$(WG_SUDO) rm -f "$(WG_SUBNETS_MK)" "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"
+
+$(WG_INTERFACES_MK): enforce-wg-permissions $(WG_INTERFACES_TSV)
