@@ -14,7 +14,7 @@ HEADSCALE_SHA256 := 8dc183758024ed7095cf610fedea0790233613c71353bc8be2715d82ba29
 
 HEADSCALE_STAMP := $(STAMP_DIR_ROOT)/headscale.installed
 # Headscale stamp directory order-only dependencies (root scope)
-$(HEADSCALE_STAMP): | $(STAMP_DIR_ROOT)
+$(HEADSCALE_STAMP): ensure-stamps
 
 HEADSCALE_CONFIG_SRC := config/headscale/config.yaml
 HEADSCALE_CONFIG_DST := /etc/headscale/config.yaml
