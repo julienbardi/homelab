@@ -96,19 +96,38 @@ install-helpers: $(INSTALL_PATH)/common.sh \
 $(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY) $(STAMP_SOPS)
 	@$(call WITH_SECRETS, $(run_as_root) sh -c '\
 		set -euo pipefail; \
-		env DOMAIN=$(DOMAIN) \
-			SSL_CANONICAL_DIR=$(SSL_CANONICAL_DIR) \
-			SSL_CERT_ECC=$(SSL_CERT_ECC) \
-			SSL_CHAIN_ECC=$(SSL_CHAIN_ECC) \
-			SSL_KEY_ECC=$(SSL_KEY_ECC) \
-			ACME_HOME=$(ACME_HOME) \
-		$(CERTS_DEPLOY) prepare; \
+		# Ensure ECC certificate exists (first-issue if missing) \
+		if [ ! -f "$(SSL_CHAIN_ECC)" ] || [ ! -f "$(SSL_CERT_ECC)" ] || [ ! -f "$(SSL_KEY_ECC)" ]; then \
+			echo "⚠️ No ECC certificate found — triggering ACME issuance via systemd"; \
+			systemctl start acme-issue.service; \
+			echo "⏳ Waiting for ACME issuance to complete..."; \
+			for i in $$(seq 1 30); do \
+				if [ -f "$(SSL_CHAIN_ECC)" ] && [ -f "$(SSL_CERT_ECC)" ] && [ -f "$(SSL_KEY_ECC)" ]; then \
+					echo "🟢 ECC certificate present"; \
+					break; \
+				fi; \
+				sleep 2; \
+			done; \
+			if [ ! -f "$(SSL_CHAIN_ECC)" ] || [ ! -f "$(SSL_CERT_ECC)" ] || [ ! -f "$(SSL_KEY_ECC)" ]; then \
+				echo "❌ ECC certificate still missing after ACME issuance"; \
+				exit 1; \
+			fi; \
+		fi; \
+		# Run prepare (SAN validation + canonical store) \
+		env DOMAIN="$(DOMAIN)" \
+			SSL_CANONICAL_DIR="$(SSL_CANONICAL_DIR)" \
+			SSL_CERT_ECC="$(SSL_CERT_ECC)" \
+			SSL_CHAIN_ECC="$(SSL_CHAIN_ECC)" \
+			SSL_KEY_ECC="$(SSL_KEY_ECC)" \
+			ACME_HOME="$(ACME_HOME)" \
+		"$(CERTS_DEPLOY)" prepare; \
+		# Compute canonical hash \
 		sha256sum \
-			$(SSL_CANONICAL_DIR)/fullchain_ecc.pem \
-			$(SSL_CANONICAL_DIR)/privkey_ecc.pem \
+			"$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" \
+			"$(SSL_CANONICAL_DIR)/privkey_ecc.pem" \
 			| sha256sum | awk '\''{print $$1}'\'' \
-			> $(STAMP_CERTS_CANONICAL); \
-		touch $(STAMP_PREPARE); \
+			> "$(STAMP_CERTS_CANONICAL)"; \
+		touch "$(STAMP_PREPARE)"; \
 	') || { echo "❌ prepare failed"; exit 1; }
 
 prepare: $(STAMP_PREPARE)

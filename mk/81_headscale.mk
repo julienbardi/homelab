@@ -335,6 +335,9 @@ headscale-user:
 
 headscale-dirs: headscale-user
 	@$(run_as_root) /bin/sh -c '\
-		mkdir -p /var/lib/headscale /var/run/headscale && \
-		chown headscale:headscale /var/lib/headscale /var/run/headscale \
+		# Runtime directories (service-owned) \
+		install -d -m 0750 -o headscale -g headscale /var/lib/headscale; \
+		install -d -m 0750 -o headscale -g headscale /var/run/headscale; \
+		# Configuration directory (root-owned) \
+		install -d -m 0750 -o root -g headscale /etc/headscale \
 	'

@@ -106,6 +106,20 @@ define dnsdist_install_dropin
 	fi
 endef
 
+define dnsdist_install_config
+	@$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
+	rc=0; \
+	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+		$(INSTALL_FILE_IF_CHANGED) -q \
+		"" "" "$(1)" \
+		"" "" "$(2)" \
+		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
+	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		echo "🔄 dnsdist.conf updated, restarting dnsdist..."; \
+		$(DNSDIST_RESTART_CMD); \
+	fi
+endef
+
 .PHONY: \
 	dnsdist \
 	dnsdist-install dnsdist-config dnsdist-enable dnsdist-validate \
@@ -129,17 +143,8 @@ assert-dnsdist-certs:
 # --------------------------------------------------------------------
 
 dnsdist-config: dnsdist-install
-	@$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
-	rc=0; \
-	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-		$(INSTALL_FILE_IF_CHANGED) -q \
-		"" "" "$(DNSDIST_CONF_SRC)" \
-		"" "" "$(DNSDIST_CONF_DST)" \
-		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
-	[ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ] && { \
-		echo "🔄 dnsdist.conf updated, restarting..."; \
-		$(DNSDIST_RESTART_CMD); \
-	} || { [ "$$rc" -eq 0 ] || exit "$$rc"; }
+	$(call dnsdist_install_config,$(DNSDIST_CONF_SRC),$(DNSDIST_CONF_DST))
+
 
 dnsdist-systemd-dropin:
 	@$(call dnsdist_install_dropin,$(DNSDIST_DROPIN_SRC),$(DNSDIST_DROPIN_DST))

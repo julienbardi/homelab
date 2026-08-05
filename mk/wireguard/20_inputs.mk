@@ -30,7 +30,7 @@ wg-subnets: $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-subnets.s
 	@$(run_as_root) touch $(WG_SUBNETS_STAMP)
 	@$(run_as_root) chown root:admins $(WG_SUBNETS_MK)
 
-$(WG_SUBNETS_MK): wg-subnets
+$(WG_SUBNETS_STAMP): wg-subnets
 
 # Include generated WG subnet DAG fragment (only once)
 -include $(WG_SUBNETS_MK)

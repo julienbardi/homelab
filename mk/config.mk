@@ -128,6 +128,7 @@ export SSH_PORT_AC86U := 2222
 
 # Homelab domain (canonical identity)
 DOMAIN               := bardi.ch
+export DOMAIN
 RENEW_THRESHOLD_DAYS := 30
 export APT_CNAME_EXPECTED   := bardi.ch
 
@@ -165,10 +166,10 @@ ACME_TIMER_FILE   := /etc/systemd/system/acme-renew.timer
 export ACME_SERVICE_FILE
 export ACME_TIMER_FILE
 
-# ECC certificates (preferred)
-SSL_CERT_ECC  := $(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer
-SSL_CHAIN_ECC := $(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer
-SSL_KEY_ECC   := $(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key
+# ECC certificates (acme.sh output: cert.pem, fullchain.pem, privkey.pem)
+SSL_CERT_ECC  := $(ACME_HOME)/$(DOMAIN)_ecc/cert.pem
+SSL_CHAIN_ECC := $(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem
+SSL_KEY_ECC   := $(ACME_HOME)/$(DOMAIN)_ecc/privkey.pem
 
 # Deployment targets
 SSL_DEPLOY_DIR_CADDY     := /etc/ssl/caddy
