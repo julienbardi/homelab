@@ -3,7 +3,7 @@
 # ============================================================
 
 # ============================================================
-# dnsdist Listener Contract (UGOS NAS)
+# dnsdist Listener Contract (Ugreen NAS running Proxmox)
 # ============================================================
 #
 # UGOS ships dnsmasq bound to IPv4 port 53 on:
@@ -44,8 +44,17 @@
 #
 # ============================================================
 
+# mk/70_dnsdist.mk
+
+ifndef DOMAIN
+$(error DOMAIN is not set; export DOMAIN or define it in config.mk)
+endif
+
+ifndef CERTS_DEPLOY
+$(error CERTS_DEPLOY is not set; expected from mk/config.mk)
+endif
+
 # Paths & Binaries
-DEPLOY_CERTS         := $(INSTALL_PATH)/deploy_certificates.sh
 DNSDIST_BIN          := /usr/bin/dnsdist
 DNSDIST_UNIT         := dnsdist.service
 
@@ -82,24 +91,33 @@ CURL_RESOLVE         := --resolve $(DOH_HOST):$(DOH_PORT):$(DOH_ADDR)
 # Commands
 DNSDIST_RESTART_CMD  := $(run_as_root) systemctl restart $(DNSDIST_UNIT)
 
+define dnsdist_install_dropin
+	@$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
+	rc=0; \
+	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+		$(INSTALL_FILE_IF_CHANGED) -q \
+		"" "" "$(1)" \
+		"" "" "$(2)" \
+		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
+	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		$(systemctl_daemon_reload); \
+		echo "🔄 Updated $(2), restarting dnsdist..."; \
+		$(DNSDIST_RESTART_CMD); \
+	fi
+endef
+
 .PHONY: \
 	dnsdist \
 	dnsdist-install dnsdist-config dnsdist-enable dnsdist-validate \
 	dnsdist-status dnsdist-systemd-dropin \
 	deploy-dnsdist-certs install-kdig \
 	assert-dnsdist-certs assert-dnsdist-running \
-	check-dnsdist-doh-local check-dnsdist-doh-listener check-dnsdist-systemd
+	check-dnsdist-doh-local check-dnsdist-doh-listener check-dnsdist-systemd \
+	dnsdist-pre-reboot-check check-dnsdist-listeners
 
 # --------------------------------------------------------------------
 # Dependencies & Setup
 # --------------------------------------------------------------------
-
-install-kdig:
-	@$(call apt_install,kdig,knot-dnsutils) || \
-		echo "⚠️  kdig not installable on this platform (UGOS); curl will be used as DoH fallback"
-	@command -v kdig >/dev/null 2>&1 || \
-		echo "ℹ️  kdig absent; DoH validation targets will use curl"
-
 assert-dnsdist-certs:
 	@$(run_as_root) sh -eu -c 'for f in "$(DNSDIST_CERT)" "$(DNSDIST_KEY)"; do \
 		[ -r "$$f" ] || { echo "❌ Missing/unreadable: $$f"; exit 1; }; \
@@ -111,8 +129,7 @@ assert-dnsdist-certs:
 # --------------------------------------------------------------------
 
 dnsdist-config: dnsdist-install
-	@set -eu; \
-	$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
+	@$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
 	rc=0; \
 	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 		$(INSTALL_FILE_IF_CHANGED) -q \
@@ -125,34 +142,10 @@ dnsdist-config: dnsdist-install
 	} || { [ "$$rc" -eq 0 ] || exit "$$rc"; }
 
 dnsdist-systemd-dropin:
-	@set -eu; \
-	$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
-	rc=0; \
-	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-		$(INSTALL_FILE_IF_CHANGED) -q \
-		"" "" "$(DNSDIST_DROPIN_SRC)" \
-		"" "" "$(DNSDIST_DROPIN_DST)" \
-		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
-	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		$(systemctl_daemon_reload); \
-		echo "🔄 Systemd drop-in updated, restarting..."; \
-		$(DNSDIST_RESTART_CMD); \
-	fi
+	@$(call dnsdist_install_dropin,$(DNSDIST_DROPIN_SRC),$(DNSDIST_DROPIN_DST))
 
 dnsdist-systemd-caps:
-	@set -eu; \
-	$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
-	rc=0; \
-	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-		$(INSTALL_FILE_IF_CHANGED) -q \
-		"" "" "$(DNSDIST_CAPS_DROPIN_SRC)" \
-		"" "" "$(DNSDIST_CAPS_DROPIN_DST)" \
-		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
-	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		$(systemctl_daemon_reload); \
-		echo "🔄 dnsdist capability drop-in updated, restarting..."; \
-		$(DNSDIST_RESTART_CMD); \
-	fi
+	@$(call dnsdist_install_dropin,$(DNSDIST_CAPS_DROPIN_SRC),$(DNSDIST_CAPS_DROPIN_DST))
 
 # canonical store and stamp
 CANONICAL_DIR := /var/lib/ssl/canonical
@@ -161,10 +154,10 @@ CANONICAL_SUM := $(CANONICAL_DIR)/.lastsum
 .PHONY: deploy-dnsdist-certs
 
 # deploy depends on the stamp so deploy runs only when canonical store changed
-deploy-dnsdist-certs: install-all $(DEPLOY_CERTS) $(CANONICAL_SUM) dnsdist-config
+deploy-dnsdist-certs: install-all $(CERTS_DEPLOY) $(CANONICAL_SUM) dnsdist-config
 
 # Robust checksum + deploy (atomic stamp write)
-$(CANONICAL_SUM): $(DEPLOY_CERTS)
+$(CANONICAL_SUM): $(CERTS_DEPLOY)
 	@set -eu; \
 	if [ ! -d "$(CANONICAL_DIR)" ]; then \
 	echo "⚠️  canonical dir missing: $(CANONICAL_DIR)"; exit 1; \
@@ -172,37 +165,36 @@ $(CANONICAL_SUM): $(DEPLOY_CERTS)
 	if ! command -v sha256sum >/dev/null 2>&1; then \
 	echo "❌ sha256sum not found"; exit 1; \
 	fi; \
-	nfiles=$$($(run_as_root) sh -c "find '$(CANONICAL_DIR)' -type f -print -quit | wc -l"); \
+	nfiles=$$($(run_as_root) find "$(CANONICAL_DIR)" -type f -print -quit | wc -l); \
 	if [ "$$nfiles" -eq 0 ]; then \
-	echo "⚠️  canonical store empty: $(CANONICAL_DIR)"; \
-	tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
-	$(run_as_root) sh -c 'printf "%s\n" "" > "$$1"' sh "$$tmp"; \
-	$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
-	exit 0; \
+		echo "⚠️  canonical store empty: $(CANONICAL_DIR)"; \
+		tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
+		$(run_as_root) sh -c 'printf "%s\n" "" > "$$1"' sh "$$tmp"; \
+		$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
+		exit 0; \
 	fi; \
 	sum=$$($(run_as_root) sh -c "find '$(CANONICAL_DIR)' -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | cut -d' ' -f1"); \
 	old=""; [ -f "$(CANONICAL_SUM)" ] && old=$$($(run_as_root) cat "$(CANONICAL_SUM)" 2>/dev/null || true); \
 	if [ "$$sum" = "$$old" ]; then \
-	# canonical store unchanged: only skip if dnsdist certs are actually present \
-	if [ -r "$(DNSDIST_CERT)" ] && [ -r "$(DNSDIST_KEY)" ]; then \
-		echo "🔁 canonical store unchanged; skipping deploy"; \
+		# canonical store unchanged: only skip if dnsdist certs are actually present \
+		if [ -r "$(DNSDIST_CERT)" ] && [ -r "$(DNSDIST_KEY)" ]; then \
+			echo "🔁 canonical store unchanged; skipping deploy"; \
+		else \
+			echo "📦 canonical unchanged but dnsdist certs missing; forcing deploy"; \
+			$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(CERTS_DEPLOY) deploy dnsdist"; \
+			tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
+			$(run_as_root) sh -c 'printf "%s\n" "$$1" > "$$2"' sh "$$sum" "$$tmp"; \
+			$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
+			echo "✅ deploy-dnsdist-certs complete"; \
+		fi; \
 	else \
-		echo "📦 canonical unchanged but dnsdist certs missing; forcing deploy"; \
-		$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(DEPLOY_CERTS) deploy dnsdist"; \
+		echo "📦 Deploying certificates to dnsdist"; \
+		$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(CERTS_DEPLOY) deploy dnsdist"; \
 		tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
 		$(run_as_root) sh -c 'printf "%s\n" "$$1" > "$$2"' sh "$$sum" "$$tmp"; \
 		$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
 		echo "✅ deploy-dnsdist-certs complete"; \
-	fi; \
-	else \
-	echo "📦 Deploying certificates to dnsdist"; \
-	$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(DEPLOY_CERTS) deploy dnsdist"; \
-	tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
-	$(run_as_root) sh -c 'printf "%s\n" "$$1" > "$$2"' sh "$$sum" "$$tmp"; \
-	$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
-	echo "✅ deploy-dnsdist-certs complete"; \
 	fi
-
 
 # --------------------------------------------------------------------
 # Verification & Status
@@ -216,9 +208,8 @@ dnsdist-enable: deploy-dnsdist-certs
 	@$(run_as_root) systemctl enable $(DNSDIST_UNIT)
 
 check-dnsdist-doh-local:
-	@set -eu; \
-	[ -r "$(DOH_TLS_CA)" ] || { echo "❌ Missing CA bundle: $(DOH_TLS_CA)"; exit 1; }; \
-	KDIG_BIN=$$(command -v $(KDIG) 2>/dev/null || true); \
+	@[ -r "$(DOH_TLS_CA)" ] || { echo "❌ Missing CA bundle: $(DOH_TLS_CA)"; exit 1; }; \
+	KDIG_BIN=$$(command -v $(KDIG) || true); \
 	if [ -n "$$KDIG_BIN" ]; then \
 		if $(run_as_root) $$KDIG_BIN @$(DOH_ADDR) -p $(DOH_PORT) $(DOH_TEST_NAME) $(KDIG_ARGS) >/dev/null 2>&1; then \
 			echo "✅ DoH resolution successful (kdig)"; \
@@ -254,10 +245,9 @@ dnsdist: dnsdist-install dnsdist-systemd-dropin dnsdist-systemd-caps deploy-dnsd
 	@test -z "$(VERBOSE)" || echo "🚀 dnsdist DoH frontend ready"
 
 ci-doh-check:
-	@set -eu; \
-	RAND=$$(date +%s); \
+	@RAND=$$(date +%s); \
 	TEST="probe-$$RAND.$(DOMAIN)"; \
-	KDIG_BIN=$$(command -v $(KDIG) 2>/dev/null || true); \
+	KDIG_BIN=$$(command -v $(KDIG) || true); \
 	if [ -z "$$KDIG_BIN" ]; then \
 		echo "❌ kdig not found; install kdig for CI checks"; exit 1; \
 	fi; \
@@ -270,8 +260,7 @@ ci-doh-check:
 	fi
 
 check-dnsdist-systemd:
-	@set -eu; \
-	if ! $(run_as_root) systemctl is-active --quiet $(DNSDIST_UNIT); then \
+	@if ! $(run_as_root) systemctl is-active --quiet $(DNSDIST_UNIT); then \
 		echo "❌ $(DNSDIST_UNIT) is not active"; \
 		$(run_as_root) systemctl --no-pager status $(DNSDIST_UNIT) || true; \
 		exit 1; \
@@ -279,8 +268,7 @@ check-dnsdist-systemd:
 	echo "✅ $(DNSDIST_UNIT) active"
 
 check-dnsdist-doh-listener:
-	@set -eu; \
-	if ! $(run_as_root) ss -ltn "sport = :$(DOH_PORT)" | grep -q LISTEN; then \
+	@if ! $(run_as_root) ss -ltn "sport = :$(DOH_PORT)" | grep -q LISTEN; then \
 		echo "❌ DoH listener not present on :$(DOH_PORT)"; \
 		$(run_as_root) ss -ltn | sed -n '1,120p' || true; \
 		exit 1; \
@@ -291,7 +279,6 @@ check-dnsdist-doh-listener:
 assert-dnsdist-running: check-dnsdist-systemd check-dnsdist-doh-listener dnsdist-validate
 	@test -z "$(VERBOSE)" || echo "✅ dnsdist service and listener OK"
 
-.PHONY: dnsdist-pre-reboot-check
 dnsdist-pre-reboot-check:
 	@echo "🔍 Validating dnsdist before reboot"
 	@$(run_as_root) $(DNSDIST_BIN) --check-config
@@ -299,8 +286,6 @@ dnsdist-pre-reboot-check:
 		|| { echo "❌ dnsdist not listening on :$(DOH_PORT)"; exit 1; }
 	@echo "✅ dnsdist healthy"
 
-
-.PHONY: check-dnsdist-listeners
 check-dnsdist-listeners: $(INSTALL_PATH)/dnsdist-validate-listeners.sh
 	@echo "🔍 Checking dnsdist listeners"
 	@$(run_as_root) $(INSTALL_PATH)/dnsdist-validate-listeners.sh

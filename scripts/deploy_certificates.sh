@@ -3,6 +3,8 @@
 
 set -euo pipefail
 
+: "${DOMAIN:?missing DOMAIN (must be exported by Makefile or environment)}"
+
 # shellcheck disable=SC2034
 SCRIPT_NAME=""
 

@@ -128,7 +128,6 @@ export SSH_PORT_AC86U := 2222
 
 # Homelab domain (canonical identity)
 DOMAIN               := bardi.ch
-export DOMAIN
 RENEW_THRESHOLD_DAYS := 30
 export APT_CNAME_EXPECTED   := bardi.ch
 

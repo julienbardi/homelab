@@ -85,7 +85,7 @@ certs-expiry:
 
 install-helpers: $(INSTALL_PATH)/common.sh \
 	$(INSTALL_FILE_IF_CHANGED) \
-	$(INSTALL_PATH)/deploy_certificates.sh \
+	$(CERTS_DEPLOY) \
 	$(INSTALL_PATH)/deploy_dsm.sh
 	@echo "🛠️ Helpers verified and synced"
 
@@ -93,16 +93,15 @@ install-helpers: $(INSTALL_PATH)/common.sh \
 # prepare: run CERTS_DEPLOY prepare + compute canonical hash
 # ============================================================
 
-export SSL_CANONICAL_DIR
-export SSL_CERT_ECC
-export SSL_CHAIN_ECC
-export SSL_KEY_ECC
-export ACME_HOME
-export DOMAIN
-
 $(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY) $(STAMP_SOPS)
 	@$(call WITH_SECRETS, $(run_as_root) sh -c '\
 		set -euo pipefail; \
+		env DOMAIN=$(DOMAIN) \
+			SSL_CANONICAL_DIR=$(SSL_CANONICAL_DIR) \
+			SSL_CERT_ECC=$(SSL_CERT_ECC) \
+			SSL_CHAIN_ECC=$(SSL_CHAIN_ECC) \
+			SSL_KEY_ECC=$(SSL_KEY_ECC) \
+			ACME_HOME=$(ACME_HOME) \
 		$(CERTS_DEPLOY) prepare; \
 		sha256sum \
 			$(SSL_CANONICAL_DIR)/fullchain_ecc.pem \

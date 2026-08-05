@@ -12,3 +12,4 @@ include mk/prereqs-network.mk
 include mk/prereqs-system.mk
 include mk/prereqs-tailscale.mk
 include mk/prereqs-core.mk
+include mk/prereqs-knot.mk
