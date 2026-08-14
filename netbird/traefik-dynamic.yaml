@@ -1,3 +1,24 @@
+http:
+  routers:
+    proxmox:
+      rule: "Host(`pve.bardi.ch`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      service: proxmox-service
+
+  services:
+    proxmox-service:
+      loadBalancer:
+        servers:
+          - url: "https://10.89.12.4:8006"
+        serversTransport: insecureTransport
+
+  serversTransports:
+    insecureTransport:
+      insecureSkipVerify: true
+
 tcp:
   serversTransports:
     pp-v2:
