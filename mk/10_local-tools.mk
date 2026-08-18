@@ -98,7 +98,7 @@ checkmake:
 	@mkdir -p "$(TOOLS_DIR)"
 	@echo "⚠️ Installing checkmake (best-effort, requires modern Go)"
 	@GOBIN=$(abspath $(TOOLS_DIR)) \
-		go install github.com/checkmake/checkmake@latest || \
+		go install github.com/checkmake/checkmake/cmd/checkmake@latest || \
 		echo "⚠️ checkmake install failed — continuing without it"
 
 # ------------------------------------------------------------

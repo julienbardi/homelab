@@ -1,21 +1,15 @@
-# Makefile
-
-# Root of the repository (directory containing this Makefile).
-# NOTE:
-#   We intentionally avoid `git rev-parse --show-toplevel` here.
-#   In chroot/container/bind‑mount environments, `.git/` may not be visible,
-#   causing `git rev-parse` to return empty and silently break all includes.
-#
-#   Using $(firstword $(MAKEFILE_LIST)) ensures REPO_ROOT always resolves to
-#   the directory containing the top-level Makefile, regardless of how many
-#   other .mk files are included or where they live.
-#
+# ====================================================================
+# Homelab Orchestration Makefile
+# ====================================================================
 
 # Default goal only when no explicit target is given
 ifeq ($(MAKECMDGOALS),)
 .DEFAULT_GOAL := help
 endif
 
+# Root of the repository (directory containing this Makefile).
+# Uses $(firstword $(MAKEFILE_LIST)) to ensure REPO_ROOT resolves correctly
+# in chroot, container, and bind-mount environments where .git/ is absent.
 REPO_ROOT := $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
 export REPO_ROOT
 
@@ -23,16 +17,16 @@ ifeq ($(REPO_ROOT),)
 $(error ❌ REPO_ROOT is empty — run make from inside the homelab repo)
 endif
 
-# Ensure all included files are parsed before DAG evaluation
-# $(MAKEFILE_LIST): ;
-# (disabled — breaks include order)
+# Load non-secret config early so STAMP_DIR_ROOT and other base paths are available
+include $(REPO_ROOT)/mk/config.mk
 
+# Platform Identification
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
 
 ifeq ($(UNAME_S),Windows)
-	SSH_PLATFORM := windows
+    SSH_PLATFORM := windows
 else
-	SSH_PLATFORM := unix
+    SSH_PLATFORM := unix
 endif
 export SSH_PLATFORM
 
@@ -50,16 +44,11 @@ export VERBOSE := 3
 endif
 
 # Canonical entrypoint wrapper
-# This file exists ONLY to forward to the real graph.
-
-# Load non-secret config
-include $(REPO_ROOT)/mk/config.mk
-
 # Do NOT load the DAG when running ssh-config
 ifeq ($(MAKECMDGOALS),ssh-config)
-	# skip DAG entirely
+    # skip DAG entirely
 else
-	include $(REPO_ROOT)/mk/graph.mk
+    include $(REPO_ROOT)/mk/graph.mk
 endif
 
 # --------------------------------------------------------------------
@@ -70,36 +59,28 @@ $(if $($(1)),,$(error $(1) is not set — check mk/config.mk))
 endef
 
 REQUIRED_VARS := \
-	INSTALL_PATH \
-	INSTALL_SBIN_PATH \
-	INSTALL_FILE_IF_CHANGED \
-	INSTALL_FILES_IF_CHANGED \
-	INSTALL_IF_CHANGED_EXIT_CHANGED \
-	ROOT_UID \
-	ROOT_GID \
-	RUN_ROOT_SRC \
-	IFC_V3_SINGLE_SRC \
-	IFC_V3_PLURAL_SRC \
-	COMMON_SRC \
-	REPO_ROOT \
-	SSH_PLATFORM \
-	WG_PLAN_SUBNETS \
-	YQ_GITHUB_REPO \
-	YQ_VERSION \
-	YQ_SHA256
+    INSTALL_PATH \
+    INSTALL_SBIN_PATH \
+    INSTALL_FILE_IF_CHANGED \
+    INSTALL_FILES_IF_CHANGED \
+    INSTALL_IF_CHANGED_EXIT_CHANGED \
+    ROOT_UID \
+    ROOT_GID \
+    RUN_ROOT_SRC \
+    IFC_V3_SINGLE_SRC \
+    IFC_V3_PLURAL_SRC \
+    COMMON_SRC \
+    REPO_ROOT \
+    SSH_PLATFORM \
+    WG_PLAN_SUBNETS \
+    YQ_GITHUB_REPO \
+    YQ_VERSION \
+    YQ_SHA256
 
 $(foreach v,$(REQUIRED_VARS),$(eval $(call REQUIRE_VAR,$(v))))
 
-# SSH config target BEFORE graph.mk
 # ----------------------------------------------------------------------------
 # SSH Config Rendering (deterministic, idempotent, non-secret)
-# ----------------------------------------------------------------------------
-# Renders ~/.ssh/config from config/ssh_config.tmpl using authoritative
-# variables exported in config.mk. On Windows, the template is patched to
-# disable multiplexing and relax StrictHostKeyChecking.
-#
-# Idempotent: ~/.ssh/config is only rewritten if the rendered output differs.
-# Silent unless VERBOSE=1.
 # ----------------------------------------------------------------------------
 .PHONY: ssh-config
 ssh-config: config/ssh_config.tmpl
@@ -116,6 +97,9 @@ ssh-config: config/ssh_config.tmpl
 	else \
 		envsubst < config/ssh_config.tmpl > $$tmpfile; \
 	fi; \
+	\
+	chmod 0600 $$tmpfile; \
+	mkdir -p ~/.ssh; \
 	\
 	if ! cmp -s $$tmpfile ~/.ssh/config; then \
 		if [ "$(VERBOSE)" -ge "1" ]; then echo "🔄 Updating ~/.ssh/config for platform: $(SSH_PLATFORM)..."; fi; \

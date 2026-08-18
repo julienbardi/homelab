@@ -3,7 +3,7 @@
 # prereqs-run, prereqs-ok, stamping, apt group install
 # ------------------------------------------------------------
 
-prereqs-run: $(PREREQS_SOURCES) ensure-stamps
+prereqs-run: $(PREREQS_SOURCES) ensure-state-dirs
 	@echo "🔍 Running prereqs checks"
 
 	@$(call ensure_host_default_route)

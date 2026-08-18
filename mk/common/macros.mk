@@ -129,7 +129,7 @@ endef
 # Tmpfile Helpers
 # ====================================================================
 define TMPFILE_BLOCK
-	@trap 'rm -f "$(1)"' EXIT; \
+	trap 'rm -f "$(1)"' EXIT; \
 	{ \
 		$(2) \
 	}

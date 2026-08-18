@@ -11,10 +11,10 @@
 
 
 # --------------------------------------------------------------------
-# Stamp Directories (root + user)
+# State & Stamp Directories (root + user + runtime)
 # --------------------------------------------------------------------
-.PHONY: ensure-stamps
-ensure-stamps:
+.PHONY: ensure-state-dirs
+ensure-state-dirs:
 	@{ \
 	# --- ROOT STAMP --- \
 	if [ ! -d "$(STAMP_DIR_ROOT)" ]; then \
@@ -25,30 +25,24 @@ ensure-stamps:
 		$(run_as_root) chmod 0755 "$(STAMP_DIR_ROOT)"; \
 	fi; \
 	\
+	# --- USER RUNTIME DIR --- \
+	if [ ! -d "$(RUNTIME_DIR)" ]; then \
+		echo "📁 Creating RUNTIME_DIR: $(RUNTIME_DIR)"; \
+		install -d -m 0700 -o $(USER_UID) -g $(USER_GID) "$(RUNTIME_DIR)"; \
+	else \
+		$(run_as_root) chown "$(USER_UID):$(USER_GID)" "$(RUNTIME_DIR)"; \
+		$(run_as_root) chmod 0700 "$(RUNTIME_DIR)"; \
+	fi; \
+	\
 	# --- USER STAMP --- \
 	if [ ! -d "$(STAMP_DIR_USER)" ]; then \
-		echo "📁 Creating STAMP_DIR_USER: $(STAMP_DIR_USER)"; \
-		$(run_as_root) install -d -m 0700 -o "$$(id -u)" -g "$$(id -g)" "$(STAMP_DIR_USER)"; \
+			echo "📁 Creating STAMP_DIR_USER: $(STAMP_DIR_USER)"; \
+			$(run_as_root) install -d -m 0700 -o "$$({ id -u 2>/dev/null || echo 1000; })" -g "$$({ id -g 2>/dev/null || echo 1000; })" "$(STAMP_DIR_USER)"; \
 	else \
-		$(run_as_root) chown ""$$(id -u)":"$$(id -g)"" "$(STAMP_DIR_USER)"; \
-		$(run_as_root) chmod 700 "$(STAMP_DIR_USER)"; \
+			$(run_as_root) chown "$$({ id -u 2>/dev/null || echo 1000; }):$$({ id -g 2>/dev/null || echo 1000; })" "$(STAMP_DIR_USER)"; \
+			$(run_as_root) chmod 700 "$(STAMP_DIR_USER)"; \
 	fi; \
 	}
-
-.PHONY: ensure-stamps-v1
-ensure-stamps-v1: ensure-stamp-user ensure-stamp-root
-
-.PHONY: ensure-stamp-user
-ensure-stamp-user:
-	@mkdir -p "$(STAMP_DIR_USER)"; \
-	$(run_as_root) chown "$$(id -u):$$(id -g)" "$(STAMP_DIR_USER)"; \
-	$(run_as_root) chmod 0700 "$(STAMP_DIR_USER)"
-
-.PHONY: ensure-stamp-root
-ensure-stamp-root:
-	@$(run_as_root) mkdir -p "$(STAMP_DIR_ROOT)"; \
-	$(run_as_root) chown "$(ROOT_UID):$(ROOT_GID)" "$(STAMP_DIR_ROOT)"; \
-	$(run_as_root) chmod 0755 "$(STAMP_DIR_ROOT)"
 
 # --------------------------------------------------------------------
 # Bootstrap: Privilege Wrapper + IFC Engines

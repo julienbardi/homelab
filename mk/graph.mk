@@ -36,10 +36,12 @@ INTERNAL_HOSTS := \
 # Step 1 — Core constants and prerequisites
 include $(REPO_ROOT)/mk/00_icons.mk
 include $(REPO_ROOT)/mk/00_prereqs.mk
+include $(REPO_ROOT)/mk/01_core.mk
+include $(REPO_ROOT)/mk/10_stamps_prompt.mk
+include $(REPO_ROOT)/mk/10_stamps.mk
 include mk/common/core.mk
 include mk/common/scripts.mk
 include mk/common/macros.mk
-include $(REPO_ROOT)/mk/01_core.mk
 
 # Step 2 — Secrets subsystem
 include $(REPO_ROOT)/mk/07_secrets.mk
@@ -73,7 +75,8 @@ include $(REPO_ROOT)/mk/25_routing.mk
 include $(REPO_ROOT)/mk/30_config_validation.mk
 include $(REPO_ROOT)/mk/40_acme.mk
 include $(REPO_ROOT)/mk/40_code-server.mk
-include $(REPO_ROOT)/mk/40_nas-caddy.mk
+#include $(REPO_ROOT)/mk/40_nas-caddy.mk
+include $(REPO_ROOT)/mk/40_nas-traefik.mk
 # STAMP_DIR_ROOT must be defined before any WG DAG fragments are included
 include $(REPO_ROOT)/mk/40_wireguard.mk
 include $(REPO_ROOT)/mk/41_firewall-nas.mk
@@ -148,7 +151,14 @@ tailscaled: \
 
 # The root of the DAG
 .PHONY: homelab-all
-homelab-all: \
+homelab-all: router-health verify-ipv6-invariants
+	@echo "🎉 Homelab fully converged."
+
+# Enforce strict DAG sequencing for parallel execution (-j)
+verify-ipv6-invariants: service-phase
+router-health: service-phase
+service-phase: wg-network-phase
+wg-network-phase: \
 	enforce-groups \
 	enforce-homelab-perms \
 	enforce-wireguard-input \
@@ -157,12 +167,7 @@ homelab-all: \
 	nft-apply-phase \
 	router-install-scripts \
 	install-router-prefix-watchdog \
-	install-nas-prefix-watchdog \
-	wg-network-phase \
-	service-phase \
-	router-health \
-	verify-ipv6-invariants
-	@echo "🎉 Homelab fully converged."
+	install-nas-prefix-watchdog
 
 # Phase 1: Security/Firewall (Foundational, must run sequentially)
 .PHONY: nft-apply-phase
@@ -183,7 +188,8 @@ service-phase: install-systemd enable-systemd deploy-unbound-config monitoring \
 			enable-unbound verify-internal-dns all-remote \
 			router-certs-prepare \
 			router-certs-deploy \
-			router-caddy
+			router-caddy \
+			nas-traefik
 service-phase: wg-network-phase
 
 # Sub-groupings
