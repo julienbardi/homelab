@@ -7,6 +7,8 @@ set -euo pipefail
 : "${ROUTER_WG_DIR:?Missing ROUTER_WG_DIR}"
 : "${WG_ROOT:?Missing WG_ROOT}"
 : "${ROUTER_IDENTITY:?Missing ROUTER_IDENTITY}"
+: "${ROUTER_LAN_IFACE:?Missing ROUTER_LAN_IFACE}"
+: "${NAS_LAN_IFACE:?Missing NAS_LAN_IFACE}"
 
 # Local paths for NAS/Server execution
 NAS_WG_CONF="/etc/wireguard"
@@ -21,10 +23,11 @@ MODE="${2:-status}"
 log() {
 	local icon="⚙️"
 	case "$MODE" in
-		install) icon="📦" ;;
-		up)      icon="🚀" ;;
-		down)    icon="🛑" ;;
-		status)  icon="📊" ;;
+		install)    icon="📦" ;;
+		up)         icon="🚀" ;;
+		down)       icon="🛑" ;;
+		status)     icon="📊" ;;
+		install-up) icon="🚀" ;;
 	esac
 
 	# Aligns [nas   ] and [router] perfectly
@@ -41,8 +44,11 @@ do_install() {
 		# Deployment from NAS output -> Router JFFS
 		for conf in "${WG_ROOT}/output/router"/*.conf; do
 			[[ -e "$conf" ]] || continue
+			local dest_target="${ROUTER_HOST}"
+			[[ "$dest_target" != *@* ]] && dest_target="julie@${dest_target}"
+
 			"$INSTALL_FILE_IF_CHANGED" -q "" "22" "$conf" \
-					   "$ROUTER_HOST" "$ROUTER_SSH_PORT" "${ROUTER_WG_DIR}/$(basename "$conf")" \
+					   "$dest_target" "$ROUTER_SSH_PORT" "${ROUTER_WG_DIR}/$(basename "$conf")" \
 					   "0" "0" "0600"
 		done
 	elif [[ "$TARGET" == "nas" ]]; then
@@ -59,21 +65,32 @@ do_install() {
 do_up() {
 	log "🔌 Bringing up interfaces..."
 	if [[ "$TARGET" == "router" ]]; then
-		# Ensure eth0 exists
-		if [[ ! -d /sys/class/net/eth0 ]]; then
-			log "❌ eth0 does not exist — cannot determine NAS link-local IPv6"
+		# Source homelab prefix configuration
+		if [[ -f /etc/homelab/homelab-prefix.env ]]; then
+			. /etc/homelab/homelab-prefix.env
+		fi
+
+		# Strict validation: NAS_LAN_IFACE must be defined
+		if [[ -z "${NAS_LAN_IFACE:-}" ]]; then
+			log "❌ NAS_LAN_IFACE is not defined in environment or /etc/homelab/homelab-prefix.env"
 			exit 1
 		fi
 
-		# Discover NAS link-local IPv6 on eth0
-		NAS_LL6="$(ip -6 addr show dev eth0 | awk '/scope link/ {print $2; exit}' | cut -d/ -f1)"
+		# Ensure interface exists
+		if [[ ! -d /sys/class/net/${NAS_LAN_IFACE} ]]; then
+			log "❌ ${NAS_LAN_IFACE} does not exist — cannot determine NAS link-local IPv6"
+			exit 1
+		fi
+
+		# Discover NAS link-local IPv6 on NAS_LAN_IFACE
+		NAS_LL6="$(ip -6 addr show dev ${NAS_LAN_IFACE} | awk '/scope link/ {print $2; exit}' | cut -d/ -f1)"
 
 		if [[ -z "$NAS_LL6" || ! "$NAS_LL6" =~ ^fe80: ]]; then
-			log "❌ Could not determine valid NAS link-local IPv6 on eth0"
+			log "❌ Could not determine valid NAS link-local IPv6 on ${NAS_LAN_IFACE}"
 			exit 1
 		fi
 
-		log "Using NAS link-local IPv6: ${NAS_LL6}"
+		log "Using NAS link-local IPv6 (${NAS_LAN_IFACE}): ${NAS_LL6}"
 
 		ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" "
 			# 🔧 FIX 1: Enable strict error handling (fail fast on any command error)
@@ -103,7 +120,7 @@ do_up() {
 
 			# IPv6: router cannot host WG v6, but must route NAS wg7 ULA back to NAS
 			ip -6 route del fd89:7a3b:42c0:7::/64 2>/dev/null || true
-			ip -6 route replace fd89:7a3b:42c0:7::/64 via ${NAS_LL6} dev eth0
+			ip -6 route replace fd89:7a3b:42c0:7::/64 via ${NAS_LL6} dev ${ROUTER_LAN_IFACE}
 		"
 	else
 		for f in "${NAS_WG_CONF}"/*.conf; do

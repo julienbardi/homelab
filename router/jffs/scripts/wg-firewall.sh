@@ -11,9 +11,9 @@ ip6tables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev
 # Allow all traffic in/out of wgs1 (ASUSWRT zone integration)
 iptables -C FORWARD -i wgs1 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -i wgs1 -j ACCEPT
 iptables -C FORWARD -o wgs1 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -o wgs1 -j ACCEPT
-# --- wgs1 (Port 51820) ---
-iptables -C INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport 51820 -j ACCEPT
-ip6tables -C INPUT -p udp --dport 51820 -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p udp --dport 51820 -j ACCEPT
+# --- wgs1 (Port 51819) ---
+iptables -C INPUT -p udp --dport 51819 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport 51819 -j ACCEPT
+ip6tables -C INPUT -p udp --dport 51819 -j ACCEPT 2>/dev/null || ip6tables -I INPUT 1 -p udp --dport 51819 -j ACCEPT
 
 # --- HARD BLOCK: SSH ON WAN (port 2222) ---
 iptables -C INPUT -p tcp --dport 2222 ! -i br0 -j DROP 2>/dev/null || \

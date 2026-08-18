@@ -19,7 +19,7 @@ mkdir -p "$TMPDIR"
 
 # Mandatory variables for Firewall generation
 : "${USER_GID:?USER_GID must be exported}"
-: "${ROUTER_LAN_IFACE:?ROUTER_LAN_IFACE must be exported}"
+: "${ROUTER_WAN_IFACE:?ROUTER_WAN_IFACE must be exported}"
 : "${LAN_NAS:?LAN_NAS must be exported (DNS IPv4)}"
 : "${LAN6_NAS:?LAN6_NAS must be exported (DNS IPv6)}"
 : "${LAN_NET:?LAN_NET must be exported (e.g., 10.89.12.0/24)}"
@@ -93,7 +93,19 @@ hash_to_host_octet() {
 
 alloc_client_ip_v4() {
     local iface="$1" name="$2"
-    local v4_raw="${IF_ADDR_V4[$iface]}"
+
+    # Skip header or invalid interface rows gracefully
+    if [[ "$iface" == "iface" || -z "$iface" ]]; then
+        return 0
+    fi
+
+    local v4_raw="${IF_ADDR_V4[$iface]:-}"
+
+    if [[ -z "$v4_raw" ]]; then
+        echo "ERROR: alloc_client_ip_v4(): missing IPv4 for iface='$iface'" >&2
+        return 1
+    fi
+
     local base="${v4_raw%/*}"
     local host_oct; host_oct=$(hash_to_host_octet "${iface}:${name}")
     echo "${base%.*}.${host_oct}"
@@ -132,19 +144,26 @@ EOF
 }
 
 load_interfaces() {
-    while IFS=$'\t' read -r iface host port mtu v4 v6 en; do
-        [[ -z "$iface" || "$iface" == "iface" || "$iface" == "#"* ]] && continue
+    while read -r iface host port mtu v4 v6 enabled; do
+        # Trim whitespace
+        iface="$(echo "$iface" | xargs)"
+
+        # Skip headers (case-insensitive check for 'iface'), comments, or empty lines
+        if [[ -z "$iface" ]] || [[ "$iface" =~ ^[#[:space:]]*$ ]] || [[ "${iface,,}" = "iface" ]]; then
+            continue
+        fi
+
         IF_HOST["$iface"]="$host"
         IF_PORT["$iface"]="$port"
         IF_ADDR_V4["$iface"]="$v4"
-        IF_ADDR_V6["$iface"]="${v6}"
-        IF_ENABLED["$iface"]="$en"
+        IF_ADDR_V6["$iface"]="$v6"
+        IF_ENABLED["$iface"]="$enabled"
         IF_MTU["$iface"]="$mtu"
     done < "$IFACES_TSV"
 }
 
 server_out_path() {
-    [[ "${IF_HOST[$1]}" == "router" ]] && echo "$OUT_ROUTER/$1.conf" || echo "$OUT_SERVER/$1.conf"
+    [[ "${IF_HOST[$1]:-}" == "router" ]] && echo "$OUT_ROUTER/$1.conf" || echo "$OUT_SERVER/$1.conf"
 }
 
 # --- 3. Config Generation ---------------------------------------------------
@@ -156,10 +175,16 @@ generate_configs() {
     printf "pubkey\tname\tiface\tipv4\tipv6\taccess\tlan\n" > "$peer_map_tmp"
 
     for iface in $(printf '%s\n' "${!IF_ENABLED[@]}" | sort); do
+        # Skip empty, header, or bogus iface keys
+        if [[ -z "$iface" ]] || [[ "$iface" == "iface" ]] || [[ "$iface" == "enabled" ]]; then
+            echo "DEBUG: skipping bogus iface='$iface'"
+            continue
+        fi
+
         [[ "${IF_ENABLED[$iface]}" != "1" ]] && continue
 
         local kb="$KEY_DIR/servers/$iface"
-        local host="${IF_HOST[$iface]}"
+        local host="${IF_HOST[$iface]:-}"
         local priv pub
 
         if [[ "$host" == "router" ]]; then
@@ -176,7 +201,8 @@ generate_configs() {
             priv=$(<"$kb.key")
         fi
 
-        local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
+        local v6_raw="${IF_ADDR_V6[$iface]:-}"
+        local v6_prefix="${v6_raw%%::*}"
 
         # Router gets RAW wg config (NO Address=)
         # NAS/server keeps wg-quick config (WITH Address=)
@@ -185,14 +211,14 @@ generate_configs() {
             SERVER_BUFFERS[$iface]=$(cat <<EOF
 [Interface]
 PrivateKey = $priv
-ListenPort = ${IF_PORT[$iface]}
+ListenPort = ${IF_PORT[$iface]:-}
 EOF
 )
         else
             SERVER_BUFFERS[$iface]=$(cat <<EOF
 [Interface]
-Address = ${IF_ADDR_V4[$iface]}, ${v6_prefix}::1/64
-ListenPort = ${IF_PORT[$iface]}
+Address = ${IF_ADDR_V4[$iface]:-}, ${v6_prefix}::1/64
+ListenPort = ${IF_PORT[$iface]:-}
 PrivateKey = $priv
 EOF
 )
@@ -208,9 +234,16 @@ EOF
         chmod 2770 "${WG_ROOT}/psk"
         chown "${ROOT_UID}":"${USER_GID}" "${WG_ROOT}/psk"
     fi
-    # shellcheck disable=SC2034
+# shellcheck disable=SC2034
     while IFS=$'\t' read -r name dev os iface mode acc lan rest; do
-        [[ -z "$name" || "$name" == "#"* || "$name" == "name" ]] && continue
+        # Trim whitespace
+        name="$(echo "$name" | xargs)"
+        iface="$(echo "$iface" | xargs)"
+
+        # Skip header, comments, or empty name/iface
+        if [[ -z "$name" ]] || [[ "${name,,}" == "name" ]] || [[ "${iface,,}" == "iface" ]] || [[ "$name" == "#"* ]]; then
+            continue
+        fi
 
         local ck="$KEY_DIR/clients/$name"
         [[ ! -f "$ck.key" ]] && { umask 077; wg genkey | tee "$ck.key" | wg pubkey > "$ck.pub"; }
@@ -221,10 +254,12 @@ EOF
         o4=$(echo "$ipv4" | cut -d. -f4)
         host_hex=$(printf '%04x' $(( (o3<<8) + o4 )))
 
-        local v6_prefix="${IF_ADDR_V6[$iface]%%::*}"
+        local v6_raw="${IF_ADDR_V6[$iface]:-}"
+        local v6_prefix="${v6_raw%%::*}"
         local ipv6="${v6_prefix}::${host_hex}"
 
-        local host_id="${IF_HOST[$iface]}"
+        local host_id="${IF_HOST[$iface]:-}"
+
         # Endpoint MUST always be the bare domain (WAN IP, no split-horizon override).
         # Using host_id.domain (e.g. router.bardi.ch) is wrong for LAN clients because
         # Unbound's split-horizon returns the router's *internal* IP, causing the
@@ -300,7 +335,7 @@ PresharedKey = $PSK_VALUE
 AllowedIPs = ${ROUTER_ALLOWEDIPS}"
         printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
             "$(<"$ck.pub")" "$name" "$iface" "$ipv4" "${ipv6}" "$acc" "$lan" >> "$peer_map_tmp"
-    done < "$CLIENTS_TSV"
+    done < <(grep -vE '^\s*(#|name|$)' "$CLIENTS_TSV")
 
     #
     # --- WRITE SERVER CONFIGS ---
@@ -322,7 +357,7 @@ generate_router_firewall() {
     local dns_v6="$LAN6_NAS"
     local lan_v4="$LAN_NET"
     local lan_v6="$LAN6_NET"
-    local wan_if="$ROUTER_LAN_IFACE"
+    local wan_if="$ROUTER_WAN_IFACE"
 
     local peer_map_local="" tmp=""
     peer_map_local=$(mktemp -p "$TMPDIR" homelab.ifc.tmp.XXXXXX)
@@ -400,7 +435,8 @@ EOF
     printf "%s\n" "$buffer" > "$tmp"
 
     if [[ ! -f "$fw_out" ]] || ! cmp -s "$tmp" "$fw_out"; then
-        install_content "$fw_out" "0755" < "$tmp"
+            install_content "$fw_out" "0755" < "$tmp"
+            chmod +r "$fw_out"
     fi
 }
 

@@ -65,6 +65,9 @@ cru a dns_enforcer "*/1 * * * * /jffs/scripts/dns-enforcer.sh"
 cru d ipv6-watchdog
 cru a ipv6_watchdog "*/5 * * * * /jffs/scripts/ipv6-watchdog.sh"
 
+# Ensure memory overcommit is enabled for Go runtime (Caddy)
+echo 1 > /proc/sys/vm/overcommit_memory
+
 # Ensure IPv6 RA acceptance is correct (Merlin bugfix)
 echo 2 > /proc/sys/net/ipv6/conf/all/accept_ra
 echo 2 > /proc/sys/net/ipv6/conf/eth0/accept_ra
