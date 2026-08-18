@@ -120,7 +120,7 @@ http:
     netbird-svc:
       loadBalancer:
         servers:
-          - url: "http://10.89.12.4:33073"
+          - url: "http://172.30.0.4:80"
 
     netbird-signal-svc:
       loadBalancer:
