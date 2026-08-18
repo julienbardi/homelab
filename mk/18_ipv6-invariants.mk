@@ -43,7 +43,7 @@ verify-ipv6-invariants:
 	# All other interfaces MUST NOT have global IPv6 \
 	for IFACE in $$(ls /sys/class/net); do \
 		# Skip loopback, primary IPv6 interface, and standard virtual/tunnel/bridge interfaces \
-		if [ "$$IFACE" = "lo" ] || [ "$$IFACE" = "$(HOST_IPV6_IFACE)" ] || echo "$$IFACE" | grep -Eq '^(wg|veth|docker|br|tap|tun|bonding_masters)'; then \
+		if [ "$$IFACE" = "lo" ] || [ "$$IFACE" = "$(HOST_IPV6_IFACE)" ] || echo "$$IFACE" | grep -Eq '^(wg|veth|fwbr|docker|br|tap|tun|bonding_masters)'; then \
 			continue; \
 		fi; \
 		\

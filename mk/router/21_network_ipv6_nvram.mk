@@ -106,41 +106,44 @@ router-dhcp-static-export-secrets: router-ssh-check
 	rm -f "$$tmp"; \
 	echo '🔍 v8 done'
 
-# ------------------------------------------------------------
-# IPv6 ULA / NVRAM provisioning (static, deterministic)
-# ------------------------------------------------------------
+# VERSION: 81
+# ============================================================
+# mk/router/21_network_ipv6_nvram.mk — Router NVRAM ULA Sync
+# ============================================================
+# Fix: Mark router-provision-nvram as a drop-in replacement
+# and lock the synchronized nvram convergence logic.
+# ============================================================
 
 .PHONY: router-provision-nvram
 router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
 	@echo "🛡️ Syncing Router NVRAM (ULA only — DNS handled by dns-enforcer) (no commit)"
-
-	@ULA_PREFIX_NVRAM="$(ULA_PREFIX_NVRAM)"; \
-	ROUTER_ULA_IP6="$(ROUTER_ULA_IP6)"; \
-	ssh "$(SSH_HOST_ROUTER)" "\
-		set -e; \
-		cur_prefix=\$$(nvram get ipv6_ula_prefix 2>/dev/null || echo); \
-		cur_lan_addr=\$$(nvram get ipv6_lan_addr 2>/dev/null || echo); \
-		\
-		# ipv6_ula_prefix converge
-		if [ \"\$$cur_prefix\" != \"$$ULA_PREFIX_NVRAM\" ]; then \
-			nvram set ipv6_ula_prefix=\"$$ULA_PREFIX_NVRAM\"; \
-			nvram set ipv6_ula_enable=1; \
-			echo \"🟢 ULA prefix staged: ipv6_ula_prefix=$$ULA_PREFIX_NVRAM (commit in router-nvram-converge)\"; \
-			touch /jffs/homelab_nvram_dirty; \
-		else \
-			test -z \"$(VERBOSE)\" || echo \"✅ ULA prefix already converged (ipv6_ula_prefix=$$ULA_PREFIX_NVRAM)\"; \
-		fi; \
-		\
-		# ipv6_lan_addr converge
-		if [ \"\$$cur_lan_addr\" != \"$$ROUTER_ULA_IP6\" ]; then \
-			nvram set ipv6_lan_addr=\"$$ROUTER_ULA_IP6\"; \
-			nvram set ipv6_lan_prefix=48; \
-			echo \"🟢 ULA LAN addr staged: ipv6_lan_addr=$$ROUTER_ULA_IP6 (commit in router-nvram-converge)\"; \
-			touch /jffs/homelab_nvram_dirty; \
-		else \
-			test -z \"$(VERBOSE)\" || echo \"✅ ULA LAN addr already converged (ipv6_lan_addr=$$ROUTER_ULA_IP6)\"; \
-		fi; \
-	"
+	@$(call WITH_SECRETS, \
+	    export ULA_PREFIX_NVRAM="$${ULA_PREFIX:-fd89:7a3b:42c0::/48}"; \
+	    export ROUTER_ULA_IP6="$${ROUTER_ULA_IP6:-fd89:7a3b:42c0::1}"; \
+	    ssh "$(SSH_HOST_ROUTER)" "\
+	        set -e; \
+	        cur_prefix=\$$(nvram get ipv6_ula_prefix 2>/dev/null || echo); \
+	        cur_lan_addr=\$$(nvram get ipv6_lan_addr 2>/dev/null || echo); \
+	        \
+	        if [ \"\$$cur_prefix\" != \"$$ULA_PREFIX_NVRAM\" ]; then \
+	            nvram set ipv6_ula_prefix=\"$$ULA_PREFIX_NVRAM\"; \
+	            nvram set ipv6_ula_enable=1; \
+	            echo \"🟢 ULA prefix staged: ipv6_ula_prefix=$$ULA_PREFIX_NVRAM (commit in router-nvram-converge)\"; \
+	            touch /jffs/homelab_nvram_dirty; \
+	        else \
+	            test -z \"$(VERBOSE)\" || echo \"✅ ULA prefix already converged (ipv6_ula_prefix=$$ULA_PREFIX_NVRAM)\"; \
+	        fi; \
+	        \
+	        if [ \"\$$cur_lan_addr\" != \"$$ROUTER_ULA_IP6\" ]; then \
+	            nvram set ipv6_lan_addr=\"$$ROUTER_ULA_IP6\"; \
+	            nvram set ipv6_lan_prefix=48; \
+	            echo \"🟢 ULA LAN addr staged: ipv6_lan_addr=$$ROUTER_ULA_IP6 (commit in router-nvram-converge)\"; \
+	            touch /jffs/homelab_nvram_dirty; \
+	        else \
+	            test -z \"$(VERBOSE)\" || echo \"✅ ULA LAN addr already converged (ipv6_lan_addr=$$ROUTER_ULA_IP6)\"; \
+	        fi; \
+	    " \
+	)
 
 # ------------------------------------------------------------
 # Router RA policy
@@ -167,31 +170,25 @@ router-ra-policy: router-bootstrap-primitives router-ssh-check
 .PHONY: router-ddns
 router-ddns: secrets-ready ensure-router-ula router-ssh-check
 	@echo "📡 Deploying DDNS configuration to router"
-
 	@$(call WITH_SECRETS, sh -c '\
+		set -e; \
 		umask 077; \
 		printf "%s\n%s\n%s\n" \
 			"DNS_TOPDOMAIN_NAME='\$$ddns_topdomain'" \
 			"DDNSUSERNAME='\$$ddns_username'" \
 			"DDNSPASSWORD='\$$ddns_password'" \
 			> "$(TMP_DDNS_CONF)"; \
-	')
-
-	@$(call WITH_SECRETS, sh -c '\
+		\
 		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 			$(INSTALL_FILE_IF_CHANGED) \
 				"" "" "$(TMP_DDNS_CONF)" \
 				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "/jffs/scripts/.ddns_confidential" \
 				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0600" \
 			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
+		rm -f "$(TMP_DDNS_CONF)"; \
 	')
-
 	@echo "🔄 Executing DDNS update"
 	@ssh "$(SSH_HOST_ROUTER)" '$(ROUTER_SCRIPTS)/ddns-start'
-
-	@echo " Cleaning up RAM-only local DDNS secrets"
-	@rm -f "$(TMP_DDNS_CONF)"
-
 	@echo "🟢 DDNS update complete"
 
 # ------------------------------------------------------------

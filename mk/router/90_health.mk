@@ -7,7 +7,7 @@ export ROUTER_CADDY_BIN
 .PHONY: router-health
 router-health: router-ssh-check
 	@echo "📊 Router health check"
-	@ssh "$(SSH_HOST_ROUTER)" '\
+	@ssh "$(SSH_HOST_ROUTER)" ' \
 		set -e; \
 		echo "-> System:"; \
 			uname -a; \
@@ -21,17 +21,16 @@ router-health: router-ssh-check
 			else \
 				echo "📝 WAN HTTPS correctly blocked"; \
 			fi; \
-
 		echo "-> WireGuard:"; \
-			if iptables -L WGSI >/dev/null 2>&1; then \
-				echo "   📝 WGSI (WireGuard server ingress) present"; \
-				iptables -L WGSI -n -v | sed "s/^/     /"; \
+			if iptables -L WGSI -n | grep -qE "udp.*dpt:51819"; then \
+				echo "   📝 WGSI (WireGuard server ingress) present for port 51819"; \
+				iptables -L WGSI -n -v | sed "s/^/    /"; \
 			else \
-				echo "❌ WGSI chain missing"; exit 1; \
+				echo "❌ WGSI chain missing rule for port 51819"; exit 1; \
 			fi; \
 			if iptables -L WGCI >/dev/null 2>&1; then \
 				echo "   📝 WGCI (WireGuard client ingress) present"; \
-				iptables -L WGCI -n -v | sed "s/^/     /"; \
+				iptables -L WGCI -n -v | sed "s/^/    /"; \
 			else \
 				echo "❌ WGCI chain missing"; exit 1; \
 			fi; \
@@ -43,11 +42,8 @@ router-health: router-ssh-check
 			echo "📝 router Caddy binary present"; \
 			echo "📝 router Caddy process running"; \
 			echo "📝 router Caddy config valid (fallback mode)"; \
-
-
 		echo "-> IPv6 FORWARD hook scope:"; \
 			echo "📝 Per-peer WireGuard IPv6 firewall model active — no global WGSF6 hook required"; \
-
 		echo "✅ Router healthy" \
 	'
 

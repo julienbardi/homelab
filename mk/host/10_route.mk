@@ -22,15 +22,11 @@ endef
 # ------------------------------------------------------------
 # HOST DEFAULT ROUTE HEALER (always safe, always local)
 # ------------------------------------------------------------
-# ------------------------------------------------------------
-# ensure-host-default-route
-# ------------------------------------------------------------
-STAMP_DIR_ROOT       := /var/lib/homelab
 STAMP_HOST_ROUTE_TS  := $(STAMP_DIR_ROOT)/host-default-route.last-check
 STAMP_TTL_SECONDS    := 30
 
 .PHONY: ensure-host-default-route
-ensure-host-default-route: ensure-stamps $(run_as_root)
+ensure-host-default-route: ensure-state-dirs
 	@{ \
 		NOW=$$(date +%s); \
 		LAST=0; \
@@ -43,18 +39,19 @@ ensure-host-default-route: ensure-stamps $(run_as_root)
 			exit 0; \
 		fi; \
 		\
-		IFACE=$$(ip route get "$$ROUTER_ADDR" | \
+		IFACE=$$(ip route get "$(LAN_ROUTER)" | \
 			awk '{for(i=1;i<=NF;i++) if($$i=="dev") print $$(i+1)}' | head -n1); \
 		if [ -z "$$IFACE" ]; then \
-			echo "❌ Cannot determine host LAN interface for reaching $$ROUTER_ADDR"; \
+			echo "❌ Cannot determine host LAN interface for reaching $(LAN_ROUTER)"; \
 			exit 1; \
 		fi; \
-		if ! ip route show default | grep -q "$$ROUTER_ADDR"; then \
-			$(run_as_root) ip route add default via "$$ROUTER_ADDR" dev "$$IFACE" || true; \
-			echo "✅ Default route via $$ROUTER_ADDR on $$IFACE added"; \
+		if ! ip route show default | grep -q "$(LAN_ROUTER)"; then \
+			$(run_as_root) ip route add default via "$(LAN_ROUTER)" dev "$$IFACE" || true; \
+			echo "✅ Default route via $(LAN_ROUTER) on $$IFACE added"; \
 		else \
-			echo "🟢 Default route already via $$ROUTER_ADDR on $$IFACE"; \
+			echo "🟢 Default route already via $(LAN_ROUTER) on $$IFACE"; \
 		fi; \
+		$(run_as_root) mkdir -p "$$(dirname "$(STAMP_HOST_ROUTE_TS)")"; \
 		echo $$NOW | $(run_as_root) tee "$(STAMP_HOST_ROUTE_TS)" >/dev/null; \
 	}
 
@@ -88,8 +85,8 @@ synology-bootstrap: install-ssh-config ensure-host-default-route
 	fi
 
 # QNAP
+.PHONY: qnap-bootstrap
 qnap-bootstrap: install-ssh-config ensure-host-default-route
-qnap-bootstrap:
 	@if ! ping -c1 $(QNAP_ADDR) >/dev/null 2>&1; then \
 		echo "⚠️ QNAP unreachable — skipping qnap-bootstrap"; \
 		exit 0; \
@@ -99,10 +96,9 @@ qnap-bootstrap:
 	echo "🔧 Running QNAP bootstrap…"; \
 	# TODO: QNAP bootstrap commands here
 
-
 # hub01
+.PHONY: hub01-bootstrap
 hub01-bootstrap: install-ssh-config ensure-hub01-default-route
-hub01-bootstrap:
 	@if ! ssh -o ConnectTimeout=3 $(SSH_HOST_HUB01) 'true' >/dev/null 2>&1; then \
 		echo "⚠️ hub01 unreachable — skipping hub01-bootstrap"; \
 		exit 0; \

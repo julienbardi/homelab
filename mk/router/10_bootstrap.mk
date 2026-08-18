@@ -151,21 +151,16 @@ router-bootstrap: \
 	router-disable-asus-ca
 	@echo "🛠️ Router bootstrap complete — all base services provisioned"
 
-.PHONY: ensure-runtime-dir
-ensure-runtime-dir:
-	@mkdir -p "$(RUNTIME_DIR)"
-
 .PHONY: ensure-router-ula
-ensure-router-ula: ensure-runtime-dir secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)
-	@echo "🔧 Ensuring router ULA ($(ROUTER_ULA_VALUE))"
-
+ensure-router-ula: ensure-state-dirs secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)
+	@echo "🔧 Ensuring router ULA ($(ROUTER_ULA_VALUE))"; \
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_ULA)", \
 		$(call WITH_SECRETS, sh -c '\
 			TMPFILE="$(TMP_ROUTER_ULA)"; \
-			printf "%s\n" "$(ROUTER_ULA_VALUE)" > "$$TMPFILE"; \
+			$(run_as_root) printf "%s\n" "$(ROUTER_ULA_VALUE)" > "$$TMPFILE"; \
 			\
 			env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-				$(INSTALL_FILE_IF_CHANGED) \
+				$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
 					"" "" "$$TMPFILE" \
 					"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "$(ROUTER_ULA_FILE)" \
 					"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
@@ -304,7 +299,17 @@ router-scripts-invariants: | router-ssh-check
 			done; \
 		fi; \
 		\
-		echo "🟢 /jffs/scripts invariants enforced"; \
+		# --- FIX: Instantly apply firewall and service hooks --- \
+		if [ -x /jffs/scripts/firewall-start ]; then \
+			echo "🔥 Triggering firewall-start hook..."; \
+			/jffs/scripts/firewall-start || true; \
+		fi; \
+		if [ -x /jffs/scripts/services-start ]; then \
+			echo "⚙️ Triggering services-start hook..."; \
+			/jffs/scripts/services-start || true; \
+		fi; \
+		\
+		echo "🟢 /jffs/scripts invariants enforced and applied"; \
 	'
 
 # Ensure runtime directory exists
