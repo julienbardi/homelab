@@ -70,8 +70,10 @@ SECRETS_LOCK_MAX_AGE := 30
 # environment or subsequent make recipe lines.
 define WITH_SECRETS
 	( \
-		SECS="$$( $(SOPS_BIN) -d "$(SECRETS_FILE)" \
-		| $(YQ) -r '.. | select(tag == "!!str" or tag == "!!int" or tag == "!!bool") | (path | join("_")) + "=" + .' )"; \
+		SOPS_BIN="$${SOPS_BIN:-$(SOPS_BIN)}"; \
+		YQ="$${YQ:-$(YQ)}"; \
+		SECS="$$( "$$SOPS_BIN" -d "$(SECRETS_FILE)" \
+		| "$$YQ" -r '.. | select(tag == "!!str" or tag == "!!int" or tag == "!!bool") | (path | join("_")) + "=" + .' )"; \
 		export $$SECS; \
 		$(1) \
 	)
@@ -324,7 +326,10 @@ ddns-env: ddns-env-dir secrets-runtime-init $(YQ_STAMP)
 		export SECRETS_FILE="$(SECRETS_FILE)"; \
 		export YQ="$(YQ)"; \
 		\
-		$(run_as_root) bash -euo pipefail -c '\
+		$(run_as_root) bash -euo pipefail -c ' \
+			SOPS_BIN="$${SOPS_BIN:-/usr/local/bin/sops}"; \
+			SECRETS_FILE="$${SECRETS_FILE:-/tank/julie/src/homelab/secrets.enc.yaml}"; \
+			YQ="$${YQ:-/usr/local/bin/yq}"; \
 			tmp="$$(mktemp)"; \
 			trap "rm -f \"$$tmp\"" EXIT; \
 			umask 077; \
