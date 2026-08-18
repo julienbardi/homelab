@@ -66,10 +66,8 @@ tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
 		echo "ℹ️ tailscaled-lan: USE_TAILSCALED=$(USE_TAILSCALED); skipping LAN enrollment"; \
 		exit 0; \
-	fi
-	$(call warn_if_no_net_tunnel_preflight)
-	@echo "🔑 Enrolling LAN client (bardi-lan / lan)"
-	@set -e; \
+	fi; \
+	echo "🔑 Enrolling LAN client (bardi-lan / lan)"; \
 	AUTH_KEY=$$($(run_as_root) $(HS_BIN) preauthkeys create \
 		--user $(HS_USER_LAN) \
 		--output json | jq -r '.key'); \
@@ -81,10 +79,10 @@ tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 		--advertise-routes=10.89.12.0/24,fd89:7a3b:42c0::/64 \
 		--accept-dns=false \
 		--accept-routes=true \
-		--exit-node=false
-	@echo "📊 LAN exit-node + subnet route advertised"
-	@$(run_as_root) $(TS_BIN) status --json | jq '.Self.CapMap'
-	@echo "✅ LAN client configured"
+		--exit-node=false; \
+	echo "📊 LAN exit-node + subnet route advertised"; \
+	$(run_as_root) $(TS_BIN) status --json | jq '.Self.CapMap'; \
+	echo "✅ LAN client configured"
 
 # --------------------------------------------------------------------
 # WAN client (internet-only)
@@ -100,10 +98,8 @@ tailscaled-wan: tailscaled-check-deps
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
 		echo "ℹ️ tailscaled-wan: USE_TAILSCALED=$(USE_TAILSCALED); skipping WAN enrollment"; \
 		exit 0; \
-	fi
-	$(call warn_if_no_net_tunnel_preflight)
-	@echo "🔑 Enrolling WAN client (bardi-wan / wan)"
-	@set -e; \
+	fi; \
+	echo "🔑 Enrolling WAN client (bardi-wan / wan)"; \
 	AUTH_KEY=$$($(run_as_root) $(HS_BIN) preauthkeys create \
 		--user $(HS_USER_WAN) \
 		--ephemeral=true \
@@ -113,16 +109,20 @@ tailscaled-wan: tailscaled-check-deps
 		--authkey="$$AUTH_KEY" \
 		--accept-dns=false \
 		--exit-node=false \
-		--accept-routes=false
-	@echo "✅ WAN client configured (internet-only)"
+		--accept-routes=false; \
+	echo "✅ WAN client configured (internet-only)"
 
 # --------------------------------------------------------------------
 # Install and enable services at boot
 # tailscaled-lan.service ensures NAS stays enrolled + advertises routes.
 # --------------------------------------------------------------------
 enable-tailscaled:
-	@echo "🔧 Installing systemd role units"
-	@$(run_as_root) install -o $(ROOT_UID) -g $(ROOT_GID) -m 644 \
+	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
+        echo "ℹ️ enable-tailscaled: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+        exit 0; \
+    fi; \
+	echo "🔧 Installing systemd role units"; \
+	$(run_as_root) install -o $(ROOT_UID) -g $(ROOT_GID) -m 644 \
 		$(SYSTEMD_SRC_DIR)/tailscaled-lan.service \
 		$(SYSTEMD_DIR)/tailscaled-lan.service
 	@$(systemctl_daemon_reload)
@@ -133,12 +133,20 @@ enable-tailscaled:
 # Runtime control
 # --------------------------------------------------------------------
 start-tailscaled:
-	@$(run_as_root) systemctl start tailscaled tailscaled-lan.service
-	@echo "🚀 Started: tailscaled + role service"
+	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
+		echo "ℹ️ start-tailscaled: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		exit 0; \
+	fi; \
+	$(run_as_root) systemctl start tailscaled tailscaled-lan.service; \
+	echo "🚀 Started: tailscaled + role service"
 
 stop-tailscaled:
-	@$(run_as_root) systemctl stop tailscaled tailscaled-lan.service
-	@echo "⚙️ Stopped: tailscaled + role service"
+	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
+		echo "ℹ️ stop-tailscaled: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		exit 0; \
+	fi; \
+	$(run_as_root) systemctl stop tailscaled tailscaled-lan.service; \
+	echo "⚙️ Stopped: tailscaled + role service"
 
 # --------------------------------------------------------------------
 # Status and logs
@@ -147,27 +155,36 @@ tailscaled-status: install-pkg-vnstat
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
 		echo "ℹ️ tailscaled-status: USE_TAILSCALED=$(USE_TAILSCALED); skipping status check"; \
 		exit 0; \
-	fi
-	@echo "🔍 tailscaled health + stats"
-	@echo "📦 daemon:"; $(run_as_root) systemctl is-active tailscaled || echo "❌ inactive"
-	@echo "🔧 role unit:"; $(run_as_root) systemctl is-enabled tailscaled-lan.service || echo "❌ not enabled"
-	@echo "📊 connected nodes:"; $(run_as_root) $(TS_BIN) status | awk '{print $$1, $$2, $$3}'
-	@echo "📊 monthly traffic:"; vnstat -i tailscale0 -m || true
-	@echo "⚙️ connection events (1h):"; \
+	fi; \
+	echo "🔍 tailscaled health + stats"; \
+	echo "📦 daemon:"; $(run_as_root) systemctl is-active tailscaled || echo "❌ inactive"; \
+	echo "🔧 role unit:"; $(run_as_root) systemctl is-enabled tailscaled-lan.service || echo "❌ not enabled"; \
+	echo "📊 connected nodes:"; $(run_as_root) $(TS_BIN) status | awk '{print $$1, $$2, $$3}'; \
+	echo "📊 monthly traffic:"; vnstat -i tailscale0 -m || true; \
+	echo "⚙️ connection events (1h):"; \
 		$(run_as_root) journalctl -u tailscaled --since "1 hour ago" \
-		| grep -i connection | wc -l | xargs echo "events"
-	@echo "📋 versions:"
-	@echo "    CLI:"; $(TS_BIN) version || true
-	@echo "    Daemon:"; $(run_as_root) tailscaled --version || true
+		| grep -i connection | wc -l | xargs echo "events"; \
+	echo "📋 versions:"; \
+	echo "    CLI:"; $(TS_BIN) version || true; \
+	echo "    Daemon:"; $(run_as_root) tailscaled --version || true
 
 tailscaled-logs:
-	@echo "📜 Tailing logs (Ctrl-C to exit)"
-	@$(run_as_root) journalctl -u tailscaled -u tailscaled-lan.service -f
+	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
+		echo "ℹ️ tailscaled-logs: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		exit 0; \
+	fi; \
+	echo "📜 Tailing logs (Ctrl-C to exit)"; \
+	$(run_as_root) journalctl -u tailscaled -u tailscaled-lan.service -f
+
 
 tailscale-check:
-	@echo "🔍 Checking Tailscale versions"
-	@echo "CLI:"; $(TS_BIN) version || true
-	@echo "Daemon:"; $(run_as_root) tailscaled --version || true
+	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
+		echo "ℹ️ tailscale-check: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		exit 0; \
+	fi; \
+	echo "🔍 Checking Tailscale versions"; \
+	echo "CLI:"; $(TS_BIN) version || true; \
+	echo "Daemon:"; $(run_as_root) tailscaled --version || true
 
 
 # tailscaled is required for:

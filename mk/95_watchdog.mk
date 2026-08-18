@@ -4,7 +4,7 @@
 WATCHDOG_UNIT_SRC := $(REPO_ROOT)/config/systemd/router-prefix-watchdog.service.in
 WATCHDOG_UNIT_DST := /etc/systemd/system/router-prefix-watchdog.service
 
-install-router-prefix-watchdog: ensure-runtime-dir
+install-router-prefix-watchdog: ensure-state-dirs
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛠️ Installing router-prefix-watchdog service" || true; fi; \
 	tmp="$$(umask 077 && mktemp -p "$(RUNTIME_DIR)" tmp.watchdog.XXXXXX)"; \
 	ROOT_UID="$(ROOT_UID)" \
@@ -13,11 +13,11 @@ install-router-prefix-watchdog: ensure-runtime-dir
 	INSTALL_PATH="$(INSTALL_PATH)" \
 	envsubst < "$(WATCHDOG_UNIT_SRC)" > "$$tmp"; \
 	\
+	IFC_STATUS=0; \
 	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q \
 		"" "" "$$tmp" \
 		"" "" "$(WATCHDOG_UNIT_DST)" \
-		"$(ROOT_UID)" "$(ROOT_GID)" "0644"; \
-	IFC_STATUS=$$?; \
+		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || IFC_STATUS=$$?; \
 	rm -f "$$tmp"; \
 	\
 	if [ $$IFC_STATUS -ne 0 ] && [ $$IFC_STATUS -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \

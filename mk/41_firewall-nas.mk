@@ -7,7 +7,7 @@
 # - Idempotent and safe to re-run
 # --------------------------------------------------------------------
 
-include /var/lib/homelab/wg-subnets.mk
+include $(STAMP_DIR_ROOT)/wg-subnets.mk
 
 # Derived from authoritative wg-interfaces.tsv via wg-plan-subnets.sh
 ROUTER_WG_SUBNET   := $(WG_ROUTER_SUBNET_V4)
@@ -24,7 +24,7 @@ $(if $(wildcard $(IP6TABLES)),,$(error ip6tables not found at $(IP6TABLES)))
 # IPv6 rules only if router WG IPv6 subnet exists
 ifneq ($(strip $(ROUTER_WG_SUBNET6)),)
 
-firewall-nas: /var/lib/homelab/wg-subnets.mk
+firewall-nas: $(STAMP_DIR_ROOT)/wg-subnets.mk
 	@echo "🔓 Allowing router-terminated WireGuard clients to access NAS"
 
 	@if ! $(run_as_root) $(IPTABLES) -C INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT 2>/dev/null; then \
@@ -45,7 +45,13 @@ firewall-nas: /var/lib/homelab/wg-subnets.mk
 
 else
 
-firewall-nas: /var/lib/homelab/wg-subnets.mk
+# Skip IPv4 rules if WG IPv4 subnet is empty
+ifeq ($(strip $(ROUTER_WG_SUBNET)),)
+firewall-nas:
+	@echo "⏭️ Skipping NAS IPv4 firewall rules: ROUTER_WG_SUBNET is empty"
+else
+
+firewall-nas: $(STAMP_DIR_ROOT)/wg-subnets.mk
 	@echo "🔓 Allowing router-terminated WireGuard clients to access NAS (IPv4 only)"
 
 	@if ! $(run_as_root) $(IPTABLES) -C INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p tcp -j ACCEPT 2>/dev/null; then \
@@ -56,7 +62,8 @@ firewall-nas: /var/lib/homelab/wg-subnets.mk
 		  $(run_as_root) $(IPTABLES) -I INPUT -s $(ROUTER_WG_SUBNET)   -d $(NAS_LAN_IP) -p udp -j ACCEPT; \
 	fi
 
-endif
+endif  # ROUTER_WG_SUBNET empty guard
+endif  # IPv6/IPv4 branch
 
 
 .PHONY: install-nft-apply nft-apply nft-confirm nft-install nft-status nft-install nft-verify nft-install-rollback

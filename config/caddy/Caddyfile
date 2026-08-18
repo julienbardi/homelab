@@ -111,11 +111,11 @@ bardi.ch:8384 {
 			tls_insecure_skip_verify
 		}
 
-        # --- DoH health checks ---
-        health_uri /dns-query?name=example.com&type=A
-        health_interval 10s
-        health_timeout 2s
-        fail_duration 30s
+		# --- DoH health checks ---
+		health_uri /dns-query?name=example.com&type=A
+		health_interval 10s
+		health_timeout 2s
+		fail_duration 30s
 	}
 
 	# DiskStation main HTTPS site (WAN)
@@ -226,6 +226,26 @@ bardi.ch:8384 {
 		header_up Host dev.bardi.ch
 	}
 
+	# Proxmox VE (internal / VPN only)
+	@pve_internal {
+		host pve.bardi.ch
+
+		# LAN IPv4 + IPv6
+		remote_ip 10.89.12.0/24
+		remote_ip fd89:7a3b:42c0::/64
+
+		# WireGuard / VPN ranges
+		remote_ip 10.0.0.0/8
+		remote_ip fd89:7a3b:42c0::/48
+		remote_ip 100.64.0.0/10
+	}
+	reverse_proxy @pve_internal https://10.89.12.4:8006 {
+		header_up Host pve.bardi.ch
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+
 	# apt-cacher-ng (internal only)
 	@apt_internal {
 		host apt.bardi.ch
@@ -270,7 +290,8 @@ bardi.ch:8384 {
  nas.bardi.ch \
  dev.bardi.ch \
  apt.bardi.ch \
- netbird.bardi.ch
+ netbird.bardi.ch \
+ pve.bardi.ch
 
 	respond @unknown "Not Found" 404
 

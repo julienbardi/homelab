@@ -178,31 +178,63 @@ acme-selftest: \
 	@echo "🟢 ACME subsystem converged"
 
 # ============================================================================
-# 2. ACME Initial Issuance (safe, idempotent, systemd-managed)
+# 2. ACME Initial Issuance (safe, idempotent, synchronous)
 # ============================================================================
-# This triggers the initial ACME issuance using acme-issue.service.
-# It is non-blocking and operator-visible.
-# ============================================================================
-
 .PHONY: acme-issue
 acme-issue: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
-	@$(run_as_root) systemctl start --no-block acme-issue.service
-	@echo "🚀 ACME issuance triggered (non-blocking)"
-	@echo "   View logs: sudo journalctl -u acme-issue.service -f"
+	@$(run_as_root) bash -euo pipefail -c '\
+		if [ ! -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem" ]; then \
+			echo "🚀 Issuing ACME certificate synchronously via acme.sh..."; \
+			export HOME="$(ACME_HOME)"; \
+			unset SUDO_USER; \
+			/var/lib/acme/acme.sh --issue --server letsencrypt --dns dns_infomaniak -d "$(DOMAIN)" -d "*.$(DOMAIN)" --home "$(ACME_HOME)" || true; \
+		else \
+			echo "🟢 ACME certificate already exists"; \
+		fi; \
+		if [ -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" ]; then \
+			rm -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem"; \
+			cp "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem"; \
+			echo "🟢 Updated fullchain.pem from fullchain.cer"; \
+		fi; \
+		{ \
+			echo "export SSL_KEY_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key\""; \
+			echo "export SSL_CERT_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer\""; \
+			echo "export SSL_CA_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/ca.cer\""; \
+			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem\""; \
+		} > /etc/homelab/acme-env.sh; \
+	'
+	@echo "SSL_KEY_ECC=$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key" >> $(abspath .state/EXPORT.env 2>/dev/null || echo /dev/null)
+	@echo "SSL_CERT_ECC=$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer" >> $(abspath .state/EXPORT.env 2>/dev/null || echo /dev/null)
+	@echo "SSL_CA_ECC=$(ACME_HOME)/$(DOMAIN)_ecc/ca.cer" >> $(abspath .state/EXPORT.env 2>/dev/null || echo /dev/null)
+	@echo "SSL_FULLCHAIN_ECC=$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem" >> $(abspath .state/EXPORT.env 2>/dev/null || echo /dev/null)
 
+export SSL_KEY_ECC = $(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key
+export SSL_CERT_ECC = $(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer
+export SSL_CA_ECC = $(ACME_HOME)/$(DOMAIN)_ecc/ca.cer
+export SSL_FULLCHAIN_ECC = $(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem
+
+.PHONY: acme-issue-sync
+acme-issue-sync: acme-issue
 
 # ============================================================================
 # 3. ACME Renewal (safe, idempotent, daily)
 # ============================================================================
-# This triggers the daily ACME renewal using acme-renewal.service.
-# It is systemd-managed and uses acme.sh --cron.
-# ============================================================================
-
 .PHONY: acme-renew
-acme-renew: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
-	@$(run_as_root) systemctl start acme-renew.service
-	@echo "🔄 ACME renewal triggered"
-
+acme-renew: acme-issue
+	@$(run_as_root) bash -euo pipefail -c '\
+		if [ -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" ]; then \
+			rm -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem"; \
+			cp "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem"; \
+		fi; \
+		{ \
+			echo "export SSL_KEY_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key\""; \
+			echo "export SSL_CERT_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer\""; \
+			echo "export SSL_CA_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/ca.cer\""; \
+			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem\""; \
+		} > /etc/homelab/acme-env.sh; \
+		systemctl start acme-renewal.service 2>/dev/null || true; \
+		echo "🔄 ACME renewal step completed"; \
+	'
 
 # ============================================================================
 # 4. ACME Migration (dangerous, one-time)

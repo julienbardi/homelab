@@ -1,19 +1,218 @@
+# netbird/traefik-dynamic.yaml -> /etc/traefik/dynamic/traefik_dynamic.yml
 http:
   routers:
+    # 1. Syncthing GUI
+    syncthing:
+      rule: "Host(`bardi.ch`) && PathPrefix(`/`)" # or adjust if root goes to bardi_homepage
+      service: syncthing-svc
+      tls: {}
+
+    # 2. NetBird Management API & UI (already handled by NetBird files, but can be explicit)
+    netbird-api:
+      rule: "Host(`netbird.bardi.ch`) && PathPrefix(`/api/`)"
+      service: netbird-svc
+      tls: {}
+    netbird-ui:
+      rule: "Host(`netbird.bardi.ch`)"
+      service: netbird-svc
+      tls: {}
+
+    # 3. NetBird Signal
+    netbird-signal:
+      rule: "Host(`netbird.bardi.ch`) && PathPrefix(`/signalexchange/`)"
+      service: netbird-signal-svc
+      tls: {}
+
+    # 4. DNS over HTTPS (DoH)
+    doh:
+      rule: "Host(`dns.bardi.ch`) && PathPrefix(`/dns-query`)"
+      service: doh-svc
+      tls: {}
+
+    # 5. DiskStation Main HTTPS Site (WAN)
+    diskstation-wan:
+      rule: "Host(`bardi.ch`)"
+      service: diskstation-https-svc
+      tls: {}
+
+    # 6. DSM Management (Internal Only)
+    syno-5001:
+      rule: "Host(`bardi.ch`)"
+      middlewares: [internal-ips]
+      service: syno-5001-svc
+      tls: {}
+
+    # 7. Synology Service (Internal Only)
+    syno-5006:
+      rule: "Host(`bardi.ch`)"
+      middlewares: [internal-ips]
+      service: syno-5006-svc
+      tls: {}
+
+    # 8. Synology Drive (Internal Only)
+    syno-6690:
+      rule: "Host(`bardi.ch`)"
+      middlewares: [internal-ips]
+      service: syno-6690-svc
+      tls: {}
+
+    # 9. Headscale Control Plane
+    headscale:
+      rule: "Host(`vpn.bardi.ch`)"
+      service: headscale-svc
+      tls: {}
+
+    # 10. DERP Relay
+    derp:
+      rule: "Host(`derp.bardi.ch`)"
+      service: derp-svc
+      tls: {}
+
+    # 11. QNAP (Internal Only)
+    qnap:
+      rule: "Host(`qnap.bardi.ch`)"
+      middlewares: [internal-ips]
+      service: qnap-svc
+      tls: {}
+
+    # 12. NAS Internal Service (Internal Only)
+    nas:
+      rule: "Host(`nas.bardi.ch`)"
+      middlewares: [internal-ips]
+      service: nas-svc
+      tls: {}
+
+    # 13. Router (Internal Only)
+    router:
+      rule: "Host(`router.bardi.ch`)"
+      middlewares: [internal-ips]
+      service: router-svc
+      tls: {}
+
+    # 14. Dev IDE (Internal / VPN / Tailscale)
+    dev:
+      rule: "Host(`dev.bardi.ch`)"
+      middlewares: [extended-internal-ips]
+      service: dev-svc
+      tls: {}
+
+    # 15. Proxmox VE (Internal / VPN / Tailscale)
     proxmox:
       rule: "Host(`pve.bardi.ch`)"
-      entryPoints:
-        - websecure
+      middlewares: [extended-internal-ips]
+      service: proxmox-service
       tls:
         certResolver: letsencrypt
-      service: proxmox-service
+
+    # 16. apt-cacher-ng (Internal / VPN / Tailscale)
+    apt:
+      rule: "Host(`apt.bardi.ch`)"
+      middlewares: [extended-internal-ips]
+      service: apt-svc
+      tls: {}
 
   services:
+    syncthing-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.2:8384"
+
+    netbird-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.4:33073"
+
+    netbird-signal-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.4:33075"
+
+    doh-svc:
+      loadBalancer:
+        servers:
+          - url: "https://10.89.12.4:8053"
+        serversTransport: insecureTransport
+
+    diskstation-https-svc:
+      loadBalancer:
+        servers:
+          - url: "https://10.89.12.2:443"
+        serversTransport: insecureTransport
+
+    syno-5001-svc:
+      loadBalancer:
+        servers:
+          - url: "https://10.89.12.2:5001"
+        serversTransport: insecureTransport
+
+    syno-5006-svc:
+      loadBalancer:
+        servers:
+          - url: "https://10.89.12.2:5006"
+        serversTransport: insecureTransport
+
+    syno-6690-svc:
+      loadBalancer:
+        servers:
+          - url: "https://10.89.12.2:6690"
+        serversTransport: insecureTransport
+
+    headscale-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.4:8910"
+
+    derp-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.4:8912"
+
+    qnap-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.3:8080"
+
+    nas-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.4:9999"
+
+    router-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.1:8080"
+
+    dev-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.4:8080"
+
     proxmox-service:
       loadBalancer:
         servers:
           - url: "https://10.89.12.4:8006"
         serversTransport: insecureTransport
+
+    apt-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.89.12.4:3142"
+
+  middlewares:
+    internal-ips:
+      ipAllowList:
+        sourceRange:
+          - "10.89.12.0/24"
+          - "fd89:7a3b:42c0::/64"
+
+    extended-internal-ips:
+      ipAllowList:
+        sourceRange:
+          - "10.89.12.0/24"
+          - "fd89:7a3b:42c0::/64"
+          - "10.0.0.0/8"
+          - "fd89:7a3b:42c0::/48"
+          - "100.64.0.0/10"
 
   serversTransports:
     insecureTransport:

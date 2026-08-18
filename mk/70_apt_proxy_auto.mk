@@ -20,6 +20,7 @@ endif
 
 .PHONY: \
     apt-proxy-auto-disable \
+    apt-proxy-auto-uninstall \
     apt-proxy-auto-status \
     apt-proxy-auto-install \
     apt-cacher-ng-setup \
@@ -161,14 +162,32 @@ apt-proxy-auto-enable: apt-proxy-auto-install
 		systemctl enable --now apt-proxy-auto.timer; \
 		"$(APT_PROXY_AUTO)"'
 
-apt-proxy-auto-disable:
-	@$(run_as_root) systemctl disable --now apt-proxy-auto.timer || true
-	@$(run_as_root) rm -f /etc/apt/apt.conf.d/01proxy
-	@echo "✅ apt-proxy-auto timer disabled and proxy file removed"
+apt-proxy-auto-uninstall:
+	@$(run_as_root) sh -eu -c '\
+		systemctl disable --now apt-proxy-auto.timer apt-proxy-auto.service 2>/dev/null || true; \
+		rm -f \
+			$(APT_PROXY_AUTO_SERVICE_DST) \
+			$(APT_PROXY_AUTO_TIMER_DST) \
+			$(APT_PROXY_AUTO) \
+			/etc/apt/apt.conf.d/01proxy \
+			/etc/apt/apt.conf.d/01proxy.conf; \
+		systemctl daemon-reload'
+	@echo "✅ apt-proxy-auto completely uninstalled"
 
 apt-proxy-auto-status:
-	@echo "🔍 apt-proxy-auto status"
-	@$(run_as_root) systemctl is-active --quiet apt-proxy-auto.timer || \
-		( echo "❌ apt-proxy-auto.timer not active"; exit 1 )
-	@echo "📋 Current APT proxy config (/etc/apt/apt.conf.d/01proxy):"
-	@$(run_as_root) sh -c 'test -f /etc/apt/apt.conf.d/01proxy && cat /etc/apt/apt.conf.d/01proxy || echo "(absent -> direct mirrors)"'
+	@$(run_as_root) sh -eu -c '\
+		if [ ! -f "$(APT_PROXY_AUTO)" ] && [ ! -f "$(APT_PROXY_AUTO_TIMER_DST)" ]; then \
+			echo "ℹ️ apt-proxy-auto is completely uninstalled"; \
+			exit 0; \
+		fi; \
+		if systemctl is-active --quiet apt-proxy-auto.timer 2>/dev/null; then \
+			echo "✅ apt-proxy-auto.timer is active"; \
+		else \
+			echo "ℹ️ apt-proxy-auto.timer is not active"; \
+		fi; \
+		echo "📋 Current APT proxy config (/etc/apt/apt.conf.d/01proxy):"; \
+		if [ -f /etc/apt/apt.conf.d/01proxy ]; then \
+			cat /etc/apt/apt.conf.d/01proxy; \
+		else \
+			echo "(absent -> direct mirrors)"; \
+		fi'

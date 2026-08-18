@@ -68,7 +68,7 @@ $(STAMP_UNBOUND_ANCHOR):
 # ------------------------------------------------------------
 # Config deployment (pure, IGOS-safe)
 # ------------------------------------------------------------
-deploy-unbound-config: deploy-unbound-local-internal install-all
+deploy-unbound-config: update-root-hints deploy-unbound-local-internal install-all
 	@$(run_as_root) install -d -m 0755 /etc/unbound /etc/unbound/unbound.conf.d
 	@changed=0; rc=0; \
 	$(call install_file,$(UNBOUND_CONF_SRC),$(UNBOUND_CONF_DST),root,root,0644) || rc=$$?; \

@@ -65,6 +65,7 @@ prometheus-install: | ensure-host-default-route
 # Systemd Unit Deployment via Shadow Invariant Check
 # --------------------------------------------------------------------
 $(PROMETHEUS_UNIT_SHADOW): $(PROMETHEUS_UNIT_SRC) $(PROMETHEUS_UNIT_DST) install-all | prometheus-install
+	@mkdir -p $(dir $@) $(dir $(PROMETHEUS_UNIT_CHANGED_STAMP))
 	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
 	NEW_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
@@ -74,14 +75,15 @@ $(PROMETHEUS_UNIT_SHADOW): $(PROMETHEUS_UNIT_SRC) $(PROMETHEUS_UNIT_DST) install
 		fi; \
 		echo "🔧 Syncing Prometheus systemd unit asset"; \
 		$(call install_file,$(PROMETHEUS_UNIT_SRC),$(PROMETHEUS_UNIT_DST),$(ROOT_UID),$(ROOT_GID),0644); \
-		touch "$(PROMETHEUS_UNIT_CHANGED_STAMP)"; \
-	  fi
+		$(run_as_root) touch "$(PROMETHEUS_UNIT_CHANGED_STAMP)"; \
+	fi
 	@touch "$@"
 
 # --------------------------------------------------------------------
 # Configuration Deployment via Shadow Invariant Check
 # --------------------------------------------------------------------
 $(PROMETHEUS_CONFIG_SHADOW): $(PROMETHEUS_CONFIG_SRC) install-all | prometheus-install
+	@mkdir -p $(dir $@) $(dir $(PROMETHEUS_CHANGED_STAMP))
 	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_CONFIG_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
 	NEW_HASH=$$(sha256sum "$(PROMETHEUS_CONFIG_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
@@ -93,8 +95,8 @@ $(PROMETHEUS_CONFIG_SHADOW): $(PROMETHEUS_CONFIG_SRC) install-all | prometheus-i
 		promtool check config $(PROMETHEUS_CONFIG_SRC); \
 		echo "📦 Syncing Prometheus configuration"; \
 		$(call install_file,$(PROMETHEUS_CONFIG_SRC),$(PROMETHEUS_CONFIG_DST),$(ROOT_UID),$(ROOT_GID),0644); \
-		touch "$(PROMETHEUS_CHANGED_STAMP)"; \
-	  fi
+		$(run_as_root) touch "$(PROMETHEUS_CHANGED_STAMP)"; \
+	fi
 	@touch "$@"
 
 # --------------------------------------------------------------------
