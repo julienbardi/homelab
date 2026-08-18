@@ -11,7 +11,8 @@ source "$SCRIPT_DIR/common.sh"
 
 : "${HOMELAB_NFT_ETC_DIR:=/etc/nftables}"
 : "${HOMELAB_NFT_RULESET:=${HOMELAB_NFT_ETC_DIR}/homelab.nft}"
-: "${HOMELAB_NFT_HASH_FILE:=/var/lib/homelab/nftables.applied.sha256}"
+: "${STAMP_DIR_ROOT:=${HOME}/.local/state/homelab}"
+: "${HOMELAB_NFT_HASH_FILE:=${STAMP_DIR_ROOT}/nftables.applied.sha256}"
 : "${HOMELAB_NFT_ROLLBACK_FLAG:=/run/homelab-nft.pending}"
 
 if [[ ! -f "$HOMELAB_NFT_RULESET" ]]; then

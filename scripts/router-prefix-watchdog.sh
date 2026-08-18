@@ -7,12 +7,13 @@
 #   - It does NOT detect prefix changes.
 #   - Prefix detection is done by router-side WAN-event or Makefile logic.
 #   - This script ONLY consumes the marker:
-#         /var/lib/homelab/router-prefix.changed
+#         $(STAMP_DIR_ROOT)/router-prefix.changed
 #     and triggers router-all when present.
 # --------------------------------------------------------------------
 set -euo pipefail
 
-MARKER="/var/lib/homelab/router-prefix.changed"
+: "${STAMP_DIR_ROOT:=${HOME}/.local/state/homelab}"
+MARKER="${STAMP_DIR_ROOT}/router-prefix.changed"
 LOGTAG="router-prefix-watchdog"
 
 # REPO_ROOT must be exported by systemd service

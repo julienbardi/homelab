@@ -109,7 +109,7 @@ if [ -z "$DST_HOST" ]; then
 fi
 
 if [ "$content_drift" = 0 ] && [ "$owner_drift" = 0 ] && [ "$group_drift" = 0 ] && [ "$mode_drift" = 0 ]; then
-    log "🟢 already up-to-date: $DST_PATH"
+    #log "🟢 already up-to-date: $DST_PATH"
     exit 0
 fi
 

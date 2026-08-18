@@ -153,6 +153,21 @@ ensure_rule() {
 # 4. Certificate‑deployment helpers
 # ============================================================
 
+install_files_if_changed_v3() {
+    local -n _changed_ref="$1"
+    shift
+    while [ "$#" -ge 9 ]; do
+        "$INSTALL_FILE_IF_CHANGED" -q "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
+        local ret=$?
+        if [ "$ret" -eq 3 ]; then
+            _changed_ref=1
+        elif [ "$ret" -ne 0 && "$ret" -ne 3 ]; then
+            return "$ret"
+        fi
+        shift 9
+    done
+}
+
 # Require file exists and is non‑empty
 require_file() {
 	[[ -s "$1" ]] || { log "❌ missing file: $1"; exit 1; }

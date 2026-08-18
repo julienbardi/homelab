@@ -47,6 +47,10 @@ PRESERVE_ENV="$(
     STAMP_DIR_USER \
     STAMP_SALT \
     YQ \
+    DOMAIN \
+    SSL_CANONICAL_DIR \
+    SSL_CERT_ECC \
+    SSL_CHAIN_ECC \
   | sed 's/,$//'
 )"
 readonly PRESERVE_ENV
