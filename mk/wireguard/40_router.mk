@@ -7,69 +7,90 @@ router-ensure-wg-module: router-install-scripts
 		echo "🛡️ [router] Ensuring WireGuard kernel module on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)..."; \
 		ssh "$(SSH_HOST_ROUTER)" 'modprobe wireguard 2>/dev/null || true'
 
+# VERSION: 2026.08.17-clean-router-keys
 router-bootstrap-wg-keys:
-		@echo "🔧 [router] Ensuring WireGuard identity in NVRAM (wgs1)..."; \
-		ssh "$(SSH_HOST_ROUTER)" ' \
-				set -eu; \
-				priv="$$(nvram get wgs1_priv 2>/dev/null || true)"; \
-				pub="$$(nvram get wgs1_pub 2>/dev/null || true)"; \
-				if [ -n "$$priv" ] && [ -n "$$pub" ]; then \
-						echo "🔒 Existing WireGuard identity found in NVRAM (wgs1)."; \
-						exit 0; \
-				fi; \
-				echo "🔐 Generating new WireGuard identity for wgs1 in NVRAM..."; \
-				wgs1_priv="$$(wg genkey)"; \
-				wgs1_pub="$$(printf "%s" "$$wgs1_priv" | wg pubkey)"; \
-				nvram set wgs1_priv="$$wgs1_priv"; \
-				nvram set wgs1_pub="$$wgs1_pub"; \
-				nvram commit; \
-				unset wgs1_priv wgs1_pub; \
-				echo "✅ Router WireGuard identity stored in NVRAM (wgs1_priv / wgs1_pub)."; \
-		'
+	@ssh "$(SSH_HOST_ROUTER)" ' \
+		set -eu; \
+		priv="$$(nvram get wgs1_priv 2>/dev/null || true)"; \
+		pub="$$(nvram get wgs1_pub 2>/dev/null || true)"; \
+		if [ -n "$$priv" ] && [ -n "$$pub" ]; then \
+			echo "🔒 Existing WireGuard identity found in NVRAM (wgs1)."; \
+			exit 0; \
+		fi; \
+		echo "🔐 Generating new WireGuard identity for wgs1 in NVRAM..."; \
+		wgs1_priv="$$(wg genkey)"; \
+		wgs1_pub="$$(printf "%s" "$$wgs1_priv" | wg pubkey)"; \
+		nvram set wgs1_priv="$$wgs1_priv"; \
+		nvram set wgs1_pub="$$wgs1_pub"; \
+		nvram commit; \
+		unset wgs1_priv wgs1_pub; \
+		echo "✅ Router WireGuard identity stored in NVRAM (wgs1_priv / wgs1_pub)."; \
+	'
 
 router-firewall: | wg-generate
-		@echo "🛡️ [router] Installing firewall for WireGuard..."
-		$(call TMPFILE_BLOCK,"$(TMP_ROUTER_WG_FIREWALL)", \
-				umask 077; \
-				cat "$(WG_FIREWALL)" > "$(TMP_ROUTER_WG_FIREWALL)"; \
-				FEC=0; \
-				SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
-				$(INSTALL_FILE_IF_CHANGED) "-q" \
-						"" "" "$(TMP_ROUTER_WG_FIREWALL)" \
-						$(ROUTER_HOST) $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
-						"0" "0" "0755" || FEC=$$?; \
-				if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi; \
-				if [ "$$FEC" = "0" ]; then \
-						ssh "$(SSH_HOST_ROUTER)" "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
-				fi \
-		)
+	@echo "🛡️ [router] Installing firewall for WireGuard..."; \
+	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_WG_FIREWALL)", \
+		umask 022; \
+		$(WG_SUDO) cat "$(WG_FIREWALL)" > "$(TMP_ROUTER_WG_FIREWALL)"; \
+		FEC=0; \
+		SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
+		$(INSTALL_FILE_IF_CHANGED) "-q" \
+			"" "" "$(TMP_ROUTER_WG_FIREWALL)" \
+			$(ROUTER_HOST) $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
+			"0" "0" "0755" || FEC=$$?; \
+		if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi; \
+		if [ "$$FEC" = "0" ]; then \
+			ssh "$(SSH_HOST_ROUTER)" "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
+		fi \
+	)
 
+router-ensure-wg-dir:
+	@ssh -i "$(ROUTER_IDENTITY)" -p "$(ROUTER_SSH_PORT)" "$(ROUTER_HOST)" "mkdir -p $(ROUTER_WG_DIR)"
+
+# VERSION: 2026.08.17-router-mk-production
 wg-install-router: router-ensure-wg-module \
+		router-ensure-wg-dir \
 		$(INSTALL_PATH)/wgctl.sh \
 		$(INSTALL_PATH)/wg-readiness-probe.sh \
 		router-firewall \
-		| wg-generate \
-		router-firewall
-		@EXECUTE_DEPLOY=0; \
-		if ! ssh "$(SSH_HOST_ROUTER)" 'test -f $(ROUTER_WG_DIR)/wgs1.conf'; then \
-				echo "⚠️  Router missing $(ROUTER_WG_DIR)/wgs1.conf — marking for deploy"; \
+		wg-generate
+	@echo "📦 Checking and deploying WireGuard configuration files to router..."
+	@bash -eu -o pipefail -c '\
+		EXECUTE_DEPLOY=0; \
+		if ! ssh "$(SSH_HOST_ROUTER)" "test -f $(ROUTER_WG_DIR)/wgs1.conf"; then \
 				EXECUTE_DEPLOY=1; \
 		fi; \
+		STAGE_DIR="$$(mktemp -d)"; \
+		trap "rm -rf '\''$$STAGE_DIR'\''" EXIT; \
+		sudo sh -c "cp $(WG_OUTPUT_ROUTER)/*.conf '\''$$STAGE_DIR'\''" 2>/dev/null || { \
+			echo "❌ ERROR: Failed to copy .conf files from root-owned directory $(WG_OUTPUT_ROUTER)."; \
+			exit 1; \
+		}; \
+		sudo chown -R "$$USER" "$$STAGE_DIR"; \
+		sudo chmod -R u+r "$$STAGE_DIR"; \
 		for iface in $(WG_INTERFACES_ROUTER); do \
-				if ! [ -f "$(WG_OUTPUT_ROUTER)/$$iface.conf" ]; then continue; fi; \
-				EXPECTED_GEN=$$(grep -E '^#[[:space:]]*WG_GENERATION:' "$(WG_OUTPUT_ROUTER)/$$iface.conf" | awk '{print $$3}' 2>/dev/null || echo "0"); \
+				if [ ! -f "$$STAGE_DIR/$$iface.conf" ]; then continue; fi; \
+				EXPECTED_GEN=$$(grep -E "^#[[:space:]]*WG_GENERATION:" "$$STAGE_DIR/$$iface.conf" | awk "{print \$$3}" 2>/dev/null || echo "0"); \
 				if [ -x "$(INSTALL_PATH)/wg-readiness-probe.sh" ]; then \
-						if ! ROUTER_HOST="$(ROUTER_HOST)" ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" ROUTER_IDENTITY="$(ROUTER_IDENTITY)" "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$(WG_OUTPUT_ROUTER)/$$iface.conf" "$$EXPECTED_GEN" "$(STAMP_DIR_ROOT)" "router"; then \
-								echo "⚠️  Kernel link drift verified on router interface $$iface"; \
+						if ! ROUTER_HOST="$(ROUTER_HOST)" ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" ROUTER_IDENTITY="$(ROUTER_IDENTITY)" "$(INSTALL_PATH)/wg-readiness-probe.sh" "$$iface" "$$STAGE_DIR/$$iface.conf" "$$EXPECTED_GEN" "$(STAMP_DIR_ROOT)" "router"; then \
 								EXECUTE_DEPLOY=1; \
 						fi; \
 				else \
-						echo "⚠️  Readiness probe missing or non-executable — forcing execution pass"; \
 						EXECUTE_DEPLOY=1; \
 				fi; \
 		done; \
 		if [ "$$EXECUTE_DEPLOY" -eq 1 ]; then \
-				echo "🚀 Executing router control plane tunnel provision..."; \
+				echo "📦 Deploying WireGuard configuration files to router..."; \
+				for conf in "$$STAGE_DIR"/*.conf; do \
+					[ -e "$$conf" ] || continue; \
+					basename_conf=$$(basename "$$conf"); \
+					ssh -i "$(ROUTER_IDENTITY)" -p "$(ROUTER_SSH_PORT)" \
+						-o ControlPath="$(SSH_SOCK_FILE_ROUTER)" \
+						-o ControlMaster=auto \
+						"$(SSH_HOST_ROUTER)" "cat > $(ROUTER_WG_DIR)/$$basename_conf && chmod 0600 $(ROUTER_WG_DIR)/$$basename_conf" \
+						< "$$conf" \
+						|| { echo "❌ SSH stream deployment failed for $$basename_conf"; exit 1; }; \
+				done; \
 				EC=0; \
 				SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
 				$(WG_ENV) \
@@ -79,7 +100,8 @@ wg-install-router: router-ensure-wg-module \
 				$(WG_SUDO) rm -f "$(WG_ROUTER_DIRTY_STAMP)"; \
 		else \
 				echo "✨ Router interfaces match runtime expectations (skipping processing)"; \
-		fi
+		fi \
+	'
 
 wg-up-router: wg-install-router
 		@SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \

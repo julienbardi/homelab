@@ -2,23 +2,51 @@
 # mk/wireguard/30_generate.mk — WireGuard Config Generation
 # --------------------------------------------------------------------
 
-wg-generate: $(WG_INTERFACE_LIST_STAMP) \
-		wg-subnets router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh | $(run_as_root)
-		@echo "🔍 Staging configuration hash states before generation execution"; \
-		ROUTER_OLD_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_OLD_HASH=""; \
+# export RUNTIME_DIR := $(STAMP_DIR_ROOT)/runtime
+
+.PHONY: ensure-wg-key-dirs
+ensure-wg-key-dirs:
+	@[ -n "$(WG_ROOT)" ] || { \
+		echo "ERROR: WG_ROOT is empty — contract violation"; \
+		exit 1; \
+	}
+	@[ -d "$(WG_ROOT)" ] || { \
+		echo "ERROR: WG_ROOT directory does not exist: $(WG_ROOT)"; \
+		exit 1; \
+	}
+	@$(run_as_root) install -d -o $(ROOT_UID) -g $(ROOT_GID) -m 700 \
+		$(WG_ROOT)/keys/servers \
+		$(WG_ROOT)/keys/clients
+
+wg-generate: ensure-state-dirs ensure-wg-key-dirs ensure-state-dirs $(WG_INTERFACE_LIST_STAMP) \
+		wg-subnets router-bootstrap-wg-keys $(INSTALL_PATH)/wg-generate-configs.sh
+	@ROUTER_OLD_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_OLD_HASH=""; \
+	$(run_as_root) env \
+		RUNTIME_DIR="$(RUNTIME_DIR)" \
 		DNS_TOPDOMAIN_NAME="$$( $(call WITH_SECRETS, sh -c 'echo "$$ddns_topdomain"') )" \
 		NAS_LAN_IP="$(NAS_LAN_IP)" \
 		NAS_LAN_IP6="$(NAS_LAN_IP6)" \
 		LAN_ROUTER="$(LAN_ROUTER)" \
 		WG_ROOT="$(WG_ROOT)" \
 		USER_GID="$(USER_GID)" \
-		ROUTER_LAN_IFACE="$(ROUTER_LAN_IFACE)" \
+		ROUTER_WAN_IFACE="$(ROUTER_WAN_IFACE)" \
+		INSTALL_FILE_IF_CHANGED="$(INSTALL_FILE_IF_CHANGED)" \
+		LAN_NAS="$(LAN_NAS)" \
+		LAN6_NAS="$(LAN6_NAS)" \
+		WG_DOH_IPV4=$(WG_DOH_IPV4) \
+		WG_DOH_IPV6=$(WG_DOH_IPV6) \
+		WG_DNS_ROUTER_IPV4=$(WG_DNS_ROUTER_IPV4) \
+		WG_DNS_NAS_IPV6=$(WG_DNS_NAS_IPV6) \
+		LAN_NET=$(LAN_NET) \
+		LAN6_NET=$(LAN6_NET) \
+		ROUTER_IDENTITY=$(ROUTER_IDENTITY) \
+		ROOT_UID=$(ROOT_UID) \
 		$(INSTALL_PATH)/wg-generate-configs.sh; \
-		ROUTER_NEW_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_NEW_HASH=""; \
-		if [ "$$ROUTER_OLD_HASH" != "$$ROUTER_NEW_HASH" ]; then \
-				echo "⚠️  WireGuard configuration mutation caught — marking runtime topologies dirty"; \
-				$(run_as_root) touch "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"; \
-		fi
+	ROUTER_NEW_HASH=$$(sha256sum $(WG_OUTPUT_ROUTER)/*.conf 2>/dev/null | sha256sum | awk '{print $$1}') || ROUTER_NEW_HASH=""; \
+	if [ "$$ROUTER_OLD_HASH" != "$$ROUTER_NEW_HASH" ]; then \
+		echo "🔄 WireGuard configuration mutation caught — marking runtime topologies dirty"; \
+		$(run_as_root) touch "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"; \
+	fi
 
 wg-clean-state:
 	@$(WG_SUDO) rm -f "$(WG_SUBNETS_MK)" "$(WG_ROUTER_DIRTY_STAMP)" "$(WG_NAS_DIRTY_STAMP)"

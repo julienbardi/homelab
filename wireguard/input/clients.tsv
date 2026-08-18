@@ -1,5 +1,5 @@
-client	iface	mode	enabled
-wg7	wg7	full	1
-acer-julie-full	wg7	full	1
-acer-julie-split	wg7	split	1
+client	dev	os	iface	mode	lan	enabled
+wg7	laptop	linux	wg7	full	1	1
+acer-julie-full	laptop	windows	wg7	full	1	1
+acer-julie-split	laptop	windows	wg7	split	1	1
 

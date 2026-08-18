@@ -23,7 +23,7 @@ $(WG_INTERFACES_TSV): enforce-wireguard-input
 WG_SUBNETS_STAMP := $(STAMP_DIR_ROOT)/wg-subnets.ok
 
 .PHONY: wg-subnets
-wg-subnets: $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-subnets.sh ensure-stamps
+wg-subnets: $(WG_ROOT)/input/wg-interfaces.tsv $(INSTALL_PATH)/wg-plan-subnets.sh ensure-state-dirs
 	@echo "🌐 Generating WireGuard subnet map"; \
 	WG_ROOT="$(WG_ROOT)" WG_SUBNETS_MK="$(WG_SUBNETS_MK)" \
 		$(WG_SUDO) $(INSTALL_PATH)/wg-plan-subnets.sh
@@ -38,16 +38,14 @@ $(WG_SUBNETS_STAMP): wg-subnets
 # --------------------------------------------------------------------
 # Dynamic NAS interface list
 # --------------------------------------------------------------------
-$(WG_INTERFACE_LIST_STAMP): \
-	$(WG_ROOT)/input/wg-interfaces.tsv \
-	ensure-stamps
+$(WG_INTERFACE_LIST_STAMP): $(WG_ROOT)/input/wg-interfaces.tsv ensure-state-dirs
 	@echo "🔧 Generating dynamic WG interface list..."
 	@awk -F'\t' '$$2=="nas" && $$1!~/^#/ {print $$1}' \
 		$(WG_ROOT)/input/wg-interfaces.tsv \
 		| tr '\n' ' ' \
 		| sed 's/ *$$//' \
 		| awk '{print "WG_INTERFACES_NAS := " $$0}' \
-		> "$(WG_INTERFACE_LIST_STAMP)"
+		| $(run_as_root) tee "$(WG_INTERFACE_LIST_STAMP)" >/dev/null
 
 # Include NAS interface list if present
 ifeq ($(wildcard $(WG_INTERFACES_MK)),)
