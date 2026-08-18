@@ -3,15 +3,16 @@ http:
   routers:
     # 1. Syncthing GUI
     syncthing:
-      rule: "Host(`bardi.ch`) && PathPrefix(`/`)" # or adjust if root goes to bardi_homepage
+      rule: "Host(`bardi.ch`) && PathPrefix(`/`)"
       service: syncthing-svc
       tls: {}
 
-    # 2. NetBird Management API & UI (already handled by NetBird files, but can be explicit)
+    # 2. NetBird Management API & UI
     netbird-api:
-      rule: "Host(`netbird.bardi.ch`) && PathPrefix(`/api/`)"
-      service: netbird-svc
+      rule: "Host(`netbird.bardi.ch`) && (PathPrefix(`/api/`) || PathPrefix(`/management.ManagementService/`) || PathPrefix(`/management.ProxyService/`) || PathPrefix(`/signalexchange.SignalExchange/`) || PathPrefix(`/oauth2/`))"
+      service: netbird-management-svc
       tls: {}
+
     netbird-ui:
       rule: "Host(`netbird.bardi.ch`)"
       service: netbird-svc
@@ -120,7 +121,12 @@ http:
     netbird-svc:
       loadBalancer:
         servers:
-          - url: "http://172.30.0.4:80"
+          - url: "http://netbird-dashboard:80"
+
+    netbird-management-svc:
+      loadBalancer:
+        servers:
+          - url: "http://netbird-server:80"
 
     netbird-signal-svc:
       loadBalancer:
