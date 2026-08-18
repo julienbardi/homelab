@@ -105,4 +105,4 @@ Rationale:
   public DNS → consistent from both LAN (NAT hairpin) and WAN.
 
 The router MUST forward each WireGuard UDP port from WAN to the appropriate
-host/port (`wgs1:51820` stays on the router; `wg1–wg15:5142N` forward to NAS).
+host/port (`wgs1:51819` stays on the router; `wg1–wg15:5142N` forward to NAS).

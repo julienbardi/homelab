@@ -106,7 +106,7 @@ NAS / LAN / Internet
 
 # WireGuard Tunnel Invariants
 
-# WG-1 — Router must accept UDP/51820
+# WG-1 — Router must accept UDP/51819
 # WG-2 — Router must decrypt packets
 # WG-3 — Router must route packets
 # WG-4 — Router must forward IPv6

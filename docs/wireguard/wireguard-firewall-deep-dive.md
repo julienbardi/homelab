@@ -44,7 +44,7 @@ Router must route delegated prefix to NAS.
 Router must block inbound IPv6 unless established.
 
 # R-FW-6 — Allow WireGuard UDP port
-WAN → UDP/51820 → Router must be allowed.
+WAN → UDP/51819 → Router must be allowed.
 
 # R-FW-7 — Maintain LAN isolation
 LAN must not expose services to WAN.
@@ -54,7 +54,7 @@ LAN must not expose services to WAN.
 ASCII representation:
 
 WAN_IN:
-    allow UDP/51820 → wgs1
+    allow UDP/51819 → wgs1
     drop unsolicited IPv6
     allow established/related
 
@@ -198,7 +198,7 @@ ssh router "sysctl net.ipv6.conf.all.forwarding"
 sysctl net.ipv6.conf.all.forwarding
 
 # Step 4 — Validate WG UDP
-nmap -sU -p 51820 <router WAN IP>
+nmap -sU -p 51819 <router WAN IP>
 
 # Step 5 — Validate delegated prefix
 ip -6 route show | grep <prefix>
