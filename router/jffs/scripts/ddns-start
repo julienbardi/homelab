@@ -34,25 +34,22 @@ update_ip() {
     IPV4=$(curl -4 -s --fail https://icanhazip.com | tr -d '\n')
     IPV6=$(curl -6 -s --fail https://icanhazip.com | tr -d '\n')
 
-    # --- IPv4 update ------------------------------------------------------
+    # --- 1. Main Domain Update (IPv4 + IPv6) --------------------------------
     status4=$(curl -s $AUTH \
         "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip=${IPV4}" \
         | cut -d' ' -f1)
 
-    # --- IPv6 update (skip or stale-delete) -------------------------------
     if [ -z "$IPV6" ]; then
         if is_ipv6_stale; then
-            # IPv6 missing for >24h → disable AAAA
             raw6=$(curl -s $AUTH \
                 "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip6=0.0.0.0")
             status6=$(printf "%s" "$raw6" | cut -d' ' -f1)
-            echo "⚠️  IPv6 stale → disabling AAAA record ($status6)"
+            echo "⚠️  IPv6 stale → disabling AAAA record for ${DNS_TOPDOMAIN_NAME} ($status6)"
         else
             status6="skipped"
-            echo "ℹ️  IPv6 missing → skipping update (not stale yet)"
+            echo "ℹ️  IPv6 missing → skipping update for ${DNS_TOPDOMAIN_NAME} (not stale yet)"
         fi
     else
-        # IPv6 present → update AAAA normally
         raw6=$(curl -s $AUTH \
             "${BASE_URL}?hostname=${DNS_TOPDOMAIN_NAME}&myip6=${IPV6}")
 
@@ -65,20 +62,29 @@ update_ip() {
                 ;;
         esac
 
-        # If IPv6 update succeeded → refresh timestamp
         if [ "$status6" = "good" ] || [ "$status6" = "nochg" ]; then
             record_ipv6_ok
         fi
     fi
 
-    # --- Final decision ---------------------------------------------------
-    if { [ "$status4" = "good" ] || [ "$status4" = "nochg" ]; } &&
-       { [ "$status6" = "good" ] || [ "$status6" = "nochg" ] || [ "$status6" = "skipped" ]; }; then
+    # --- 2. NetBird Subdomain Update (IPv4 Only) ---------------------------
+    status_netbird="skipped"
+    if [ -n "${DDNS_NETBIRD_DOMAIN}" ]; then
+        status_netbird=$(curl -s $AUTH \
+            "${BASE_URL}?hostname=${DDNS_NETBIRD_DOMAIN}&myip=${IPV4}" \
+            | cut -d' ' -f1)
+        echo "ℹ️  NetBird DynDNS update for ${DDNS_NETBIRD_DOMAIN}: IPv4=$IPV4 ($status_netbird)"
+    fi
 
-        echo "✅ DynDNS update successful for ${DNS_TOPDOMAIN_NAME}: IPv4=$IPV4 ($status4) | IPv6=$IPV6 ($status6)"
+    # --- Final Decision ---------------------------------------------------
+    if { [ "$status4" = "good" ] || [ "$status4" = "nochg" ]; } &&
+       { [ "$status6" = "good" ] || [ "$status6" = "nochg" ] || [ "$status6" = "skipped" ]; } &&
+       { [ "$status_netbird" = "good" ] || [ "$status_netbird" = "nochg" ] || [ "$status_netbird" = "skipped" ]; }; then
+
+        echo "✅ DynDNS updates successful | Main: ${DNS_TOPDOMAIN_NAME} (v4=$status4, v6=$status6) | NetBird: ${DDNS_NETBIRD_DOMAIN} (v4=$status_netbird)"
         /sbin/ddns_custom_updated 1
     else
-        echo "❌ DynDNS update failed for ${DNS_TOPDOMAIN_NAME}: IPv4=$IPV4 ($status4) | IPv6=$IPV6 ($status6)"
+        echo "❌ DynDNS update failed | Main: ${DNS_TOPDOMAIN_NAME} ($status4/$status6) | NetBird: ${DDNS_NETBIRD_DOMAIN} ($status_netbird)"
         /sbin/ddns_custom_updated 0
         exit 1
     fi
