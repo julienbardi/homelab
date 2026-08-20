@@ -33,11 +33,11 @@ status-firewall:
 	fi
 
 status-wireguard:
-	@count=$$(ip -o link show | awk -F': ' '/wg[0-9]+/{print $$2}' | wc -l); \
+	@count=$$(ip -o link show type wireguard 2>/dev/null | wc -l); \
 	if [ "$$count" -gt 0 ]; then \
-	    echo "✅ WireGuard interfaces active: $$count"; \
+		echo "✅ WireGuard interfaces active: $$count"; \
 	else \
-	    echo "❌ No WireGuard interfaces active"; exit 1; \
+		echo "❌ No WireGuard interfaces active"; exit 1; \
 	fi
 
 status-headscale:
