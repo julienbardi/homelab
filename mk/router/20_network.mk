@@ -204,35 +204,29 @@ fi'
 .PHONY: router-ddns
 router-ddns: secrets-ready ensure-router-ula router-ssh-check
 	@echo "📡 Deploying DDNS configuration to router"
+	@echo "DEBUG: topdomain=$$ddns_topdomain, netbird=$$ddns_netbird_domain"
 
-	@# Generate DDNS confidential file inline (no separate target)
 	@$(call WITH_SECRETS, sh -c '\
+		echo "DEBUG INSIDE WITH_SECRETS: netbird=$$ddns_netbird_domain"; \
 		umask 077; \
-		printf "%s\n%s\n%s\n" \
-			"DNS_TOPDOMAIN_NAME='\$$ddns_topdomain'" \
-			"DDNSUSERNAME='\$$ddns_username'" \
-			"DDNSPASSWORD='\$$ddns_password'" \
-			> "$(TMP_DDNS_CONF)"; \
-	')
-
-	@# Push to router
-	@$(call WITH_SECRETS, sh -c '\
-		env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-			$(INSTALL_FILE_IF_CHANGED) \
-				"" "" "$(TMP_DDNS_CONF)" \
-				"$$ROUTER_ADDR" "$$ROUTER_SSH_PORT" "/jffs/scripts/.ddns_confidential" \
-				"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0600" \
-			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
+		TMP_CONF="/tmp/ddns_conf_$$PPID"; \
+		printf "DNS_TOPDOMAIN_NAME=%s\nDDNS_NETBIRD_DOMAIN=%s\nDDNSUSERNAME=%s\nDDNSPASSWORD=%s\n" \
+			"$$ddns_topdomain" \
+			"$$ddns_netbird_domain" \
+			"$$ddns_username" \
+			"$$ddns_password" \
+			> "$$TMP_CONF"; \
+		cat "$$TMP_CONF"; \
+		scp -P "$$ROUTER_SSH_PORT" "$$TMP_CONF" "$(SSH_HOST_ROUTER):/jffs/scripts/.ddns_confidential" || \
+		ssh "$(SSH_HOST_ROUTER)" "cat > /jffs/scripts/.ddns_confidential" < "$$TMP_CONF"; \
+		ssh "$(SSH_HOST_ROUTER)" "chown $(ROUTER_SCRIPTS_OWNER):$(ROUTER_SCRIPTS_GROUP) /jffs/scripts/.ddns_confidential && chmod 0600 /jffs/scripts/.ddns_confidential"; \
+		rm -f "$$TMP_CONF"; \
 	')
 
 	@echo "🔄 Executing DDNS update"
 	@ssh "$(SSH_HOST_ROUTER)" '$(ROUTER_SCRIPTS)/ddns-start'
 
-	@echo " Cleaning up RAM-only local DDNS secrets"
-	@rm -f "$(TMP_DDNS_CONF)"
-
 	@echo "🟢 DDNS update complete"
-
 
 # ------------------------------------------------------------
 # DHCP inspection helpers

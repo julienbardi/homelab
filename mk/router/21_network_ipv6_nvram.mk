@@ -173,8 +173,9 @@ router-ddns: secrets-ready ensure-router-ula router-ssh-check
 	@$(call WITH_SECRETS, sh -c '\
 		set -e; \
 		umask 077; \
-		printf "%s\n%s\n%s\n" \
+		printf "%s\n%s\n%s\n%s\n" \
 			"DNS_TOPDOMAIN_NAME='\$$ddns_topdomain'" \
+			"DDNS_NETBIRD_DOMAIN='\$$ddns_netbird_domain'" \
 			"DDNSUSERNAME='\$$ddns_username'" \
 			"DDNSPASSWORD='\$$ddns_password'" \
 			> "$(TMP_DDNS_CONF)"; \
