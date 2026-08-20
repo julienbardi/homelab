@@ -16,6 +16,8 @@ server:
 
   auth:
     issuer: "https://netbird.bardi.ch/oauth2"
+    clientID: "netbird-dashboard"
+    audience: "netbird"
     signKeyRefreshEnabled: true
     dashboardRedirectURIs:
       - "https://netbird.bardi.ch/nb-auth"

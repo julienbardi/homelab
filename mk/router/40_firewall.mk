@@ -50,7 +50,6 @@ iptables -A HOMELAB_FWD -i br0 -o ppp0 -j ACCEPT 2>/dev/null || true
 iptables -A HOMELAB_FWD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # 3. Hook chains into persistent Merlin structural vectors
-# Hook into VSERVER only if firmware created it
 if iptables -t nat -nL VSERVER >/dev/null 2>&1; then
     iptables -t nat -D VSERVER -j HOMELAB_NAT 2>/dev/null || true
     iptables -t nat -I VSERVER 1 -j HOMELAB_NAT
@@ -60,13 +59,24 @@ iptables -I FORWARD 1 -j HOMELAB_FWD
 iptables -D INPUT -j HOMELAB_INPUT 2>/dev/null || true
 iptables -I INPUT 1 -j HOMELAB_INPUT
 
-# 4. Caddy HTTP/HTTPS (router-local)
+# 4. Router-local Caddy HTTP/HTTPS
 iptables -A HOMELAB_INPUT -p tcp --dport 80  -j ACCEPT
 iptables -A HOMELAB_INPUT -p tcp --dport 443 -j ACCEPT
 
-# 4b. Router-local DNS (dnsmasq)
+# 4b. Router-local DNS
 iptables -A HOMELAB_INPUT -p udp --dport 53 -j ACCEPT
 iptables -A HOMELAB_INPUT -p tcp --dport 53 -j ACCEPT
+
+# 5. NetBird / Traefik (NAS 10.89.12.4)
+iptables -t nat -A HOMELAB_NAT -p tcp --dport 80   -j DNAT --to-destination $(LAN_NAS):80
+iptables -t nat -A HOMELAB_NAT -p tcp --dport 443  -j DNAT --to-destination $(LAN_NAS):443
+iptables -t nat -A HOMELAB_NAT -p udp --dport 3478 -j DNAT --to-destination $(LAN_NAS):3478
+iptables -t nat -A HOMELAB_NAT -p udp --dport 51820 -j DNAT --to-destination $(LAN_NAS):51820
+
+iptables -A HOMELAB_FWD -p tcp -d $(LAN_NAS) --dport 80   -j ACCEPT
+iptables -A HOMELAB_FWD -p tcp -d $(LAN_NAS) --dport 443  -j ACCEPT
+iptables -A HOMELAB_FWD -p udp -d $(LAN_NAS) --dport 3478 -j ACCEPT
+iptables -A HOMELAB_FWD -p udp -d $(LAN_NAS) --dport 51820 -j ACCEPT
 
 $(if $(LAN_SYNOLOGY),$(ROUTER_NAT_SYNOLOGY))
 endef

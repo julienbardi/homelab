@@ -124,8 +124,6 @@ services:
         condition: service_started
       crowdsec:
         condition: service_healthy
-    env_file:
-      - ./proxy.env
     volumes:
       - netbird_proxy_certs:/certs
     labels:

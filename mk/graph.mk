@@ -77,6 +77,7 @@ include $(REPO_ROOT)/mk/40_acme.mk
 include $(REPO_ROOT)/mk/40_code-server.mk
 #include $(REPO_ROOT)/mk/40_nas-caddy.mk
 include $(REPO_ROOT)/mk/40_nas-traefik.mk
+include $(REPO_ROOT)/mk/netbird.mk
 # STAMP_DIR_ROOT must be defined before any WG DAG fragments are included
 include $(REPO_ROOT)/mk/40_wireguard.mk
 include $(REPO_ROOT)/mk/41_firewall-nas.mk
@@ -189,7 +190,8 @@ service-phase: install-systemd enable-systemd deploy-unbound-config monitoring \
 			router-certs-prepare \
 			router-certs-deploy \
 			router-caddy \
-			nas-traefik
+			nas-traefik \
+			netbird-deploy
 service-phase: wg-network-phase
 
 # Sub-groupings

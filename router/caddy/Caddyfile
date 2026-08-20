@@ -159,6 +159,7 @@
 
 	# --------------------------------------------------------
 	# NAS-hosted services (delegated)
+    # Router Caddy must NOT intercept netbird.bardi.ch
 	# --------------------------------------------------------
 	@nas_services {
 		host \
@@ -167,7 +168,6 @@
  derp.bardi.ch \
  apt.bardi.ch \
  nas.bardi.ch \
- netbird.bardi.ch
 	}
 	reverse_proxy @nas_services 10.89.12.4:443 {
 		header_up Host {http.request.host}
@@ -196,8 +196,7 @@
  qnap.bardi.ch \
  nas.bardi.ch \
  dev.bardi.ch \
- apt.bardi.ch \
- netbird.bardi.ch
+ apt.bardi.ch
 
 	respond @unknown "Not Found" 404
 }
