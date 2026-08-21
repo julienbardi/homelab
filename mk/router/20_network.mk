@@ -197,36 +197,6 @@ else \
 	echo "✅ RA policy already enforced (ipv6_accept_ra=2)"; \
 fi'
 
-# ------------------------------------------------------------
-# DDNS deploy + execution
-# ------------------------------------------------------------
-
-.PHONY: router-ddns
-router-ddns: secrets-ready ensure-router-ula router-ssh-check
-	@echo "📡 Deploying DDNS configuration to router"
-	@echo "DEBUG: topdomain=$$ddns_topdomain, netbird=$$ddns_netbird_domain"
-
-	@$(call WITH_SECRETS, sh -c '\
-		echo "DEBUG INSIDE WITH_SECRETS: netbird=$$ddns_netbird_domain"; \
-		umask 077; \
-		TMP_CONF="/tmp/ddns_conf_$$PPID"; \
-		printf "DNS_TOPDOMAIN_NAME=%s\nDDNS_NETBIRD_DOMAIN=%s\nDDNSUSERNAME=%s\nDDNSPASSWORD=%s\n" \
-			"$$ddns_topdomain" \
-			"$$ddns_netbird_domain" \
-			"$$ddns_username" \
-			"$$ddns_password" \
-			> "$$TMP_CONF"; \
-		cat "$$TMP_CONF"; \
-		scp -P "$$ROUTER_SSH_PORT" "$$TMP_CONF" "$(SSH_HOST_ROUTER):/jffs/scripts/.ddns_confidential" || \
-		ssh "$(SSH_HOST_ROUTER)" "cat > /jffs/scripts/.ddns_confidential" < "$$TMP_CONF"; \
-		ssh "$(SSH_HOST_ROUTER)" "chown $(ROUTER_SCRIPTS_OWNER):$(ROUTER_SCRIPTS_GROUP) /jffs/scripts/.ddns_confidential && chmod 0600 /jffs/scripts/.ddns_confidential"; \
-		rm -f "$$TMP_CONF"; \
-	')
-
-	@echo "🔄 Executing DDNS update"
-	@ssh "$(SSH_HOST_ROUTER)" '$(ROUTER_SCRIPTS)/ddns-start'
-
-	@echo "🟢 DDNS update complete"
 
 # ------------------------------------------------------------
 # DHCP inspection helpers
