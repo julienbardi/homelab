@@ -1,4 +1,4 @@
-# docker-compose.yml (non sensitive)
+# docker-compose.yml (non-sensitive)
 services:
   # Traefik reverse proxy (automatic TLS via Let's Encrypt)
   traefik:
@@ -178,6 +178,6 @@ networks:
   netbird:
     driver: bridge
     ipam:
-    config:
-      - subnet: 172.30.0.0/24
-        gateway: 172.30.0.1
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
