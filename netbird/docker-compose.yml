@@ -1,3 +1,4 @@
+# docker-compose.yml (non sensitive)
 services:
   # Traefik reverse proxy (automatic TLS via Let's Encrypt)
   traefik:
@@ -115,6 +116,8 @@ services:
   proxy:
     image: netbirdio/reverse-proxy:latest
     container_name: netbird-proxy
+    env_file:
+      - ./proxy.env
     ports:
     - 51820:51820/udp
     restart: unless-stopped
@@ -175,6 +178,6 @@ networks:
   netbird:
     driver: bridge
     ipam:
-      config:
-        - subnet: 172.30.0.0/24
-          gateway: 172.30.0.1
+    config:
+      - subnet: 172.30.0.0/24
+        gateway: 172.30.0.1

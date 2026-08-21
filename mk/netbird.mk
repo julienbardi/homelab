@@ -6,6 +6,7 @@ NETBIRD_DIR := $(REPO_ROOT)/netbird
 NETBIRD_COMPOSE_FILE := $(NETBIRD_DIR)/docker-compose.yml
 NETBIRD_CONFIG_FILE  := $(NETBIRD_DIR)/config.yaml
 NETBIRD_DYNAMIC_FILE := $(NETBIRD_DIR)/traefik-dynamic.yaml
+NETBIRD_PROXY_ENV    := $(NETBIRD_DIR)/proxy.env
 
 COMPOSE_NETBIRD := docker compose -f $(NETBIRD_COMPOSE_FILE)
 
@@ -17,7 +18,7 @@ NETBIRD_CONFIG_SHADOW  := $(STAMP_DIR_USER)/netbird_config.shadow
 NETBIRD_RESTART_STAMP := $(STAMP_DIR_USER)/netbird_restart.stamp
 
 .PHONY: netbird-up netbird-down netbird-restart netbird-logs netbird-deploy \
-		deploy-netbird-dynamic deploy-netbird-compose
+        deploy-netbird-dynamic deploy-netbird-compose generate-netbird-proxy-env netbird-rotate-token
 
 ###############################################################################
 # Traefik dynamic configuration deployment
@@ -35,6 +36,31 @@ deploy-netbird-dynamic: ensure-state-dirs
 		echo "🔄 netbird.yml updated — restarting Traefik"; \
 		docker restart netbird-traefik-v2; \
 	fi
+
+###############################################################################
+# NetBird Proxy Environment Generation
+###############################################################################
+
+# Only generate if missing, or use netbird-rotate-token to force a new one
+$(NETBIRD_PROXY_ENV):
+	@$(MAKE) generate-netbird-proxy-env
+
+generate-netbird-proxy-env:
+	@echo "🔐 Ensuring netbird-server is running..."
+	@docker ps --format '{{.Names}}' | grep -q '^netbird-server$$' || \
+		($(COMPOSE_NETBIRD) up -d netbird-server && sleep 3)
+	@echo "🔐 Generating fresh NetBird proxy token..."
+	@TOKEN_OUTPUT=$$(docker exec -i netbird-server /go/bin/netbird-server --config /etc/netbird/config.yaml admin token create --name proxy-token-$$(date +%s)) && \
+	NEW_TOKEN=$$(echo "$$TOKEN_OUTPUT" | grep "Token:" | awk '{print $$2}') && \
+	if [ -z "$$NEW_TOKEN" ]; then echo "Error: Failed to generate token"; exit 1; fi && \
+	echo "NB_PROXY_TOKEN=$$NEW_TOKEN" > $(NETBIRD_PROXY_ENV) && \
+	echo "NB_PROXY_DOMAIN=$(ddns_netbird_domain)" >> $(NETBIRD_PROXY_ENV)
+
+netbird-rotate-token:
+	@rm -f $(NETBIRD_PROXY_ENV)
+	@$(MAKE) generate-netbird-proxy-env
+	@echo "🔄 Restarting proxy with new token..."
+	$(COMPOSE_NETBIRD) up -d --force-recreate proxy
 
 ###############################################################################
 # NetBird compose + config deployment (idempotent)
@@ -71,13 +97,13 @@ deploy-netbird-compose: $(NETBIRD_COMPOSE_FILE) $(NETBIRD_CONFIG_FILE) ensure-st
 # NetBird stack deployment (idempotent)
 ###############################################################################
 
-netbird-deploy: deploy-netbird-dynamic deploy-netbird-compose
+netbird-deploy: deploy-netbird-dynamic deploy-netbird-compose $(NETBIRD_PROXY_ENV)
 	@if [ -f "$(NETBIRD_RESTART_STAMP)" ]; then \
 		echo "🚀 Redeploying NetBird stack..."; \
 		$(COMPOSE_NETBIRD) up -d; \
 		rm -f $(NETBIRD_RESTART_STAMP); \
 	else \
-		echo "✔ NetBird stack unchanged — no redeploy needed"; \
+		echo "✔ NetBird stack unchanged"; \
 	fi
 
 ###############################################################################
@@ -98,4 +124,4 @@ netbird-logs:
 	$(COMPOSE_NETBIRD) logs -f
 
 netbird-reset:
-	rm -f $(NETBIRD_COMPOSE_SHADOW) $(NETBIRD_CONFIG_SHADOW) $(NETBIRD_RESTART_STAMP)
+	rm -f $(NETBIRD_COMPOSE_SHADOW) $(NETBIRD_CONFIG_SHADOW) $(NETBIRD_RESTART_STAMP) $(NETBIRD_PROXY_ENV)
