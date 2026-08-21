@@ -38,14 +38,10 @@ deploy-netbird-dynamic: ensure-state-dirs
 	fi
 
 ###############################################################################
-# NetBird Proxy Environment Generation
+# NetBird Proxy Environment Generation (File Target - Non-Recursive)
 ###############################################################################
 
-# Only generate if missing, or use netbird-rotate-token to force a new one
 $(NETBIRD_PROXY_ENV):
-	@$(MAKE) generate-netbird-proxy-env
-
-generate-netbird-proxy-env:
 	@echo "🔐 Ensuring netbird-server is running..."
 	@docker ps --format '{{.Names}}' | grep -q '^netbird-server$$' || \
 		($(COMPOSE_NETBIRD) up -d netbird-server && sleep 3)
@@ -56,11 +52,11 @@ generate-netbird-proxy-env:
 	echo "NB_PROXY_TOKEN=$$NEW_TOKEN" > $(NETBIRD_PROXY_ENV) && \
 	echo "NB_PROXY_DOMAIN=$(ddns_netbird_domain)" >> $(NETBIRD_PROXY_ENV)
 
+generate-netbird-proxy-env: $(NETBIRD_PROXY_ENV)
+
 netbird-rotate-token:
 	@rm -f $(NETBIRD_PROXY_ENV)
-	@$(MAKE) generate-netbird-proxy-env
-	@echo "🔄 Restarting proxy with new token..."
-	$(COMPOSE_NETBIRD) up -d --force-recreate proxy
+	@$(MAKE) netbird-deploy
 
 ###############################################################################
 # NetBird compose + config deployment (idempotent)
