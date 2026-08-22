@@ -34,6 +34,7 @@ SECRETS_TARGETS := \
 	secrets-status \
 	secrets-break-lock \
 	secrets-dump \
+	secrets-export \
 	secrets-verify \
 	secrets-edit \
 	secrets-ready \
@@ -66,7 +67,7 @@ export SECRETS_LOCK_TS  := $(SECRETS_LOCK)/ts
 SECRETS_LOCK_MAX_AGE := 30
 
 # Call as: $(call WITH_SECRETS, <shell commands>)
-# Secrest are scoped to a subshell - they do NOT leak into the parent recipe
+# Secrets are scoped to a subshell - they do NOT leak into the parent recipe
 # environment or subsequent make recipe lines.
 define WITH_SECRETS
 	( \
@@ -138,25 +139,30 @@ secrets-break-lock:
 secrets-dump:
 	@if [ ! -f "$(SECRETS_FILE)" ]; then \
 		echo "❌ Secrets file not found: $(SECRETS_FILE)"; \
-		echo "   Use $(SECRETS_FILE) to create or decrypt secrets."; \
+		echo "👉 To restore secrets:"; \
+		echo "   1. Retrieve the encrypted backup attachment from your KeePass secure database."; \
+		echo "   2. Save it locally to: $(SECRETS_FILE)"; \
+		echo "   3. Decrypt or edit using: sops $(SECRETS_FILE)"; \
 		exit 1; \
-	fi
-	@echo "🔐 Dumping decrypted secrets (RAM-only):"
-	@$(SOPS_BIN) -d "$(SECRETS_FILE)" \
-		| yq -r '.. | select(tag == "!!str" or tag == "!!int" or tag == "!!bool") | (path | join("_")) + "=" + .'
+	fi; \
+	echo "🔐 Dumping full decrypted secrets (including comments for password manager):"; \
+	echo "--------------------------------------------------------------------------------"; \
+	$(SOPS_BIN) -d "$(SECRETS_FILE)"
+	@echo "--------------------------------------------------------------------------------"
 
-
-.PHONY: secrets-dump-v1
-secrets-dump-v1:
+.PHONY: secrets-export
+secrets-export:
 	@if [ ! -f "$(SECRETS_FILE)" ]; then \
 		echo "❌ Secrets file not found: $(SECRETS_FILE)"; \
-		echo "   Use $(SECRETS_FILE) to create or decrypt secrets."; \
+		echo "👉 To restore secrets:"; \
+		echo "   1. Retrieve the encrypted backup attachment from your KeePass secure database."; \
+		echo "   2. Save it locally to: $(SECRETS_FILE)"; \
+		echo "   3. Decrypt or edit using: sops $(SECRETS_FILE)"; \
 		exit 1; \
-	fi
-	@echo "🔐 Dumping decrypted secrets (RAM-only):"
-	@$(SOPS_BIN) -d "$(SECRETS_FILE)" \
-		| yq -o=json '.' \
-		| jq -r 'to_entries[] | "\(.key)=\"\(.value)\""'
+	fi; \
+	echo "🔐 Exporting decrypted secrets as environment variables:"; \
+	$(SOPS_BIN) -d "$(SECRETS_FILE)" \
+		| yq -r '.. | select(tag == "!!str" or tag == "!!int" or tag == "!!bool") | (path | join("_")) + "=" + .'
 
 .PHONY: secrets-verify
 secrets-verify: $(YQ_STAMP)
@@ -203,7 +209,7 @@ secrets-edit:
 				ts=$$(cat "$$lock_ts" 2>/dev/null || echo 0); \
 				age=$$((now - ts)); \
 				if [ $$age -gt $(SECRETS_LOCK_MAX_AGE) ]; then \
-					echo "⚠️ Stale secrets lock detected (age $$age s > $(SECRETS_LOCK_MAX_AGE)s). Breaking it."; \
+					echo "⚠️ Stale secrets lock detected (age $$age s > $(SEcrets_LOCK_MAX_AGE)s). Breaking it."; \
 					rm -rf "$$lock_dir"; \
 				fi; \
 			else \
@@ -226,11 +232,6 @@ secrets-edit:
 		fi; \
 		if [ $$status -ne 0 ]; then \
 			echo "❌ SOPS error (exit $$status)"; \
-			# Detect missing creation rule \
-			if grep -q "no matching creation rules" <<< "$$status_output"; then \
-				echo "⚠️ SOPS could not find a matching creation rule for $(SECRETS_FILE)"; \
-				echo "➡️ Run: make sops-init"; \
-			fi; \
 			exit $$status; \
 		fi; \
 		true; \
@@ -275,7 +276,6 @@ secrets-init:
 
 	@rm -f "$(SECRETS_FILE).tmp"
 	@echo "🟢 secrets.enc.yaml created and encrypted"
-
 
 .PHONY: check-age-key
 check-age-key:
@@ -407,22 +407,26 @@ test-infomaniak-dns-api: $(STAMP_SOPS)
 .PHONY: test-infomaniak-txt-dryrun
 test-infomaniak-txt-dryrun: $(STAMP_SOPS)
 	@$(call WITH_SECRETS, \
-		domain="bardi.ch"; \
+		if [ -z "$${ddns_topdomain:-}" ]; then \
+			echo "❌ Error: ddns_topdomain is not defined in secrets"; \
+			exit 1; \
+		fi; \
+		domain="$$ddns_topdomain"; \
 		name="_acme-challenge.dryrun"; \
 		value="homelab-dryrun-$$RANDOM"; \
-		echo "🟦 Creating TXT: $$name ➡️ $$value"; \
+		echo "🟦 Creating TXT on zone $$domain: $$name ➡️ $$value"; \
 		resp=$$(curl -s -X POST \
 			-H "Authorization: Bearer $$INFOMANIAK_API_TOKEN" \
 			-H "Content-Type: application/json" \
 			-d "{\"type\":\"TXT\",\"name\":\"$$name\",\"target\":\"$$value\",\"ttl\":60}" \
-			"https://api.infomaniak.com/2/domains/domains/$$domain/records"); \
+			"https://api.infomaniak.com/2/zones/$$domain/records"); \
 		echo "$$resp" | grep -q '"id"' || { echo "❌ TXT create failed"; echo "$$resp"; exit 1; }; \
 		rec_id=$$(echo "$$resp" | sed -n 's/.*\"id\":[ ]*\([0-9]*\).*/\1/p'); \
 		echo "🟢 Created TXT record id=$$rec_id"; \
 		echo "🟦 Deleting TXT id=$$rec_id"; \
 		curl -s -X DELETE \
 			-H "Authorization: Bearer $$INFOMANIAK_API_TOKEN" \
-			"https://api.infomaniak.com/2/domains/domains/$$domain/records/$$rec_id" >/dev/null; \
+			"https://api.infomaniak.com/2/zones/$$domain/records/$$rec_id" >/dev/null; \
 		echo "🟢 Deleted TXT record"; \
 	)
 
