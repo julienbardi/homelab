@@ -51,6 +51,14 @@ PRESERVE_ENV="$(
     SSL_CANONICAL_DIR \
     SSL_CERT_ECC \
     SSL_CHAIN_ECC \
+	DNSDIST_CERT \
+    DNSDIST_KEY \
+    DNSDIST_LAN_IP \
+    DNSDIST_ULA_IP \
+    UNBOUND_PORT \
+    DOH_PORT \
+    LAN_SUBNET \
+    ULA_PREFIX \
   | sed 's/,$//'
 )"
 readonly PRESERVE_ENV
