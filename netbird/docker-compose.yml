@@ -1,73 +1,24 @@
-# docker-compose.yml (non-sensitive)
 services:
-  # Traefik reverse proxy (automatic TLS via Let's Encrypt)
-  traefik:
-    env_file:
-      - ./traefik.env
-    image: traefik:v3.6
-    container_name: netbird-traefik-v2
-    restart: unless-stopped
-    networks:
-      netbird:
-        ipv4_address: 172.30.0.10
-    command:
-      # Logging
-      - "--log.level=INFO"
-      - "--accesslog=true"
-      # Docker provider
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=netbird"
-      # Entrypoints
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.websecure.allowACMEByPass=true"
-      # Disable timeouts for long-lived gRPC streams
-      - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=0"
-      - "--entrypoints.websecure.transport.respondingTimeouts.writeTimeout=0"
-      - "--entrypoints.websecure.transport.respondingTimeouts.idleTimeout=0"
-      # HTTP to HTTPS redirect
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      # Let's Encrypt ACME (DNS-01 via Infomaniak)
-      - "--certificatesresolvers.letsencrypt.acme.email=julien.bardi@gmail.com"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=infomaniak"
-      # gRPC transport settings
-      - "--serverstransport.forwardingtimeouts.responseheadertimeout=0s"
-      - "--serverstransport.forwardingtimeouts.idleconntimeout=0s"
-      - "--providers.file.filename=/etc/traefik/dynamic.yaml"
-    ports:
-      - '443:443'
-      - '80:80'
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - netbird_traefik_letsencrypt:/letsencrypt
-      - ./traefik-dynamic.yaml:/etc/traefik/dynamic.yaml:ro
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "500m"
-        max-file: "2"
-
-  # UI dashboard
+  # UI dashboard (routed via Caddy on internal port 10081)
   dashboard:
     image: netbirdio/dashboard:latest
     container_name: netbird-dashboard
     restart: unless-stopped
-    networks: [netbird]
-    env_file:
-      - ./dashboard.env
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.netbird-dashboard.rule=Host(`netbird.bardi.ch`)
-      - traefik.http.routers.netbird-dashboard.entrypoints=websecure
-      - traefik.http.routers.netbird-dashboard.tls=true
-      - traefik.http.routers.netbird-dashboard.tls.certresolver=letsencrypt
-      - traefik.http.routers.netbird-dashboard.service=dashboard
-      - traefik.http.routers.netbird-dashboard.priority=1
-      - traefik.http.services.dashboard.loadbalancer.server.port=80
+    networks:
+      - netbird
+    ports:
+      - '127.0.0.1:10081:80'
+    environment:
+      - NETBIRD_MGMT_API_ENDPOINT=https://netbird.bardi.ch
+      - NETBIRD_MGMT_GRPC_API_ENDPOINT=https://netbird.bardi.ch
+      - AUTH_AUDIENCE=netbird-dashboard
+      - AUTH_CLIENT_ID=netbird-dashboard
+      - AUTH_AUTHORITY=https://netbird.bardi.ch/oauth2
+      - AUTH_SUPPORTED_SCOPES=openid profile email
+      - USE_AUTH0=false
+      - LETSENCRYPT_DOMAIN=none
+      - LETSENCRYPT_EMAIL=none
+      - NGINX_SSL_PORT=443
     logging:
       driver: "json-file"
       options:
@@ -79,66 +30,15 @@ services:
     image: netbirdio/netbird-server:latest
     container_name: netbird-server
     restart: unless-stopped
-    networks: [netbird]
+    networks:
+      - netbird
     ports:
       - '3478:3478/udp'
+      - '127.0.0.1:10080:80'
     volumes:
       - netbird_data:/var/lib/netbird
       - ./config.yaml:/etc/netbird/config.yaml
     command: ["--config", "/etc/netbird/config.yaml"]
-    labels:
-      - traefik.enable=true
-      # gRPC router (needs h2c backend for HTTP/2 cleartext)
-      - traefik.http.routers.netbird-grpc.rule=Host(`netbird.bardi.ch`) && (PathPrefix(`/signalexchange.SignalExchange/`) || PathPrefix(`/management.ManagementService/`) || PathPrefix(`/management.ProxyService/`))
-      - traefik.http.routers.netbird-grpc.entrypoints=websecure
-      - traefik.http.routers.netbird-grpc.tls=true
-      - traefik.http.routers.netbird-grpc.tls.certresolver=letsencrypt
-      - traefik.http.routers.netbird-grpc.service=netbird-server-h2c
-      - traefik.http.routers.netbird-grpc.priority=100
-      # Backend router (relay, WebSocket, API, OAuth2)
-      - traefik.http.routers.netbird-backend.rule=Host(`netbird.bardi.ch`) && (PathPrefix(`/relay`) || PathPrefix(`/ws-proxy/`) || PathPrefix(`/api`) || PathPrefix(`/oauth2`))
-      - traefik.http.routers.netbird-backend.entrypoints=websecure
-      - traefik.http.routers.netbird-backend.tls=true
-      - traefik.http.routers.netbird-backend.tls.certresolver=letsencrypt
-      - traefik.http.routers.netbird-backend.service=netbird-server
-      - traefik.http.routers.netbird-backend.priority=100
-      # Services
-      - traefik.http.services.netbird-server.loadbalancer.server.port=80
-      - traefik.http.services.netbird-server-h2c.loadbalancer.server.port=80
-      - traefik.http.services.netbird-server-h2c.loadbalancer.server.scheme=h2c
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "500m"
-        max-file: "2"
-
-  # NetBird Proxy - exposes internal resources to the internet
-  proxy:
-    image: netbirdio/reverse-proxy:latest
-    container_name: netbird-proxy
-    env_file:
-      - ./proxy.env
-    ports:
-    - 51820:51820/udp
-    restart: unless-stopped
-    networks: [netbird]
-    depends_on:
-      netbird-server:
-        condition: service_started
-      crowdsec:
-        condition: service_healthy
-    volumes:
-      - netbird_proxy_certs:/certs
-    labels:
-      # TCP passthrough for any unmatched domain (proxy handles its own TLS)
-      - traefik.enable=true
-      - traefik.tcp.routers.proxy-passthrough.entrypoints=websecure
-      - traefik.tcp.routers.proxy-passthrough.rule=HostSNI(`*`)
-      - traefik.tcp.routers.proxy-passthrough.tls.passthrough=true
-      - traefik.tcp.routers.proxy-passthrough.service=proxy-tls
-      - traefik.tcp.routers.proxy-passthrough.priority=1
-      - traefik.tcp.services.proxy-tls.loadbalancer.server.port=8443
-      - traefik.tcp.services.proxy-tls.loadbalancer.serverstransport=pp-v2@file
     logging:
       driver: "json-file"
       options:
@@ -149,7 +49,8 @@ services:
     image: crowdsecurity/crowdsec:v1.7.7
     container_name: netbird-crowdsec
     restart: unless-stopped
-    networks: [netbird]
+    networks:
+      - netbird
     environment:
       COLLECTIONS: crowdsecurity/linux
     volumes:
@@ -160,8 +61,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 15
-    labels:
-      - traefik.enable=false
     logging:
       driver: "json-file"
       options:
@@ -170,15 +69,9 @@ services:
 
 volumes:
   netbird_data:
-  netbird_traefik_letsencrypt:
-  netbird_proxy_certs:
   crowdsec_db:
 
 networks:
   netbird:
-    name: netbird
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.30.0.0/24
-          gateway: 172.30.0.1
+    name: homelab_netbird
+    external: true
