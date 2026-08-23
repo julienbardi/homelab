@@ -1,6 +1,6 @@
 ---
 # /etc/headscale/config.yaml
-# 
+#
 
 # sudo ss -tulnp | grep 8912
 
@@ -64,7 +64,9 @@ derp:
 ##    - https://derp.bardi.ch/derpmap
 
 disable_check_updates: false
-ephemeral_node_inactivity_timeout: 30m
+node:
+  ephemeral:
+    inactivity_timeout: 30m
 
 database:
   type: sqlite3

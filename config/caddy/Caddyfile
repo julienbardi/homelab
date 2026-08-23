@@ -1,73 +1,13 @@
 # ------------------------------------------------------------
-# NOTE: UGOS LOOPBACK ISOLATION (IMPORTANT)
-#
-# On UGOS-based systems (Ugreen / NAS-class OS), TCP connections
-# over 127.0.0.1 between system services are NOT reliable.
-#
-# Observed behavior:
-#   - Some loopback services work (e.g. HTTPS DoH backends)
-#   - Others silently blackhole (e.g. plain HTTP control APIs)
-#   - ss/netstat may show LISTEN, but connections hang
-#   - Reverse proxies report "dial tcp 127.0.0.1:<port>: i/o timeout"
-#
-# This appears to depend on:
-#   - protocol (HTTPS vs HTTP)
-#   - service class (network service vs system daemon)
-#   - connection lifetime (short vs long-lived)
-#
-# Rule:
-#   DO NOT rely on 127.0.0.1 for inter-service proxying on UGOS.
-#
-# Correct pattern:
-#   - Bind backend services to the LAN IP (e.g. 10.89.12.4)
-#   - Proxy to the LAN IP, even on the same host
-#
-# This avoids silent blackholes, reload hangs, and false 502s.
-# ------------------------------------------------------------
-# ------------------------------------------------------------
 # SAFETY:
 # This Caddyfile MUST NOT bind to :80.
-# Port 443 is explicitly managed here; UGOS nginx must not own it.
-#
-# a) CNAMEs to define
-#    - vpn.bardi.ch      → CNAME to bardi.ch   (Headscale control plane, proxied internally)
-#    - derp.vpn.bardi.ch → CNAME to bardi.ch   (Headscale DERP relay, exposed externally)
-#    - bardi.ch          → A record or CNAME to your dynamic DNS (jam9.synology.me)
-#    - www.bardi.ch      → not needed in your setup
-#    - WireGuard (wgX) → no extra CNAMEs required; clients use vpn.bardi.ch + port
-#    - netbird.bardi.ch  → CNAME to bardi.ch   (NetBird control plane, proxied via Caddy)
-#
-# b) Ports to forward
-#    Forward to DiskStation (10.89.12.2):
-#      - 5001 (DSM management HTTPS)
-#      - 5006 (Synology service)
-#      - 6690 (Synology Drive)
-#
-#    Forward to Headscale host (10.89.12.4):
-#      - 8912 (Headscale DERP relay, exposed externally)
-#      - 3478 (UDP STUN/DERP for NAT traversal)
-#      - 51420–51427 (UDP, WireGuard wgX interfaces)
-#      - 80   (HTTP, for Let's Encrypt renewal)
-#      - 443  (HTTPS, DSM / DiskStation services)
-#
-#    DO NOT forward 8910 externally:
-#      - Reason: 8910 is the Headscale API. Exposing it directly increases attack surface.
-#        Instead, clients connect via vpn.bardi.ch on 443, with Caddy proxying internally.
-#
-# c) WireGuard VPN (wgX on 51420–51427 UDP)
-#    - No extra CNAMEs are needed: WireGuard clients connect directly to your public IP + port.
-#    - You can use vpn.bardi.ch as the hostname for convenience:
-#        wg0 → udp://vpn.bardi.ch:51420
-#        wg1 → udp://vpn.bardi.ch:51421
-#        ...
-#        wg7 → udp://vpn.bardi.ch:51427
+# Port 443 is explicitly managed here.
 # ------------------------------------------------------------
 
-# UGOS nginx is using port 80 for UGOS UI
 {
 	auto_https off
-	# Bind admin API to LAN IP to bypass UGOS loopback blackholes
-	admin 10.89.12.4:2019
+	# PVE loopback is fully reliable; restrict admin API to localhost for security
+	admin 127.0.0.1:2019
 }
 
 # Syncthing GUI
@@ -75,30 +15,57 @@ bardi.ch:8384 {
 	reverse_proxy 10.89.12.2:8384
 }
 
-# Consolidated HTTPS listener - Control Panel>Device Connection>Portal Setting, be sure to disable Redirect port 443 to https port ! UGOS owns port 9999
+# Consolidated HTTPS listener
 :443 {
 	tls /etc/ssl/caddy/bardi.ch.cer /etc/ssl/caddy/bardi.ch.key
 
-	# NetBird dashboard + management API
-	@netbird_mgmt {
-		host netbird.bardi.ch
-		path /api/*
+	# --- Audit-Required Security Headers ---
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
 	}
-	reverse_proxy @netbird_mgmt 10.89.12.4:33073
 
-	# NetBird dashboard root (UI)
+	# --- NetBird Robust Rate Limiting ---
+	rate_limit {
+		# Restrict sensitive API, OIDC, and management endpoints strictly
+		zone netbird_api_zone {
+			match {
+				path /api/* /oauth2/* /signalexchange.SignalExchange/* /management.ManagementService/* /management.ProxyService/* /relay/* /ws-proxy/*
+			}
+			key {http.request.remote.host}
+			events 60
+			window 1m
+		}
+
+		# General dashboard UI limit for non-API web assets
+		zone netbird_ui_zone {
+			match {
+				host netbird.bardi.ch
+			}
+			key {http.request.remote.host}
+			events 250
+			window 1m
+		}
+	}
+
+	# NetBird Management API & gRPC (h2c)
+	@netbird_api {
+		host netbird.bardi.ch
+		path /api/* /signalexchange.SignalExchange/* /management.ManagementService/* /management.ProxyService/* /relay/* /ws-proxy/* /oauth2/*
+	}
+	reverse_proxy @netbird_api 10.89.12.4:10080 {
+		transport http {
+			versions h2c 2
+		}
+	}
+
+	# NetBird Dashboard UI (Catch-all for netbird.bardi.ch)
 	@netbird_ui {
 		host netbird.bardi.ch
-		not path /api/*
 	}
-	reverse_proxy @netbird_ui 10.89.12.4:33073
-
-	# NetBird signal service (WebRTC signaling)
-	@netbird_signal {
-		host netbird.bardi.ch
-		path /signalexchange/*
-	}
-	reverse_proxy @netbird_signal 10.89.12.4:33075
+	reverse_proxy @netbird_ui 10.89.12.4:10081
 
 	# DNS over HTTPS (public)
 	@doh {
@@ -208,18 +175,10 @@ bardi.ch:8384 {
 	# Dev IDE (internal only)
 	@dev_internal {
 		host dev.bardi.ch
-
-		# LAN IPv4 + IPv6
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
-
-		# WireGuard IPv4
 		remote_ip 10.0.0.0/8
-
-		# WireGuard IPv6 (ULA)
 		remote_ip fd89:7a3b:42c0::/48
-
-		# Tailscale CGNAT range
 		remote_ip 100.64.0.0/10
 	}
 	reverse_proxy @dev_internal 10.89.12.4:8080 {
@@ -229,12 +188,8 @@ bardi.ch:8384 {
 	# Proxmox VE (internal / VPN only)
 	@pve_internal {
 		host pve.bardi.ch
-
-		# LAN IPv4 + IPv6
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
-
-		# WireGuard / VPN ranges
 		remote_ip 10.0.0.0/8
 		remote_ip fd89:7a3b:42c0::/48
 		remote_ip 100.64.0.0/10
@@ -249,72 +204,37 @@ bardi.ch:8384 {
 	# apt-cacher-ng (internal only)
 	@apt_internal {
 		host apt.bardi.ch
-
-		# LAN IPv4 + IPv6
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
-
-		# WireGuard IPv4 subnets
 		remote_ip 10.0.0.0/8
-
-		# WireGuard IPv6 (ULA)
 		remote_ip fd89:7a3b:42c0::/48
-
-		# Tailscale CGNAT range
 		remote_ip 100.64.0.0/10
 	}
 
 	handle @apt_internal {
 		reverse_proxy 10.89.12.4:3142 {
 			header_up Host apt.bardi.ch
-
-			# Health checking: fail fast if apt-cacher-ng is down
 			health_uri /acng-report.html
 			health_interval 10s
 			health_timeout 2s
 			fail_duration 30s
 		}
-
-		# Explicit failure when backend is unhealthy
 		respond "APT cache temporarily unavailable" 503
 	}
 
 	# Unknown host fallback
 	@unknown not host \
- bardi.ch \
- router.bardi.ch \
- dns.bardi.ch \
- vpn.bardi.ch \
- derp.bardi.ch \
- qnap.bardi.ch \
- nas.bardi.ch \
- dev.bardi.ch \
- apt.bardi.ch \
- netbird.bardi.ch \
- pve.bardi.ch
+		bardi.ch \
+		router.bardi.ch \
+		dns.bardi.ch \
+		vpn.bardi.ch \
+		derp.bardi.ch \
+		qnap.bardi.ch \
+		nas.bardi.ch \
+		dev.bardi.ch \
+		apt.bardi.ch \
+		netbird.bardi.ch \
+		pve.bardi.ch
 
 	respond @unknown "Not Found" 404
-
-	# log disabled to avoid disk spin
 }
-# ------------------------------------------------------------
-# After modifying this file:
-#
-# 1. Validate and format (optional but recommended):
-#      make caddy-validate
-#      make caddy-fmt
-#
-# 2. Deploy the updated Caddyfile and reload Caddy safely:
-#      make caddy
-#
-# The 'make caddy' recipe:
-#   - installs the Caddyfile into /etc/caddy/Caddyfile
-#   - deploys fresh certificates via deploy-caddy
-#   - verifies the installed Caddy binary and plugins
-#   - reloads the systemd caddy service gracefully
-#
-# Notes:
-#   - Do NOT use 'systemctl restart caddy' unless you want a hard restart.
-#   - Do NOT kill the Caddy process manually; it will interrupt traffic.
-#   - All privileged operations are routed through the Makefile for safety.
-# ------------------------------------------------------------

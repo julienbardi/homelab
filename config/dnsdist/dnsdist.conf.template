@@ -1,0 +1,62 @@
+-- dnsdist.conf: DNS frontend for homelab (Proxmox VE)
+-- ------------------------------------------------------------
+-- Role:
+--   - dnsdist is the primary DNS frontend on Proxmox VE
+--   - dnsdist listens on port 53 (UDP+TCP):
+--       • 127.0.0.1:53
+--       • ${DNSDIST_LAN_IP}:53
+--       • [::1]:53
+--       • [${DNSDIST_ULA_IP}]:53
+--
+--   - dnsdist forwards queries to Unbound on:
+--       • 127.0.0.1:${UNBOUND_PORT}
+--
+--   - DoH is served on port ${DOH_PORT}:
+--       • 127.0.0.1:${DOH_PORT}
+--       • [::1]:${DOH_PORT}
+--       • ${DNSDIST_LAN_IP}:${DOH_PORT}
+--       • [${DNSDIST_ULA_IP}]:${DOH_PORT}
+-- ------------------------------------------------------------
+
+local cert = "${DNSDIST_CERT}"
+local key  = "${DNSDIST_KEY}"
+
+-- ------------------------------------------------------------
+-- DoH listeners
+-- ------------------------------------------------------------
+addDOHLocal("127.0.0.1:${DOH_PORT}", cert, key, { "/dns-query" })
+addDOHLocal("[::1]:${DOH_PORT}",     cert, key, { "/dns-query" })
+addDOHLocal("${DNSDIST_LAN_IP}:${DOH_PORT}", cert, key, { "/dns-query" })
+addDOHLocal("[${DNSDIST_ULA_IP}]:${DOH_PORT}", cert, key, { "/dns-query" })
+
+-- ------------------------------------------------------------
+-- Plain DNS listeners (UDP+TCP port 53)
+-- ------------------------------------------------------------
+addLocal("127.0.0.1:53")
+addLocal("${DNSDIST_LAN_IP}:53")
+addLocal("[::1]:53")
+addLocal("[${DNSDIST_ULA_IP}]:53")
+
+-- ------------------------------------------------------------
+-- Backend: Unbound (loopback, recursive)
+-- ------------------------------------------------------------
+newServer({ address = "127.0.0.1:${UNBOUND_PORT}", name = "unbound", checkType = "none" })
+
+setServerPolicy(firstAvailable)
+
+-- ------------------------------------------------------------
+-- ACL: allow loopback, LAN, and WireGuard networks
+-- ------------------------------------------------------------
+setACL({
+  "127.0.0.0/8",
+  "::1/128",
+  "10.0.0.0/8",
+  "${LAN_SUBNET}",
+  "${ULA_PREFIX}"
+})
+
+-- ------------------------------------------------------------
+-- Conservative safety defaults
+-- ------------------------------------------------------------
+setMaxUDPOutstanding(4096)
+setMaxTCPClientThreads(100)
