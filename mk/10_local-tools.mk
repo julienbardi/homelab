@@ -26,47 +26,18 @@
 #   - Strict separation of policy (constants) and logic (this file)
 #
 # Tool Classes:
-#   - Core tools (e.g., yq): pinned + checksum-verified
+#   - Core tools (e.g., yq, checkmake): pinned + checksum-verified (via mk/20_deps.mk)
 #   - System tools (awk, aspell): required but not vendored
-#   - Dev tools (checkmake): best-effort, non-reproducible
 # ------------------------------------------------------------
-
-# ------------------------------------------------------------
-# Local tool root
-# ------------------------------------------------------------
-TOOLS_DIR := $(HOME)/.local/tools
-
-# Local tools use STAMP_DIR_USER (user-level stamps)
 
 SPELLCHECK_FILES := *.md
 SPELLCHECK_MAKEFILES := Makefile mk/*.mk
 
 # ------------------------------------------------------------
-# Deterministic local tools
+# System-wide tool references (defined in mk/20_deps.mk)
 # ------------------------------------------------------------
 
-YQ := /usr/local/bin/yq
-YQ_DIR := $(dir $(YQ))
-
-ifeq ($(wildcard $(YQ)),)
-$(error "❌ yq missing — run make install-yq to install pinned system-wide version")
-endif
-
-.PHONY: install-yq
-install-yq: | $(INSTALL_PATH)/install_github_asset.sh
-	@echo "🔧 Installing system-wide yq $(YQ_VERSION) into /usr/local/bin"
-	@sudo $(INSTALL_PATH)/install_github_asset.sh \
-		"$(YQ_URL)" \
-		"$(YQ)" \
-		"$(YQ_SHA256)" \
-		"/usr/local/bin/yq.installed" \
-		"yq $(YQ_VERSION)"
-
-# ------------------------------------------------------------
-# Optional dev tool (best-effort)
-# ------------------------------------------------------------
-
-CHECKMAKE := $(TOOLS_DIR)/checkmake
+CHECKMAKE := $(INSTALL_PATH)/checkmake
 
 # ------------------------------------------------------------
 # Tool bootstrap
@@ -90,30 +61,6 @@ require-aspell:
 	( echo "❌ aspell missing — install with: sudo apt install aspell"; exit 1 )
 
 # ------------------------------------------------------------
-# Best-effort dev tooling
-# ------------------------------------------------------------
-
-.PHONY: checkmake
-checkmake:
-	@mkdir -p "$(TOOLS_DIR)"
-	@echo "⚠️ Installing checkmake (best-effort, requires modern Go)"
-	@GOBIN=$(abspath $(TOOLS_DIR)) \
-		go install github.com/checkmake/checkmake/cmd/checkmake@latest || \
-		echo "⚠️ checkmake install failed — continuing without it"
-
-# ------------------------------------------------------------
-# Linting (advisory)
-# ------------------------------------------------------------
-
-.PHONY: lint
-lint:
-	@if [ -x "$(CHECKMAKE)" ]; then \
-		"$(CHECKMAKE)" Makefile || true; \
-	else \
-		echo "⚠️ checkmake not installed — skipping lint"; \
-	fi
-
-# ------------------------------------------------------------
 # Spell checking
 # ------------------------------------------------------------
 
@@ -127,11 +74,3 @@ spellcheck: require-aspell
 spellcheck-comments: require-aspell
 	@sed -n 's/^[[:space:]]*#//p' $(SPELLCHECK_MAKEFILES) | \
 		aspell list | sort -u
-
-# ------------------------------------------------------------
-# Cleanup (local only)
-# ------------------------------------------------------------
-
-.PHONY: distclean
-distclean:
-	@rm -rf "$(TOOLS_DIR)"

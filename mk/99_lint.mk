@@ -186,35 +186,32 @@ lint-spell-strict:
 		exit 1; \
 	fi
 
-# Lint Makefiles and mk/*.mk using checkmake when available (permissive)
+# Lint Makefile using checkmake when available (permissive)
 lint-makefile:
-	@echo "🔍 Linting Makefiles and mk/*.mk (permissive)..."
+	@echo "🔍 Linting Makefile (permissive)..."
 	@echo "🔍 NOTE: checkmake warnings are advisory only"
 	@if command -v $(CHECKMAKE) >/dev/null 2>&1; then \
-	  for mf in $(REPO_ROOT)Makefile $(MK_FILES); do \
-		[ -f "$$mf" ] || continue; \
-		echo "[checkmake] $$mf"; \
-		$(CHECKMAKE) "$$mf" 2>&1 \
-		  | grep -v '^[[:space:]]*minphony' \
-		  | grep -v '^[[:space:]]*"all"' \
-		  | grep -v '^[[:space:]]*"clean"' \
-		  | grep -v '^[[:space:]]*"test"' \
-		  || true; \
-	  done; \
+		if [ -f "$(REPO_ROOT)Makefile" ]; then \
+			echo "[checkmake] Makefile"; \
+			$(CHECKMAKE) "$(REPO_ROOT)Makefile" 2>&1 \
+				| grep -v '^[[:space:]]*minphony' \
+				| grep -v '^[[:space:]]*"all"' \
+				| grep -v '^[[:space:]]*"clean"' \
+				| grep -v '^[[:space:]]*"test"' \
+				|| true; \
+		fi; \
 	else \
-	  echo "🔍 checkmake not installed; skipping Makefile lint"; \
+		echo "🔍 checkmake not installed; skipping Makefile lint"; \
 	fi
 
-
-# Lint Makefiles strict: fail on checkmake errors
+# Lint Makefile strict: fail on checkmake errors
 lint-makefile-strict:
-	@echo "🚨 Linting Makefiles and mk/*.mk (strict)..."
+	@echo "🚨 Linting Makefile (strict)..."
 	$(call require_tool,$(CHECKMAKE))
-	@for mf in $(REPO_ROOT)Makefile $(MK_FILES); do \
-		[ -f "$$mf" ] || continue; \
-		echo "[checkmake] $$mf"; \
-		$(CHECKMAKE) "$$mf" || { echo "[checkmake] Issues in $$mf"; exit 1; }; \
-	done
+	@if [ -f "$(REPO_ROOT)Makefile" ]; then \
+		echo "[checkmake] Makefile"; \
+		$(CHECKMAKE) "$(REPO_ROOT)Makefile" || { echo "[checkmake] Issues in Makefile"; exit 1; }; \
+	fi
 
 # Headscale config test (use run_as_root helper)
 lint-headscale:

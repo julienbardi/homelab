@@ -322,7 +322,7 @@ DDNS_ENV_FILE := /etc/homelab/ddns.env
 
 .PHONY: ddns-env-dir
 ddns-env-dir:
-	@$(run_as_root) mkdir -p /etc/homelab
+	@$(run_as_root) install -d -m 0755 -o $(ROOT_UID) -g $(ROOT_GID) /etc/homelab
 
 .PHONY: ddns-env
 ddns-env: ddns-env-dir secrets-runtime-init $(YQ_STAMP)

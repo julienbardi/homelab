@@ -3,27 +3,19 @@
 # ============================================================
 
 # ============================================================
-# dnsdist Listener Contract (Ugreen NAS running Proxmox)
+# dnsdist Listener Contract (Proxmox VE Environment)
 # ============================================================
 #
-# UGOS ships dnsmasq bound to IPv4 port 53 on:
-#   - 0.0.0.0:53
-#   - 127.0.0.1:53
-#
-# This binding is mandatory and cannot be disabled or restricted.
-# Therefore:
-#
-#   ❌ dnsdist MUST NOT bind 127.0.0.1:53 (UDP or TCP)
-#   ❌ dnsdist MUST NOT bind 0.0.0.0:53
+# dnsdist runs as the primary DoH and selective forwarding frontend,
+# serving local loopback clients, WireGuard interfaces, and
+# Tailscale/Headscale tunnel endpoints.
 #
 # dnsdist is responsible for:
-#   ✅ IPv6 plain DNS on loopback (::1:53)
-#   ✅ IPv6 plain DNS on all WireGuard gateway addresses
-#       fd89:7a3b:42c0:N::1:53  (N = 0..15)
-#
-#   ✅ DoH on IPv4 loopback (127.0.0.1:8053)
-#   ✅ DoH on IPv6 loopback ([::1]:8053)
-#   ✅ DoH on all WireGuard IPv4/IPv6 gateway addresses
+#   ✅ IPv6 plain DNS on loopback ([::1]:53)
+#   ✅ IPv4 loopback DoH (127.0.0.1:8053)
+#   ✅ IPv6 loopback DoH ([::1]:8053)
+#   ✅ Plain DNS and DoH bindings across WireGuard gateway interfaces
+#   ✅ Integration endpoints for Tailscale/Headscale routing peers
 #
 # Required listeners for dnsdist:
 #
@@ -35,16 +27,13 @@
 #       tcp 127.0.0.1:8053
 #       tcp [::1]:8053
 #
-# WireGuard listeners are validated indirectly via:
-#   - presence of fd89:7a3b:42c0:N::1:53 (UDP/TCP)
-#   - presence of fd89:7a3b:42c0:N::1:8053 (TCP)
-#
-# Any validation logic MUST enforce only the above.
-# Any check for 127.0.0.1:53 MUST be removed.
-#
+# Any validation logic MUST enforce the above loopback requirements
+# and support active VPN tunnel gateway listeners.
 # ============================================================
 
-# mk/70_dnsdist.mk
+# Configuration Destinations & Templates
+DNSDIST_CONF_TEMPLATE   := $(REPO_ROOT)/config/dnsdist/dnsdist.conf.template
+DNSDIST_CONF_DST        := /etc/dnsdist/dnsdist.conf
 
 ifndef DOMAIN
 $(error DOMAIN is not set; export DOMAIN or define it in config.mk)
@@ -55,41 +44,92 @@ $(error CERTS_DEPLOY is not set; expected from mk/config.mk)
 endif
 
 # Paths & Binaries
-DNSDIST_BIN          := /usr/bin/dnsdist
-DNSDIST_UNIT         := dnsdist.service
+DNSDIST_BIN        := /usr/bin/dnsdist
+DNSDIST_UNIT       := dnsdist.service
 
 # Discovery with Override
-KDIG                 ?= kdig
+KDIG               ?= kdig
 
 # Configuration (Ensuring trailing slash safety)
-DNSDIST_CONF_SRC        := $(REPO_ROOT)/config/dnsdist/dnsdist.conf
-DNSDIST_CONF_DST        := /etc/dnsdist/dnsdist.conf
 DNSDIST_DROPIN_SRC      := $(REPO_ROOT)/config/systemd/dnsdist.service.d/10-no-port53.conf
 DNSDIST_DROPIN_DST      := /etc/systemd/system/dnsdist.service.d/10-no-port53.conf
 DNSDIST_CAPS_DROPIN_SRC := $(REPO_ROOT)/config/systemd/dnsdist.service.d/20-homelab-bindcaps.conf
 DNSDIST_CAPS_DROPIN_DST := /etc/systemd/system/dnsdist.service.d/20-homelab-bindcaps.conf
 
 # TLS Material
-DNSDIST_CERT_DIR     := /etc/dnsdist/certs
-DNSDIST_CERT         := $(DNSDIST_CERT_DIR)/fullchain.pem
-DNSDIST_KEY          := $(DNSDIST_CERT_DIR)/privkey.pem
-CA_BUNDLE            ?= /var/lib/ssl/canonical/fullchain_ecc.pem
+DNSDIST_CERT_DIR    := /etc/dnsdist/certs
+DNSDIST_CERT        := $(DNSDIST_CERT_DIR)/fullchain.pem
+DNSDIST_KEY         := $(DNSDIST_CERT_DIR)/privkey.pem
+CA_BUNDLE          ?= /var/lib/ssl/canonical/fullchain_ecc.pem
 
 # DoH probe defaults (centralized)
-DOH_HOST             := bardi.ch
-DOH_PORT             := 8053
-DOH_ADDR             := 127.0.0.1
-DOH_TEST_NAME        ?= $(DOMAIN)
-DOH_TIMEOUT          := 5
-DOH_TLS_CA           := $(CA_BUNDLE)
-DOH_TLS_HOST         := $(DOH_HOST)
-KDIG_ARGS            := +https +tls-ca=$(DOH_TLS_CA) +tls-hostname=$(DOH_TLS_HOST) +time=$(DOH_TIMEOUT)
-# Map SNI host to loopback so TLS validation uses the real certificate served for DOH_HOST
-# This ensures the client presents the correct SNI and validates the cert chain.
-CURL_RESOLVE         := --resolve $(DOH_HOST):$(DOH_PORT):$(DOH_ADDR)
+DOH_HOST            ?= $(DOMAIN)
+DOH_PORT            := 8053
+DOH_ADDR            := 127.0.0.1
+DOH_TEST_NAME       ?= $(DOMAIN)
+DOH_TIMEOUT         := 5
+DOH_TLS_CA          := $(CA_BUNDLE)
+DOH_TLS_HOST        := $(DOH_HOST)
+KDIG_ARGS           := +https +tls-ca=$(DOH_TLS_CA) +tls-hostname=$(DOH_TLS_HOST) +time=$(DOH_TIMEOUT)
+CURL_RESOLVE        := --resolve $(DOH_HOST):$(DOH_PORT):$(DOH_ADDR)
+
+# Additional Environment Bindings for Template Rendering
+DNSDIST_LAN_IP    ?= 10.89.12.4
+DNSDIST_ULA_IP    ?= fd89:7a3b:42c0::4
+UNBOUND_PORT      ?= 15335
+LAN_SUBNET        ?= 10.89.12.0/24
+ULA_PREFIX        ?= fd89:7a3b:42c0::/48
 
 # Commands
-DNSDIST_RESTART_CMD  := $(run_as_root) systemctl restart $(DNSDIST_UNIT)
+DNSDIST_RESTART_CMD := $(run_as_root) systemctl restart $(DNSDIST_UNIT)
+
+# ====================================================================
+# Corrected deploy-dnsdist-certs (No circular dependency)
+# ====================================================================
+deploy-dnsdist-certs: install-all $(CERTS_DEPLOY) $(CANONICAL_SUM)
+
+define dnsdist_render_and_install_config
+	$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
+	tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.conf.XXXXXX); \
+	$(run_as_root) chmod 644 "$$tmp"; \
+	export DNSDIST_CERT="$(DNSDIST_CERT)" \
+			DNSDIST_KEY="$(DNSDIST_KEY)" \
+			DNSDIST_LAN_IP="$(DNSDIST_LAN_IP)" \
+			DNSDIST_ULA_IP="$(DNSDIST_ULA_IP)" \
+			UNBOUND_PORT="$(UNBOUND_PORT)" \
+			DOH_PORT="$(DOH_PORT)" \
+			LAN_SUBNET="$(LAN_SUBNET)" \
+			ULA_PREFIX="$(ULA_PREFIX)"; \
+	$(run_as_root) sh -c ' \
+		for v in DNSDIST_CERT DNSDIST_KEY DNSDIST_LAN_IP DNSDIST_ULA_IP UNBOUND_PORT DOH_PORT LAN_SUBNET ULA_PREFIX; do \
+			eval "val=\$$$v"; \
+			if [ -z "$$val" ]; then \
+				echo "❌ Error: Environment variable '\''$$v'\'' is empty or undefined." >&2; \
+				exit 1; \
+			fi; \
+		done; \
+		envsubst < "$(DNSDIST_CONF_TEMPLATE)" > "$$0" \
+	' "$$tmp"; \
+	rc=$$?; \
+	if [ "$$rc" -ne 0 ]; then \
+		$(run_as_root) rm -f "$$tmp"; \
+		exit 1; \
+	fi; \
+	rc=0; \
+	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+		$(INSTALL_FILE_IF_CHANGED) -q \
+		"" "" "$$tmp" \
+		"" "" "$(DNSDIST_CONF_DST)" \
+		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
+	$(run_as_root) rm -f "$$tmp"; \
+	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		echo "🔄 dnsdist.conf updated (from template), restarting dnsdist..."; \
+		$(DNSDIST_RESTART_CMD); \
+	fi
+endef
+
+dnsdist-config: dnsdist-install
+	@$(call dnsdist_render_and_install_config)
 
 define dnsdist_install_dropin
 	@$(run_as_root) install -d /etc/systemd/system/dnsdist.service.d; \
@@ -102,20 +142,6 @@ define dnsdist_install_dropin
 	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 		$(systemctl_daemon_reload); \
 		echo "🔄 Updated $(2), restarting dnsdist..."; \
-		$(DNSDIST_RESTART_CMD); \
-	fi
-endef
-
-define dnsdist_install_config
-	@$(run_as_root) install -d -m 0750 -o root -g _dnsdist /etc/dnsdist; \
-	rc=0; \
-	$(run_as_root) env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-		$(INSTALL_FILE_IF_CHANGED) -q \
-		"" "" "$(1)" \
-		"" "" "$(2)" \
-		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || rc=$$?; \
-	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		echo "🔄 dnsdist.conf updated, restarting dnsdist..."; \
 		$(DNSDIST_RESTART_CMD); \
 	fi
 endef
@@ -142,14 +168,10 @@ assert-dnsdist-certs:
 # Implementation Details (Idempotent)
 # --------------------------------------------------------------------
 
-dnsdist-config: dnsdist-install
-	$(call dnsdist_install_config,$(DNSDIST_CONF_SRC),$(DNSDIST_CONF_DST))
-
-
-dnsdist-systemd-dropin:
+dnsdist-systemd-dropin: dnsdist-install
 	@$(call dnsdist_install_dropin,$(DNSDIST_DROPIN_SRC),$(DNSDIST_DROPIN_DST))
 
-dnsdist-systemd-caps:
+dnsdist-systemd-caps: dnsdist-systemd-dropin
 	@$(call dnsdist_install_dropin,$(DNSDIST_CAPS_DROPIN_SRC),$(DNSDIST_CAPS_DROPIN_DST))
 
 # canonical store and stamp
@@ -158,10 +180,8 @@ CANONICAL_SUM := $(CANONICAL_DIR)/.lastsum
 
 .PHONY: deploy-dnsdist-certs
 
-# deploy depends on the stamp so deploy runs only when canonical store changed
-deploy-dnsdist-certs: install-all $(CERTS_DEPLOY) $(CANONICAL_SUM) dnsdist-config
+deploy-dnsdist-certs: install-all $(CERTS_DEPLOY) $(CANONICAL_SUM)
 
-# Robust checksum + deploy (atomic stamp write)
 $(CANONICAL_SUM): $(CERTS_DEPLOY)
 	@set -eu; \
 	if [ ! -d "$(CANONICAL_DIR)" ]; then \
@@ -181,12 +201,11 @@ $(CANONICAL_SUM): $(CERTS_DEPLOY)
 	sum=$$($(run_as_root) sh -c "find '$(CANONICAL_DIR)' -type f -exec sha256sum {} + 2>/dev/null | sort | sha256sum | cut -d' ' -f1"); \
 	old=""; [ -f "$(CANONICAL_SUM)" ] && old=$$($(run_as_root) cat "$(CANONICAL_SUM)" 2>/dev/null || true); \
 	if [ "$$sum" = "$$old" ]; then \
-		# canonical store unchanged: only skip if dnsdist certs are actually present \
 		if [ -r "$(DNSDIST_CERT)" ] && [ -r "$(DNSDIST_KEY)" ]; then \
 			echo "🔁 canonical store unchanged; skipping deploy"; \
 		else \
 			echo "📦 canonical unchanged but dnsdist certs missing; forcing deploy"; \
-			$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(CERTS_DEPLOY) deploy dnsdist"; \
+			$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; SSL_CANONICAL_DIR=\"$(SSL_CANONICAL_DIR)\" $(CERTS_DEPLOY) deploy dnsdist"; \
 			tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
 			$(run_as_root) sh -c 'printf "%s\n" "$$1" > "$$2"' sh "$$sum" "$$tmp"; \
 			$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
@@ -194,7 +213,7 @@ $(CANONICAL_SUM): $(CERTS_DEPLOY)
 		fi; \
 	else \
 		echo "📦 Deploying certificates to dnsdist"; \
-		$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; $(CERTS_DEPLOY) deploy dnsdist"; \
+		$(run_as_root) sh -c "exec 9>/var/lock/homelab-deploy.lock; flock -x 9; SSL_CANONICAL_DIR=\"$(SSL_CANONICAL_DIR)\" $(CERTS_DEPLOY) deploy dnsdist"; \
 		tmp=$$($(run_as_root) mktemp -p /run homelab.dnsdist.tmp.XXXXXX); \
 		$(run_as_root) sh -c 'printf "%s\n" "$$1" > "$$2"' sh "$$sum" "$$tmp"; \
 		$(run_as_root) mv "$$tmp" "$(CANONICAL_SUM)"; \
@@ -238,15 +257,23 @@ check-dnsdist-doh-local:
 		fi; \
 	fi
 
-
 # --------------------------------------------------------------------
-# Orchestration umbrella
+# Orchestration umbrella (Acyclic Sequential Extension)
 # --------------------------------------------------------------------
 
-dnsdist: dnsdist-install dnsdist-systemd-dropin dnsdist-systemd-caps deploy-dnsdist-certs \
-	dnsdist-config dnsdist-enable dnsdist-validate \
-	assert-dnsdist-running check-dnsdist-doh-listener check-dnsdist-doh-local \
-	install-kdig check-dnsdist-listeners
+# Extend existing targets sequentially without creating cycles
+dnsdist-systemd-dropin: dnsdist-install
+dnsdist-systemd-caps: dnsdist-systemd-dropin
+dnsdist-config: dnsdist-systemd-caps deploy-dnsdist-certs
+dnsdist-validate: dnsdist-config
+dnsdist-enable: dnsdist-validate
+assert-dnsdist-running: dnsdist-enable dnsdist-config
+check-dnsdist-doh-local: assert-dnsdist-running
+install-kdig: check-dnsdist-doh-local
+check-dnsdist-listeners: install-kdig
+
+# Master umbrella depends on the final verification and setup leaves
+dnsdist: check-dnsdist-listeners
 	@test -z "$(VERBOSE)" || echo "🚀 dnsdist DoH frontend ready"
 
 ci-doh-check:
@@ -280,7 +307,6 @@ check-dnsdist-doh-listener:
 	fi; \
 	echo "✅ DoH listener present on :$(DOH_PORT)"
 
-# assert depends on both checks; with `make -j` they can run in parallel
 assert-dnsdist-running: check-dnsdist-systemd check-dnsdist-doh-listener dnsdist-validate
 	@test -z "$(VERBOSE)" || echo "✅ dnsdist service and listener OK"
 
@@ -294,3 +320,54 @@ dnsdist-pre-reboot-check:
 check-dnsdist-listeners: $(INSTALL_PATH)/dnsdist-validate-listeners.sh
 	@echo "🔍 Checking dnsdist listeners"
 	@$(run_as_root) $(INSTALL_PATH)/dnsdist-validate-listeners.sh
+
+# ------------------------------------------------------------
+# dnsdist package management
+# ------------------------------------------------------------
+
+STAMP_DNSDIST := $(STAMP_DIR_ROOT)/dnsdist.stamp
+
+.PHONY: install-pkg-dnsdist remove-pkg-dnsdist verify-pkg-dnsdist dnsdist-install
+install-pkg-dnsdist: ensure-state-dirs
+	@set -euo pipefail; \
+	if [ -f "$(STAMP_DNSDIST)" ] && [ ! -L "$(STAMP_DNSDIST)" ] && dpkg -s dnsdist >/dev/null 2>&1; then \
+		_INST_VER="$$(dpkg-query -W -f='$${Version}' dnsdist 2>/dev/null || echo "")"; \
+		_S_VER="$$(grep '^version=' "$(STAMP_DNSDIST)" 2>/dev/null | cut -d= -f2- || echo "")"; \
+		if [ -n "$$_INST_VER" ] && [ "$$_S_VER" = "$$_INST_VER" ]; then \
+			echo "⏩ dnsdist unchanged (fast-path OK)"; \
+			exit 0; \
+		fi; \
+	fi; \
+	echo "📦 Installing dnsdist package..."; \
+	$(run_as_root) env DEBIAN_FRONTEND=noninteractive \
+		apt-get -o Dpkg::Options::="--force-confdef" \
+				-o Dpkg::Options::="--force-confold" \
+				install -y dnsdist || { echo "❌ dnsdist installation failed"; exit 1; }; \
+	$(run_as_root) mkdir -p "$$(dirname "$(STAMP_DNSDIST)")"; \
+	_INST_VER="$$(dpkg-query -W -f='$${Version}' dnsdist 2>/dev/null || echo "unknown")"; \
+	{ \
+		echo "version=$$_INST_VER"; \
+		echo "sha256=$$(dpkg -L dnsdist 2>/dev/null | xargs sha256sum 2>/dev/null | awk '{print $$1}' | sha256sum | awk '{print $$1}' || echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")"; \
+		echo "owner=root"; \
+		echo "group=root"; \
+		echo "perm=0755"; \
+		echo "type=package"; \
+	} | $(run_as_root) tee "$(STAMP_DNSDIST)" >/dev/null; \
+	echo "✅ dnsdist installed"
+
+remove-pkg-dnsdist:
+	@$(run_as_root) sh -c ' \
+		apt-get purge -y dnsdist >/dev/null 2>&1 || true; \
+		apt-get autoremove -y >/dev/null 2>&1 || true; \
+		rm -f "$(STAMP_DNSDIST)"; \
+	'; \
+	echo "🗑️ dnsdist removed"
+
+verify-pkg-dnsdist:
+	@if ! dpkg -s dnsdist >/dev/null 2>&1; then \
+		echo "❌ dnsdist is not installed"; \
+		exit 1; \
+	fi; \
+	echo "✅ dnsdist package verified"
+
+dnsdist-install: install-pkg-dnsdist verify-pkg-dnsdist

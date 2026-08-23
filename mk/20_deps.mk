@@ -40,24 +40,23 @@ KOPIA_STAMP   := $(STAMP_DIR_ROOT)/kopia.installed
 
 CHECKMAKE_VERSION := 0.3.2
 CHECKMAKE_BIN     := /usr/local/bin/checkmake
-CHECKMAKE_SRC     := $(HOME)/src/checkmake
 STAMP_CHECKMAKE   := $(STAMP_DIR_ROOT)/checkmake.installed
 
 HEADSCALE_VERSION ?= v0.27.1
 STAMP_HEADSCALE   := $(STAMP_DIR_ROOT)/headscale.installed
 
-PANDOC_VERSION := 3.10.1
-PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/3.10.1/pandoc-3.10.1-1-amd64.deb
-PANDOC_SHA256  := b419369915e0f3181be0afdb040ec8ecc6b70e72e5992652a0d83aed9e6bc109
+PANDOC_VERSION := 3.10.2
+PANDOC_DEB_URL := https://github.com/jgm/pandoc/releases/download/$(PANDOC_VERSION)/pandoc-$(PANDOC_VERSION)-1-amd64.deb
+PANDOC_SHA256  := sha256:6c06b69b49ae95087573631a6fcafb233ab7ab51e5cfa73f7539d6c964a2640d
 STAMP_PANDOC   := $(STAMP_DIR_ROOT)/pandoc.installed
 
-INSTALLERS := go pandoc checkmake strace age rclone kopia sops yq
+INSTALLERS := go pandoc checkmake strace age rclone kopia sops yq dnsdist
 HYGIENE    := dns-ok tailscale-hygiene-ok watchdog-ok vnstat-ok prereqs-ok
 
 # Stamp directory order-only dependencies (root scope)
-$(STAMP_TS_OK):         ensure-state-dirs
-$(STAMP_WATCHDOG_OK):   ensure-state-dirs
-$(PROBES_STAMP):        ensure-state-dirs
+$(STAMP_TS_OK):        ensure-state-dirs
+$(STAMP_WATCHDOG_OK):  ensure-state-dirs
+$(PROBES_STAMP):       ensure-state-dirs
 $(STAMP_PREREQS_OK):    ensure-state-dirs
 $(STAMP_INSTALLERS_OK): ensure-state-dirs
 $(STAMP_DEPS_OK):       ensure-state-dirs
@@ -68,25 +67,43 @@ $(STAMP_GO):            ensure-state-dirs
 # Generic helpers and macros
 # ------------------------------------------------------------
 
-# $(call write_stamp,STAMP_PATH,VERSION,FILE_PATH)
+# $(call write_stamp,STAMP_PATH,VERSION,BIN_PATH)
 define write_stamp
-	NEW_SHA=$$(sha256sum "$(3)" | awk '{print $$1}'); \
-	TMP_STAMP=$$(mktemp); \
-	echo "version=$(2) sha256=$$NEW_SHA installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$$TMP_STAMP"; \
-	$(run_as_root) install -m 0644 "$$TMP_STAMP" "$(1)"; \
-	rm -f "$$TMP_STAMP"
+	STAMP_PATH="$(1)"; \
+	VERSION_VAL="$(2)"; \
+	BIN_PATH="$(3)"; \
+	$(run_as_root) mkdir -p "$$$(dirname "$$STAMP_PATH")"; \
+	_EX_SHA="$$([ -f "$$BIN_PATH" ] && sha256sum "$$BIN_PATH" 2>/dev/null | awk '{print $$1}' || echo "")"; \
+	{ \
+		echo "version=$$VERSION_VAL"; \
+		echo "sha256=$$_EX_SHA"; \
+		echo "owner=root"; \
+		echo "group=root"; \
+		echo "perm=0755"; \
+		echo "type=regular"; \
+	} | $(run_as_root) tee "$$STAMP_PATH" >/dev/null
 endef
 
 # $(call fastpath_binary_with_stamp,STAMP_PATH,BIN_PATH,LABEL)
 define fastpath_binary_with_stamp
-	if [ -f "$(1)" ] && [ -x "$(2)" ]; then \
-		CURRENT_SHA=$$(sha256sum "$(2)" | awk '{print $$1}'); \
-		STAMP_SHA=$$($(run_as_root) grep -oP 'sha256=\K[a-f0-9]+' "$(1)" || echo none); \
-		if [ "$$CURRENT_SHA" = "$$STAMP_SHA" ]; then \
-			echo "⏩ $(3) unchanged (hash+stamp OK)"; \
-			exit 0; \
-		fi; \
-	fi
+	([ -f "$(1)" ] && [ -x "$(2)" ] && \
+	 CURRENT_SHA=$$(sha256sum "$(2)" | awk '{print $$1}') && \
+	 STAMP_SHA=$$(grep '^sha256=' "$(1)" 2>/dev/null | cut -d= -f2- || echo "none") && \
+	 [ -n "$$CURRENT_SHA" ] && [ "$$CURRENT_SHA" = "$$STAMP_SHA" ])
+endef
+
+# $(call install_binary_package,LABEL,VERSION,STAMP_PATH,BIN_PATH,INSTALL_CMD)
+define install_binary_package
+	@set -euo pipefail; \
+	$(call verbose_echo,📦 $(1) $(2)); \
+	if $(call fastpath_binary_with_stamp,$(3),$(4),$(1)); then \
+		$(call verbose_echo,⏩ $(1) $(2) unchanged (hash+stamp OK)); \
+		exit 0; \
+	fi; \
+	echo "🚀 installing $(1) $(2)"; \
+	$(5); \
+	$(call write_stamp,$(3),$(2),$(4)); \
+	echo "✅ $(1) $(2) ready"
 endef
 
 # $(call ifc_install_dir,TMPDIR,INSTALL_PATH)
@@ -108,10 +125,9 @@ endef
 define go_install_from_source
 	BIN_NAME="$(1)"; VERSION_STR="$(2)"; \
 	REQ_VER="$${VERSION_STR##*@}"; \
+	REQ_VER="$${REQ_VER#v}"; \
 	DEST="$(INSTALL_PATH)/$$BIN_NAME"; \
 	STAMP="$(STAMP_DIR_ROOT)/$$BIN_NAME.installed"; \
-	\
-	$(call fastpath_binary_with_stamp,$$STAMP,$$DEST,$$BIN_NAME); \
 	\
 	if [ ! -x "$(GO_MODERN_BIN)" ]; then \
 		echo "❌ Go binary missing: $(GO_MODERN_BIN)"; \
@@ -123,7 +139,7 @@ define go_install_from_source
 	cleanup() { rm -rf "$$TMP_BIN"; }; \
 	trap cleanup EXIT INT TERM; \
 	\
-	GOBIN=$$TMP_BIN $(GO_MODERN_BIN) install $$VERSION_STR || { echo "❌ Go build failed"; exit 1; }; \
+	GOBIN=$$TMP_BIN $(GO_MODERN_BIN) install -trimpath $$VERSION_STR || { echo "❌ Go build failed"; exit 1; }; \
 	$(call ifc_install_dir,$$TMP_BIN,$(INSTALL_PATH)); \
 	$(call write_stamp,$$STAMP,$$REQ_VER,$$DEST)
 endef
@@ -151,10 +167,34 @@ define ensure_service
 	$(call ensure_service_enabled,$(1),$(1))
 endef
 
-# $(call remove_binary_with_stamp,BIN,STAMP,LABEL)
+# $(call remove_binary_with_stamp,BIN,STAMP,LABEL[,EXTRA_PATH])
 define remove_binary_with_stamp
-	$(call remove_file_or_link_if_exists,$(1),$(3))
-	$(run_as_root) rm -f "$(2)"
+	$(call remove_file_or_link_if_exists,$(1),$(3)); \
+	$(run_as_root) rm -f "$(2)"; \
+	if [ -n "$(4)" ]; then \
+		$(call remove_file_or_link_if_exists,$(4),$(3) symlink); \
+	fi; \
+	$(call verbose_echo,🗑️ Removed $(3))
+endef
+
+# Removes a directory tree safely, restricted strictly to known homelab paths.
+# $(call remove_directory_if_exists,DIR_PATH,LABEL)
+define remove_directory_if_exists
+	sh -c '\
+		set -eu; \
+		target="$(1)"; \
+		case "$$target" in \
+			/usr/local/go|/usr/local/go/*) ;; \
+			*) \
+				echo "❌ ERROR: Path '\''$$target'\'' is not on the approved removal whitelist." >&2; \
+				exit 1; \
+				;; \
+		esac; \
+		if [ -d "$$target" ]; then \
+			$(call verbose_echo,🗑️ Removing directory: $$target); \
+			$(run_as_root) rm -rf "$$target"; \
+		fi; \
+	'
 endef
 
 # $(call install_github_asset,URL,DEST,SHA,STAMP)
@@ -167,20 +207,18 @@ define verbose_echo
 	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then echo "$(1)"; fi
 endef
 
-# Removes only regular files or symlinks.
+# Removes only regular files or symlinks safely.
+# $(call remove_file_or_link_if_exists,PATHS,LABEL)
 define remove_file_or_link_if_exists
 	sh -c '\
-		DISPLAY_NAME="$(if $(1),$(shell basename "$(firstword $(1))"),files)"; \
-		[ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && echo "ℹ️ Cleaning up $$DISPLAY_NAME"; \
+		set -eu; \
 		for item in $(1); do \
 			[ -z "$$item" ] && continue; \
-			LABEL="$(if $(2),$(2),$$item)"; \
 			if [ ! -e "$$item" ]; then \
-				$(call verbose_echo,ℹ️ Skipping (not found): $$item); \
 				continue; \
 			fi; \
 			if [ -d "$$item" ]; then \
-				echo "❌ ERROR: '\''$$LABEL'\'' is a directory. Refusing to delete directories." >&2; \
+				echo "❌ ERROR: '\''$$item'\'' is a directory. Refusing to delete directories." >&2; \
 				exit 1; \
 			fi; \
 			if [ -L "$$item" ] || [ -f "$$item" ]; then \
@@ -188,11 +226,9 @@ define remove_file_or_link_if_exists
 				$(run_as_root) rm -f "$$item"; \
 				continue; \
 			fi; \
-			echo "❌ ERROR: '\''$$LABEL'\'' is an unsupported type (not a file or symlink)." >&2; \
+			echo "❌ ERROR: '\''$$item'\'' is an unsupported type (not a file or symlink)." >&2; \
 			exit 1; \
 		done; \
-		$(call verbose_echo,ℹ️ $$(echo "$$DISPLAY_NAME" | awk '\''{print toupper(substr($$0,1,1)) substr($$0,2)}'\'') removed); \
-		exit 0; \
 	'
 endef
 
@@ -227,24 +263,24 @@ endef
 # Phony targets
 # ------------------------------------------------------------
 .PHONY: deps remove-pkg-go \
-	upgrade-pkg-pandoc remove-pkg-pandoc \
-	remove-pkg-checkmake \
-	remove-pkg-strace \
-	install-pkg-vnstat remove-pkg-vnstat \
-	install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale \
-	remove-pkg-age \
-	remove-pkg-rclone \
-	remove-pkg-kopia \
-	headscale-build \
-	installers-ok deps-ok deps \
-	remove-pkg-sops remove-pkg-yq \
-	enable-ndppd \
-	install-pkg-strace \
-	remove-pkg-headscale \
-	deps-probes \
-	dns-ok tailscale-hygiene-ok watchdog-ok vnstat-ok \
-	install-pkg-go install-pkg-age install-pkg-sops install-pkg-yq \
-	install-pkg-kopia install-pkg-pandoc install-pkg-checkmake
+    upgrade-pkg-pandoc remove-pkg-pandoc \
+    remove-pkg-checkmake \
+    remove-pkg-strace \
+    install-pkg-vnstat remove-pkg-vnstat \
+    install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale \
+    remove-pkg-age \
+    remove-pkg-rclone \
+    remove-pkg-kopia \
+    headscale-build \
+    installers-ok deps-ok deps \
+    remove-pkg-sops remove-pkg-yq \
+    enable-ndppd \
+    install-pkg-strace \
+    remove-pkg-headscale \
+    deps-probes \
+    dns-ok tailscale-hygiene-ok watchdog-ok vnstat-ok \
+    install-pkg-go install-pkg-age install-pkg-sops install-pkg-yq \
+    install-pkg-kopia install-pkg-pandoc install-pkg-checkmake
 
 # ------------------------------------------------------------
 # Aggregate installers/deps
@@ -359,80 +395,35 @@ verify-pkg-tailscale: ensure-host-default-route
 # Go (Modern Binary Distribution)
 # ------------------------------------------------------------
 
-.PHONY: install-pkg-go
+STAMP_GO := $(call STAMP_PATH_FROM_KEY,go)
+
+.PHONY: install-pkg-go remove-pkg-go
 install-pkg-go: ensure-state-dirs
-	@STAMP_PATH="$(call STAMP_PATH_FROM_KEY,go)"; \
-	BIN_PATH="$(GO_MODERN_BIN)"; \
-	\
-	# --- FAST PATH --------------------------------------------------------- \
-	if [ -f "$$STAMP_PATH" ] && [ ! -L "$$STAMP_PATH" ] && [ -x "$$BIN_PATH" ]; then \
-		_S_VER="$$(grep '^version=' "$$STAMP_PATH" 2>/dev/null | cut -d= -f2- || echo "")"; \
-		_S_SHA="$$(grep '^sha256=' "$$STAMP_PATH" 2>/dev/null | cut -d= -f2- || echo "")"; \
-		_EX_SHA="$$(sha256sum "$$BIN_PATH" 2>/dev/null | awk '{print $$1}' || echo "")"; \
-		if [ "$$_S_VER" = "$(GO_MODERN_VERSION)" ] && [ -n "$$_EX_SHA" ] && [ "$$_S_SHA" = "$$_EX_SHA" ]; then \
-			echo "⏩ go $(GO_MODERN_VERSION) unchanged (fast-path OK)"; \
-			exit 0; \
-		fi; \
+	@set -euo pipefail; \
+	$(call verbose_echo,📦 go $(GO_MODERN_VERSION)); \
+	if $(call fastpath_binary_with_stamp,$(STAMP_GO),$(GO_MODERN_BIN),go); then \
+		$(call verbose_echo,⏩ go $(GO_MODERN_VERSION) unchanged (hash+stamp OK)); \
+		exit 0; \
 	fi; \
-	\
-	# --- REMOVE LEGACY APT GO ---------------------------------------------- \
 	if [ -f "$(STAMP_DIR_ROOT)/legacy-go.detected" ]; then \
-		echo "🗑️ Removing legacy apt Go version..."; \
+		$(call verbose_echo,🗑️ Removing legacy apt Go version...); \
 		$(run_as_root) sh -c 'apt-get purge -y golang-go golang-1.19-go && apt-get autoremove -y'; \
 	fi; \
-	\
-	# --- FETCH + EXTRACT ---------------------------------------------------- \
-	echo "🚀 installing go $(GO_MODERN_VERSION)"; \
+	$(call verbose_echo,🚀 installing go $(GO_MODERN_VERSION)); \
 	$(call fetch_tarball,$(GO_DIST_URL),$(GO_TARBALL)) \
 		|| { echo "❌ go fetch failed"; exit 1; }; \
-	\
 	$(call extract_tarball,$(GO_TARBALL),$(GO_MODERN_PREFIX)) \
 		|| { echo "❌ go extract failed"; exit 1; }; \
-	\
-	# --- IFC-SAFE SYMLINK INSTALL ------------------------------------------ \
 	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
 		$(call install_symlink,$(GO_MODERN_BIN),/usr/local/bin/go) \
 		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
-	\
-	# --- WRITE STAMP -------------------------------------------------------- \
-	$(run_as_root) mkdir -p "$$(dirname "$$STAMP_PATH")"; \
-	{ \
-		echo "version=$(GO_MODERN_VERSION)"; \
-		echo "sha256=$$(sha256sum "$$BIN_PATH" 2>/dev/null | awk '{print $$1}' || \
-			echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")"; \
-		echo "owner=root"; \
-		echo "group=root"; \
-		echo "perm=0755"; \
-		echo "type=regular"; \
-	} | $(run_as_root) tee "$$STAMP_PATH" >/dev/null \
-		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
-	\
-	echo "✅ go $(GO_MODERN_VERSION) ready"
+	$(call write_stamp,$(STAMP_GO),$(GO_MODERN_VERSION),$(GO_MODERN_BIN)); \
+	$(call verbose_echo,✅ go $(GO_MODERN_VERSION) ready)
 
-install-pkg-go-v1: ensure-state-dirs
-	@{ \
-		$(call fastpath_binary_with_stamp,$(STAMP_GO),$(GO_MODERN_BIN),go $(GO_MODERN_VERSION)); \
-		if [ -f "$(STAMP_DIR_ROOT)/legacy-go.detected" ]; then \
-			echo "🗑️ Removing legacy apt Go version..."; \
-			$(run_as_root) sh -c 'apt-get purge -y golang-go golang-1.19-go && apt-get autoremove -y'; \
-		fi; \
-		echo "🚀 installing go $(GO_MODERN_VERSION)"; \
-		$(call fetch_tarball,$(GO_DIST_URL),$(GO_TARBALL)); \
-		$(call extract_tarball,$(GO_TARBALL),$(GO_MODERN_PREFIX)); \
-		$(call install_symlink,$(GO_MODERN_BIN),/usr/local/bin/go); \
-		$(call write_stamp,$(STAMP_GO),$(GO_MODERN_VERSION),$(GO_MODERN_BIN)); \
-		echo "✅ go $(GO_MODERN_VERSION) ready"; \
-	}
-
-.PHONY: remove-pkg-go
 remove-pkg-go:
-	@STAMP_PATH="$(call STAMP_PATH_FROM_KEY,go)"; \
-	if [ -f "$(GO_MODERN_BIN)" ] || [ -L "/usr/local/bin/go" ] || [ -f "$$STAMP_PATH" ]; then \
-		$(run_as_root) rm -rf "$(GO_MODERN_BIN)" "/usr/local/bin/go" "$$STAMP_PATH"; \
-		echo "🗑️ Go $(GO_MODERN_VERSION) removed"; \
-	else \
-		echo "⏩ Go $(GO_MODERN_VERSION) not present"; \
-	fi
+	@set -euo pipefail; \
+	$(call remove_binary_with_stamp,$(GO_MODERN_BIN),$(STAMP_GO),Go $(GO_MODERN_VERSION),$(INSTALL_PATH)/go); \
+	$(call remove_directory_if_exists,$(GO_MODERN_PREFIX),Go installation directory)
 
 # ------------------------------------------------------------
 # vnstat
@@ -494,13 +485,22 @@ remove-pkg-caddy:
 # Age (Source build via Go)
 # ------------------------------------------------------------
 
-install-pkg-age: ensure-state-dirs
-	@echo "📦 age $(AGE_VERSION)"
-	@$(call fastpath_binary_with_stamp,$(STAMP_AGE),$(AGE_BIN),age)
-	@echo "🚀 installing age $(AGE_VERSION)"
-	@$(call go_install_from_source,age,filippo.io/age/cmd/...@$(AGE_VERSION))
-	@$(call write_stamp,$(STAMP_AGE),$(AGE_VERSION),$(AGE_BIN))
-	@echo "✅ age ready"
+.PHONY: install-pkg-age
+install-pkg-age: install-pkg-go ensure-state-dirs
+	@set -euo pipefail; \
+	$(call verbose_echo,📦 age $(AGE_VERSION)); \
+	if $(call fastpath_binary_with_stamp,$(STAMP_AGE),$(AGE_BIN),age); then \
+		$(call verbose_echo,⏩ age $(AGE_VERSION) unchanged (hash+stamp OK)); \
+		exit 0; \
+	fi; \
+	$(call verbose_echo,🚀 installing age $(AGE_VERSION)); \
+	TMP_BIN=$$(mktemp -p /dev/shm -d homelab.XXXXXX); \
+	trap 'rm -rf "$$TMP_BIN"' EXIT; \
+	GOBIN=$$TMP_BIN $(GO_MODERN_BIN) install filippo.io/age/cmd/age@$(AGE_VERSION); \
+	GOBIN=$$TMP_BIN $(GO_MODERN_BIN) install filippo.io/age/cmd/age-keygen@$(AGE_VERSION); \
+	$(call ifc_install_dir,$$TMP_BIN,$(INSTALL_PATH)); \
+	$(call write_stamp,$(STAMP_AGE),$(AGE_VERSION),$(AGE_BIN)); \
+	$(call verbose_echo,✅ age ready)
 
 remove-pkg-age:
 	@$(call remove_binary_with_stamp,$(AGE_BIN) $(AGE_KEYGEN_BIN),$(STAMP_AGE),age)
@@ -509,15 +509,10 @@ remove-pkg-age:
 # SOPS (Secrets Operations - Source build via Go)
 # ------------------------------------------------------------
 
+.PHONY: install-pkg-sops
 install-pkg-sops: install-pkg-go ensure-state-dirs
-	@echo "📦 sops $(SOPS_VERSION)"
-	@$(call fastpath_binary_with_stamp,$(STAMP_SOPS),$(SOPS_BIN),sops)
-	@echo "🚀 installing sops $(SOPS_VERSION)"
-	@$(call go_install_from_source,sops,github.com/getsops/sops/v3/cmd/sops@$(SOPS_VERSION))
-	@$(call write_stamp,$(STAMP_SOPS),$(SOPS_VERSION),$(SOPS_BIN))
-	@echo "✅ sops $(SOPS_VERSION) ready"
-
-$(STAMP_SOPS): install-pkg-sops
+	@$(call install_binary_package,sops,$(SOPS_VERSION),$(STAMP_SOPS),$(SOPS_BIN),\
+		$(call go_install_from_source,sops,github.com/getsops/sops/v3/cmd/sops@$(SOPS_VERSION)))
 
 remove-pkg-sops:
 	@$(call remove_binary_with_stamp,$(SOPS_BIN),$(STAMP_SOPS),sops)
@@ -526,15 +521,10 @@ remove-pkg-sops:
 # yq
 # ------------------------------------------------------------
 
-$(YQ_STAMP): ensure-state-dirs install-pkg-yq
-
+.PHONY: install-pkg-yq
 install-pkg-yq: ensure-state-dirs $(INSTALL_PATH)/install_github_asset.sh
-	@echo "📦 yq $(YQ_VERSION)"
-	@$(call fastpath_binary_with_stamp,$(YQ_STAMP),$(INSTALL_PATH)/yq,yq)
-	@echo "🚀 installing yq $(YQ_VERSION)"
-	@$(call install_github_asset,$(YQ_URL),$(INSTALL_PATH)/yq,$(YQ_SHA256),$(YQ_STAMP))
-	@$(call write_stamp,$(YQ_STAMP),$(YQ_VERSION),$(INSTALL_PATH)/yq)
-	@echo "✅ yq $(YQ_VERSION) ready"
+	@$(call install_binary_package,yq,$(YQ_VERSION),$(YQ_STAMP),$(INSTALL_PATH)/yq,\
+		$(call install_github_asset,$(YQ_URL),$(INSTALL_PATH)/yq,$(YQ_SHA256),$(YQ_STAMP)))
 
 remove-pkg-yq:
 	@$(call remove_binary_with_stamp,$(INSTALL_PATH)/yq,$(YQ_STAMP),yq)
@@ -553,17 +543,21 @@ remove-pkg-rclone:
 # Kopia
 # ------------------------------------------------------------
 
-install-pkg-kopia: $(INSTALL_PATH)/install_github_asset.sh ensure-state-dirs
-	@echo "📦 kopia $(KOPIA_VERSION)"
-	@$(call fastpath_binary_with_stamp,$(KOPIA_STAMP),$(INSTALL_PATH)/kopia,kopia)
-	@echo "🚀 installing kopia $(KOPIA_VERSION)"
-	@$(call install_github_asset,$(KOPIA_URL),$(INSTALL_PATH)/kopia,$(KOPIA_SHA256),$(KOPIA_STAMP))
-	@$(call write_stamp,$(KOPIA_STAMP),$(KOPIA_VERSION),$(INSTALL_PATH)/kopia)
-	@echo "✅ kopia ready"
+.PHONY: install-pkg-kopia
+install-pkg-kopia: ensure-state-dirs $(INSTALL_PATH)/install_github_asset.sh
+	@set -euo pipefail; \
+	$(call verbose_echo,📦 kopia $(KOPIA_VERSION)); \
+	if $(call fastpath_binary_with_stamp,$(KOPIA_STAMP),$(INSTALL_PATH)/kopia,kopia); then \
+		$(call verbose_echo,⏩ kopia $(KOPIA_VERSION) unchanged (hash+stamp OK)); \
+		exit 0; \
+	fi; \
+	$(call verbose_echo,🚀 installing kopia $(KOPIA_VERSION)); \
+	$(call install_github_asset,$(KOPIA_URL),$(INSTALL_PATH)/kopia,$(KOPIA_SHA256),$(KOPIA_STAMP)); \
+	$(call write_stamp,$(KOPIA_STAMP),$(KOPIA_VERSION),$(INSTALL_PATH)/kopia); \
+	$(call verbose_echo,✅ kopia ready)
 
 remove-pkg-kopia:
-	@$(call remove_binary_with_stamp,/usr/local/bin/kopia,$(KOPIA_STAMP),kopia) || true
-	@$(run_as_root) rm -rf /usr/local/kopia >/dev/null 2>&1 || true
+	@$(call remove_binary_with_stamp,$(INSTALL_PATH)/kopia,$(KOPIA_STAMP),kopia)
 
 # ------------------------------------------------------------
 # ndppd
@@ -577,36 +571,29 @@ enable-ndppd:
 # checkmake
 # ------------------------------------------------------------
 
+STAMP_CHECKMAKE := $(call STAMP_PATH_FROM_KEY,checkmake)
+
 .PHONY: install-pkg-checkmake
-install-pkg-checkmake: install-pkg-pandoc install-pkg-go ensure-git-detachedhead-silenced ensure-state-dirs
-	@STAMP_PATH="$(call STAMP_PATH_FROM_KEY,checkmake)"; \
-	BIN_PATH="$(CHECKMAKE_BIN)"; \
-	if [ -f "$$STAMP_PATH" ] && [ ! -L "$$STAMP_PATH" ] && [ -x "$$BIN_PATH" ] && \
-	   [ "$$(grep '^version=' "$$STAMP_PATH" 2>/dev/null | cut -d= -f2-)" = "$(CHECKMAKE_VERSION)" ] && \
-	   [ "$$(_sha=$$(sha256sum "$$BIN_PATH" 2>/dev/null | awk '{print $$1}'); [ -n "$$_sha" ] && [ "$$_sha" = "$$(grep '^sha256=' "$$STAMP_PATH" 2>/dev/null | cut -d= -f2-)" ])" ]; then \
-		echo "⏩ checkmake $(CHECKMAKE_VERSION) unchanged (fast-path OK)"; \
+install-pkg-checkmake: install-pkg-go ensure-state-dirs
+	@set -euo pipefail; \
+	$(call verbose_echo,📦 checkmake $(CHECKMAKE_VERSION)); \
+	if $(call fastpath_binary_with_stamp,$(STAMP_CHECKMAKE),$(CHECKMAKE_BIN),checkmake); then \
+		$(call verbose_echo,⏩ checkmake $(CHECKMAKE_VERSION) unchanged (hash+stamp OK)); \
 		exit 0; \
 	fi; \
-	echo "🚀 installing checkmake $(CHECKMAKE_VERSION)"; \
-	$(call git_checkout_version,https://github.com/mrtazz/checkmake.git,$(CHECKMAKE_VERSION),$(CHECKMAKE_SRC)) || { echo "❌ checkmake checkout failed"; exit 1; }; \
-	cd "$(CHECKMAKE_SRC)" && $(call go_install_from_source,checkmake,github.com/mrtazz/checkmake/cmd/checkmake@v$(CHECKMAKE_VERSION)) || { echo "❌ checkmake build failed"; exit 1; }; \
-	$(run_as_root) mkdir -p "$$(dirname "$$STAMP_PATH")"; \
-	{ \
-		echo "version=$(CHECKMAKE_VERSION)"; \
-		echo "sha256=$$(sha256sum "$$BIN_PATH" 2>/dev/null | awk '{print $$1}' || echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")"; \
-		echo "owner=root"; \
-		echo "group=root"; \
-		echo "perm=0755"; \
-		echo "type=regular"; \
-	} | $(run_as_root) tee "$$STAMP_PATH" >/dev/null; \
-	echo "✅ checkmake ready"
+	$(call verbose_echo,🚀 installing checkmake $(CHECKMAKE_VERSION)); \
+	TMP_BIN=$$(mktemp -p /dev/shm -d homelab.XXXXXX); \
+	trap 'rm -rf "$$TMP_BIN"' EXIT; \
+	GOBIN=$$TMP_BIN $(GO_MODERN_BIN) install -trimpath github.com/checkmake/checkmake/cmd/checkmake@v$(CHECKMAKE_VERSION); \
+	$(call ifc_install_dir,$$TMP_BIN,$(INSTALL_PATH)); \
+	$(call write_stamp,$(STAMP_CHECKMAKE),$(CHECKMAKE_VERSION),$(CHECKMAKE_BIN)); \
+	$(call verbose_echo,✅ checkmake ready)
 
 ensure-git-detachedhead-silenced:
 	@git config --global advice.detachedHead false || true
 
 remove-pkg-checkmake:
 	@$(call remove_binary_with_stamp,$(CHECKMAKE_BIN),$(STAMP_CHECKMAKE),checkmake)
-	@$(run_as_root) rm -rf "$(CHECKMAKE_SRC)" || true
 
 # ------------------------------------------------------------
 # strace
@@ -622,11 +609,21 @@ remove-pkg-strace:
 # Headscale
 # ------------------------------------------------------------
 
+.PHONY: headscale-build remove-pkg-headscale
 headscale-build: install-pkg-go ensure-host-default-route ensure-state-dirs
-	@$(call fastpath_binary_with_stamp,$(STAMP_HEADSCALE),$(INSTALL_PATH)/headscale,headscale)
-	@$(call go_install_from_source,headscale,github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION))
-	@$(call write_stamp,$(STAMP_HEADSCALE),$(HEADSCALE_VERSION),$(INSTALL_PATH)/headscale)
-	@echo "✅ headscale $(HEADSCALE_VERSION) installed"
+	@set -euo pipefail; \
+	$(call verbose_echo,📦 headscale $(HEADSCALE_VERSION)); \
+	if $(call fastpath_binary_with_stamp,$(STAMP_HEADSCALE),$(INSTALL_PATH)/headscale,headscale); then \
+		$(call verbose_echo,⏩ headscale $(HEADSCALE_VERSION) unchanged (hash+stamp OK)); \
+		exit 0; \
+	fi; \
+	$(call verbose_echo,🚀 installing headscale $(HEADSCALE_VERSION)); \
+	TMP_BIN=$$(mktemp -p /dev/shm -d homelab.XXXXXX); \
+	trap 'rm -rf "$$TMP_BIN"' EXIT; \
+	GOBIN=$$TMP_BIN $(GO_MODERN_BIN) install -trimpath github.com/juanfont/headscale/cmd/headscale@$(HEADSCALE_VERSION); \
+	$(call ifc_install_dir,$$TMP_BIN,$(INSTALL_PATH)); \
+	$(call write_stamp,$(STAMP_HEADSCALE),$(HEADSCALE_VERSION),$(INSTALL_PATH)/headscale); \
+	$(call verbose_echo,✅ headscale $(HEADSCALE_VERSION) installed)
 
 remove-pkg-headscale:
 	@$(call remove_binary_with_stamp,$(INSTALL_PATH)/headscale,$(STAMP_HEADSCALE),headscale)
@@ -635,51 +632,23 @@ remove-pkg-headscale:
 # Pandoc
 # ------------------------------------------------------------
 
-.PHONY: install-pkg-pandoc
+STAMP_PANDOC := $(call STAMP_PATH_FROM_KEY,pandoc)
+
+.PHONY: install-pkg-pandoc upgrade-pkg-pandoc remove-pkg-pandoc
 install-pkg-pandoc: ensure-state-dirs
-	@STAMP_PATH="$(call STAMP_PATH_FROM_KEY,pandoc)"; \
-	BIN_PATH="$(INSTALL_PATH)/pandoc"; \
-	if [ -f "$$STAMP_PATH" ] && [ ! -L "$$STAMP_PATH" ] && [ -x "$$BIN_PATH" ]; then \
-		_EX_SHA="$$(sha256sum "$$BIN_PATH" 2>/dev/null | awk '{print $$1}' || echo "")"; \
-		_S_SHA="$$(grep '^sha256=' "$$STAMP_PATH" 2>/dev/null | cut -d= -f2- || echo "")"; \
-		_S_VER="$$(grep '^version=' "$$STAMP_PATH" 2>/dev/null | cut -d= -f2- || echo "")"; \
-		if [ "$$_S_VER" = "$(PANDOC_VERSION)" ] && [ "$$_S_SHA" = "$$_EX_SHA" ] && [ -n "$$_EX_SHA" ]; then \
-			echo "⏩ pandoc $(PANDOC_VERSION) unchanged (fast-path OK)"; \
-			exit 0; \
-		fi; \
+	@set -euo pipefail; \
+	$(call verbose_echo,📦 pandoc $(PANDOC_VERSION)); \
+	if $(call fastpath_binary_with_stamp,$(STAMP_PANDOC),$(INSTALL_PATH)/pandoc,pandoc); then \
+		$(call verbose_echo,⏩ pandoc $(PANDOC_VERSION) unchanged (hash+stamp OK)); \
+		exit 0; \
 	fi; \
-	$(call install_github_asset,$(PANDOC_DEB_URL),$(INSTALL_PATH)/pandoc,$(PANDOC_SHA256),$$STAMP_PATH) || { echo "❌ pandoc installation failed"; exit 1; }; \
-	$(run_as_root) mkdir -p "$$(dirname "$$STAMP_PATH")"; \
-	_EX_SHA="$$(sha256sum "$$BIN_PATH" 2>/dev/null | awk '{print $$1}' || echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")"; \
-	{ \
-		echo "version=$(PANDOC_VERSION)"; \
-		echo "sha256=$$_EX_SHA"; \
-		echo "owner=root"; \
-		echo "group=root"; \
-		echo "perm=0755"; \
-		echo "type=regular"; \
-	} | $(run_as_root) tee "$$STAMP_PATH" >/dev/null; \
-	echo "🚀 pandoc $(PANDOC_VERSION) installed"
+	$(call verbose_echo,🚀 installing pandoc $(PANDOC_VERSION)); \
+	$(call install_github_asset,$(PANDOC_DEB_URL),$(INSTALL_PATH)/pandoc,$(PANDOC_SHA256),$(STAMP_PANDOC)) || { echo "❌ pandoc installation failed"; exit 1; }; \
+	$(call write_stamp,$(STAMP_PANDOC),$(PANDOC_VERSION),$(INSTALL_PATH)/pandoc); \
+	$(call verbose_echo,✅ pandoc $(PANDOC_VERSION) installed)
 
-upgrade-pkg-pandoc: $(STAMP_PANDOC) ensure-host-default-route
-	@echo "⬆️ Upgrading pandoc..."
-	@$(call apt_update_if_needed)
-	@$(run_as_root) env DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y pandoc || true
-	@tmp=$$(mktemp -p /dev/shm homelab.pandoc.tmp.XXXXXX); dpkg-query -W -f='${Version}\n' pandoc > "$$tmp" 2>/dev/null || echo "unknown" > "$$tmp"; \
-	$(call write_stamp,$(STAMP_PANDOC),$$(cat "$$tmp"),$(INSTALL_PATH)/pandoc); \
-	rm -f "$$tmp"
-	@echo "✅ pandoc upgrade complete"
-
-.PHONY: remove-pkg-pandoc
 remove-pkg-pandoc:
-	@STAMP_PATH="$(call STAMP_PATH_FROM_KEY,pandoc)"; \
-	BIN_PATH="$(INSTALL_PATH)/pandoc"; \
-	if [ -f "$$BIN_PATH" ] || [ -f "$$STAMP_PATH" ]; then \
-		$(run_as_root) rm -f "$$BIN_PATH" "$$STAMP_PATH"; \
-		echo "🗑️ pandoc removed"; \
-	else \
-		echo "⏩ pandoc not present"; \
-	fi
+	@$(call remove_binary_with_stamp,$(INSTALL_PATH)/pandoc,$(STAMP_PANDOC),pandoc)
 
 # ------------------------------------------------------------
 # deps-probes and hygiene stamps

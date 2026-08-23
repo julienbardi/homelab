@@ -22,14 +22,14 @@ HEADSCALE_CONFIG := /etc/headscale/config.yaml
 export HEADSCALE_CONFIG
 
 INTERNAL_HOSTS := \
-	router.bardi.ch \
-	dns.bardi.ch \
-	vpn.bardi.ch \
-	derp.bardi.ch \
-	qnap.bardi.ch \
-	nas.bardi.ch \
-	dev.bardi.ch \
-	apt.bardi.ch
+    router.bardi.ch \
+    dns.bardi.ch \
+    vpn.bardi.ch \
+    derp.bardi.ch \
+    qnap.bardi.ch \
+    nas.bardi.ch \
+    dev.bardi.ch \
+    apt.bardi.ch
 
 # --- Includes (order matters, therefore prefix) ---
 
@@ -75,8 +75,8 @@ include $(REPO_ROOT)/mk/25_routing.mk
 include $(REPO_ROOT)/mk/30_config_validation.mk
 include $(REPO_ROOT)/mk/40_acme.mk
 include $(REPO_ROOT)/mk/40_code-server.mk
-#include $(REPO_ROOT)/mk/40_nas-caddy.mk
-include $(REPO_ROOT)/mk/40_nas-traefik.mk
+include $(REPO_ROOT)/mk/40_nas-caddy.mk
+#include $(REPO_ROOT)/mk/40_nas-traefik.mk
 include $(REPO_ROOT)/mk/netbird.mk
 # STAMP_DIR_ROOT must be defined before any WG DAG fragments are included
 include $(REPO_ROOT)/mk/40_wireguard.mk
@@ -190,7 +190,7 @@ service-phase: install-systemd enable-systemd deploy-unbound-config monitoring \
 			router-certs-prepare \
 			router-certs-deploy \
 			router-caddy \
-			nas-traefik \
+			nas-caddy \
 			netbird-deploy
 service-phase: wg-network-phase
 

@@ -514,7 +514,7 @@ define INSTALL_FILE_NORMALIZED
 		"$(7)" "$(8)" "$(9)" \
 		|| rc=$$?; \
 	case "$$rc" in \
-		0|3|'') exit 0 ;; \
+		$(INSTALL_IF_CHANGED_EXIT_UNCHANGED)|$(INSTALL_IF_CHANGED_EXIT_CHANGED)|'') exit 0 ;; \
 		*[!0-9]* ) exit 0 ;; \
 		*) exit "$$rc" ;; \
 	esac
