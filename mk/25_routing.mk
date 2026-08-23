@@ -79,10 +79,19 @@ ensure-default-route: router-provision-nvram homelab-prefix-converge
 	fi; \
 	\
 	# 3+4. Require ULA IPv6 on $(NAS_LAN_IFACE) AND router ULA advertisement \
-	if ! ip -6 addr show dev $(NAS_LAN_IFACE) | grep -q 'inet6 fd'; then \
-	    echo "❌ No ULA IPv6 address detected on $(NAS_LAN_IFACE) — required invariant"; \
-	    echo "❌ Router is NOT advertising a ULA prefix — LAN IPv6 broken"; \
-	    exit 1; \
+	echo "🔍 Waiting for ULA IPv6 address on $(NAS_LAN_IFACE)..."; \
+	ula_found=0; \
+	for i in 1 2 3 4 5; do \
+		if ip -6 addr show dev $(NAS_LAN_IFACE) | grep -q 'inet6 fd'; then \
+			ula_found=1; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ula_found" -eq 0 ]; then \
+		echo "❌ No ULA IPv6 address detected on $(NAS_LAN_IFACE) — required invariant"; \
+		echo "❌ Router is NOT advertising a ULA prefix — LAN IPv6 broken"; \
+		exit 1; \
 	fi; \
 	\
 	# 5. WG clients must NOT receive delegated global IPv6 (enforced in wg-generate-configs.sh) \

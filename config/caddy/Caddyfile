@@ -233,7 +233,6 @@ bardi.ch:8384 {
 		nas.bardi.ch \
 		dev.bardi.ch \
 		apt.bardi.ch \
-		netbird.bardi.ch \
 		pve.bardi.ch
 
 	respond @unknown "Not Found" 404
