@@ -34,15 +34,11 @@ install-kdig: ensure-state-dirs
 		echo "perm=0755"; \
 		echo "type=package"; \
 	} | $(run_as_root) tee "$(STAMP_KDIG)" >/dev/null; \
-	echo "✅ kdig installed"
+	echo "🗑️ kdig installed"
 
 remove-kdig:
-	@$(run_as_root) sh -c ' \
-		apt-get purge -y knot-dnsutils >/dev/null 2>&1 || true; \
-		apt-get autoremove -y >/dev/null 2>&1 || true; \
-		rm -f "$(STAMP_KDIG)"; \
-	'; \
-	echo "🗑️ kdig removed"
+	@set -euo pipefail; \
+	$(call apt_remove,knot-dnsutils,$(STAMP_KDIG))
 
 verify-kdig:
 	@if ! dpkg -s knot-dnsutils >/dev/null 2>&1; then \

@@ -416,15 +416,18 @@ YQ_GITHUB_REPO := mikefarah/yq
 YQ_ASSET       := yq_linux_amd64
 YQ_STAMP := $(STAMP_DIR_ROOT)/yq.installed
 
+YQ := /usr/local/bin/yq
+export YQ
+
 # yq version policy:
 #   - Set to a pinned version (e.g. v4.53.2)
 #   - Or set to latest to always track upstream, e.g. env YQ_VERSION=latest make install-yq
-YQ_VERSION ?= v4.53.2
+YQ_VERSION ?= v4.53.6
 
 YQ_URL := https://github.com/$(YQ_GITHUB_REPO)/releases/download/$(YQ_VERSION)/$(YQ_ASSET)
 
 # Expected SHA256 for pinned version (ignored when using latest)
-YQ_SHA256 ?= d56bf5c6819e8e696340c312bd70f849dc1678a7cda9c2ad63eebd906371d56b
+YQ_SHA256 ?= sha256:c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385
 
 ULA_PREFIX_NVRAM = $(ula_prefix_nvram)
 

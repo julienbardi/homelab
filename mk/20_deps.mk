@@ -14,7 +14,9 @@ STAMP_DEPS_OK       := $(call STAMP_PATH_FROM_KEY,deps-ok)
 STAMP_HOST_ROUTE_OK := $(call STAMP_PATH_FROM_KEY,host-route-ok)
 STAMP_GO            := $(call STAMP_PATH_FROM_KEY,go-$(GO_MODERN_VERSION))
 
-GO_MODERN_VERSION := 1.25.5
+GO_MODERN_VERSION := 1.27.0
+GO_SHA256         := 675c26c449cbb18fc24b74650de1eabbae6e16f64326fd85a283fb3b58280685
+export GO_SHA256
 GO_MODERN_PREFIX  := /usr/local/go
 GO_MODERN_BIN     := $(GO_MODERN_PREFIX)/bin/go
 GO_ARCH           := amd64
@@ -30,7 +32,7 @@ AGE_KEYGEN_BIN := /usr/local/bin/age-keygen
 AGE_VERSION    := v1.2.1
 STAMP_AGE      := $(STAMP_DIR_ROOT)/age.installed
 
-SOPS_VERSION := v3.13.1
+SOPS_VERSION := v3.13.3
 STAMP_SOPS   := $(STAMP_DIR_ROOT)/sops.installed
 
 KOPIA_VERSION := 0.23.1
@@ -155,11 +157,6 @@ define git_checkout_version
 	else \
 		git clone --quiet --depth 1 --branch "v$(2)" "$(1)" "$(3)"; \
 	fi
-endef
-
-# $(call remove_apt_pkg,PKGNAME)
-define remove_apt_pkg
-	@{ $(call apt_remove,$(1)) ; }
 endef
 
 # $(call ensure_service,SERVICE)
@@ -303,7 +300,8 @@ deps: deps-ok
 # ------------------------------------------------------------
 .PHONY: tailscale-repo
 tailscale-repo: ensure-host-default-route ensure-state-dirs
-	@STAMP_PATH="$(call STAMP_PATH_FROM_KEY,tailscale-repo)"; \
+	@set -euo pipefail; \
+	STAMP_PATH="$(call STAMP_PATH_FROM_KEY,tailscale-repo)"; \
 	KEY_URL="https://pkgs.tailscale.com/stable/debian/$(DEBIAN_CODENAME).noarmor.gpg"; \
 	KEY_PATH="$(TS_REPO_KEYRING)"; \
 	LIST_PATH="$(TS_REPO_LIST)"; \
@@ -312,7 +310,7 @@ tailscale-repo: ensure-host-default-route ensure-state-dirs
 		_S_SHA="$$(grep '^sha256=' "$$STAMP_PATH" 2>/dev/null | cut -d= -f2- || echo "")"; \
 		_CUR_SHA="$$(sha256sum "$$KEY_PATH" 2>/dev/null | awk '{print $$1}' || echo "")"; \
 		if [ "$$_S_SHA" = "$$_CUR_SHA" ] && [ -n "$$_CUR_SHA" ] && grep -Fxq "$$EXPECTED_LIST" "$$LIST_PATH"; then \
-			echo "⏩ tailscale apt repository (Debian $(DEBIAN_CODENAME)) unchanged (fast-path OK)"; \
+			$(call verbose_echo,⏩ tailscale apt repository (Debian $(DEBIAN_CODENAME)) unchanged (fast-path OK)); \
 			exit 0; \
 		fi; \
 	fi; \
@@ -329,52 +327,63 @@ tailscale-repo: ensure-host-default-route ensure-state-dirs
 		echo "perm=0644"; \
 		echo "type=probe"; \
 	} | $(run_as_root) tee "$$STAMP_PATH" >/dev/null; \
-	$(call apt_update_if_needed); \
-	echo "✅ Tailscale apt repository (Debian $(DEBIAN_CODENAME)) configured"
+	$(call apt_update_if_needed) || true; \
+	$(call verbose_echo,✅ Tailscale apt repository (Debian $(DEBIAN_CODENAME)) configured)
 
-.PHONY: install-pkg-tailscale
+.PHONY: install-pkg-tailscale upgrade-pkg-tailscale remove-pkg-tailscale
 install-pkg-tailscale: tailscale-repo ensure-host-default-route ensure-state-dirs
-	@STAMP_PATH="$(STAMP_DIR_ROOT)/tailscale.stamp"; \
+	@set -euo pipefail; \
+	STAMP_PATH="$(STAMP_DIR_ROOT)/tailscale.stamp"; \
 	if [ -f "$$STAMP_PATH" ] && [ ! -L "$$STAMP_PATH" ] && dpkg -s tailscale >/dev/null 2>&1; then \
 		_INST_VER="$$(dpkg-query -W -f='$${Version}' tailscale 2>/dev/null || echo "")"; \
-		_S_VER="$$(grep '^version=' "$$STAMP_PATH" 2>/dev/null | cut -d= -f2- || echo "")"; \
-		if [ -n "$$_INST_VER" ] && [ "$$_S_VER" = "$$_INST_VER" ]; then \
-			echo "⏩ tailscale unchanged (fast-path OK)"; \
+		if [ -n "$$_INST_VER" ] && grep -q "^version=$${_INST_VER}$$" "$$STAMP_PATH" 2>/dev/null; then \
+			$(call verbose_echo,⏩ tailscale unchanged (fast-path OK)); \
 			exit 0; \
 		fi; \
 	fi; \
+	$(call verbose_echo,🚀 installing tailscale); \
 	$(call apt_install_group,tailscale) || { echo "❌ tailscale installation failed"; exit 1; }; \
 	$(call ensure_service,tailscaled) || { echo "❌ tailscaled service activation failed"; exit 1; }; \
 	$(run_as_root) mkdir -p "$$(dirname "$$STAMP_PATH")"; \
 	_INST_VER="$$(dpkg-query -W -f='$${Version}' tailscale 2>/dev/null || echo "unknown")"; \
 	{ \
-		echo "version=$$_INST_VER"; \
+		echo "version=$${_INST_VER}"; \
 		echo "sha256=$$(dpkg -L tailscale 2>/dev/null | xargs sha256sum 2>/dev/null | awk '{print $$1}' | sha256sum | awk '{print $$1}' || echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")"; \
 		echo "owner=root"; \
 		echo "group=root"; \
 		echo "perm=0755"; \
 		echo "type=package"; \
-	} | $(run_as_root) tee "$$STAMP_PATH" >/dev/null; \
-	echo "✅ Tailscale (client + daemon) installed and running"
+	} | $(run_as_root) install -m 0644 /dev/stdin "$$STAMP_PATH"; \
+	$(call verbose_echo,✅ Tailscale (client + daemon) installed and running)
 
-upgrade-pkg-tailscale: tailscale-repo verify-pkg-tailscale ensure-host-default-route
-	@echo "⬆️ Upgrading Tailscale to latest stable"
-	@$(call apt_update_if_needed)
-	@$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y tailscale
-	@$(run_as_root) systemctl restart tailscaled >/dev/null 2>&1
-	@echo "✅ Tailscale upgraded"
+upgrade-pkg-tailscale: tailscale-repo ensure-host-default-route
+	@set -euo pipefail; \
+	$(call verbose_echo,⬆️ Upgrading Tailscale to latest stable); \
+	$(call apt_update_if_needed); \
+	$(run_as_root) DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y tailscale; \
+	$(run_as_root) systemctl restart tailscaled >/dev/null 2>&1; \
+	STAMP_PATH="$(STAMP_DIR_ROOT)/tailscale.stamp"; \
+	if [ -f "$$STAMP_PATH" ]; then \
+		_INST_VER="$$(dpkg-query -W -f='$${Version}' tailscale 2>/dev/null || echo "unknown")"; \
+		{ \
+			echo "version=$$_INST_VER"; \
+			echo "sha256=$$(dpkg -L tailscale 2>/dev/null | xargs sha256sum 2>/dev/null | awk '{print $$1}' | sha256sum | awk '{print $$1}' || echo "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")"; \
+			echo "owner=root"; \
+			echo "group=root"; \
+			echo "perm=0755"; \
+			echo "type=package"; \
+		} | $(run_as_root) tee "$$STAMP_PATH" >/dev/null; \
+	fi; \
+	$(call verbose_echo,✅ Tailscale upgraded)
 
-.PHONY: remove-pkg-tailscale
 remove-pkg-tailscale:
-	@STAMP_PATH="$(STAMP_DIR_ROOT)/tailscale.stamp"; \
+	@set -euo pipefail; \
 	$(run_as_root) sh -c ' \
 		systemctl stop tailscaled >/dev/null 2>&1 || true; \
 		systemctl disable tailscaled >/dev/null 2>&1 || true; \
-		apt-get purge -y tailscale >/dev/null 2>&1 || true; \
-		apt-get autoremove -y >/dev/null 2>&1 || true; \
-		rm -f "$$STAMP_PATH"; \
 	'; \
-	echo "🗑️ Tailscale removed"
+	$(call apt_remove,tailscale,$(STAMP_DIR_ROOT)/tailscale.stamp); \
+	$(call verbose_echo,🗑️ Tailscale removed)
 
 .PHONY: verify-pkg-tailscale
 verify-pkg-tailscale: ensure-host-default-route
@@ -401,7 +410,7 @@ STAMP_GO := $(call STAMP_PATH_FROM_KEY,go)
 install-pkg-go: ensure-state-dirs
 	@set -euo pipefail; \
 	$(call verbose_echo,📦 go $(GO_MODERN_VERSION)); \
-	if $(call fastpath_binary_with_stamp,$(STAMP_GO),$(GO_MODERN_BIN),go); then \
+	if [ -f "$(STAMP_GO)" ] && grep -q "version=$(GO_MODERN_VERSION)" "$(STAMP_GO)" 2>/dev/null && [ -f "$(GO_MODERN_BIN)" ]; then \
 		$(call verbose_echo,⏩ go $(GO_MODERN_VERSION) unchanged (hash+stamp OK)); \
 		exit 0; \
 	fi; \
@@ -410,8 +419,9 @@ install-pkg-go: ensure-state-dirs
 		$(run_as_root) sh -c 'apt-get purge -y golang-go golang-1.19-go && apt-get autoremove -y'; \
 	fi; \
 	$(call verbose_echo,🚀 installing go $(GO_MODERN_VERSION)); \
-	$(call fetch_tarball,$(GO_DIST_URL),$(GO_TARBALL)) \
-		|| { echo "❌ go fetch failed"; exit 1; }; \
+	CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
+		$(call fetch_tarball,$(GO_DIST_URL),$(GO_TARBALL),$(GO_SHA256)) \
+		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
 	$(call extract_tarball,$(GO_TARBALL),$(GO_MODERN_PREFIX)) \
 		|| { echo "❌ go extract failed"; exit 1; }; \
 	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
@@ -429,6 +439,7 @@ remove-pkg-go:
 # vnstat
 # ------------------------------------------------------------
 
+.PHONY: install-pkg-vnstat remove-pkg-vnstat
 install-pkg-vnstat: prereqs-ok ensure-host-default-route
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
 		echo "ℹ️ install-pkg-vnstat: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
@@ -443,32 +454,40 @@ install-pkg-vnstat: prereqs-ok ensure-host-default-route
 	echo "✅ vnstat installed and initialized for tailscale0"
 
 remove-pkg-vnstat:
-	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ remove-pkg-vnstat: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+	@set -euo pipefail; \
+	if [ "$(USE_TAILSCALED)" != "1" ]; then \
+		$(call verbose_echo,ℹ️ remove-pkg-vnstat: USE_TAILSCALED=$(USE_TAILSCALED); skipping); \
 		exit 0; \
 	fi; \
-	$(call remove_apt_pkg,vnstat)
+	$(call apt_remove,vnstat); \
+	$(call verbose_echo,🗑️ vnstat removed)
 
 # ------------------------------------------------------------
 # nftables
 # ------------------------------------------------------------
 
+.PHONY: install-pkg-nftables remove-pkg-nftables
 install-pkg-nftables: prereqs-ok ensure-host-default-route
 	@$(call verbose_echo,ℹ️ nftables already ensured by core apt group)
 	@$(call ensure_service,nftables)
 
 remove-pkg-nftables:
-	@$(call remove_apt_pkg,nftables)
+	@set -euo pipefail; \
+	$(call apt_remove,nftables); \
+	$(call verbose_echo,🗑️ nftables removed)
 
 # ------------------------------------------------------------
 # WireGuard
 # ------------------------------------------------------------
 
+.PHONY: install-pkg-wireguard remove-pkg-wireguard
 install-pkg-wireguard: prereqs-ok ensure-host-default-route
 	@$(call verbose_echo,ℹ️ WireGuard already ensured by core apt group)
 
 remove-pkg-wireguard:
-	@$(call remove_apt_pkg,wireguard wireguard-tools)
+	@set -euo pipefail; \
+	$(call apt_remove,wireguard wireguard-tools); \
+	$(call verbose_echo,🗑️ WireGuard removed)
 
 # ------------------------------------------------------------
 # Caddy
@@ -478,8 +497,9 @@ install-pkg-caddy: prereqs-ok ensure-host-default-route
 	@$(call verbose_echo,ℹ️ Caddy already ensured by core apt group)
 
 remove-pkg-caddy:
-	@$(call remove_apt_pkg,caddy)
-	@$(run_as_root) rm -f /etc/caddy/Caddyfile
+	@set -euo pipefail; \
+	$(call apt_remove,caddy); \
+	$(call verbose_echo,🗑️ Caddy removed)
 
 # ------------------------------------------------------------
 # Age (Source build via Go)
@@ -509,10 +529,21 @@ remove-pkg-age:
 # SOPS (Secrets Operations - Source build via Go)
 # ------------------------------------------------------------
 
-.PHONY: install-pkg-sops
+.PHONY: install-pkg-sops remove-pkg-sops
 install-pkg-sops: install-pkg-go ensure-state-dirs
-	@$(call install_binary_package,sops,$(SOPS_VERSION),$(STAMP_SOPS),$(SOPS_BIN),\
-		$(call go_install_from_source,sops,github.com/getsops/sops/v3/cmd/sops@$(SOPS_VERSION)))
+	@set -euo pipefail; \
+	$(call verbose_echo,📦 sops $(SOPS_VERSION)); \
+	if [ -f "$(STAMP_SOPS)" ] && grep -q "version=$(SOPS_VERSION)" "$(STAMP_SOPS)" 2>/dev/null && [ -f "$(SOPS_BIN)" ]; then \
+		$(call verbose_echo,⏩ sops $(SOPS_VERSION) unchanged (hash+stamp OK)); \
+		exit 0; \
+	fi; \
+	$(call verbose_echo,🚀 installing sops $(SOPS_VERSION)); \
+	TMP_BIN=$$(mktemp -p /dev/shm -d homelab.XXXXXX); \
+	trap 'rm -rf "$$TMP_BIN"' EXIT; \
+	GOBIN=$$TMP_BIN $(GO_MODERN_BIN) install -trimpath github.com/getsops/sops/v3/cmd/sops@$(SOPS_VERSION); \
+	$(call ifc_install_dir,$$TMP_BIN,$(INSTALL_PATH)); \
+	$(call write_stamp,$(STAMP_SOPS),$(SOPS_VERSION),$(SOPS_BIN)); \
+	$(call verbose_echo,✅ sops ready)
 
 remove-pkg-sops:
 	@$(call remove_binary_with_stamp,$(SOPS_BIN),$(STAMP_SOPS),sops)
@@ -521,10 +552,17 @@ remove-pkg-sops:
 # yq
 # ------------------------------------------------------------
 
-.PHONY: install-pkg-yq
+.PHONY: install-pkg-yq remove-pkg-yq
 install-pkg-yq: ensure-state-dirs $(INSTALL_PATH)/install_github_asset.sh
-	@$(call install_binary_package,yq,$(YQ_VERSION),$(YQ_STAMP),$(INSTALL_PATH)/yq,\
-		$(call install_github_asset,$(YQ_URL),$(INSTALL_PATH)/yq,$(YQ_SHA256),$(YQ_STAMP)))
+	@echo "📦 yq $(YQ_VERSION)"
+	@if [ -f "$(YQ_STAMP)" ] && grep -q "version=$(YQ_VERSION)" "$(YQ_STAMP)" 2>/dev/null; then \
+		[ "$(VERBOSE)" = "0" ] || echo "⏩ yq $(YQ_VERSION) unchanged (hash+stamp OK)"; \
+	else \
+		echo "⚙️ Installing/updating yq to $(YQ_VERSION)..."; \
+		$(call install_github_asset,$(YQ_URL),$(INSTALL_PATH)/yq,$(YQ_SHA256),$(YQ_STAMP)); \
+		$(call write_stamp,$(YQ_STAMP),$(YQ_VERSION),$(INSTALL_PATH)/yq); \
+		echo "🟢 yq $(YQ_VERSION) installed and stamped successfully"; \
+	fi
 
 remove-pkg-yq:
 	@$(call remove_binary_with_stamp,$(INSTALL_PATH)/yq,$(YQ_STAMP),yq)
@@ -537,17 +575,17 @@ install-pkg-rclone:
 	@$(call verbose_echo,ℹ️ rclone already ensured by core apt group)
 
 remove-pkg-rclone:
-	@$(call remove_apt_pkg,rclone)
+	@$(call apt_remove,rclone)
 
 # ------------------------------------------------------------
 # Kopia
 # ------------------------------------------------------------
 
-.PHONY: install-pkg-kopia
+.PHONY: install-pkg-kopia remove-pkg-kopia
 install-pkg-kopia: ensure-state-dirs $(INSTALL_PATH)/install_github_asset.sh
 	@set -euo pipefail; \
 	$(call verbose_echo,📦 kopia $(KOPIA_VERSION)); \
-	if $(call fastpath_binary_with_stamp,$(KOPIA_STAMP),$(INSTALL_PATH)/kopia,kopia); then \
+	if [ -f "$(KOPIA_STAMP)" ] && grep -q "version=$(KOPIA_VERSION)" "$(KOPIA_STAMP)" 2>/dev/null && [ -f "$(INSTALL_PATH)/kopia" ]; then \
 		$(call verbose_echo,⏩ kopia $(KOPIA_VERSION) unchanged (hash+stamp OK)); \
 		exit 0; \
 	fi; \
@@ -577,7 +615,7 @@ STAMP_CHECKMAKE := $(call STAMP_PATH_FROM_KEY,checkmake)
 install-pkg-checkmake: install-pkg-go ensure-state-dirs
 	@set -euo pipefail; \
 	$(call verbose_echo,📦 checkmake $(CHECKMAKE_VERSION)); \
-	if $(call fastpath_binary_with_stamp,$(STAMP_CHECKMAKE),$(CHECKMAKE_BIN),checkmake); then \
+	if [ -f "$(STAMP_CHECKMAKE)" ] && grep -q "version=$(CHECKMAKE_VERSION)" "$(STAMP_CHECKMAKE)" 2>/dev/null && [ -f "$(CHECKMAKE_BIN)" ]; then \
 		$(call verbose_echo,⏩ checkmake $(CHECKMAKE_VERSION) unchanged (hash+stamp OK)); \
 		exit 0; \
 	fi; \
@@ -603,7 +641,7 @@ install-pkg-strace:
 	@$(call verbose_echo,ℹ️ strace already ensured by core apt group)
 
 remove-pkg-strace:
-	@$(call remove_apt_pkg,strace)
+	@$(call apt_remove,strace)
 
 # ------------------------------------------------------------
 # Headscale
@@ -613,7 +651,7 @@ remove-pkg-strace:
 headscale-build: install-pkg-go ensure-host-default-route ensure-state-dirs
 	@set -euo pipefail; \
 	$(call verbose_echo,📦 headscale $(HEADSCALE_VERSION)); \
-	if $(call fastpath_binary_with_stamp,$(STAMP_HEADSCALE),$(INSTALL_PATH)/headscale,headscale); then \
+	if [ -f "$(STAMP_HEADSCALE)" ] && grep -q "version=$(HEADSCALE_VERSION)" "$(STAMP_HEADSCALE)" 2>/dev/null && [ -f "$(INSTALL_PATH)/headscale" ]; then \
 		$(call verbose_echo,⏩ headscale $(HEADSCALE_VERSION) unchanged (hash+stamp OK)); \
 		exit 0; \
 	fi; \

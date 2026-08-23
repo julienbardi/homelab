@@ -62,10 +62,12 @@ endef
 
 
 # --------------------------------------------------------------------
-# apt_remove — remove installed packages in one resolver pass
+# apt_remove — purge installed packages, clean orphans, and optionally remove stamp
+# Usage: $(call apt_remove,packages,stamp_path)
 # --------------------------------------------------------------------
 define apt_remove
 	PKGS="$(1)"; \
+	STAMP_PATH="$(2)"; \
 	if [ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ]; then \
 		echo "🗑️ Removing apt packages: $$PKGS"; \
 	fi; \
@@ -73,12 +75,20 @@ define apt_remove
 		dpkg-query -W -f='$${Status} $${Package}\n' $$PKGS 2>/dev/null || true \
 		| awk -F'\t' '$$1 == "install ok installed" {print $$2}' \
 	); \
-	if [ -z "$$INSTALLED" ]; then \
+	if [ -n "$$INSTALLED" ]; then \
+		[ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && echo "ℹ️ Installed packages to remove: $$INSTALLED"; \
+		$(run_as_root) sh -c ' \
+			export DEBIAN_FRONTEND=noninteractive; \
+			apt-get purge -y --allow-change-held-packages $$INSTALLED >/dev/null 2>&1; \
+			apt-get autoremove -y >/dev/null 2>&1 || true; \
+		'; \
+		echo "🗑️ Removed: $$PKGS"; \
+	else \
 		[ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && echo "ℹ️ No packages to remove"; \
-		exit 0; \
 	fi; \
-	[ -n "$(VERBOSE)" ] && [ "$(VERBOSE)" != "0" ] && echo "ℹ️ Installed packages to remove: $$INSTALLED"; \
-	DEBIAN_FRONTEND=noninteractive $(run_as_root) apt-get remove -y --allow-change-held-packages $$INSTALLED >/dev/null 2>&1
+	if [ -n "$$STAMP_PATH" ] && [ -f "$$STAMP_PATH" ]; then \
+		$(run_as_root) rm -f "$$STAMP_PATH"; \
+	fi
 endef
 
 
@@ -86,7 +96,7 @@ endef
 # apt_update_if_needed — update apt cache only if stale
 # --------------------------------------------------------------------
 define apt_update_if_needed
-	$(run_as_root) sh -c 'test $$(find /var/lib/apt/lists -mmin -60 | grep -q .) || apt-get update -qq'
+	$(run_as_root) sh -c 'if [ -z "$$([ -d /var/lib/apt/lists ] && find /var/lib/apt/lists -maxdepth 1 -mmin -60 -print -quit 2>/dev/null)" ]; then apt-get update -qq; fi'
 endef
 
 
