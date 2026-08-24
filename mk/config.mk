@@ -504,7 +504,7 @@ ACME_RENEW_SCRIPT := /usr/local/bin/acme-renew.sh
 export ACME_RENEW_SCRIPT
 
 # Out-of-repo absolute path for topology isolation of Wireguard input
-WG_INPUT_DIR := $(STAMP_DIR_ROOT)/wireguard/input
+WG_INPUT_DIR := $(WG_ROOT)/input
 WG_INTERFACES_TSV := $(WG_INPUT_DIR)/wg-interfaces.tsv
 
 USE_TAILSCALED := 0

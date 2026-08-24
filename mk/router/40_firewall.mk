@@ -51,8 +51,8 @@ iptables -A HOMELAB_FWD -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # 3. Hook chains into persistent Merlin structural vectors
 if iptables -t nat -nL VSERVER >/dev/null 2>&1; then
-    iptables -t nat -D VSERVER -j HOMELAB_NAT 2>/dev/null || true
-    iptables -t nat -I VSERVER 1 -j HOMELAB_NAT
+	iptables -t nat -D VSERVER -j HOMELAB_NAT 2>/dev/null || true
+	iptables -t nat -I VSERVER 1 -j HOMELAB_NAT
 fi
 iptables -D FORWARD -j HOMELAB_FWD 2>/dev/null || true
 iptables -I FORWARD 1 -j HOMELAB_FWD
@@ -95,9 +95,9 @@ router-nat-install: router-install-scripts
 
 	# 0a) Validate TSV header contract
 	@awk -F'\t' 'NR==1 { \
-		if ($$1!="iface" || $$2!="host_id" || $$3!="listen_port" || $$7!="enabled") { \
+		if ($$1!="iface" || $$2!="host" || $$3!="port" || $$7!="enabled") { \
 			print "❌ wg-interfaces.tsv: unexpected column layout"; \
-			print "   expected: iface, host_id, listen_port, ..., enabled"; \
+			print "   expected: iface, host, port, ..., enabled"; \
 			exit 1; \
 		} \
 	}' "$(WG_INTERFACES_TSV)"
@@ -131,9 +131,9 @@ router-nat-install: router-install-scripts
 				printf "❌ Duplicate iface '\''%s'\''\n", iface; \
 				exit 1; \
 			} \
-			# host_id validation (always applies) \
+			# host validation (always applies) \
 			if (host!="router" && host!="nas") { \
-				printf "❌ Invalid host_id '\''%s'\'' (expected router|nas)\n", host; \
+				printf "❌ Invalid host '\''%s'\'' (expected router|nas)\n", host; \
 				exit 1; \
 			} \
 			# enabled flag validation (always applies) \
@@ -145,32 +145,32 @@ router-nat-install: router-install-scripts
 			if (enabled == "0") next; \
 			# From here on, only enabled rows are validated \
 			if (port !~ /^[0-9]+$$/) { \
-				printf "❌ Invalid listen_port '\''%s'\'' (not numeric)\n", port; \
+				printf "❌ Invalid port '\''%s'\'' (not numeric)\n", port; \
 				exit 1; \
 			} \
 			if (port < 1 || port > 65535) { \
-				printf "❌ Invalid listen_port '\''%s'\'' (out of range)\n", port; \
+				printf "❌ Invalid port '\''%s'\'' (out of range)\n", port; \
 				exit 1; \
 			} \
 			if (host=="nas" && lan_nas=="") { \
-				printf "❌ host_id=nas but LAN_NAS is not defined\n"; \
+				printf "❌ host=nas but LAN_NAS is not defined\n"; \
 				exit 1; \
 			} \
 			if (seen_port[port] != "") { \
-				printf "❌ Duplicate listen_port %s used by interfaces: %s and %s\n", port, seen_port[port], iface; \
+				printf "❌ Duplicate port %s used by interfaces: %s and %s\n", port, seen_port[port], iface; \
 				exit 1; \
 			} \
 			seen_port[port] = iface; \
 			if (port in synology_ports) { \
-				printf "❌ listen_port %s conflicts with Synology service port\n", port; \
+				printf "❌ port %s conflicts with Synology service port\n", port; \
 				exit 1; \
 			} \
 			if (port in caddy_ports) { \
-				printf "❌ listen_port %s conflicts with Caddy HTTP/HTTPS\n", port; \
+				printf "❌ port %s conflicts with Caddy HTTP/HTTPS\n", port; \
 				exit 1; \
 			} \
 			if (port in merlin_ports) { \
-				printf "❌ listen_port %s conflicts with core Router SSH/UI service port\n", port; \
+				printf "❌ port %s conflicts with core Router SSH/UI service port\n", port; \
 				exit 1; \
 			} \
 		} \
@@ -192,16 +192,16 @@ router-nat-install: router-install-scripts
 			host    = $$2; \
 			if (enabled != "1") next; \
 			if (port == "0")    next; \
-			if (host == "nas") {
-				# WAN ➡️ NAS:wgX_port (allowed)
-				printf "iptables -t nat -A HOMELAB_NAT -p udp --dport %s -j DNAT --to-destination %s:%s\n", port, lan_nas, port;
-				printf "iptables -A HOMELAB_FWD -p udp -d %s --dport %s -j ACCEPT\n", lan_nas, port;
-
-				# LAN ➡️ NAS:wgX_port (REJECT — hairpin protection) -> LAN clients will fail fast instead of black‑holing traffic in a loop
-				printf "iptables -A HOMELAB_FWD -s 10.89.12.0/24 -d %s -p udp --dport %s -j REJECT\n", lan_nas, port;
-			}
-			else if (host == "router") {
-				printf "iptables -A HOMELAB_INPUT -p udp --dport %s -j ACCEPT\n", port;
+			if (host == "nas") { \
+				# WAN ➡️ NAS:wgX_port (allowed) \
+				printf "iptables -t nat -A HOMELAB_NAT -p udp --dport %s -j DNAT --to-destination %s:%s\n", port, lan_nas, port; \
+				printf "iptables -A HOMELAB_FWD -p udp -d %s --dport %s -j ACCEPT\n", lan_nas, port; \
+				\
+				# LAN ➡️ NAS:wgX_port (REJECT — hairpin protection) -> LAN clients will fail fast instead of black‑holing traffic in a loop \
+				printf "iptables -A HOMELAB_FWD -s 10.89.12.0/24 -d %s -p udp --dport %s -j REJECT\n", lan_nas, port; \
+			} \
+			else if (host == "router") { \
+				printf "iptables -A HOMELAB_INPUT -p udp --dport %s -j ACCEPT\n", port; \
 			} \
 		} \
 	' "$(WG_INTERFACES_TSV)" >> "$(TMP_ROUTER_NAT)"
@@ -220,6 +220,7 @@ router-nat-install: router-install-scripts
 		rc=$$?; \
 		if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
 			echo "🚀 NAT rules updated: $(ROUTER_SCRIPTS)/nat-start"; \
+			exit 0; \
 		elif [ $$rc -ne 0 ]; then \
 			exit $$rc; \
 		fi; \
@@ -316,7 +317,7 @@ router-configure:
 		sudo -E ping -c1 "$$ROUTER_ADDR"; \
 		echo "Task 2: Checking service on $$ROUTER_ADDR..."; \
 		sudo -E curl -I "http://$$ROUTER_ADDR"; \
-		echo "All tasks complete."; \
+		echo "🎉 All tasks complete"; \
 	)
 
 .PHONY: router-nat-apply
@@ -363,4 +364,3 @@ router-nat-apply: | router-install-scripts router-nat-install router-firewall-st
 	')
 
 	@echo "🎯 NAT pipeline complete"
-

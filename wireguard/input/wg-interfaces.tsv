@@ -1,4 +1,4 @@
 iface	host	port	mtu	v4	v6	enabled
-wg7	server	51427	1420	10.7.0.1/24	fd89:7a3b:42c0:7::1/64	1
+wg7	nas	51427	1420	10.7.0.1/24	fd89:7a3b:42c0:7::1/64	1
 wgs1	router	51819	1420	10.101.0.1/24	fd89:7a3b:42c0:101::1/64	1
 
