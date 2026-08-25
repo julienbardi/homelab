@@ -15,21 +15,23 @@ export ROUTER_BOOTSTRAP ?=
 
 .PHONY: router-ssh-check
 router-ssh-check: install-ssh-config
-	@echo "🔍 Checking router SSH ($(SSH_USER_ROUTER)@$(ROUTER_ADDR):$(ROUTER_SSH_PORT))"
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🔍 Checking router SSH ($(SSH_USER_ROUTER)@$(ROUTER_ADDR):$(ROUTER_SSH_PORT))"; \
+		echo "  • Checking TCP reachability"; \
+	fi
 
-	# 1. Dependency check
-	@command -v nc >/dev/null 2>&1 || { \
-		echo "❌ Missing dependency: nc"; \
-		exit 1; \
+	@{ \
+		exec 3<>/dev/tcp/"$(ROUTER_ADDR)"/"$(ROUTER_SSH_PORT)" 2>/dev/null || { \
+			echo "❌ Router unreachable on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)"; \
+			exit 1; \
+		}; \
+		exec 3>&-; \
 	}
 
-	# 2. TCP reachability
-	@nc -z -w 2 "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" >/dev/null 2>&1 || { \
-		echo "❌ Router unreachable on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)"; \
-		exit 1; \
-	}
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "  • Checking SSH authentication"; \
+	fi
 
-	# 3. SSH authentication
 	@ssh -q \
 		-o BatchMode=yes \
 		-o ConnectTimeout=5 \
@@ -39,7 +41,10 @@ router-ssh-check: install-ssh-config
 		exit 1; \
 	}
 
-	@echo "🟢 Router SSH OK — authenticated as $(SSH_USER_ROUTER)"
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🟢 Router SSH OK — authenticated as $(SSH_USER_ROUTER)"; \
+	fi
+
 
 .PHONY: router-require-run-as-root
 router-require-run-as-root: | router-ssh-check
