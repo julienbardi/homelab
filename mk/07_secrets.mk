@@ -22,8 +22,21 @@ REQUIRED_SECRETS_VARS := \
 	YQ \
 	ROUTER_ADDR
 
+REQUIRED_SECRET_VARS := \
+	SOPS_BIN \
+	SECRETS_FILE \
+	YQ
+
 secrets-vars-check:
 	@for v in $(REQUIRED_SECRETS_VARS); do \
+		if [ -z "$${v}" ]; then \
+			echo "❌ Variable $$v is not defined — check mk/config.mk"; \
+			exit 1; \
+		fi; \
+	done
+
+secret-vars-check:
+	@for v in $(REQUIRED_SECRET_VARS); do \
 		if [ -z "$${v}" ]; then \
 			echo "❌ Variable $$v is not defined — check mk/config.mk"; \
 			exit 1; \
@@ -80,6 +93,10 @@ define WITH_SECRETS
 	if [ -n "$$SECS" ]; then export $$SECS; fi; \
 	$(1) \
 )
+endef
+
+define SECRET
+$(SOPS_BIN) -d "$(SECRETS_FILE)" | $(YQ) -r ".$(1)"
 endef
 
 # ----------------------------------------------------------------------------
