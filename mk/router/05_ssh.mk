@@ -45,7 +45,6 @@ router-ssh-check: install-ssh-config
 		echo "🟢 Router SSH OK — authenticated as $(SSH_USER_ROUTER)"; \
 	fi
 
-
 .PHONY: router-require-run-as-root
 router-require-run-as-root: | router-ssh-check
 	@if [ "$(ROUTER_BOOTSTRAP)" = "1" ]; then \
@@ -69,29 +68,33 @@ router-require-run-as-root: | router-ssh-check
 	fi
 
 
-
 .PHONY: get-router-root-identity
 get-router-root-identity: router-require-run-as-root
-	@echo "🔍 Checking router identity for $(SSH_USER_ROUTER) on $(ROUTER_ADDR)"
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🔍 Checking router identity for $(SSH_USER_ROUTER) on $(ROUTER_ADDR)"; \
+	fi
 
-	# Ensure cache directory exists
+	@# Ensure cache directory exists
 	@mkdir -p "$(dir $(ROUTER_ID_FILE))"
 
-	# 1. TTL-based cache check
+	@# 1. TTL-based cache check
 	@if [ -f "$(ROUTER_ID_FILE)" ] && [ "$(FORCE)" != "1" ]; then \
 		now=$$(date +%s); \
 		mtime=$$(stat -c %Y "$(ROUTER_ID_FILE)" 2>/dev/null || stat -f %m "$(ROUTER_ID_FILE)" 2>/dev/null || echo 0); \
 		age=$$((now - mtime)); \
 		if [ $$age -lt "$(ROUTER_ID_TTL)" ]; then \
+			if [ "$(VERBOSE)" -ge 1 ]; then \
+				echo "🟢 Router identity OK — (cached) $$(cat "$(ROUTER_ID_FILE)")"; \
+			fi; \
 			exit 0; \
 		fi; \
 	fi
 
-	# 2. Lock to avoid races under -j
+	@# 2. Lock to avoid races under -j
 	@LOCKDIR="$(dir $(ROUTER_ID_FILE))/lock"; \
 	mkdir "$$LOCKDIR" 2>/dev/null || exit 0
 
-	# 3. Remote identity lookup (BusyBox-safe AWK)
+	@# 3. Remote identity lookup (BusyBox-safe AWK)
 	@ssh "$(SSH_HOST_ROUTER)" \
 		'awk -F: -v U="$(SSH_USER_ROUTER)" '\'' \
 			FILENAME=="/etc/group"  { g[$$3]=$$1; next } \
@@ -100,19 +103,20 @@ get-router-root-identity: router-require-run-as-root
 		'\'' /etc/group /etc/passwd' \
 		> "$(ROUTER_ID_FILE).tmp"
 
-	# 4. Commit result + release lock
-	@mv -f "$(ROUTER_ID_FILE).tmp" "$(ROUTER_ID_FILE)"
-	@rmdir "$(dir $(ROUTER_ID_FILE))/lock"
-
-	# 5. Validate result
-	@R_ID="$$(cat "$(ROUTER_ID_FILE)")"; \
-	if [ "$$R_ID" = "MISSING" ]; then \
-		echo "❌ Router user $(SSH_USER_ROUTER) not found"; \
-		rm -f "$(ROUTER_ID_FILE)"; \
-		exit 2; \
-	fi
-
-	@echo "🟢 Router identity OK — $$R_ID"
+	@# 4–5. Commit + validate inside one shell
+	@{ \
+		mv -f "$(ROUTER_ID_FILE).tmp" "$(ROUTER_ID_FILE)"; \
+		rmdir "$(dir $(ROUTER_ID_FILE))/lock"; \
+		R_ID=$$(cat "$(ROUTER_ID_FILE)"); \
+		if [ "$$R_ID" = "MISSING" ]; then \
+			echo "❌ Router user $(SSH_USER_ROUTER) not found"; \
+			rm -f "$(ROUTER_ID_FILE)"; \
+			exit 2; \
+		fi; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 Router identity OK — $$R_ID"; \
+		fi; \
+	}
 
 # Path to the interactive known_hosts installer
 KNOWN_HOSTS_SCRIPT := $(INSTALL_PATH)/verify_and_install_known_hosts.sh
@@ -122,7 +126,15 @@ SKIP_KNOWN_HOSTS ?= 0
 
 .PHONY: ensure-known-hosts
 ensure-known-hosts: $(KNOWN_HOSTS_SCRIPT)
-	@echo "🔐 Ensuring known_hosts entries..."
-	@if [ "$(SKIP_KNOWN_HOSTS)" != "1" ]; then \
-		timeout 1.5 bash "$(KNOWN_HOSTS_SCRIPT)" || true; \
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🔐 Ensuring known_hosts entries..."; \
 	fi
+
+	@if [ "$(SKIP_KNOWN_HOSTS)" = "1" ]; then \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🔐 Skipping known_hosts update (SKIP_KNOWN_HOSTS=1)"; \
+		fi; \
+		exit 0; \
+	fi
+
+	@timeout 1.5 bash "$(KNOWN_HOSTS_SCRIPT)" || true
