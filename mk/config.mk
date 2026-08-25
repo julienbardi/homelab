@@ -20,6 +20,10 @@ export LAN6_NAS         := fd89:7a3b:42c0::4
 export LAN6_AC86U       := fd89:7a3b:42c0::6
 
 export LAN6_PREFIXLEN := 64
+
+# IPv6 policy target
+export ULA_PREFIX_NVRAM := fd89:7a3b:42c0::/48
+
 # Add others as needed:
 # export LAN6_QNAP     := ...
 
@@ -428,8 +432,6 @@ YQ_URL := https://github.com/$(YQ_GITHUB_REPO)/releases/download/$(YQ_VERSION)/$
 
 # Expected SHA256 for pinned version (ignored when using latest)
 YQ_SHA256 ?= sha256:c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385
-
-ULA_PREFIX_NVRAM = $(ula_prefix_nvram)
 
 # Nas address (from config.mk)
 NAS_LAN_IP = $(LAN_NAS)
