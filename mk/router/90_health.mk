@@ -5,84 +5,83 @@
 export ROUTER_CADDY_BIN
 
 .PHONY: router-health
-router-health: router-ssh-check
+router-health: router-ssh-check router-bootstrap-primitives
 	@echo "📊 Router health check"
 	@ssh "$(SSH_HOST_ROUTER)" ' \
 		set -e; \
-		echo "-> System:"; \
-			uname -a; \
-		echo "-> Uptime:"; \
-			uptime; \
-		echo "-> Storage:"; \
-			df -h /jffs /tmp/mnt/sda || true; \
-			echo "-> Firewall:"; \
-			if ( iptables -S | grep -qE -- "-A .* -p tcp .*--dport 443 .* -j ACCEPT" ); then \
-				echo "❌ HTTPS ingress allowed"; exit 1; \
-			else \
-				echo "📝 WAN HTTPS correctly blocked"; \
-			fi; \
-		echo "-> WireGuard:"; \
-			if iptables -L WGSI -n | grep -qE "udp.*dpt:51819"; then \
-				echo "   📝 WGSI (WireGuard server ingress) present for port 51819"; \
-				iptables -L WGSI -n -v | sed "s/^/    /"; \
-			else \
-				echo "❌ WGSI chain missing rule for port 51819"; exit 1; \
-			fi; \
-			if iptables -L WGCI >/dev/null 2>&1; then \
-				echo "   📝 WGCI (WireGuard client ingress) present"; \
-				iptables -L WGCI -n -v | sed "s/^/    /"; \
-			else \
-				echo "❌ WGCI chain missing"; exit 1; \
-			fi; \
-		echo "-> Caddy:"; \
-			test -x "$(ROUTER_CADDY_BIN)" || { echo "❌ router Caddy binary missing"; exit 1; }; \
-			pidof caddy >/dev/null || { echo "❌ router Caddy process not running"; exit 1; }; \
-			"$(ROUTER_CADDY_BIN)" validate --config "$(ROUTER_CADDYFILE_DST)" >/dev/null 2>&1 || \
-				{ echo "❌ router Caddy config invalid"; exit 1; }; \
-			echo "📝 router Caddy binary present"; \
-			echo "📝 router Caddy process running"; \
-			echo "📝 router Caddy config valid (fallback mode)"; \
-		echo "-> IPv6 FORWARD hook scope:"; \
-			echo "📝 Per-peer WireGuard IPv6 firewall model active — no global WGSF6 hook required"; \
+		echo "-> System"; uname -a; \
+		echo "-> Uptime"; uptime; \
+		echo "-> Storage"; df -h /jffs /tmp/mnt/sda || true; \
+		echo "-> Firewall"; \
+		if iptables -S | grep -qE -- "-A .* -p tcp .*--dport 443 .* -j ACCEPT"; then \
+			echo "❌ HTTPS ingress allowed"; exit 1; \
+		else \
+			echo "📝 WAN HTTPS blocked"; \
+		fi; \
+		echo "-> WireGuard"; \
+		if iptables -C INPUT -p udp --dport 51819 -j ACCEPT 2>/dev/null; then \
+			echo "📝 UDP 51819 OK"; \
+		else \
+			echo "❌ UDP 51819 missing"; exit 1; \
+		fi; \
+		if iptables -C FORWARD -i wgs1 -j ACCEPT 2>/dev/null && \
+		   iptables -C FORWARD -o wgs1 -j ACCEPT 2>/dev/null; then \
+			echo "📝 wgs1 forwarding OK"; \
+		else \
+			echo "❌ wgs1 forwarding missing"; exit 1; \
+		fi; \
+		echo "-> Caddy"; \
+		test -x "$(ROUTER_CADDY_BIN)" || { echo "❌ Caddy missing"; exit 1; }; \
+		pidof caddy >/dev/null || { echo "❌ Caddy not running"; exit 1; }; \
+		"$(ROUTER_CADDY_BIN)" validate --config "$(ROUTER_CADDYFILE_DST)" >/dev/null 2>&1 || { \
+			echo "❌ Caddy config invalid"; exit 1; }; \
+		echo "📝 Caddy OK"; \
+		echo "-> IPv6"; \
+		echo "📝 WG IPv6 per-peer model active"; \
 		echo "✅ Router healthy" \
 	'
 
 .PHONY: router-health-strict
 router-health-strict: router-health | router-ssh-check router-bootstrap-primitives
-	@echo "🔒 Enforcing strict security invariants"
+	@echo "🔒 Strict security check"
 	@ssh "$(SSH_HOST_ROUTER)" '\
 		set -e; \
-		echo "-> OpenVPN:"; \
-			if pidof openvpn >/dev/null 2>&1; then \
-				echo "❌ OpenVPN process running"; exit 1; \
-			fi; \
-			echo "📝 OpenVPN disabled"; \
-		echo "-> PPTP:"; \
+		echo "-> OpenVPN"; \
+		if pidof openvpn >/dev/null 2>&1; then \
+			echo "❌ OpenVPN running"; exit 1; \
+		else \
+			echo "📝 OpenVPN off"; \
+		fi; \
+		echo "-> PPTP"; \
 		if pidof pptpd >/dev/null 2>&1; then \
-			echo "❌ PPTP daemon running"; exit 1; \
+			echo "❌ PPTP running"; exit 1; \
+		else \
+			echo "📝 PPTP off"; \
 		fi; \
-		echo "📝 PPTP disabled"; \
-		echo "-> IPsec:"; \
+		echo "-> IPsec"; \
 		if pidof charon >/dev/null 2>&1 || pidof pluto >/dev/null 2>&1; then \
-			echo " ❌ IPsec daemon running"; exit 1; \
+			echo "❌ IPsec running"; exit 1; \
+		else \
+			echo "📝 IPsec off"; \
 		fi; \
-		echo "📝 IPsec disabled"; \
-		echo "-> SSH access:"; \
+		echo "-> SSH firewall"; \
 		if iptables -L INPUT -n | grep -qE "ACCEPT.*tcp.*dpt:(22|2222).*0.0.0.0/0"; then \
-			echo " ❌ SSH exposed via firewall"; exit 1; \
+			echo "❌ SSH exposed"; exit 1; \
+		else \
+			echo "📝 SSH safe"; \
 		fi; \
-		echo "📝 SSH not exposed via firewall"; \
-		echo "-> Web UI:"; \
+		echo "-> Web UI"; \
 		if iptables -L INPUT -n | grep -qE "ACCEPT.*tcp.*dpt:(80|443).*0.0.0.0/0"; then \
-			echo " ❌ Web UI exposed on WAN"; exit 1; \
+			echo "❌ Web UI exposed"; exit 1; \
+		else \
+			echo "📝 Web UI safe"; \
 		fi; \
-		echo "📝 Web UI not exposed on WAN"; \
-		echo "-> SSH keys:"; \
-		echo "📝 SSH key authentication works"; \
-		echo "-> IPv6 ULA:"; \
-		nvram get ipv6_ula_enable | grep -qx 1 || { echo "❌ ULA disabled"; exit 1; }; \
+		echo "-> SSH keys"; \
+		echo "📝 Key auth OK"; \
+		echo "-> IPv6 ULA"; \
+		nvram get ipv6_ula_enable | grep -qx 1 || { echo "❌ ULA off"; exit 1; }; \
 		nvram get ipv6_ula_prefix | grep -qx "$(ULA_PREFIX_NVRAM)" || { echo "❌ ULA prefix mismatch"; exit 1; }; \
-		echo "📝 ULA configured"; \
-
-		echo "✅ Strict security posture verified" \
+		echo "📝 ULA OK"; \
+		echo "✅ Strict posture OK" \
 	'
+

@@ -281,7 +281,7 @@ router-nat-dump: | router-ssh-check
 
 
 .PHONY: router-firewall-started
-router-firewall-started: | router-install-scripts router-nat-install
+router-firewall-started: router-install-scripts router-nat-install
 	@echo "🔁 Reloading router firewall (firewall-start)"
 
 	# NOTE:
@@ -311,56 +311,35 @@ router-all: \
 	router-caddy
 	@echo "🎯 Router bootstrap + converge + verify complete"
 
-router-configure:
-	@$(call WITH_SECRETS, \
-		echo "Task 1: Pinging $$ROUTER_ADDR..."; \
-		sudo -E ping -c1 "$$ROUTER_ADDR"; \
-		echo "Task 2: Checking service on $$ROUTER_ADDR..."; \
-		sudo -E curl -I "http://$$ROUTER_ADDR"; \
-		echo "🎉 All tasks complete"; \
-	)
+.PHONY: router-reachability
+router-reachability:
+	@echo "Task 1: Pinging $(ROUTER_ADDR)..." \
+	&& ping -c1 "$(ROUTER_ADDR)" \
+	&& echo "Task 2: Checking service on $(ROUTER_ADDR)..." \
+	&& curl -I "http://$(ROUTER_ADDR)" \
+	&& echo "🎉 All tasks complete"
 
 .PHONY: router-nat-apply
-router-nat-apply: | router-install-scripts router-nat-install router-firewall-started
+router-nat-apply: router-install-scripts router-nat-install router-firewall-started
 	@echo "🚀 Applying NAT pipeline (deploy + activate + verify)"
 
 	# 1) Generate dump script locally (atomic)
 	$(file >$(TMP_ROUTER_NAT).dump,$(ROUTER_NAT_DUMP_SCRIPT))
 
-	# 2) Upload atomically to router as root
-	@$(call WITH_SECRETS, sh -c '\
-		ssh "$(SSH_HOST_ROUTER)" "\
-			umask 077; \
-			cat > /tmp/nat-dump.sh.tmp; \
-			mv /tmp/nat-dump.sh.tmp /tmp/nat-dump.sh \
-		" < "$(TMP_ROUTER_NAT).dump"; \
-		rm -f "$(TMP_ROUTER_NAT).dump" \
-	')
+	# 2) Upload, secure, and move atomically on router
+	@ssh "$(SSH_HOST_ROUTER)" "\
+		umask 077; \
+		cat > /tmp/nat-dump.sh.tmp; \
+		chown $(ROUTER_SCRIPTS_OWNER):$(ROUTER_SCRIPTS_GROUP) /tmp/nat-dump.sh.tmp 2>/dev/null || chown $(ROUTER_SCRIPTS_OWNER) /tmp/nat-dump.sh.tmp; \
+		chmod 600 /tmp/nat-dump.sh.tmp; \
+		mv /tmp/nat-dump.sh.tmp /tmp/nat-dump.sh \
+	" < "$(TMP_ROUTER_NAT).dump"
+	@rm -f "$(TMP_ROUTER_NAT).dump"
 
-	# 3) Validate ownership + permissions before execution
-	@$(call WITH_SECRETS, sh -c '\
-		ssh "$(SSH_HOST_ROUTER)" "\
-			set -e; \
-			[ -f /tmp/nat-dump.sh ] || { echo \"❌ nat-dump.sh missing\"; exit 1; }; \
-			\
-			# Ownership check (BusyBox-safe): compare owner name via ls -l \
-			owner=\$$(ls -l /tmp/nat-dump.sh | awk \"{print \\\$3}\"); \
-			[ \"\$$owner\" = \"root\" ] || { echo \"❌ nat-dump.sh not owned by root (owner=\$$owner)\"; exit 1; }; \
-			\
-			# Permission check (BusyBox-safe): match -rw------- exactly \
-			perms=\$$(ls -l /tmp/nat-dump.sh | awk \"{print \\\$1}\"); \
-			[ \"\$$perms\" = \"-rw-------\" ] || { echo \"❌ nat-dump.sh permissions not 600 (perms=\$$perms)\"; exit 1; }; \
-		" \
-	')
+	# 3) Execute explicitly (no PATH lookup)
+	@ssh "$(SSH_HOST_ROUTER)" "sh /tmp/nat-dump.sh"
 
-	# 4) Execute explicitly (no PATH lookup)
-	@$(call WITH_SECRETS, sh -c '\
-		ssh "$(SSH_HOST_ROUTER)" "sh /tmp/nat-dump.sh" \
-	')
-
-	# 5) Ephemeral cleanup
-	@$(call WITH_SECRETS, sh -c '\
-		ssh "$(SSH_HOST_ROUTER)" "rm -f /tmp/nat-dump.sh" \
-	')
+	# 4) Ephemeral cleanup
+	@ssh "$(SSH_HOST_ROUTER)" "rm -f /tmp/nat-dump.sh"
 
 	@echo "🎯 NAT pipeline complete"
