@@ -164,17 +164,25 @@ router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
 
 .PHONY: router-ra-policy
 router-ra-policy: router-bootstrap-primitives router-ssh-check
-	@echo "🛡️ Enforcing router RA policy (enable default route in RA) (no commit, no restart)"
-	@ssh "$(SSH_HOST_ROUTER)" 'set -e; \
-		cur="$$(nvram get ipv6_accept_ra || echo unset)"; \
-		if [ "$$cur" = "2" ]; then \
-			test -z "$(VERBOSE)" || echo "✅ RA policy already enforced (ipv6_accept_ra=2)"; \
-			exit 0; \
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🛡️ Enforcing router RA policy (enable default route in RA) (no commit, no restart)"; \
+	fi
+
+	@cur="$$( ssh "$(SSH_HOST_ROUTER)" "nvram get ipv6_accept_ra 2>/dev/null || echo unset" )"; \
+	\
+	if [ "$$cur" = "2" ]; then \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 RA policy already converged (ipv6_accept_ra=2)"; \
 		fi; \
+		exit 0; \
+	fi; \
+	\
+	ssh "$(SSH_HOST_ROUTER)" "\
 		nvram set ipv6_accept_ra=2; \
-		echo "🟢 RA policy staged: ipv6_accept_ra=2 (commit in router-nvram-converge)"; \
-		touch /jffs/homelab_nvram_dirty; \
-	'
+		touch /jffs/homelab_nvram_dirty"; \
+	\
+	echo "🟢 RA policy staged: ipv6_accept_ra=2 (commit in router-nvram-converge)"
+
 
 # ------------------------------------------------------------
 # DDNS deploy + execution
