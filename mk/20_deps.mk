@@ -382,8 +382,7 @@ remove-pkg-tailscale:
 		systemctl stop tailscaled >/dev/null 2>&1 || true; \
 		systemctl disable tailscaled >/dev/null 2>&1 || true; \
 	'; \
-	$(call apt_remove,tailscale,$(STAMP_DIR_ROOT)/tailscale.stamp); \
-	$(call verbose_echo,🗑️ Tailscale removed)
+	$(call apt_remove,tailscale,$(STAMP_DIR_ROOT)/tailscale.stamp)
 
 .PHONY: verify-pkg-tailscale
 verify-pkg-tailscale: ensure-host-default-route
@@ -459,8 +458,7 @@ remove-pkg-vnstat:
 		$(call verbose_echo,ℹ️ remove-pkg-vnstat: USE_TAILSCALED=$(USE_TAILSCALED); skipping); \
 		exit 0; \
 	fi; \
-	$(call apt_remove,vnstat); \
-	$(call verbose_echo,🗑️ vnstat removed)
+	$(call apt_remove,vnstat)
 
 # ------------------------------------------------------------
 # nftables
@@ -473,8 +471,7 @@ install-pkg-nftables: prereqs-ok ensure-host-default-route
 
 remove-pkg-nftables:
 	@set -euo pipefail; \
-	$(call apt_remove,nftables); \
-	$(call verbose_echo,🗑️ nftables removed)
+	$(call apt_remove,nftables)
 
 # ------------------------------------------------------------
 # WireGuard
@@ -486,8 +483,7 @@ install-pkg-wireguard: prereqs-ok ensure-host-default-route
 
 remove-pkg-wireguard:
 	@set -euo pipefail; \
-	$(call apt_remove,wireguard wireguard-tools); \
-	$(call verbose_echo,🗑️ WireGuard removed)
+	$(call apt_remove,wireguard wireguard-tools)
 
 # ------------------------------------------------------------
 # Caddy
@@ -498,8 +494,7 @@ install-pkg-caddy: prereqs-ok ensure-host-default-route
 
 remove-pkg-caddy:
 	@set -euo pipefail; \
-	$(call apt_remove,caddy); \
-	$(call verbose_echo,🗑️ Caddy removed)
+	$(call apt_remove,caddy)
 
 # ------------------------------------------------------------
 # Age (Source build via Go)
