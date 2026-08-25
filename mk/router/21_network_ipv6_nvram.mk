@@ -183,14 +183,15 @@ router-ra-policy: router-bootstrap-primitives router-ssh-check
 	\
 	echo "🟢 RA policy staged: ipv6_accept_ra=2 (commit in router-nvram-converge)"
 
-
 # ------------------------------------------------------------
 # DDNS deploy + execution
 # ------------------------------------------------------------
 
 .PHONY: router-ddns
 router-ddns: secrets-ready ensure-router-ula router-ssh-check
-	@echo "📡 Deploying DDNS configuration to router"
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "📡 Deploying DDNS configuration to router"; \
+	fi
 	@$(call WITH_SECRETS, sh -c '\
 		set -e; \
 		umask 077; \
@@ -209,9 +210,15 @@ router-ddns: secrets-ready ensure-router-ula router-ssh-check
 			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
 		rm -f "$(TMP_DDNS_CONF)"; \
 	')
-	@echo "🔄 Executing DDNS update"
+
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🔄 Executing DDNS update"; \
+	fi
 	@ssh "$(SSH_HOST_ROUTER)" '$(ROUTER_SCRIPTS)/ddns-start'
-	@echo "🟢 DDNS update complete"
+
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🟢 DDNS update complete"; \
+	fi
 
 # ------------------------------------------------------------
 # DHCPv6-PD hook
@@ -219,7 +226,9 @@ router-ddns: secrets-ready ensure-router-ula router-ssh-check
 
 .PHONY: router-dhcp6c-hook-converge
 router-dhcp6c-hook-converge: router-ssh-check
-	@echo "🛡️ Ensuring dhcp6c-state hook exists"
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🛡️ Ensuring dhcp6c-state hook exists"; \
+	fi
 	@ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 		mkdir -p /jffs/scripts; \
 		tmp="/tmp/dhcp6c-state.$$"; \
@@ -236,6 +245,32 @@ chmod 755 /jffs/scripts/dhcp6c-state; \
 # Unified NVRAM + dnsmasq/radvd converge (dirty-flag based)
 # ------------------------------------------------------------
 
+
+define ROUTER_NVRAM_CONVERGE_SH
+set -e
+RESTART=0
+
+if [ -f /jffs/homelab_nvram_dirty ]; then
+	nvram commit
+	rm -f /jffs/homelab_nvram_dirty
+	RESTART=1
+fi
+
+if [ -f /jffs/homelab_dnsmasq_changed ]; then
+	rm -f /jffs/homelab_dnsmasq_changed
+	RESTART=1
+fi
+
+if [ "$$RESTART" -eq 1 ]; then
+	service restart_dnsmasq
+	service restart_radvd || true
+	exit 10
+else
+	exit 0
+fi
+endef
+
+
 .PHONY: router-nvram-converge
 router-nvram-converge: \
 	router-dhcp-range-ensure \
@@ -246,7 +281,9 @@ router-nvram-converge: \
 	router-dnsmasq-sync \
 	router-dnsmasq-conf \
 	router-ssh-check
-	@echo "🛡️ Committing NVRAM and restarting services (minimal restarts)"
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🛡️ Committing NVRAM and restarting services (minimal restarts)"; \
+	fi
 	@ssh "$(SSH_HOST_ROUTER)" '\
 		set -e; \
 		RESTART=0; \

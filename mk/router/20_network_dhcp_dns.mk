@@ -17,7 +17,7 @@ DHCP_AGGREGATE = for v in $$(compgen -A variable | grep '^dhcp_static_'); do pri
 
 .PHONY: router-dhcp-static-validate
 router-dhcp-static-validate: secrets-ready
-	@$(call WITH_SECRETS, sh -c '\
+	@$(call WITH_SECRETS, bash -c '\
 		entries="$$( $(DHCP_AGGREGATE) )"; \
 		if [ -z "$$entries" ]; then \
 			echo "⚠️ STATIC_DHCP is empty — nothing to validate"; \
@@ -92,7 +92,7 @@ fi'
 router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-router-ula router-ssh-check
 	@echo "🛡️ Enforcing DHCP static leases via NVRAM (no commit, no restart)"
 
-	@$(call WITH_SECRETS, sh -c '\
+	@$(call WITH_SECRETS, bash -c '\
 		desired="$$( $(DHCP_AGGREGATE) )"; \
 		if [ -z "$$desired" ]; then \
 			echo "⚠️ STATIC_DHCP is empty — skipping enforcement"; \
@@ -116,31 +116,32 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 # dnsmasq templating + sync (files only, no restart)
 # ------------------------------------------------------------
 
+.PHONY: router-dnsmasq-sync
 router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-primitives router-ssh-check
 	@echo "📡 Templating and Syncing DNS configuration for $(DOMAIN)..."
 
-	$(call TMPFILE_BLOCK,"$(TMP_DNSMASQ_ADD) $(TMP_DNSMASQ_HOSTS)", \
-		sed "s|\$${NAS_LAN_IP}|$(NAS_LAN_IP)|g; s|\$${DOMAIN}|$(DOMAIN)|g" \
-			"$(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add" \
-			> "$(TMP_DNSMASQ_ADD)"; \
+	@set -e; \
+	sed "s|\$${NAS_LAN_IP}|$(NAS_LAN_IP)|g; s|\$${DOMAIN}|$(DOMAIN)|g" \
+		"$(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add" \
+		> "$(TMP_DNSMASQ_ADD)"; \
+	\
+	cp "$(REPO_ROOT)/router/jffs/configs/hosts.add" "$(TMP_DNSMASQ_HOSTS)"; \
+	\
+	DNS_CHANGED=0; export DNS_CHANGED; \
+	VERBOSE=1 $(INSTALL_FILES_IF_CHANGED) DNS_CHANGED \
+		"" "" "$(TMP_DNSMASQ_ADD)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/dnsmasq.conf.add" \
+		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
+		"" "" "$(TMP_DNSMASQ_HOSTS)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/hosts.add" \
+		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
+		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
+	\
+	if [ "$$DNS_CHANGED" -eq 1 ]; then \
+		echo "🔄 DNS configuration changed (pending restart)"; \
+		ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
+	else \
+		echo "✅ DNS configuration up-to-date (no restart needed)"; \
+	fi
 
-		cp "$(REPO_ROOT)/router/jffs/configs/hosts.add" "$(TMP_DNSMASQ_HOSTS)"; \
-
-		DNS_CHANGED=0; export DNS_CHANGED; \
-		VERBOSE=1 $(INSTALL_FILES_IF_CHANGED) DNS_CHANGED \
-			"" "" "$(TMP_DNSMASQ_ADD)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/dnsmasq.conf.add" \
-			"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
-			"" "" "$(TMP_DNSMASQ_HOSTS)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/hosts.add" \
-			"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
-			|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
-
-		if [ "$$DNS_CHANGED" -eq 1 ]; then \
-			echo "🔄 DNS configuration changed (pending restart)"; \
-			ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
-		else \
-			echo "✅ DNS configuration up-to-date (no restart needed)"; \
-		fi; \
-	)
 
 # ------------------------------------------------------------
 # dnsmasq.conf.add deploy (files only, marks dirty on change)
