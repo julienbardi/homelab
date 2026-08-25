@@ -48,20 +48,27 @@ router-ssh-check: install-ssh-config
 
 .PHONY: router-require-run-as-root
 router-require-run-as-root: | router-ssh-check
-	# Skip check during bootstrap
-	@if [ "$(ROUTER_BOOTSTRAP)" = "1" ]; then exit 0; fi
+	@if [ "$(ROUTER_BOOTSTRAP)" = "1" ]; then \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🔍 Skipping router run-as-root check (bootstrap mode)"; \
+		fi; \
+	else \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🔍 Checking router run-as-root helper"; \
+		fi; \
+		ssh "$(SSH_HOST_ROUTER)" \
+			'test -x /jffs/scripts/run-as-root' >/dev/null 2>&1 || { \
+				echo "❌ run-as-root missing on router"; \
+				echo "ℹ️  Router helpers not installed"; \
+				echo "   Recovery: make router-bootstrap"; \
+				exit 1; \
+			}; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 run-as-root OK — helper installed and executable"; \
+		fi; \
+	fi
 
-	@echo "🔍 Checking router run-as-root helper"
 
-	@ssh "$(SSH_HOST_ROUTER)" \
-		'test -x /jffs/scripts/run-as-root' >/dev/null 2>&1 || { \
-			echo "❌ run-as-root missing on router"; \
-			echo "ℹ️  Router helpers not installed"; \
-			echo " Recovery: make router-bootstrap"; \
-			exit 1; \
-		}
-
-	@echo "🟢 run-as-root OK — helper installed and executable"
 
 .PHONY: get-router-root-identity
 get-router-root-identity: router-require-run-as-root
