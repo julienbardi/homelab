@@ -14,66 +14,69 @@
 # ------------------------------------------------------------
 # router-ssh-invariants:
 # Enforces LAN-only SSH by setting:
-#   ssh_wan=0  ➡️ disable SSH on WAN
-#   ssh_lan=1  ➡️ enable SSH on LAN
+#   ssh_wan=0  -> disable SSH on WAN
+#   ssh_lan=1  -> enable SSH on LAN
 # AsusWRT defaults to WAN-enabled SSH when ssh_wan is unset.
 # This target makes the invariant explicit and idempotent.
 # ------------------------------------------------------------
 
+define NVRAM_GET_BOTH
+ssh "$(SSH_HOST_ROUTER)" "\
+	nvram get ssh_wan 2>/dev/null || echo unset; \
+	nvram get ssh_lan 2>/dev/null || echo unset"
+endef
+
 .PHONY: router-ssh-invariants
 router-ssh-invariants: router-ssh-check
-	@echo "🛡️ Enforcing router SSH invariants (LAN-only SSH)"
-	@ssh "$(SSH_HOST_ROUTER)" "\
-		set -e; \
-		cur_wan=\$$(nvram get ssh_wan || echo unset); \
-		cur_lan=\$$(nvram get ssh_lan || echo unset); \
-		\
-		# ssh_wan converge
-		if [ \"\$$cur_wan\" != \"0\" ]; then \
+	@vals="$$( $(call NVRAM_GET_BOTH) )"; \
+	set -- $$vals; \
+	cur_wan="$$1"; \
+	cur_lan="$$2"; \
+	if [ "$$cur_wan" = "0" ] && [ "$$cur_lan" = "1" ]; then \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 Router SSH invariants already correct : ssh_wan=0, ssh_lan=1"; \
+		fi; \
+	else \
+		ssh "$(SSH_HOST_ROUTER)" "\
 			nvram set ssh_wan=0; \
-			echo \"🟢 SSH invariant staged: ssh_wan=0 (commit now)\"; \
-			nvram commit; \
-			service restart_ssh; \
-			exit 0; \
-		fi; \
-		\
-		# ssh_lan converge
-		if [ \"\$$cur_lan\" != \"1\" ]; then \
 			nvram set ssh_lan=1; \
-			echo \"🟢 SSH invariant staged: ssh_lan=1 (commit now)\"; \
 			nvram commit; \
-			service restart_ssh; \
-			exit 0; \
+			service restart_ssh >/dev/null 2>&1"; \
+		vals="$$( $(call NVRAM_GET_BOTH) )"; \
+		set -- $$vals; \
+		new_wan="$$1"; \
+		new_lan="$$2"; \
+		if [ "$$new_wan" = "0" ] && [ "$$new_lan" = "1" ]; then \
+			echo "✅ Router SSH invariants enforced (ssh_wan=$$new_wan, ssh_lan=$$new_lan)"; \
+		else \
+			echo "❌ Router SSH invariants enforcement failed: ssh_wan=$$new_wan ssh_lan=$$new_lan"; \
+			exit 1; \
 		fi; \
-		\
-		# idempotent case
-		test -z \"$(VERBOSE)\" || echo \"✅ SSH invariants already enforced (ssh_wan=0, ssh_lan=1)\"; \
-	"
+	fi
 
 # ------------------------------------------------------------
 # LAN domain — pure NVRAM setter
 # ------------------------------------------------------------
 
 .PHONY: router-lan-domain
-router-lan-domain: | router-ssh-check
-	@LAN_DOMAIN="$$( $(call WITH_SECRETS, sh -c 'echo "$$lan_domain"' ) )"; \
+router-lan-domain: | router-ssh-check secret-vars-check
+	@LAN_DOMAIN="$$( $(call SECRET,lan_domain) )"; \
 	PUBLIC_DOMAIN="$(DOMAIN)"; \
 	lan_lc="$$(printf '%s' "$$LAN_DOMAIN" | tr A-Z a-z)"; \
 	pub_lc="$$(printf '%s' "$$PUBLIC_DOMAIN" | tr A-Z a-z)"; \
 	case "$$lan_lc" in *.$$pub_lc|$$pub_lc) \
-			echo "❌ Unsafe LAN_DOMAIN '$$LAN_DOMAIN' (suffix of '$$PUBLIC_DOMAIN')"; \
-			echo "   dnsmasq would rewrite public DNS (FQDN synthesis)."; \
-			echo "   Refusing to set unsafe LAN domain in NVRAM."; \
-			exit 1; \
+		echo "❌ Unsafe LAN_DOMAIN '$$LAN_DOMAIN' (suffix of '$$PUBLIC_DOMAIN')"; \
+		echo "   dnsmasq would rewrite public DNS (FQDN synthesis)."; \
+		echo "   Refusing to set unsafe LAN domain in NVRAM."; \
+		exit 1; \
 		;; \
 	esac; \
+	cur_lan_domain="$$( ssh "$(SSH_HOST_ROUTER)" "nvram get lan_domain 2>/dev/null || true" )"; \
+	if [ "$$cur_lan_domain" = "$$LAN_DOMAIN" ]; then \
+		test -z "$(VERBOSE)" || echo "🌐 LAN domain already converged ('$$LAN_DOMAIN')"; \
+		exit 0; \
+	fi; \
 	ssh "$(SSH_HOST_ROUTER)" "\
-		set -e; \
-		cur=\$$(nvram get lan_domain 2>/dev/null || true); \
-		if [ \"\$$cur\" = \"$$LAN_DOMAIN\" ]; then \
-			test -z \"$(VERBOSE)\" || echo \"🌐 LAN domain already converged ('$${LAN_DOMAIN}')\"; \
-			exit 0; \
-		fi; \
 		nvram set lan_domain=\"$$LAN_DOMAIN\"; \
 		echo \"🌐 LAN domain staged: '$$LAN_DOMAIN' (commit in router-nvram-converge)\"; \
 		touch /jffs/homelab_nvram_dirty; \
@@ -85,11 +88,7 @@ router-lan-domain: | router-ssh-check
 
 .PHONY: router-dhcp-static-export-secrets
 router-dhcp-static-export-secrets: router-ssh-check
-	@echo '🔍 router-dhcp-static-export-secrets v7-sorted'; \
-	tmp=$$(mktemp); \
-	echo '🔍 SSH CMD: ssh '"$(SSH_HOST_ROUTER)"' '\''nvram get dhcp_staticlist 2>/dev/null || true'\'''; \
-	ssh "$(SSH_HOST_ROUTER)" 'nvram get dhcp_staticlist 2>/dev/null || true' > "$$tmp"; \
-	line=$$(cat "$$tmp"); \
+	@line="$$( ssh "$(SSH_HOST_ROUTER)" "nvram get dhcp_staticlist 2>/dev/null || true" )"; \
 	printf 'DHCP static leases (paste into secrets.enc.yaml):\n\n'; \
 	{ \
 		for token in $$line; do \
@@ -98,52 +97,66 @@ router-dhcp-static-export-secrets: router-ssh-check
 			ip=$${rest#*>}; \
 			printf '%s %s\n' "$$ip" "$$token"; \
 		done; \
-	} | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | \
-	awk '{ \
-		i++; \
-		printf "dhcp_static_%d=\"%s\"\n", i, $$2; \
-	}'; \
-	rm -f "$$tmp"; \
-	echo '🔍 v8 done'
+	} \
+	| sort -t. -k1,1n -k2,2n -k3,3n -k4,4n \
+	| awk '{ i++; printf "dhcp_static_%d=\"%s\"\n", i, $$2 }';
 
-# VERSION: 81
-# ============================================================
-# mk/router/21_network_ipv6_nvram.mk — Router NVRAM ULA Sync
-# ============================================================
-# Fix: Mark router-provision-nvram as a drop-in replacement
-# and lock the synchronized nvram convergence logic.
-# ============================================================
+define NVRAM_GET_IPV6
+ssh "$(SSH_HOST_ROUTER)" "\
+	nvram get ipv6_ula_prefix 2>/dev/null || echo unset; \
+	nvram get ipv6_lan_addr 2>/dev/null || echo unset; \
+	nvram get ipv6_lan_prefix 2>/dev/null || echo unset"
+endef
 
 .PHONY: router-provision-nvram
 router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
-	@echo "🛡️ Syncing Router NVRAM (ULA only — DNS handled by dns-enforcer) (no commit)"
-	@$(call WITH_SECRETS, \
-	    export ULA_PREFIX_NVRAM="$${ULA_PREFIX:-fd89:7a3b:42c0::/48}"; \
-	    export ROUTER_ULA_IP6="$${ROUTER_ULA_IP6:-fd89:7a3b:42c0::1}"; \
-	    ssh "$(SSH_HOST_ROUTER)" "\
-	        set -e; \
-	        cur_prefix=\$$(nvram get ipv6_ula_prefix 2>/dev/null || echo); \
-	        cur_lan_addr=\$$(nvram get ipv6_lan_addr 2>/dev/null || echo); \
-	        \
-	        if [ \"\$$cur_prefix\" != \"$$ULA_PREFIX_NVRAM\" ]; then \
-	            nvram set ipv6_ula_prefix=\"$$ULA_PREFIX_NVRAM\"; \
-	            nvram set ipv6_ula_enable=1; \
-	            echo \"🟢 ULA prefix staged: ipv6_ula_prefix=$$ULA_PREFIX_NVRAM (commit in router-nvram-converge)\"; \
-	            touch /jffs/homelab_nvram_dirty; \
-	        else \
-	            test -z \"$(VERBOSE)\" || echo \"✅ ULA prefix already converged (ipv6_ula_prefix=$$ULA_PREFIX_NVRAM)\"; \
-	        fi; \
-	        \
-	        if [ \"\$$cur_lan_addr\" != \"$$ROUTER_ULA_IP6\" ]; then \
-	            nvram set ipv6_lan_addr=\"$$ROUTER_ULA_IP6\"; \
-	            nvram set ipv6_lan_prefix=48; \
-	            echo \"🟢 ULA LAN addr staged: ipv6_lan_addr=$$ROUTER_ULA_IP6 (commit in router-nvram-converge)\"; \
-	            touch /jffs/homelab_nvram_dirty; \
-	        else \
-	            test -z \"$(VERBOSE)\" || echo \"✅ ULA LAN addr already converged (ipv6_lan_addr=$$ROUTER_ULA_IP6)\"; \
-	        fi; \
-	    " \
-	)
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🛡️ Syncing Router NVRAM (ULA only — DNS handled by dns-enforcer) (no commit)"; \
+	fi
+
+	@vals="$$( $(call NVRAM_GET_IPV6) )"; \
+	set -- $$vals; \
+	cur_prefix="$$1"; \
+	cur_lan_addr="$$2"; \
+	cur_lan_prefix="$$3"; \
+	\
+	# --- Converge ipv6_ula_prefix --- \
+	if [ "$$cur_prefix" != "$(ULA_PREFIX_NVRAM)" ]; then \
+		ssh "$(SSH_HOST_ROUTER)" "\
+			nvram set ipv6_ula_prefix='$(ULA_PREFIX_NVRAM)'; \
+			nvram set ipv6_ula_enable=1; \
+			touch /jffs/homelab_nvram_dirty"; \
+		echo "🟢 ULA prefix staged: ipv6_ula_prefix=$(ULA_PREFIX_NVRAM)"; \
+	else \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 ULA prefix already converged (ipv6_ula_prefix=$(ULA_PREFIX_NVRAM))"; \
+		fi; \
+	fi; \
+	\
+	# --- Converge ipv6_lan_addr --- \
+	if [ "$$cur_lan_addr" != "$(LAN6_ROUTER)" ]; then \
+		ssh "$(SSH_HOST_ROUTER)" "\
+			nvram set ipv6_lan_addr='$(LAN6_ROUTER)'; \
+			touch /jffs/homelab_nvram_dirty"; \
+		echo "🟢 ULA LAN addr staged: ipv6_lan_addr=$(LAN6_ROUTER)"; \
+	else \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 ULA LAN addr already converged (ipv6_lan_addr=$(LAN6_ROUTER))"; \
+		fi; \
+	fi; \
+	\
+	# --- Converge ipv6_lan_prefix --- \
+	if [ "$$cur_lan_prefix" != "$(LAN6_PREFIX_LEN)" ]; then \
+		ssh "$(SSH_HOST_ROUTER)" "\
+			nvram set ipv6_lan_prefix='$(LAN6_PREFIX_LEN)'; \
+			touch /jffs/homelab_nvram_dirty"; \
+		echo "🟢 ULA LAN prefix staged: ipv6_lan_prefix=$(LAN6_PREFIX_LEN)"; \
+	else \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 ULA LAN prefix already converged (ipv6_lan_prefix=$(LAN6_PREFIX_LEN))"; \
+		fi; \
+	fi
+
 
 # ------------------------------------------------------------
 # Router RA policy
