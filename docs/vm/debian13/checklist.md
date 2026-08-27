@@ -60,7 +60,7 @@
     - Sockets: `1`
     - Cores: `4`
     - Type: `host`
-    - NUMA: Disabled (Only useful for >8 cores or multi‑socket hosts)
+    - NUMA: Disabled (Only useful for >8 cores or multi-socket hosts)
     Extra CPU Flags
     - nested-virt: Off
     - all hv-* flags: Off
@@ -237,3 +237,102 @@ sudo install -m 600 -o julie -g julie /home/julie/id_ed25519.pub /home/julie/.ss
 ```powershell
 ssh julie@debian
 ```
+
+## 21. Graphical Scaling (XFCE + XRDP) to 200%
+
+### 21.1 Enable custom DPI (200%)
+Open the XFCE appearance settings:
+
+```
+xfce4-appearance-settings
+```
+
+Then:
+
+- Go to **Fonts**
+- Enable **Custom DPI**
+- Set DPI to **192** (equivalent to 200%)
+
+This fixes tiny fonts in menus, windows, dialogs, Thunar, and XFCE settings.
+
+---
+
+### 21.2 Adjust XFCE panel size
+Open panel preferences:
+
+```
+xfce4-panel --preferences
+```
+
+Then set:
+
+- **Panel → Row Size → 36–40**
+
+This prevents the top panel from staying tiny after DPI scaling.
+
+---
+
+### 21.3 Force system-wide DPI (important for XRDP)
+Create the fontconfig directory:
+
+```
+mkdir -p ~/.config/fontconfig
+nano ~/.config/fontconfig/fonts.conf
+```
+
+Insert:
+
+```xml
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match target="pattern">
+    <edit name="dpi" mode="assign">
+      <double>192</double>
+    </edit>
+  </match>
+</fontconfig>
+```
+
+This ensures consistent scaling for older GTK apps and XRDP sessions.
+
+---
+
+### 21.4 Restart the XFCE panel
+```
+xfce4-panel -r
+```
+
+---
+
+### 21.5 Ensure XRDP uses Xorg session
+When connecting from Windows RDP:
+
+- Select **Session type: Xorg**
+
+XRDP scaling does not work correctly under Xvnc.
+
+---
+
+### 21.6 (Optional) Increase icon size
+Open:
+
+```
+xfce4-settings-manager
+```
+
+Then:
+
+- **Icons → Default → Size 32 or 48**
+
+---
+
+### Result
+With:
+
+- Custom DPI = 192
+- Panel row size = 36–40
+- Fontconfig DPI = 192
+- XRDP Xorg session
+
+XFCE becomes fully readable at **200% scaling**, including menus, windows, Thunar, dialogs, and RDP sessions.
