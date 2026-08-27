@@ -336,3 +336,53 @@ With:
 - XRDP Xorg session
 
 XFCE becomes fully readable at **200% scaling**, including menus, windows, Thunar, dialogs, and RDP sessions.
+
+## 22. NetBird Client Onboarding (Debian 13)
+
+### 22.1 Install curl (Debian netinst does not include it)
+```
+sudo apt update
+sudo apt install curl
+```
+
+### 22.2 Install NetBird client
+```
+curl -sSL https://pkgs.netbird.io/install.sh | sudo bash
+```
+
+This installs:
+- netbird
+- netbird-cli
+- systemd service
+
+### 22.3 Enable and start NetBird
+```
+sudo systemctl enable --now netbird
+```
+
+### 22.4 Authenticate the machine into your NetBird mesh
+```
+netbird up
+```
+
+This will open a browser window or print a URL.
+Authenticate the VM with your NetBird account.
+
+### 22.5 Verify connectivity
+```
+netbird status
+```
+
+You should see:
+- connected peers
+- relay/direct connectivity
+- mesh status
+
+### 22.6 Do NOT configure this VM as an exit node
+This Debian 13 XFCE VM is a workstation VM, not infrastructure.
+It should remain a **NetBird client only**.
+
+(Exit nodes must be stable, always‑on machines such as your router, PVE host, or cloud nodes.)
+
+### Result
+The Debian 13 VM is now fully onboarded as a NetBird client and integrated into your homelab mesh.
