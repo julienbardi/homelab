@@ -38,7 +38,7 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 	@echo "🛡️ Bootstrapping router primitives"; \
 	\
 	# Ensure necessary directories exist for $(INSTALL_FILE_IF_CHANGED) \
-	ssh $(SSH_HOST_ROUTER) "mkdir -p /jffs/scripts /etc/homelab"; \
+	$(SSH_ROUTER) "mkdir -p /jffs/scripts /etc/homelab"; \
 	\
 	# Step 1: local hashes \
 	LOCAL_HASH_RUN_AS_ROOT="$$(sha256sum "$(REPO_ROOT)/router/jffs/scripts/run-as-root.sh" | awk '{print $$1}')" ; \
@@ -46,7 +46,7 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 	LOCAL_HASH_RESET_ROUTER="$$(sha256sum "$(REPO_ROOT)/router/jffs/scripts/reset-router.sh" | awk '{print $$1}')" ; \
 	\
 	# Step 2: single SSH — ensure dirs, verify known_hosts cleanly, fetch remote hashes with structured tags \
-	REMOTE_DATA="$$(ssh $(SSH_HOST_ROUTER) '\
+	REMOTE_DATA="$$($(SSH_ROUTER) '\
 		mkdir -p /jffs/scripts && chmod 755 /jffs/scripts && chown 0:0 /jffs/scripts ; \
 		mkdir -p /root/.ssh && chmod 700 /root/.ssh ; \
 		mkdir -p /jffs/ssl && chmod 700 /jffs/ssl ; \
@@ -89,7 +89,7 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 			exit 1 ; \
 		fi ; \
 		printf "%s\n" "$$NAS_KEY_LINES" | while IFS= read -r line; do \
-			ssh $(SSH_HOST_ROUTER) "\
+			$(SSH_ROUTER) "\
 				touch /root/.ssh/known_hosts && \
 				chmod 600 /root/.ssh/known_hosts && \
 				grep -Fqx \"$$line\" /root/.ssh/known_hosts || echo \"$$line\" >> /root/.ssh/known_hosts \
@@ -108,21 +108,21 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 		echo "📝 Updating bootstrap primitives on router (content drift detected)" ; \
 		\
 		cat "$(REPO_ROOT)/router/jffs/scripts/run-as-root.sh" | \
-		ssh $(SSH_HOST_ROUTER) "\
+		$(SSH_ROUTER) "\
 			umask 022; \
 			cat > /jffs/scripts/run-as-root && \
 			chown 0:0 /jffs/scripts/run-as-root && \
 			chmod 0755 /jffs/scripts/run-as-root" ; \
 		\
 		cat "$(REPO_ROOT)/router/jffs/scripts/install-cert.sh" | \
-		ssh $(SSH_HOST_ROUTER) "\
+		$(SSH_ROUTER) "\
 			umask 022; \
 			cat > /jffs/scripts/install-cert.sh && \
 			chown 0:0 /jffs/scripts/install-cert.sh && \
 			chmod 0755 /jffs/scripts/install-cert.sh" ; \
 		\
 		cat "$(REPO_ROOT)/router/jffs/scripts/reset-router.sh" | \
-		ssh $(SSH_HOST_ROUTER) "\
+		$(SSH_ROUTER) "\
 			umask 022; \
 			cat > /jffs/scripts/reset-router.sh && \
 			chown 0:0 /jffs/scripts/reset-router.sh && \
@@ -262,7 +262,7 @@ router-install-scripts: install-ssh-config \
 router-scripts-invariants: | router-ssh-check
 	@echo "🛡️ Enforcing /jffs/scripts invariants + WAN bootstrap if IPv4 route missing"
 
-	@ssh $(SSH_HOST_ROUTER) '\
+	@$(SSH_ROUTER) '\
 		set -e; \
 		\
 		# --- WAN bootstrap: ensure IPv4 default route exists --- \

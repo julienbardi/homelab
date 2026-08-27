@@ -45,6 +45,8 @@ export SSH_USER_QNAP     := admin
 export SSH_USER_AC86U    := admin
 export SSH_USER_HUB01    := julie
 
+SSH_ROUTER := ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_ROUTER)@$(ROUTER_ADDR)
+
 # SSH host aliases (for ControlMaster reuse)
 export SSH_HOST_ROUTER := router
 export SSH_HOST_HUB01  := hub01

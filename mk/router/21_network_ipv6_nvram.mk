@@ -315,11 +315,13 @@ router-nvram-converge: \
 # ------------------------------------------------------------
 # IPv6 converge
 # ------------------------------------------------------------
-
 .PHONY: router-ipv6-converge
 router-ipv6-converge: router-nvram-converge router-dhcp6c-hook-converge router-ssh-check
-	@echo "🛡️ IPv6 converge: ensuring PD hook + dnsmasq RA"
-	@ssh "$(SSH_HOST_ROUTER)" '\
-		echo "🔄 Forcing DHCPv6-PD refresh"; \
-		service start_dhcp6c || true; \
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🛡️ IPv6 converge: ensuring PD hook + dnsmasq RA"; \
+	fi
+	@ssh "$(SSH_HOST_ROUTER)" '
+		echo "Forcing DHCPv6-PD refresh"
+		service start_dhcp6c || true
 	'
+
