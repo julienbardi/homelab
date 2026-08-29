@@ -35,7 +35,7 @@ router-ensure-scripts-dir:
 
 .PHONY: router-bootstrap-primitives
 router-bootstrap-primitives: secrets-ready ensure-host-default-route
-	@echo "🛡️ Bootstrapping router primitives"; \
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛡️ Bootstrapping router primitives"; fi; \
 	\
 	# Ensure necessary directories exist for $(INSTALL_FILE_IF_CHANGED) \
 	$(SSH_ROUTER) "mkdir -p /jffs/scripts /etc/homelab"; \
@@ -50,7 +50,7 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 		mkdir -p /jffs/scripts && chmod 755 /jffs/scripts && chown 0:0 /jffs/scripts ; \
 		mkdir -p /root/.ssh && chmod 700 /root/.ssh ; \
 		mkdir -p /jffs/ssl && chmod 700 /jffs/ssl ; \
-		if ! grep -Fq "$(LAN_NAS):2222" /root/.ssh/known_hosts 2>/dev/null && ! grep -Fq "[$(LAN_NAS)]:2222" /root/.ssh/known_hosts 2>/dev/null; then \
+		if ! grep -Fq "$(LAN_NAS) " /root/.ssh/known_hosts 2>/dev/null && ! grep -Fq "[$(LAN_NAS)]:" /root/.ssh/known_hosts 2>/dev/null; then \
 			echo "STATUS_KNOWN_HOST:MISSING" ; \
 		else \
 			echo "STATUS_KNOWN_HOST:OK" ; \
@@ -82,26 +82,24 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 	\
 	# Step 3: fix known-hosts if missing \
 	if [ "$$REMOTE_KNOWN_HOST" = "MISSING" ]; then \
-		echo "🔑 Adding NAS host key to router root context" ; \
-		NAS_KEY_LINES="$$(ssh-keyscan -p $(NAS_SSH_PORT) $(LAN_NAS) 2>/dev/null)" ; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "🔑 Adding NAS host key to router root context"; fi; \
+		NAS_KEY_LINES="$$(ssh-keyscan -p $(NAS_SSH_PORT) $(LAN_NAS) 2>/dev/null | grep -v '^#')" ; \
 		if [ -z "$$NAS_KEY_LINES" ]; then \
 			echo "❌ Failed to obtain NAS host key via ssh-keyscan" ; \
 			exit 1 ; \
 		fi ; \
+		$(SSH_ROUTER) "mkdir -p /root/.ssh && chmod 700 /root/.ssh && touch /root/.ssh/known_hosts && chmod 600 /root/.ssh/known_hosts"; \
 		printf "%s\n" "$$NAS_KEY_LINES" | while IFS= read -r line; do \
-			$(SSH_ROUTER) "\
-				touch /root/.ssh/known_hosts && \
-				chmod 600 /root/.ssh/known_hosts && \
-				grep -Fqx \"$$line\" /root/.ssh/known_hosts || echo \"$$line\" >> /root/.ssh/known_hosts \
-			"; \
-		done ; \
+			[ -n "$$line" ] || continue; \
+			$(SSH_ROUTER) "grep -Fqx '$$line' /root/.ssh/known_hosts || echo '$$line' >> /root/.ssh/known_hosts"; \
+		done; \
 	fi ; \
 	\
 	# Step 4: compare hashes cleanly via exact variable matches \
 	if [ "$$REMOTE_HASH_RUN_AS_ROOT" = "$$LOCAL_HASH_RUN_AS_ROOT" ] && \
 	   [ "$$REMOTE_HASH_INSTALL_CERT" = "$$LOCAL_HASH_INSTALL_CERT" ] && \
 	   [ "$$REMOTE_HASH_RESET_ROUTER" = "$$LOCAL_HASH_RESET_ROUTER" ] ; then \
-		echo "🟢 Bootstrap primitives already up-to-date" ; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 Bootstrap primitives already up-to-date"; fi; \
 		exit 0 ; \
 	else \
 		# Step 5: slow path — stream all three \
@@ -153,7 +151,7 @@ router-bootstrap: \
 
 .PHONY: ensure-router-ula
 ensure-router-ula: ensure-state-dirs secrets-ready router-bootstrap-primitives | $(INSTALL_FILES_IF_CHANGED)
-	@echo "🔧 Ensuring router ULA ($(ROUTER_ULA_VALUE))"; \
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔧 Ensuring router ULA ($(ROUTER_ULA_VALUE))"; fi; \
 	$(call TMPFILE_BLOCK,"$(TMP_ROUTER_ULA)", \
 		$(call WITH_SECRETS, sh -c '\
 			TMPFILE="$(TMP_ROUTER_ULA)"; \
