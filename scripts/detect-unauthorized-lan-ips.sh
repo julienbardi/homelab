@@ -44,7 +44,9 @@ current_hash="$(stamp_compute_hash_lan_ips)"
 if [ -f "$STAMP" ]; then
     stored_hash="$(cat "$STAMP")"
     if [ "$current_hash" = "$stored_hash" ]; then
-        echo "⏩ LAN IP declarations unchanged — skipping"
+        if [ "${VERBOSE:-0}" -ge 1 ]; then
+            echo "⏩ LAN IP declarations unchanged — skipping"
+		fi
         exit 0
     fi
 fi

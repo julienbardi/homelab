@@ -31,7 +31,9 @@ current_hash="$(stamp_compute_hash_gitignore)"
 if [ -f "$STAMP" ]; then
 	stored_hash="$(cat "$STAMP")"
 	if [ "$current_hash" = "$stored_hash" ]; then
-		echo "⏩ gitignore unchanged — skipping"
+		if [ "${VERBOSE:-0}" -ge 1 ]; then
+			echo "⏩ gitignore unchanged — skipping"
+		fi
 		exit 0
 	fi
 fi

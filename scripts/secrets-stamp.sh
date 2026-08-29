@@ -47,7 +47,9 @@ current_hash="$(stamp_compute_hash_secrets)"
 if [ -f "$STAMP" ]; then
     stored_hash="$(cat "$STAMP")"
     if [ "$current_hash" = "$stored_hash" ]; then
-        echo "⏩ secrets unchanged — skipping"
+        if [ "${VERBOSE:-0}" -ge 1 ]; then
+            echo "⏩ secrets unchanged — skipping"
+        fi
         exit 0
     fi
 fi

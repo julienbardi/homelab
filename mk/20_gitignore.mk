@@ -29,27 +29,23 @@ lint-gitignore: $(GITIGNORE_CHECK_SCRIPT)
 # ------------------------------------------------------------
 .PHONY: repo-preflight
 repo-preflight: $(RUNTIME_SCRIPTS)
-	@echo "🚨 Running repo-preflight..."
-	@rc_secrets=0; rc_git=0; rc_sec_stamp=0; rc_lan=0; \
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🚨 Running repo-preflight..."; fi; \
+	rc_secrets=0; rc_git=0; rc_lan=0; \
 	\
-	# Only run heavy secret scan if secrets stamp indicates changes \
-	( REPO_ROOT="$(REPO_ROOT)" bash $(SECRETS_STAMP_SCRIPT) --check || REPO_ROOT="$(REPO_ROOT)" bash $(SECRETS_CHECK_SCRIPT) ) & p1=$$!; \
-	( REPO_ROOT="$(REPO_ROOT)" bash $(GITIGNORE_STAMP_SCRIPT) --check ) & p2=$$!; \
-	( REPO_ROOT="$(REPO_ROOT)" bash $(SECRETS_STAMP_SCRIPT) --check ) & p3=$$!; \
-	( REPO_ROOT="$(REPO_ROOT)" bash $(LAN_IP_CHECK_SCRIPT) --check ) & p4=$$!; \
+	( REPO_ROOT="$(REPO_ROOT)" VERBOSE="$(VERBOSE)" bash $(SECRETS_STAMP_SCRIPT) --check || REPO_ROOT="$(REPO_ROOT)" VERBOSE="$(VERBOSE)" bash $(SECRETS_CHECK_SCRIPT) ) & p1=$$!; \
+	( REPO_ROOT="$(REPO_ROOT)" VERBOSE="$(VERBOSE)" bash $(GITIGNORE_STAMP_SCRIPT) --check ) & p2=$$!; \
+	( REPO_ROOT="$(REPO_ROOT)" VERBOSE="$(VERBOSE)" bash $(LAN_IP_CHECK_SCRIPT) --check ) & p4=$$!; \
 	\
 	wait $$p1 || rc_secrets=$$?; \
 	wait $$p2 || rc_git=$$?; \
-	wait $$p3 || rc_sec_stamp=$$?; \
 	wait $$p4 || rc_lan=$$?; \
 	\
-	total=$$((rc_secrets + rc_git + rc_sec_stamp + rc_lan)); \
+	total=$$((rc_secrets + rc_git + rc_lan)); \
 	if [ $$total -ne 0 ]; then \
 		echo "❌ repo-preflight FAILED"; \
 		exit 1; \
 	fi; \
-	echo "✅ repo-preflight OK"
-
+	if [ "$(VERBOSE)" -ge 1 ]; then echo "✅ repo-preflight OK"; fi
 
 .PHONY: gitcheck update
 gitcheck:
