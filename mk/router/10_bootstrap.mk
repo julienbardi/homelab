@@ -168,11 +168,6 @@ ensure-router-ula: ensure-state-dirs secrets-ready router-bootstrap-primitives |
 		') \
 	)
 
-.PHONY: ensure-router-known-hosts
-ensure-router-known-hosts: install-ssh-config
-	@echo "🔐 Ensuring NAS host key is trusted on router (handled in bootstrap)"
-	@true
-
 # ------------------------------------------------------------
 # SCRIPT DEPLOYMENT ONLY
 # ------------------------------------------------------------
@@ -193,105 +188,68 @@ router-install-%: | router-bootstrap-primitives
 					$(ROUTER_SCRIPTS_OWNER) $(ROUTER_SCRIPTS_GROUP) $(ROUTER_SCRIPTS_MODE); \
 		fi
 
-ROUTER_IFC_MODE ?= vector
 
 .PHONY: router-install-scripts
-router-install-scripts: install-ssh-config \
-	ensure-router-known-hosts router-scripts-invariants \
-	$(INSTALL_FILE_IF_CHANGED) $(INSTALL_FILES_IF_CHANGED) \
+router-install-scripts: install-ssh-config $(INSTALL_FILES_IF_CHANGED) \
 	| repo-preflight ensure-router-ula
-	@echo "🔍 Router script converge ($(ROUTER_IFC_MODE), deterministic)";
-	@set -e; \
-	case "$(ROUTER_IFC_MODE)" in \
-		vector) \
-			echo "➡️  Using $(INSTALL_FILES_IF_CHANGED) (portable, zero-bootstrap)"; \
-			set --; \
-			for f in $(ROUTER_SCRIPT_FILES); do \
-			# f is already a full path (from ROUTER_SCRIPT_FILES) \
-			src="$$f"; \
-			dst="$(ROUTER_SCRIPTS)/$$(basename $$f)"; \
-			if [ ! -f "$$src" ]; then \
-				echo "⚠️ Skipping $$f — source $$src not found"; \
-				continue; \
-			fi; \
-			# Append one full 9-arg tuple: \
-			# SRC_HOST SRC_PORT SRC_PATH DST_HOST DST_PORT DST_PATH OWNER GROUP MODE \
-			set -- "$$@" "" "" "$$src" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$$dst" "$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)"; \
-			done; \
-			CHANGED=0; \
-			rc=0; \
-			$(INSTALL_FILES_IF_CHANGED) CHANGED "$$@" || rc=$$?; \
-			if [ "$$rc" -eq 3 ]; then \
-			echo "📝 Router scripts updated ($(ROUTER_IFC_MODE), deterministic)"; \
-			elif [ "$$rc" -eq 0 ]; then \
-			echo "🟢 Router scripts already up-to-date ($(ROUTER_IFC_MODE), deterministic)"; \
-			else \
-			echo "❌ Router scripts could not be installed (rc=$$rc) ($(ROUTER_IFC_MODE), deterministic)"; \
-			exit $$rc; \
-			fi \
-			;; \
-	  *) \
-		echo "➡️  Using $(INSTALL_FILE_IF_CHANGED) (portable, zero-bootstrap)"; \
-		for f in $(ROUTER_SCRIPT_FILES); do \
-		  src="$$f"; \
-		  dst="$(ROUTER_SCRIPTS)/$$(basename $$f)"; \
-		  if [ ! -f "$$src" ]; then \
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🔍 Installing scripts on router"; fi; \
+	set -e; \
+	set --; \
+	for f in $(ROUTER_SCRIPT_FILES); do \
+		src="$$f"; \
+		dst="$(ROUTER_SCRIPTS)/$$(basename $$f)"; \
+		if [ ! -f "$$src" ]; then \
 			echo "⚠️ Skipping $$f — source $$src not found"; \
 			continue; \
-		  fi; \
-		  rc=0; \
-		  $(INSTALL_FILE_IF_CHANGED) -q \
-			"" "" "$$src" \
-			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$$dst" \
-			"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)" \
-		  || rc=$$?; \
-		  if [ "$$rc" -eq 3 ]; then \
-			echo "📝 Router script updated $$dst ($(ROUTER_IFC_MODE), deterministic)"; \
-		  elif [ "$$rc" -eq 0 ]; then \
-			echo "🟢 Router script already up-to-date: $$dst ($(ROUTER_IFC_MODE), deterministic)"; \
-		  else \
-			echo "❌ Router scripts could not be installed $$f (rc=$$rc) ($(ROUTER_IFC_MODE), deterministic)"; \
-			exit $$rc; \
-		  fi; \
-		done \
-		;; \
-	esac; \
-	echo "🟢 All router scripts processed"
+		fi; \
+		set -- "$$@" "" "" "$$src" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$$dst" "$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "$(ROUTER_SCRIPTS_MODE)"; \
+	done; \
+	CHANGED=0; \
+	rc=0; \
+	$(INSTALL_FILES_IF_CHANGED) CHANGED "$$@" || rc=$$?; \
+	if [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		echo "📝 Router scripts updated"; \
+	elif [ "$$rc" -eq $(INSTALL_IF_CHANGED_EXIT_UNCHANGED) ]; then \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 Router scripts already up-to-date"; fi; \
+	else \
+		echo "❌ Router scripts could not be installed (rc=$$rc)"; \
+		exit $$rc; \
+	fi; \
+	if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 All router scripts processed"; fi
 
 .PHONY: router-scripts-invariants
-router-scripts-invariants: | router-ssh-check
-	@echo "🛡️ Enforcing /jffs/scripts invariants + WAN bootstrap if IPv4 route missing"
-
-	@$(SSH_ROUTER) '\
+router-scripts-invariants: router-install-scripts | router-ssh-check
+	@echo "🛡️ Enforcing /jffs/scripts invariants + WAN bootstrap if IPv4 route missing"; \
+	$(SSH_ROUTER) '\
 		set -e; \
 		\
 		# --- WAN bootstrap: ensure IPv4 default route exists --- \
 		if ! ip route show default | grep -q "dev eth0"; then \
-			echo "⚠️  No IPv4 default route — triggering wan-event bootstrap"; \
+			echo "No IPv4 default route — triggering wan-event bootstrap"; \
 			sh /jffs/scripts/wan-event 0 connected; \
 		else \
-			echo "🟢 IPv4 default route already present"; \
+			echo "IPv4 default route already present"; \
 		fi; \
 		\
 		# --- Script ownership + permissions invariants --- \
 		if [ -d /jffs/scripts ]; then \
 			/jffs/scripts/run-as-root chown -R julie:root /jffs/scripts; \
 			\
-			# Hook scripts (executed by AsusWRT) ➡️ 755 \
+			# Hook scripts (executed by AsusWRT) -> 755 \
 			for f in services-start firewall-start wan-event dnsmasq-ready.sh wg-firewall.sh; do \
 				if [ -f /jffs/scripts/$$f ]; then \
 					/jffs/scripts/run-as-root chmod 755 /jffs/scripts/$$f; \
 				fi; \
 			done; \
 			\
-			# Control-plane scripts ➡️ 700 \
+			# Control-plane scripts -> 700 \
 			for f in ipv6-watchdog.sh wan-reset.sh common.sh homelab-prefix-watchdog.sh; do \
 				if [ -f /jffs/scripts/$$f ]; then \
 					/jffs/scripts/run-as-root chmod 700 /jffs/scripts/$$f; \
 				fi; \
 			done; \
 			\
-			# State files ➡️ 600 \
+			# State files -> 600 \
 			for f in .ipv6_watchdog_state dhcp6c-state; do \
 				if [ -f /jffs/scripts/$$f ]; then \
 					/jffs/scripts/run-as-root chmod 600 /jffs/scripts/$$f; \
@@ -301,16 +259,15 @@ router-scripts-invariants: | router-ssh-check
 		\
 		# --- FIX: Instantly apply firewall and service hooks --- \
 		if [ -x /jffs/scripts/firewall-start ]; then \
-			echo "🔥 Triggering firewall-start hook..."; \
+			echo "Triggering firewall-start hook..."; \
 			/jffs/scripts/firewall-start || true; \
 		fi; \
 		if [ -x /jffs/scripts/services-start ]; then \
-			echo "⚙️ Triggering services-start hook..."; \
+			echo "Triggering services-start hook..."; \
 			/jffs/scripts/services-start || true; \
 		fi; \
-		\
-		echo "🟢 /jffs/scripts invariants enforced and applied"; \
-	'
+	'; \
+	echo "🟢 /jffs/scripts invariants enforced and applied"; \
 
 # Ensure runtime directory exists
 $(RUNTIME_DIR)/homelab:

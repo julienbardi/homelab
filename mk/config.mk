@@ -45,8 +45,6 @@ export SSH_USER_QNAP     := admin
 export SSH_USER_AC86U    := admin
 export SSH_USER_HUB01    := julie
 
-SSH_ROUTER := ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_ROUTER)@$(ROUTER_ADDR)
-
 # SSH host aliases (for ControlMaster reuse)
 export SSH_HOST_ROUTER := router
 export SSH_HOST_HUB01  := hub01
@@ -61,9 +59,6 @@ ACTUAL_HOME := $(or \
 	$(shell getent passwd $(ACTUAL_USER) | cut -d: -f6), \
 	$(HOME) \
 )
-
-# SSH Multiplexing Config
-SSH_SOCK_FILE_ROUTER := /tmp/ssh-$(ACTUAL_USER)-router-$(ROUTER_SSH_PORT)
 
 # Bind ROUTER_USER for dns-suite
 export ROUTER_USER := $(SSH_USER_ROUTER)
@@ -94,6 +89,11 @@ export ROUTER_LAN_IFACE  := br0
 export ROUTER_WAN_IFACE  := eth0
 
 export ROUTER_IDENTITY   := $(ACTUAL_HOME)/.ssh/id_ed25519
+
+# SSH Multiplexing Config
+SSH_SOCK_FILE_ROUTER := /tmp/ssh-$(ACTUAL_USER)-router-$(ROUTER_SSH_PORT)
+
+SSH_ROUTER := ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_ROUTER)@$(ROUTER_ADDR)
 
 # Router specific paths
 export ROUTER_SCRIPTS    := /jffs/scripts
