@@ -53,7 +53,7 @@ ensure-hub01-default-route: install-ssh-config secrets-ready
 # NAS
 nas-bootstrap: install-ssh-config ensure-host-default-route
 	@if ping -c1 $(LAN_NAS) >/dev/null 2>&1; then \
-		echo "🟢 NAS $(LAN_NAS) reachable"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 NAS $(LAN_NAS) reachable"; fi; \
 	else \
 		echo "⚠️ NAS $(LAN_NAS) unreachable"; \
 		exit 0; \
@@ -62,7 +62,7 @@ nas-bootstrap: install-ssh-config ensure-host-default-route
 # Synology
 synology-bootstrap: install-ssh-config ensure-host-default-route
 	@if ping -c1 $(LAN_SYNOLOGY) >/dev/null 2>&1; then \
-		echo "🟢 NAS $(LAN_SYNOLOGY) reachable"; \
+		if [ "$(VERBOSE)" -ge 1 ]; echo "🟢 NAS $(LAN_SYNOLOGY) reachable"; fi; \
 	else \
 		echo "⚠️ NAS $(LAN_SYNOLOGY) unreachable"; \
 		exit 0; \
@@ -71,14 +71,12 @@ synology-bootstrap: install-ssh-config ensure-host-default-route
 # QNAP
 .PHONY: qnap-bootstrap
 qnap-bootstrap: install-ssh-config ensure-host-default-route
-	@if ! ping -c1 $(QNAP_ADDR) >/dev/null 2>&1; then \
+	@if ! ping -c1 $(LAN_QNAP) >/dev/null 2>&1; then \
 		echo "⚠️ QNAP unreachable — skipping qnap-bootstrap"; \
 		exit 0; \
 	fi; \
-	echo "🔧 QNAP reachable — healing route…"; \
-	$(call REMOTE_DEFAULT_ROUTE_HEALER,$(SSH_HOST_QNAP),$(QNAP_LAN_IFACE)); \
-	echo "🔧 Running QNAP bootstrap…"; \
-	# TODO: QNAP bootstrap commands here
+	if [ "$(VERBOSE)" -ge 1 ]; then echo "🔧 QNAP reachable — healing route…"; fi; \
+	$(call REMOTE_DEFAULT_ROUTE_HEALER,$(SSH_HOST_QNAP),$(QNAP_LAN_IFACE))
 
 # hub01
 .PHONY: hub01-bootstrap
@@ -87,7 +85,5 @@ hub01-bootstrap: install-ssh-config ensure-hub01-default-route
 		echo "⚠️ hub01 unreachable — skipping hub01-bootstrap"; \
 		exit 0; \
 	fi; \
-	echo "🔧 hub01 reachable — healing route…"; \
-	$(call REMOTE_DEFAULT_ROUTE_HEALER,$(SSH_HOST_HUB01),$(HUB01_LAN_IFACE)); \
-	echo "🔧 Running hub01 bootstrap…"; \
-	# TODO: hub01 bootstrap commands here
+	if [ "$(VERBOSE)" -ge 1 ]; then echo "🔧 hub01 reachable — healing route…"; fi; \
+	$(call REMOTE_DEFAULT_ROUTE_HEALER,$(SSH_HOST_HUB01),$(HUB01_LAN_IFACE))
