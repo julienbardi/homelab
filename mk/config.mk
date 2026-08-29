@@ -47,6 +47,7 @@ export SSH_USER_HUB01    := julie
 
 # SSH host aliases (for ControlMaster reuse)
 export SSH_HOST_ROUTER := router
+export SSH_HOST_QNAP   := qnap
 export SSH_HOST_HUB01  := hub01
 
 # SSH options for router access: accept-new not yes so that automation survives router resets
