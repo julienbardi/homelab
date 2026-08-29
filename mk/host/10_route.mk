@@ -22,23 +22,9 @@ endef
 # ------------------------------------------------------------
 # HOST DEFAULT ROUTE HEALER (always safe, always local)
 # ------------------------------------------------------------
-STAMP_HOST_ROUTE_TS  := $(STAMP_DIR_ROOT)/host-default-route.last-check
-STAMP_TTL_SECONDS    := 30
-
 .PHONY: ensure-host-default-route
 ensure-host-default-route: ensure-state-dirs
 	@{ \
-		NOW=$$(date +%s); \
-		LAST=0; \
-		if [ -f "$(STAMP_HOST_ROUTE_TS)" ]; then \
-			LAST=$$(cat "$(STAMP_HOST_ROUTE_TS)" 2>/dev/null || echo 0); \
-		fi; \
-		AGE=$$(expr $$NOW - $$LAST); \
-		if [ $$AGE -lt $(STAMP_TTL_SECONDS) ]; then \
-			echo "⏩ ensure-host-default-route (fast-path, age $$AGE s < $(STAMP_TTL_SECONDS)s)"; \
-			exit 0; \
-		fi; \
-		\
 		IFACE=$$(ip route get "$(LAN_ROUTER)" | \
 			awk '{for(i=1;i<=NF;i++) if($$i=="dev") print $$(i+1)}' | head -n1); \
 		if [ -z "$$IFACE" ]; then \
@@ -49,10 +35,8 @@ ensure-host-default-route: ensure-state-dirs
 			$(run_as_root) ip route add default via "$(LAN_ROUTER)" dev "$$IFACE" || true; \
 			echo "✅ Default route via $(LAN_ROUTER) on $$IFACE added"; \
 		else \
-			echo "🟢 Default route already via $(LAN_ROUTER) on $$IFACE"; \
+			if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 Default route already via $(LAN_ROUTER) on $$IFACE"; fi; \
 		fi; \
-		$(run_as_root) mkdir -p "$$(dirname "$(STAMP_HOST_ROUTE_TS)")"; \
-		echo $$NOW | $(run_as_root) tee "$(STAMP_HOST_ROUTE_TS)" >/dev/null; \
 	}
 
 # ------------------------------------------------------------
