@@ -3,9 +3,16 @@
 # --------------------------------------------------------------------
 
 router-ensure-wg-module: router-install-scripts
-		@if [ -z "$(ROUTER_WG_DIR)" ]; then echo "ERROR: ROUTER_WG_DIR undefined"; exit 1; fi; \
-		echo "🛡️ [router] Ensuring WireGuard kernel module on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)..."; \
-		ssh "$(SSH_HOST_ROUTER)" 'modprobe wireguard 2>/dev/null || true'
+	@if [ -z "$(ROUTER_WG_DIR)" ]; then echo "ERROR: ROUTER_WG_DIR undefined"; exit 1; fi; \
+	echo "🛡️ [router] Ensuring WireGuard kernel module on $(ROUTER_ADDR):$(ROUTER_SSH_PORT)..."; \
+	ssh "$(SSH_HOST_ROUTER)" '\
+		modprobe wireguard 2>/dev/null || true; \
+		if ! ip link add type wireguard help 2>/dev/null && ! lsmod | grep -q wireguard; then \
+			echo "❌ WireGuard kernel module or support is not active on the router."; \
+			echo "👉 Please log into the Asuswrt-Merlin router web interface, enable Wireguard under VPN, or ensure the kernel module can load."; \
+			exit 1; \
+		fi \
+	'
 
 # VERSION: 2026.08.17-clean-router-keys
 router-bootstrap-wg-keys:
@@ -96,7 +103,21 @@ wg-install-router: router-ensure-wg-module \
 				$(WG_ENV) \
 				ROUTER_CONTROL_PLANE=1 \
 				$(INSTALL_PATH)/wgctl.sh router install-up || EC=$$?; \
-				if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then exit "$$EC"; fi; \
+				if [ "$$EC" != "0" ] && [ "$$EC" != "3" ]; then \
+					echo ""; \
+					echo "❌ ERROR: Failed to bring up WireGuard interface on router."; \
+					echo "👉 Configuration details extracted from wireguard/input/wg-interfaces.tsv:"; \
+					awk '\''NR>1 && $2=="router" { \
+						printf "   - Interface: %s\n", $1; \
+						printf "   - Host: %s\n", $2; \
+						printf "   - Listen Port: %s\n", $3; \
+						printf "   - MTU: %s\n", $4; \
+						printf "   - IPv4 Address: %s\n", $5; \
+						printf "   - IPv6 Address: %s\n", $6; \
+					}'\'' wireguard/input/wg-interfaces.tsv; \
+					echo ""; \
+					exit "$$EC"; \
+				fi; \
 				$(WG_SUDO) rm -f "$(WG_ROUTER_DIRTY_STAMP)"; \
 		else \
 				echo "✨ Router interfaces match runtime expectations (skipping processing)"; \
@@ -104,10 +125,25 @@ wg-install-router: router-ensure-wg-module \
 	'
 
 wg-up-router: wg-install-router
-		@SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
-		$(WG_ENV) \
-		ROUTER_CONTROL_PLANE=1 \
-		$(INSTALL_PATH)/wgctl.sh router up
+	@SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
+	$(WG_ENV) \
+	ROUTER_CONTROL_PLANE=1 \
+	$(INSTALL_PATH)/wgctl.sh router up || { \
+		EC=$$?; \
+		echo ""; \
+		echo "❌ ERROR: Failed to bring up WireGuard interface on router."; \
+		echo "👉 Configuration details extracted from wireguard/input/wg-interfaces.tsv:"; \
+		awk 'NR>1 && $$2=="router" { \
+			printf "   - Interface: %s\n", $$1; \
+			printf "   - Host: %s\n", $$2; \
+			printf "   - Listen Port: %s\n", $$3; \
+			printf "   - MTU: %s\n", $$4; \
+			printf "   - IPv4 Address: %s\n", $$5; \
+			printf "   - IPv6 Address: %s\n", $$6; \
+		}' wireguard/input/wg-interfaces.tsv; \
+		echo ""; \
+		exit "$$EC"; \
+	}
 
 wg-down-router:
 		@SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
