@@ -20,7 +20,10 @@ RESOLVER="${1:-127.0.0.1}"
 PER_RUN="${2:-2000}"
 
 DNSMASQ_CONF_DIR="/usr/ugreen/etc/dnsmasq/dnsmasq.d"
-DNS_FORWARD_MAX=$(grep -Rhs '^dns-forward-max=' "$DNSMASQ_CONF_DIR" | tail -n1 | cut -d= -f2)
+DNS_FORWARD_MAX=""
+if [ -d "$DNSMASQ_CONF_DIR" ]; then
+    DNS_FORWARD_MAX=$(grep -Rhs '^dns-forward-max=' "$DNSMASQ_CONF_DIR" 2>/dev/null | tail -n1 | cut -d= -f2 || true)
+fi
 DNS_FORWARD_MAX=${DNS_FORWARD_MAX:-default}
 
 # ----------------------------

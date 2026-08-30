@@ -41,10 +41,11 @@ install-dns-warm-policy: install-all
 # Fix parallel ordering
 update-dns-warm-domains: dns-warm-install-script install-dns-warm-policy dns-warm-dirs prereqs-dns-warm-verify
 	@echo "🌐 Updating dns-warm domain list"
-	@$(run_as_root) $(DNS_WARM_POLICY_DST)
-	@$(run_as_root) chown root:root $(DOMAINS_FILE)
-	@$(run_as_root) chmod 0644 $(DOMAINS_FILE)
-	@if [ -f $(STATE_FILE) ]; then $(run_as_root) chown $(DNS_WARM_USER):$(DNS_WARM_GROUP) $(STATE_FILE); fi
+	@$(run_as_root) sh -c '\
+		"$(DNS_WARM_POLICY_DST)" && \
+		chown root:root "$(DOMAINS_FILE)" && \
+		chmod 0644 "$(DOMAINS_FILE)" && \
+		if [ -f "$(STATE_FILE)" ]; then chown $(DNS_WARM_USER):$(DNS_WARM_GROUP) "$(STATE_FILE)"; fi'
 
 prereqs-dns-warm-verify:
 	@command -v funzip >/dev/null || { \
@@ -54,8 +55,8 @@ prereqs-dns-warm-verify:
 	}
 
 # Install missing tools for dns-warm
-prereqs-dns-warm-install:
-	$(call apt_install, funzip, unzip)
+prereqs-dns-warm-install: prereqs-run
+	$(call apt_install, funzip, unzip, libc-ares-dev)
 
 # Wire install ➡️ verify
 prereqs-dns-warm: prereqs-dns-warm-install prereqs-dns-warm-verify
@@ -65,6 +66,7 @@ prereqs-dns-warm: prereqs-dns-warm-install prereqs-dns-warm-verify
 # -------------------------------------------------
 
 dns-warm-install: \
+	prereqs-dns-warm \
 	dns-warm-create-user \
 	dns-warm-dirs \
 	install-dns-warm-policy \
@@ -112,52 +114,39 @@ dns-warm-create-user: enforce-groups
 	@id -u $(DNS_WARM_USER) >/dev/null 2>&1 || { echo "❌ User $(DNS_WARM_USER) creation failed in groups.mk"; exit 1; }
 
 dns-warm-dirs:
-	@$(run_as_root) mkdir -p $(DOMAINS_DIR) $(DNS_WARM_STATE_DIR)
-	@$(run_as_root) chown -R $(DNS_WARM_USER):$(DNS_WARM_GROUP) $(DNS_WARM_STATE_DIR)
-	@$(run_as_root) chown -R root:root $(DOMAINS_DIR)
-	@$(run_as_root) chmod 750 $(DNS_WARM_STATE_DIR)
+	@$(run_as_root) sh -c '\
+		install -d -m 0750 -o $(DNS_WARM_USER) -g $(DNS_WARM_GROUP) $(DNS_WARM_STATE_DIR) && \
+		install -d -m 0755 -o root -g root $(DOMAINS_DIR)'
 
 dns-warm-install-script: dns-warm-async-install install-all
 	@$(call install_file,$(ROTATE_SCRIPT_SRC),$(ROTATE_SCRIPT_PATH),$(DNS_WARM_USER),$(DNS_WARM_GROUP),0755)
 	@$(run_as_root) bash -n $(ROTATE_SCRIPT_PATH)
 
-# Fix parallel ordering
-# mk/71_dns-warm.mk (Update the printf block)
-
 dns-warm-install-systemd: dns-warm-install-script
-	@echo "📦 Installing systemd service and timer..."
-	@$(run_as_root) mkdir -p $(SYSTEMD_DIR)
-	@$(run_as_root) printf "[Unit]\n\
-Description=DNS cache warming job\n\
-After=network.target\n\n\
-[Service]\n\
-Type=oneshot\n\
-User=%s\n\
-Group=%s\n\
-ExecStart=/usr/bin/env bash %s %s %s\n\
-Nice=10\n\
-WorkingDirectory=%s\n\
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n\n\
-[Install]\n\
-WantedBy=multi-user.target\n" \
-		"$(DNS_WARM_USER)" \
-		"$(DNS_WARM_GROUP)" \
-		"$(ROTATE_SCRIPT_PATH)" \
-		"$(RESOLVER)" \
-		"$(PER_RUN)" \
-		"$(DNS_WARM_STATE_DIR)" | $(run_as_root) tee $(SERVICE_PATH) > /dev/null
-	@$(run_as_root) chmod 644 $(SERVICE_PATH)
-	@$(run_as_root) printf "[Unit]\n\
-Description=Run DNS cache warmer every minute\n\n\
-[Timer]\n\
-OnBootSec=2min\n\
-OnUnitInactiveSec=1m\n\
-AccuracySec=1s\n\
-Persistent=true\n\n\
-[Install]\n\
-WantedBy=timers.target\n" | $(run_as_root) tee $(TIMER_PATH) > /dev/null
-	@$(run_as_root) chmod 644 $(TIMER_PATH)
-	@$(run_as_root) systemctl daemon-reload
+	@echo "📦 Checking systemd service and timer..."
+	@$(run_as_root) sh -c '\
+		mkdir -p "$(SYSTEMD_DIR)" && \
+		TMP_SVC=$$(mktemp) && TMP_TMR=$$(mktemp) && \
+		printf "[Unit]\nDescription=DNS cache warming job\nAfter=network.target\n\n[Service]\nType=oneshot\nUser=%s\nGroup=%s\nExecStart=/usr/bin/env bash %s %s %s\nNice=10\nWorkingDirectory=%s\nEnvironment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n\n[Install]\nWantedBy=multi-user.target\n" \
+			"$(DNS_WARM_USER)" \
+			"$(DNS_WARM_GROUP)" \
+			"$(ROTATE_SCRIPT_PATH)" \
+			"$(RESOLVER)" \
+			"$(PER_RUN)" \
+			"$(DNS_WARM_STATE_DIR)" > "$$TMP_SVC" && \
+		printf "[Unit]\nDescription=Run DNS cache warmer every minute\n\n[Timer]\nOnBootSec=2min\nOnUnitInactiveSec=1m\nAccuracySec=1s\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n" > "$$TMP_TMR" && \
+		CHANGED=0 && \
+		if ! cmp -s "$$TMP_SVC" "$(SERVICE_PATH)"; then \
+			cp "$$TMP_SVC" "$(SERVICE_PATH)" && chmod 644 "$(SERVICE_PATH)" && CHANGED=1; \
+		fi && \
+		if ! cmp -s "$$TMP_TMR" "$(TIMER_PATH)"; then \
+			cp "$$TMP_TMR" "$(TIMER_PATH)" && chmod 644 "$(TIMER_PATH)" && CHANGED=1; \
+		fi && \
+		rm -f "$$TMP_SVC" "$$TMP_TMR" && \
+		if [ "$$CHANGED" -eq 1 ]; then \
+			echo "🔄 Systemd units updated, reloading daemon..." && \
+			systemctl daemon-reload; \
+		fi'
 
 # ------------------------------------------------------------
 # Async DNS cache warmer (c-ares based)
@@ -220,7 +209,7 @@ dns-warm-health:
 	fi
 	@echo "✅ DNS-warm health check complete"
 
-dns-warm-now: update-dns-warm-domains dns-warm-start dns-warm-health
+dns-warm-now: dns-warm-install-systemd update-dns-warm-domains dns-warm-start dns-warm-health
 	@echo "📜 Last warm run:"
 	@journalctl -u $(SERVICE) -n 1 --no-pager || true
 	@echo "✅ dns-warm-now complete"

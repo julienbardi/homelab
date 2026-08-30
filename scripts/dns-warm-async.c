@@ -1,57 +1,27 @@
 /* dns-warm-async.c */
 #include <ares.h>
-#include <arpa/nameser.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <poll.h>
 #include <unistd.h>
 #include <time.h>
 
-#define MAX_INFLIGHT 768   /* tuning knob - 768 has no packet loss and same runtime as 2048  netstat -su > /tmp/udp.before;netstat -su > /tmp/udp.after;diff -u /tmp/udp.before /tmp/udp.after*/
+/* tuning knob - 768 has no packet loss and same runtime as 2048  netstat -su > /tmp/udp.before;netstat -su > /tmp/udp.after;diff -u /tmp/udp.before /tmp/udp.after*/
+#define MAX_INFLIGHT 768
 
-static int pending = 0;
-/* forward declaration */
-static void drive_ares(ares_channel channel);
-
-/* helpers */
 static double now_sec(void)
 {
     struct timespec ts;
-
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
-static void query_cb(void *arg, int status, int timeouts,
-    unsigned char *abuf, int alen)
+static void query_cb(void *arg, ares_status_t status, size_t timeouts, const ares_dns_record_t *dnsrec)
 {
     (void)arg;
     (void)status;
     (void)timeouts;
-    (void)abuf;
-    (void)alen;
-
-    /* We don't care about the answer, only that it was attempted */
-    pending--;
-}
-
-static void drive_ares(ares_channel channel)
-{
-    fd_set rfds, wfds;
-    FD_ZERO(&rfds);
-    FD_ZERO(&wfds);
-
-    int nfds = ares_fds(channel, &rfds, &wfds);
-    if (nfds == 0)
-        return;
-
-    struct timeval tv, *tvp;
-    tvp = ares_timeout(channel, NULL, &tv);
-
-    poll(NULL, 0,
-         tvp->tv_sec * 1000 + tvp->tv_usec / 1000);
-    ares_process(channel, &rfds, &wfds);
+    (void)dnsrec;
 }
 
 int main(int argc, char **argv)
@@ -72,12 +42,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    ares_channel channel;
+    ares_channel_t *channel;
     struct ares_options opts = {
         .timeout = 2000,
         .tries = 1,
     };
-    int optmask = ARES_OPT_TIMEOUTMS | ARES_OPT_TRIES;
+    int optmask = ARES_OPT_TIMEOUTMS | ARES_OPT_TRIES | ARES_OPT_EVENT_THREAD;
 
     if (ares_init_options(&channel, &opts, optmask) != ARES_SUCCESS) {
         fprintf(stderr, "ares_init_options failed\n");
@@ -99,33 +69,18 @@ int main(int argc, char **argv)
         if (*line == '\0')
             continue;
 
-        /* Throttle submission */
-        while (pending >= MAX_INFLIGHT)
-            drive_ares(channel);
+        /* Throttle submission using modern queue tracking */
+        while (ares_queue_active_queries(channel) >= MAX_INFLIGHT)
+            usleep(1000);
 
         domains++;
-        pending++;
-        ares_query(channel, line, ns_c_in, ns_t_a, query_cb, NULL);
+        ares_query_dnsrec(channel, line, ARES_CLASS_IN, ARES_REC_TYPE_A, query_cb, NULL, NULL);
     }
 
     fclose(f);
 
-    while (pending > 0) {
-        fd_set rfds, wfds;
-        FD_ZERO(&rfds);
-        FD_ZERO(&wfds);
-
-        int nfds = ares_fds(channel, &rfds, &wfds);
-        if (nfds == 0)
-            break;
-
-        struct timeval tv, *tvp;
-        tvp = ares_timeout(channel, NULL, &tv);
-
-        poll(NULL, 0,
-             tvp->tv_sec * 1000 + tvp->tv_usec / 1000);
-        ares_process(channel, &rfds, &wfds);
-    }
+    /* Wait for all pending queries to finish using the background event thread */
+    ares_queue_wait_empty(channel, -1);
 
     double end = now_sec();
 

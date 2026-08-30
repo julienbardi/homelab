@@ -11,6 +11,7 @@ PREREQS_PACKAGES := \
 	ndppd \
 	wireguard-tools \
 	unzip \
+	libc-ares-dev \
 	qrencode \
 	ldnsutils \
 	coreutils util-linux
