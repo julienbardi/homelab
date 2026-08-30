@@ -11,6 +11,7 @@ $(TAILSCALE_KEYRING):
 		$(INSTALL_FILE_IF_CHANGED) -q "" "" "$$tmp" "" "" "$(TAILSCALE_KEYRING)" root root 0644; \
 	'
 
+.PHONY: fix-tailscale-repo
 fix-tailscale-repo:
 	@sh -c '\
 		if [ ! -f "$(TAILSCALE_REPO_FILE)" ]; then \

@@ -1,31 +1,30 @@
 # config.mk — committed, non-secret configuration
 
 # LAN Topology (authoritative)
-export LAN_NET      := 10.89.12.0/24
-export LAN_NET_ADDR := 10.89.12.0
-export LAN_ROUTER   := 10.89.12.1
-export LAN_SYNOLOGY := 10.89.12.2
-export LAN_QNAP     := 10.89.12.3
-export LAN_NAS      := 10.89.12.4
-export LAN_AC86U    := 10.89.12.6
-export LAN_HUB01    := 10.89.12.11
+export LAN_NET         := 10.89.12.0/24
+export LAN_NET_ADDR    := 10.89.12.0
+export LAN_ROUTER      := 10.89.12.1
+export LAN_SYNOLOGY    := 10.89.12.2
+export LAN_QNAP        := 10.89.12.3
+export LAN_NAS         := 10.89.12.4
+export LAN_RASPBERRYPI := 10.89.12.5
+export LAN_AC86U       := 10.89.12.6
+export LAN_HUB01       := 10.89.12.11
 
 # IPv6 ULA Topology (authoritative)
-export LAN6_NET         := fd89:7a3b:42c0::/64
 export LAN6_PREFIX_BASE := fd89:7a3b:42c0
-export LAN6_PREFIX_LEN  := 48
+
 export LAN6_ROUTER      := fd89:7a3b:42c0::1
 export LAN6_SYNOLOGY    := fd89:7a3b:42c0::2
+export LAN6_QNAP        := fd89:7a3b:42c0::3
 export LAN6_NAS         := fd89:7a3b:42c0::4
 export LAN6_AC86U       := fd89:7a3b:42c0::6
 
-export LAN6_PREFIXLEN := 64
-
 # IPv6 policy target
-export ULA_PREFIX_NVRAM := fd89:7a3b:42c0::/48
-
-# Add others as needed:
-# export LAN6_QNAP     := ...
+export LAN6_PREFIX_LEN     := 48
+export LAN6_LAN_PREFIX_LEN := 64
+export ULA_PREFIX_NVRAM    := $(LAN6_PREFIX_BASE)::/$(LAN6_PREFIX_LEN)
+export LAN6_NET         := $(LAN6_PREFIX_BASE)::/$(LAN6_LAN_PREFIX_LEN)
 
 # WireGuard DNS topology (authoritative, non-secret)
 # Fastest-first ordering: DoH ➡️ Router IPv4 ➡️ NAS IPv6
@@ -137,8 +136,8 @@ export SSH_PORT_AC86U := 2222
 # ============================================================================
 
 # Homelab domain (canonical identity)
-DOMAIN               := bardi.ch
-export DOMAIN
+export DOMAIN               := bardi.ch
+export LAN_DOMAIN           := lan.bardi.ch
 RENEW_THRESHOLD_DAYS := 30
 export APT_CNAME_EXPECTED   := bardi.ch
 
@@ -187,9 +186,6 @@ SSL_DEPLOY_DIR_HEADSCALE := /etc/ssl/headscale
 
 # Unbound
 UNBOUND_PORT := 15335
-
-# Role
-ROLE := service
 
 # ----------------------------------------------------------------------------
 # 4. State / Stamp Directory Configuration

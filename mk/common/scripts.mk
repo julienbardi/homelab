@@ -69,7 +69,7 @@ $(INSTALL_PATH)/common.sh: $(COMMON_SRC) homelab-env | $(BOOTSTRAP_CORE)
 .PHONY: install-all uninstall-all assert-sanity
 
 install-all: assert-sanity $(BOOTSTRAP_FILES) $(OTHER_SBIN_FILES) $(BIN_FILES) install-router-prefix-watchdog $(run_as_root)
-	@if [ "$(VERBOSE)" -ge 1 ]; then echo "📦 [$(ROLE)] Homelab bootstrap complete."; fi
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "📦 Homelab bootstrap complete."; fi
 
 uninstall-all:
 	@echo "🗑️  Uninstalling all homelab scripts..."

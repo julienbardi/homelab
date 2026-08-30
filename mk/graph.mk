@@ -58,6 +58,7 @@ include $(REPO_ROOT)/mk/router/40_caddy.mk
 include $(REPO_ROOT)/mk/router/40_control.mk
 include $(REPO_ROOT)/mk/router/40_firewall.mk
 include $(REPO_ROOT)/mk/router/90_health.mk
+include $(REPO_ROOT)/mk/pve/network.mk
 
 # Step 5 — Everything else
 include $(REPO_ROOT)/mk/05_bootstrap_acme.mk

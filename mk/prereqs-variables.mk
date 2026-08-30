@@ -7,6 +7,7 @@ PREREQS_PACKAGES := \
 	apt-cacher-ng \
 	aspell \
 	aspell-en \
+	ethtool \
 	ndppd \
 	wireguard-tools \
 	unzip \
