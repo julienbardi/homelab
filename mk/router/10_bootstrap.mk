@@ -141,7 +141,7 @@ router-bootstrap: \
 	router-provision-nvram \
 	router-dhcp-range-ensure \
 	router-dhcp-static-ensure \
-	router-dnsmasq-sync \
+	router-dnsmasq-restart \
 	install-ssh-config \
 	router-ddns \
 	router-nat-install \

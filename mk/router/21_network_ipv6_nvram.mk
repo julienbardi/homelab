@@ -103,6 +103,7 @@ router-dhcp-static-export-secrets: router-ssh-check
 
 define NVRAM_GET_IPV6
 ssh "$(SSH_HOST_ROUTER)" "\
+	set +u; \
 	nvram get ipv6_ula_prefix 2>/dev/null || echo unset; \
 	nvram get ipv6_lan_addr 2>/dev/null || echo unset; \
 	nvram get ipv6_lan_prefix 2>/dev/null || echo unset"
@@ -110,18 +111,24 @@ endef
 
 .PHONY: router-provision-nvram
 router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
-	@if [ "$(VERBOSE)" -ge 1 ]; then \
-		echo "🛡️ Syncing Router NVRAM (ULA only — DNS handled by dns-enforcer) (no commit)"; \
-	fi
-
-	@vals="$$( $(call NVRAM_GET_IPV6) )"; \
-	set -- $$vals; \
+	@set +u; \
+	if [ "$(VERBOSE)" -ge 1 ]; then echo "🛡️ Syncing Router NVRAM (ULA only — DNS handled by dns-enforcer) (no commit)"; fi; \
+	vals="$$( $(call NVRAM_GET_IPV6) )"; \
+	set -- $${vals:-unset unset unset}; \
 	cur_prefix="$$1"; \
 	cur_lan_addr="$$2"; \
 	cur_lan_prefix="$$3"; \
 	\
+	if [ -z "$$cur_prefix" ] || [ "$$cur_prefix" = "unset" ] || \
+	   [ -z "$$cur_lan_addr" ] || [ "$$cur_lan_addr" = "unset" ] || \
+	   [ -z "$$cur_lan_prefix" ] || [ "$$cur_lan_prefix" = "unset" ]; then \
+		echo "ℹ️ IPv6 is not active or uninitialized on the router NVRAM."; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "👉 Please log into the router web interface, enable Native IPv6, and set the LAN prefix length to 64."; \
+		fi; \
+	fi; \
 	# --- Converge ipv6_ula_prefix --- \
-	if [ "$$cur_prefix" != "$(ULA_PREFIX_NVRAM)" ]; then \
+	if [ -z "$$cur_prefix" ] || [ "$$cur_prefix" = "unset" ] || [ "$$cur_prefix" != "$(ULA_PREFIX_NVRAM)" ]; then \
 		ssh "$(SSH_HOST_ROUTER)" "\
 			nvram set ipv6_ula_prefix='$(ULA_PREFIX_NVRAM)'; \
 			nvram set ipv6_ula_enable=1; \
@@ -134,7 +141,7 @@ router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
 	fi; \
 	\
 	# --- Converge ipv6_lan_addr --- \
-	if [ "$$cur_lan_addr" != "$(LAN6_ROUTER)" ]; then \
+	if [ -z "$$cur_lan_addr" ] || [ "$$cur_lan_addr" = "unset" ] || [ "$$cur_lan_addr" != "$(LAN6_ROUTER)" ]; then \
 		ssh "$(SSH_HOST_ROUTER)" "\
 			nvram set ipv6_lan_addr='$(LAN6_ROUTER)'; \
 			touch /jffs/homelab_nvram_dirty"; \
@@ -146,14 +153,14 @@ router-provision-nvram: secrets-ready | ensure-router-ula router-ssh-check
 	fi; \
 	\
 	# --- Converge ipv6_lan_prefix --- \
-	if [ "$$cur_lan_prefix" != "$(LAN6_PREFIX_LEN)" ]; then \
+	if [ -z "$$cur_lan_prefix" ] || [ "$$cur_lan_prefix" = "unset" ] || [ "$$cur_lan_prefix" != "$(LAN6_LAN_PREFIX_LEN)" ]; then \
 		ssh "$(SSH_HOST_ROUTER)" "\
-			nvram set ipv6_lan_prefix='$(LAN6_PREFIX_LEN)'; \
+			nvram set ipv6_lan_prefix='$(LAN6_LAN_PREFIX_LEN)'; \
 			touch /jffs/homelab_nvram_dirty"; \
-		echo "🟢 ULA LAN prefix staged: ipv6_lan_prefix=$(LAN6_PREFIX_LEN)"; \
+		echo "🟢 ULA LAN prefix staged: ipv6_lan_prefix=$(LAN6_LAN_PREFIX_LEN)"; \
 	else \
 		if [ "$(VERBOSE)" -ge 1 ]; then \
-			echo "🟢 ULA LAN prefix already converged (ipv6_lan_prefix=$(LAN6_PREFIX_LEN))"; \
+			echo "🟢 ULA LAN prefix already converged (ipv6_lan_prefix=$(LAN6_LAN_PREFIX_LEN))"; \
 		fi; \
 	fi
 
@@ -279,12 +286,9 @@ router-nvram-converge: \
 	router-provision-nvram \
 	router-ra-policy \
 	router-dnsmasq-sync \
-	router-dnsmasq-conf \
 	router-ssh-check
-	@if [ "$(VERBOSE)" -ge 1 ]; then \
-		echo "🛡️ Committing NVRAM and restarting services (minimal restarts)"; \
-	fi
-	@ssh "$(SSH_HOST_ROUTER)" '\
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛡️ Committing NVRAM and restarting services (minimal restarts)"; fi; \
+	ssh "$(SSH_HOST_ROUTER)" '\
 		set -e; \
 		RESTART=0; \
 		\

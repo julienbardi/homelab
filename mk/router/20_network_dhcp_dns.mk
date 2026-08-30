@@ -113,73 +113,99 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 	')
 
 # ------------------------------------------------------------
-# dnsmasq templating + sync (files only, no restart)
+# DNS & DHCP Sovereign Infrastructure Synchronization & Validation
 # ------------------------------------------------------------
 
 .PHONY: router-dnsmasq-sync
 router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-primitives router-ssh-check
-	@echo "📡 Templating and Syncing DNS configuration for $(DOMAIN)..."
-
+	@echo "📡 Syncing sovereign DNS and network configuration files..."
 	@set -e; \
-	sed "s|\$${NAS_LAN_IP}|$(NAS_LAN_IP)|g; s|\$${DOMAIN}|$(DOMAIN)|g" \
-		"$(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add" \
-		> "$(TMP_DNSMASQ_ADD)"; \
-	\
-	cp "$(REPO_ROOT)/router/jffs/configs/hosts.add" "$(TMP_DNSMASQ_HOSTS)"; \
-	\
 	DNS_CHANGED=0; export DNS_CHANGED; \
 	VERBOSE=1 $(INSTALL_FILES_IF_CHANGED) DNS_CHANGED \
-		"" "" "$(TMP_DNSMASQ_ADD)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/dnsmasq.conf.add" \
-		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
-		"" "" "$(TMP_DNSMASQ_HOSTS)" "$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/hosts.add" \
-		"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
+		"" "" "$(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add" \
+			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/dnsmasq.conf.add" \
+			"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
+		"" "" "$(REPO_ROOT)/router/jffs/configs/hosts.add" \
+			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/configs/hosts.add" \
+			"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
+		"" "" "$(REPO_ROOT)/router/jffs/configs/profile.add" \
+			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "/jffs/profile.add" \
+			"$(ROUTER_SCRIPTS_OWNER)" "$(ROUTER_SCRIPTS_GROUP)" "0644" \
 		|| [ $$? -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; \
 	\
 	if [ "$$DNS_CHANGED" -eq 1 ]; then \
-		echo "🔄 DNS configuration changed (pending restart)"; \
+		echo "🔄 DNS configuration changes detected (pending test and restart)"; \
 		ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
 	else \
-		echo "✅ DNS configuration up-to-date (no restart needed)"; \
+		echo "✅ DNS configuration files up-to-date"; \
 	fi
 
+.PHONY: router-dnsmasq-validate
+router-dnsmasq-validate: router-dnsmasq-sync
+	@echo "🔍 Validating remote dnsmasq.conf.add against config.mk specifications..."
+	@printf '%s\n' \
+		'CONF="/jffs/configs/dnsmasq.conf.add"' \
+		'fail() { echo "❌ dnsmasq.conf.add drift: $$1"; exit 1; }' \
+		'[ -f "$$CONF" ] || fail "configuration file not found"' \
+		'check_line_exact() { grep -Fqx "$$1" "$$CONF" || fail "$$2"; }' \
+		'check_line_exact "domain=$(LAN_DOMAIN)" "domain mismatch"' \
+		'check_line_exact "local=/$(LAN_DOMAIN)/" "local zone mismatch"' \
+		'check_line_exact "expand-hosts" "expand-hosts missing"' \
+		'check_line_exact "localise-queries" "localise-queries missing"' \
+		'check_line_exact "address=/router.$(LAN_DOMAIN)/$(LAN_ROUTER)" "router IPv4 address mismatch"' \
+		'check_line_exact "address=/router.$(LAN_DOMAIN)/$(LAN6_ROUTER)" "router IPv6 address mismatch"' \
+		'check_line_exact "ptr-record=$(LAN_ROUTER),router.$(LAN_DOMAIN)" "router IPv4 PTR mismatch"' \
+		'check_line_exact "ptr-record=$(LAN6_ROUTER),router.$(LAN_DOMAIN)" "router IPv6 PTR mismatch"' \
+		'check_line_exact "address=/diskstation.$(LAN_DOMAIN)/$(LAN_SYNOLOGY)" "diskstation IPv4 mismatch"' \
+		'check_line_exact "address=/diskstation.$(LAN_DOMAIN)/$(LAN6_SYNOLOGY)" "diskstation IPv6 mismatch"' \
+		'check_line_exact "ptr-record=$(LAN_SYNOLOGY),diskstation.$(LAN_DOMAIN)" "diskstation IPv4 PTR mismatch"' \
+		'check_line_exact "ptr-record=$(LAN6_SYNOLOGY),diskstation.$(LAN_DOMAIN)" "diskstation IPv6 PTR mismatch"' \
+		'check_line_exact "address=/qnap.$(LAN_DOMAIN)/$(LAN_QNAP)" "qnap IPv4 mismatch"' \
+		'check_line_exact "address=/qnap.$(LAN_DOMAIN)/$(LAN6_QNAP)" "qnap IPv6 mismatch"' \
+		'check_line_exact "ptr-record=$(LAN_QNAP),qnap.$(LAN_DOMAIN)" "qnap IPv4 PTR mismatch"' \
+		'check_line_exact "ptr-record=$(LAN6_QNAP),qnap.$(LAN_DOMAIN)" "qnap IPv6 PTR mismatch"' \
+		'check_line_exact "address=/pve.$(LAN_DOMAIN)/$(LAN_NAS)" "pve IPv4 mismatch"' \
+		'check_line_exact "address=/pve.$(LAN_DOMAIN)/$(LAN6_NAS)" "pve IPv6 mismatch"' \
+		'check_line_exact "ptr-record=$(LAN_NAS),pve.$(LAN_DOMAIN)" "pve IPv4 PTR mismatch"' \
+		'check_line_exact "ptr-record=$(LAN6_NAS),pve.$(LAN_DOMAIN)" "pve IPv6 PTR mismatch"' \
+		'check_line_exact "address=/raspberrypi.$(LAN_DOMAIN)/$(LAN_HUB01)" "raspberrypi IPv4 mismatch"' \
+		'check_line_exact "address=/raspberrypi.$(LAN_DOMAIN)/fd89:7a3b:42c0::5" "raspberrypi IPv6 mismatch"' \
+		'check_line_exact "ptr-record=$(LAN_HUB01),raspberrypi.$(LAN_DOMAIN)" "raspberrypi IPv4 PTR mismatch"' \
+		'check_line_exact "ptr-record=fd89:7a3b:42c0::5,raspberrypi.$(LAN_DOMAIN)" "raspberrypi IPv6 PTR mismatch"' \
+		'check_line_exact "server=$(LAN_NAS)#$(UNBOUND_PORT)" "Unbound IPv4 upstream mismatch"' \
+		'check_line_exact "server=$(LAN6_NAS)#$(UNBOUND_PORT)" "Unbound IPv6 upstream mismatch"' \
+		'check_line_exact "server=/#/9.9.9.9" "fallback Quad9 IPv4 missing"' \
+		'check_line_exact "server=/#/2620:fe::fe" "fallback Quad9 IPv6 missing"' \
+		'check_line_exact "server=/#/130.59.31.248" "fallback Switch IPv4 missing"' \
+		'check_line_exact "server=/#/2001:620:0:ff::2" "fallback Switch IPv6 missing"' \
+		'check_line_exact "server=/#/185.95.218.42" "fallback Digitale Gesellschaft IPv4 missing"' \
+		'check_line_exact "server=/#/2a05:fc84::42" "fallback Digitale Gesellschaft IPv6 missing"' \
+		'check_line_exact "dhcp-option=6,$(LAN_ROUTER)" "DHCPv4 DNS mismatch"' \
+		'check_line_exact "dhcp-option=option6:dns-server,[$(LAN6_ROUTER)]" "DHCPv6 DNS mismatch"' \
+		'check_line_exact "dhcp-option=15,$(LAN_DOMAIN)" "DHCP option 15 domain mismatch"' \
+		'check_line_exact "all-servers" "all-servers concurrency flag missing"' \
+		'check_line_exact "domain-needed" "domain-needed hygiene flag missing"' \
+		'check_line_exact "bogus-priv" "bogus-priv hygiene flag missing"' \
+		'echo "dnsmasq.conf.add validated successfully"' \
+		| ssh "$(SSH_HOST_ROUTER)" "sh -s"
 
-# ------------------------------------------------------------
-# dnsmasq.conf.add deploy (files only, marks dirty on change)
-# ------------------------------------------------------------
+.PHONY: router-dnsmasq-test
+router-dnsmasq-test: router-dnsmasq-validate
+	@echo "🧪 Running dnsmasq syntax check on router..."
+	@ssh "$(SSH_HOST_ROUTER)" "dnsmasq --test"
 
-ROUTER_DNSMASQ_CONF := /jffs/configs/dnsmasq.conf.add
-LOCAL_DNSMASQ_CONF  := $(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add
-
-.PHONY: router-dnsmasq-conf
-router-dnsmasq-conf: secrets-ready ensure-host-default-route router-bootstrap-primitives ensure-router-ula router-ssh-check
-	@echo "🔧 Installing dnsmasq.conf.add (no restart)"
-	@set -e; \
-	env CHANGED_EXIT_CODE=$(INSTALL_IF_CHANGED_EXIT_CHANGED) \
-		$(INSTALL_FILE_IF_CHANGED) \
-			"" "" "$(LOCAL_DNSMASQ_CONF)" \
-			"$(ROUTER_ADDR)" "$(ROUTER_SSH_PORT)" "$(ROUTER_DNSMASQ_CONF)" \
-			"0" "0" "0644"; \
-	RC=$$?; \
-	if [ $$RC -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
-		echo "🔄 dnsmasq.conf.add changed (pending restart)"; \
-		ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
-	elif [ $$RC -eq 0 ]; then \
-		echo "✅ dnsmasq.conf.add up-to-date"; \
-	else \
-		exit 1; \
-	fi
-
-	@echo "🔍 Checking if dnsmasq restart is required"
+.PHONY: router-dnsmasq-restart
+router-dnsmasq-restart: router-dnsmasq-test
+	@echo "⚙️ Evaluating dnsmasq service restart status..."
 	@ssh "$(SSH_HOST_ROUTER)" '\
 		touch /jffs/dnsmasq-config.ready; \
 		if [ -f /jffs/homelab_dnsmasq_changed ]; then \
-			echo "🔄 dnsmasq config changed — restarting dnsmasq"; \
+			echo "🔄 dnsmasq configuration changed — restarting dnsmasq service"; \
 			rm -f /jffs/homelab_dnsmasq_changed; \
-			killall dnsmasq 2>/dev/null; \
-			/usr/sbin/dnsmasq --log-async; \
+			service restart_dnsmasq; \
 			echo "🟢 dnsmasq restarted cleanly"; \
 		else \
-			echo "✅ dnsmasq config unchanged — no restart needed"; \
+			echo "✅ dnsmasq configuration unchanged — no restart required"; \
 		fi \
 	'
 
@@ -222,38 +248,39 @@ router-dhcp-list-static-format: secrets-ready router-ssh-check
 # ------------------------------------------------------------
 
 .PHONY: router-dnsmasq-invariants
-router-dnsmasq-invariants: router-ssh-check
-	@echo "🛡️ Validating dnsmasq invariants on router"
-	@ssh "$(SSH_HOST_ROUTER)" '\
+router-dnsmasq-invariants: router-ssh-check router-install-scripts
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛡️ Validating dnsmasq invariants on router"; fi; \
+	ssh "$(SSH_HOST_ROUTER)" '\
 		set -e; \
-		echo "🔍 Checking dnsmasq process"; \
-		pidof dnsmasq >/dev/null || { echo "❌ dnsmasq not running"; exit 1; }; \
+		echo "Checking dnsmasq process"; \
+		pidof dnsmasq >/dev/null || { echo "ERROR: dnsmasq not running"; exit 1; }; \
 		\
-		echo "🔍 Checking dnsmasq is serving local domain"; \
-		nslookup router.lan.bardi.ch 127.0.0.1 >/dev/null 2>&1 || { \
-			echo "❌ dnsmasq not serving LAN domain"; exit 1; }; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "Checking dnsmasq is serving local domain"; fi; \
+		nslookup localhost 127.0.0.1 >/dev/null 2>&1 || { \
+			echo "ERROR: dnsmasq not serving local domain"; exit 1; }; \
 		\
-		echo "🔍 Checking upstream resolvers"; \
-		grep -q "server=$(NAS_LAN_IP)#15335" /jffs/configs/dnsmasq.conf.add || { \
-			echo "❌ Missing IPv4 upstream to Unbound"; exit 1; }; \
-		grep -q "server=$(ROUTER_ULA_IP6)#15335" /jffs/configs/dnsmasq.conf.add || { \
-			echo "❌ Missing IPv6 upstream to Unbound"; exit 1; }; \
+		echo "Checking upstream resolvers"; \
+		[ -f /jffs/configs/dnsmasq.conf.add ] || { echo "ERROR: /jffs/configs/dnsmasq.conf.add missing"; exit 1; }; \
+		grep -q "server=$(NAS_LAN_IP)#$(UNBOUND_PORT)" /jffs/configs/dnsmasq.conf.add || { \
+			echo "ERROR: Missing IPv4 upstream to Unbound"; exit 1; }; \
+		grep -q "server=$(ROUTER_ULA_IP6)#$(UNBOUND_PORT)" /jffs/configs/dnsmasq.conf.add || { \
+			echo "ERROR: Missing IPv6 upstream to Unbound"; exit 1; }; \
 		\
-		echo "🔍 Checking dnsmasq is reachable on LAN"; \
-		nc -z -u 10.89.12.1 53 || { echo "❌ dnsmasq UDP/53 unreachable"; exit 1; }; \
-		nc -z    10.89.12.1 53 || { echo "❌ dnsmasq TCP/53 unreachable"; exit 1; }; \
+		echo "Checking dnsmasq is reachable on LAN"; \
+		nc -z -u $(LAN_ROUTER) 53 || { echo "ERROR: dnsmasq UDP/53 unreachable"; exit 1; }; \
+		nc -z    $(LAN_ROUTER) 53 || { echo "ERROR: dnsmasq TCP/53 unreachable"; exit 1; }; \
 		\
-		echo "🔍 Checking firewall allows router-local DNS"; \
+		echo "Checking firewall allows router-local DNS"; \
 		iptables -L HOMELAB_INPUT -n | grep -q "udp dpt:53" || { \
-			echo "❌ Missing UDP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
+			echo "ERROR: Missing UDP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
 		iptables -L HOMELAB_INPUT -n | grep -q "tcp dpt:53" || { \
-			echo "❌ Missing TCP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
+			echo "ERROR: Missing TCP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
 		\
-		echo "🔍 Checking dnsmasq RA policy (ULA-only)"; \
+		echo "Checking dnsmasq RA policy (ULA-only)"; \
 		if grep -q "constructor:br0" /jffs/configs/dnsmasq.conf.add; then \
-			echo "❌ Illegal RA constructor detected (global prefix leakage risk)"; \
+			echo "ERROR: Illegal RA constructor detected (global prefix leakage risk)"; \
 			exit 1; \
 		fi; \
 		\
-		echo "🟢 dnsmasq invariants satisfied"; \
-	'
+	'; \
+	if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 dnsmasq invariants satisfied"; fi
