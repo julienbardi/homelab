@@ -1,5 +1,6 @@
 #!/bin/sh
 # dnsmasq-ready.sh
+
 for i in 1 2 3 4 5 6 7 8 9 10; do
     if ! pidof dnsmasq >/dev/null 2>&1; then
         echo "… dnsmasq not running (attempt $i)"
@@ -7,24 +8,14 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
         continue
     fi
 
-    if ! nc -z -u 10.89.12.1 53 >/dev/null 2>&1; then
-        echo "… dnsmasq UDP/53 not ready (attempt $i)"
-        sleep 1
-        continue
-    fi
-
-    if ! nc -z 10.89.12.1 53 >/dev/null 2>&1; then
-        echo "… dnsmasq TCP/53 not ready (attempt $i)"
-        sleep 1
-        continue
-    fi
-
-    if nslookup router.lan.bardi.ch 10.89.12.1 >/dev/null 2>&1; then
+    # Functional query validation (checking stdout for expected router IP)
+    DNS_OUTPUT="$(nslookup router.lan.bardi.ch 10.89.12.1 2>/dev/null)"
+    if echo "$DNS_OUTPUT" | grep -q "10.89.12.1"; then
         echo "🟢 dnsmasq is ready"
         exit 0
     fi
 
-    echo "… dnsmasq answering but not authoritative (attempt $i)"
+    echo "… dnsmasq not yet authoritative (attempt $i)"
     sleep 1
 done
 
