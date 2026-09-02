@@ -170,7 +170,6 @@ ensure-router-ula: ensure-state-dirs secrets-ready router-bootstrap-primitives |
 # SCRIPT DEPLOYMENT ONLY
 # ------------------------------------------------------------
 
-#ROUTER_SCRIPT_FILES := $(shell ls $(REPO_ROOT)/router/jffs/scripts/ | sort -u)
 ROUTER_SCRIPT_FILES := $(wildcard $(REPO_ROOT)/router/jffs/scripts/* | sort -u)
 
 .PHONY: router-install-%

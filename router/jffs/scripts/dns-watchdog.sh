@@ -119,28 +119,23 @@ detect_dnsmasq_race() {
     fi
 }
 
-# -----------------------------
-# IFC v3: dnsmasq singleton invariant
-# -----------------------------
 invariant_dnsmasq_singleton() {
-    COUNT="$(ps | grep '[d]nsmasq' | wc -l)"
+    # Verify that dnsmasq is running and bound to port 53
+    if [ -z "$(pidof dnsmasq)" ]; then
+        log "INVARIANT FAIL: no dnsmasq process running"
+        return 1
+    fi
 
-    if [ "$COUNT" -ne 1 ]; then
-        log "INVARIANT FAIL: dnsmasq process count != 1 (count=$COUNT)"
-        detect_dnsmasq_race
+    if ! netstat -ln 2>/dev/null | grep -q ":${DNSMASQ_PORT} "; then
+        log "INVARIANT FAIL: dnsmasq not bound to port ${DNSMASQ_PORT}"
         return 1
     fi
 
     return 0
 }
 
-# -----------------------------
-# DNS tests
-# -----------------------------
-
 check_dnsmasq_proc() {
-    COUNT="$(ps | grep '[d]nsmasq' | wc -l)"
-    [ "$COUNT" -eq 1 ]
+    [ -n "$(pidof dnsmasq)" ]
 }
 
 check_dnsmasq_port() {

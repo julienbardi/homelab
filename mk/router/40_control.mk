@@ -77,9 +77,9 @@ router-dnsmasq-invariant:
 
 .PHONY: router-converge
 router-converge: \
-	router-dnsmasq-invariant \
 	router-ssh-check \
 	router-bootstrap \
+	router-dnsmasq-invariant \
 	router-firewall-hardened \
 	router-certs-deploy \
 	router-caddy \

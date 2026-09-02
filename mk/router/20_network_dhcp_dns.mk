@@ -17,7 +17,7 @@ DHCP_AGGREGATE = for v in $$(compgen -A variable | grep '^dhcp_static_'); do pri
 
 .PHONY: router-dhcp-static-validate
 router-dhcp-static-validate: secrets-ready
-	@$(call WITH_SECRETS, bash -c '\
+	@$(call WITH_SECRETS, LC_CTYPE=en_US.UTF-8 bash -c '\
 		entries="$$( $(DHCP_AGGREGATE) )"; \
 		if [ -z "$$entries" ]; then \
 			echo "⚠️ STATIC_DHCP is empty — nothing to validate"; \
@@ -25,29 +25,29 @@ router-dhcp-static-validate: secrets-ready
 		fi; \
 		ips=$$(printf "%s\n" $$entries | tr " " "\n" | awk -F"=" "{print \$$2}"); \
 		if echo "$$ips" | grep -Eq "\.1$$"; then \
-			echo "❌ ERROR: STATIC_DHCP contains forbidden IP ending in .1"; \
+			echo "❌ STATIC_DHCP contains forbidden IP ending in .1"; \
 			echo "$$ips" | grep "\.1$$"; \
 			exit 1; \
 		fi; \
 		if echo "$$ips" | awk -F. "\$$4 > $(DHCP_STATIC_MAX) {print}" | grep -q .; then \
-			echo "❌ ERROR: STATIC_DHCP contains IPs >= .$$(($(DHCP_STATIC_MAX)+1))"; \
+			echo "❌ STATIC_DHCP contains IPs >= .$$(($(DHCP_STATIC_MAX)+1))"; \
 			echo "$$ips" | awk -F. "\$$4 > $(DHCP_STATIC_MAX)"; \
 			exit 1; \
 		fi; \
 		dups=$$(printf "%s\n" $$ips | sort | uniq -d); \
 		if [ -n "$$dups" ]; then \
-			echo "❌ ERROR: Duplicate IPs detected"; \
+			echo "❌ Duplicate IPs detected"; \
 			echo "$$dups"; \
 			exit 1; \
 		fi; \
 		macs=$$(printf "%s\n" $$entries | tr " " "\n" | awk -F"=" "{print \$$1}"); \
 		mac_dups=$$(printf "%s\n" $$macs | sort | uniq -d); \
 		if [ -n "$$mac_dups" ]; then \
-			echo "❌ ERROR: Duplicate MACs detected"; \
+			echo "❌ Duplicate MACs detected"; \
 			echo "$$mac_dups"; \
 			exit 1; \
 		fi; \
-		echo "🟢 STATIC_DHCP validation passed"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 STATIC_DHCP validation passed"; fi; \
 	')
 
 # ------------------------------------------------------------
@@ -56,9 +56,8 @@ router-dhcp-static-validate: secrets-ready
 
 .PHONY: router-dhcp-range-ensure
 router-dhcp-range-ensure: secrets-ready | ensure-router-ula router-ssh-check
-	@echo "🛡️ Enforcing DHCP pool range via NVRAM (no commit, no restart)"
-
-	@ssh "$(SSH_HOST_ROUTER)" 'set -e; \
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛡️ Enforcing DHCP pool range via NVRAM (no commit, no restart)"; fi; \
+	ssh "$(SSH_HOST_ROUTER)" 'set -e; \
 cur_start="$$(nvram get dhcp_start 2>/dev/null || echo)"; \
 cur_end="$$(nvram get dhcp_end 2>/dev/null || echo)"; \
 desired_start="$(DHCP_DYNAMIC_START)"; \
@@ -81,7 +80,7 @@ if [ "$$changed" -eq 1 ]; then \
 	echo "🟢 DHCP pool NVRAM updated (pending commit)"; \
 	touch /jffs/homelab_nvram_dirty; \
 else \
-	echo "ℹ️ DHCP pool already converged"; \
+	if [ "$(VERBOSE)" -ge 1 ]; then echo "ℹ️ DHCP pool already converged"; fi; \
 fi'
 
 # ------------------------------------------------------------
@@ -90,9 +89,8 @@ fi'
 
 .PHONY: router-dhcp-static-ensure
 router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-router-ula router-ssh-check
-	@echo "🛡️ Enforcing DHCP static leases via NVRAM (no commit, no restart)"
-
-	@$(call WITH_SECRETS, bash -c '\
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛡️ Enforcing DHCP static leases via NVRAM (no commit, no restart)"; fi; \
+	$(call WITH_SECRETS, LC_CTYPE=en_US.UTF-8 bash -c '\
 		desired="$$( $(DHCP_AGGREGATE) )"; \
 		if [ -z "$$desired" ]; then \
 			echo "⚠️ STATIC_DHCP is empty — skipping enforcement"; \
@@ -108,7 +106,7 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 				echo \"🟢 DHCP static leases NVRAM updated (pending commit)\"; \
 				touch /jffs/homelab_nvram_dirty; \
 			else \
-				echo \"ℹ️ DHCP static leases already converged\"; \
+				if [ "$(VERBOSE)" -ge 1 ]; then echo \"ℹ️ DHCP static leases already converged\"; fi; \
 			fi" \
 	')
 
@@ -118,8 +116,8 @@ router-dhcp-static-ensure: router-dhcp-static-validate secrets-ready | ensure-ro
 
 .PHONY: router-dnsmasq-sync
 router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-bootstrap-primitives router-ssh-check
-	@echo "📡 Syncing sovereign DNS and network configuration files..."
-	@set -e; \
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "📡 Syncing sovereign DNS and network configuration files..."; fi; \
+	set -e; \
 	DNS_CHANGED=0; export DNS_CHANGED; \
 	VERBOSE=1 $(INSTALL_FILES_IF_CHANGED) DNS_CHANGED \
 		"" "" "$(REPO_ROOT)/router/jffs/configs/dnsmasq.conf.add" \
@@ -137,7 +135,7 @@ router-dnsmasq-sync: | $(HOMELAB_ENV_DST) $(INSTALL_FILES_IF_CHANGED) router-boo
 		echo "🔄 DNS configuration changes detected (pending test and restart)"; \
 		ssh "$(SSH_HOST_ROUTER)" "touch /jffs/homelab_dnsmasq_changed"; \
 	else \
-		echo "✅ DNS configuration files up-to-date"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "✅ DNS configuration files up-to-date"; fi;\
 	fi
 
 .PHONY: router-dnsmasq-validate
@@ -168,10 +166,10 @@ router-dnsmasq-validate: router-dnsmasq-sync
 		'check_line_exact "address=/pve.$(LAN_DOMAIN)/$(LAN6_NAS)" "pve IPv6 mismatch"' \
 		'check_line_exact "ptr-record=$(LAN_NAS),pve.$(LAN_DOMAIN)" "pve IPv4 PTR mismatch"' \
 		'check_line_exact "ptr-record=$(LAN6_NAS),pve.$(LAN_DOMAIN)" "pve IPv6 PTR mismatch"' \
-		'check_line_exact "address=/raspberrypi.$(LAN_DOMAIN)/$(LAN_HUB01)" "raspberrypi IPv4 mismatch"' \
-		'check_line_exact "address=/raspberrypi.$(LAN_DOMAIN)/fd89:7a3b:42c0::5" "raspberrypi IPv6 mismatch"' \
-		'check_line_exact "ptr-record=$(LAN_HUB01),raspberrypi.$(LAN_DOMAIN)" "raspberrypi IPv4 PTR mismatch"' \
-		'check_line_exact "ptr-record=fd89:7a3b:42c0::5,raspberrypi.$(LAN_DOMAIN)" "raspberrypi IPv6 PTR mismatch"' \
+		'check_line_exact "address=/raspberrypi.$(LAN_DOMAIN)/$(LAN_RASPBERRYPI)" "raspberrypi IPv4 mismatch"' \
+		'check_line_exact "address=/raspberrypi.$(LAN_DOMAIN)/$(LAN6_RASPBERRYPI)" "raspberrypi IPv6 mismatch"' \
+		'check_line_exact "ptr-record=$(LAN_RASPBERRYPI),raspberrypi.$(LAN_DOMAIN)" "raspberrypi IPv4 PTR mismatch"' \
+		'check_line_exact "ptr-record=$(LAN6_RASPBERRYPI),raspberrypi.$(LAN_DOMAIN)" "raspberrypi IPv6 PTR mismatch"' \
 		'check_line_exact "server=$(LAN_NAS)#$(UNBOUND_PORT)" "Unbound IPv4 upstream mismatch"' \
 		'check_line_exact "server=$(LAN6_NAS)#$(UNBOUND_PORT)" "Unbound IPv6 upstream mismatch"' \
 		'check_line_exact "server=/#/9.9.9.9" "fallback Quad9 IPv4 missing"' \
@@ -249,38 +247,23 @@ router-dhcp-list-static-format: secrets-ready router-ssh-check
 
 .PHONY: router-dnsmasq-invariants
 router-dnsmasq-invariants: router-ssh-check router-install-scripts
-	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛡️ Validating dnsmasq invariants on router"; fi; \
+	@if [ "$(or $(VERBOSE),0)" -ge 1 ]; then echo "🛡️ Validating dnsmasq invariants on router"; fi; \
 	ssh "$(SSH_HOST_ROUTER)" '\
 		set -e; \
-		echo "Checking dnsmasq process"; \
-		pidof dnsmasq >/dev/null || { echo "ERROR: dnsmasq not running"; exit 1; }; \
-		\
-		if [ "$(VERBOSE)" -ge 1 ]; then echo "Checking dnsmasq is serving local domain"; fi; \
-		nslookup localhost 127.0.0.1 >/dev/null 2>&1 || { \
-			echo "ERROR: dnsmasq not serving local domain"; exit 1; }; \
-		\
-		echo "Checking upstream resolvers"; \
-		[ -f /jffs/configs/dnsmasq.conf.add ] || { echo "ERROR: /jffs/configs/dnsmasq.conf.add missing"; exit 1; }; \
-		grep -q "server=$(NAS_LAN_IP)#$(UNBOUND_PORT)" /jffs/configs/dnsmasq.conf.add || { \
-			echo "ERROR: Missing IPv4 upstream to Unbound"; exit 1; }; \
-		grep -q "server=$(ROUTER_ULA_IP6)#$(UNBOUND_PORT)" /jffs/configs/dnsmasq.conf.add || { \
-			echo "ERROR: Missing IPv6 upstream to Unbound"; exit 1; }; \
-		\
-		echo "Checking dnsmasq is reachable on LAN"; \
-		nc -z -u $(LAN_ROUTER) 53 || { echo "ERROR: dnsmasq UDP/53 unreachable"; exit 1; }; \
-		nc -z    $(LAN_ROUTER) 53 || { echo "ERROR: dnsmasq TCP/53 unreachable"; exit 1; }; \
-		\
-		echo "Checking firewall allows router-local DNS"; \
-		iptables -L HOMELAB_INPUT -n | grep -q "udp dpt:53" || { \
-			echo "ERROR: Missing UDP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
-		iptables -L HOMELAB_INPUT -n | grep -q "tcp dpt:53" || { \
-			echo "ERROR: Missing TCP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
-		\
-		echo "Checking dnsmasq RA policy (ULA-only)"; \
+		pidof dnsmasq >/dev/null || { echo "❌ dnsmasq not running"; exit 1; }; \
+		nslookup localhost 127.0.0.1 >/dev/null 2>&1 || { echo "❌ dnsmasq not serving local domain"; exit 1; }; \
+		[ -f /jffs/configs/dnsmasq.conf.add ] || { echo "❌ /jffs/configs/dnsmasq.conf.add missing"; exit 1; }; \
+		grep -q "server=$(LAN_NAS)#$(UNBOUND_PORT)" /jffs/configs/dnsmasq.conf.add || { echo "❌ Missing IPv4 upstream to Unbound"; exit 1; }; \
+		grep -q "server=$(LAN6_NAS)#$(UNBOUND_PORT)" /jffs/configs/dnsmasq.conf.add || { echo "❌ Missing IPv6 upstream to Unbound"; exit 1; }; \
+		nslookup localhost $(LAN_ROUTER) >/dev/null 2>&1 || { echo "❌ dnsmasq IPv4/53 unreachable"; exit 1; }; \
+		nslookup localhost $(LAN6_ROUTER) >/dev/null 2>&1 || { echo "❌ dnsmasq IPv6/53 unreachable"; exit 1; }; \
+		iptables -L HOMELAB_INPUT -n | grep -q "udp dpt:53" || { echo "❌ Missing UDP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
+		iptables -L HOMELAB_INPUT -n | grep -q "tcp dpt:53" || { echo "❌ Missing TCP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
+		ip6tables -L HOMELAB_INPUT -n | grep -q "udp dpt:53" || { echo "❌ Missing IPv6 UDP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
+		ip6tables -L HOMELAB_INPUT -n | grep -q "tcp dpt:53" || { echo "❌ Missing IPv6 TCP/53 ACCEPT in HOMELAB_INPUT"; exit 1; }; \
 		if grep -q "constructor:br0" /jffs/configs/dnsmasq.conf.add; then \
-			echo "ERROR: Illegal RA constructor detected (global prefix leakage risk)"; \
+			echo "❌ Illegal RA constructor detected (global prefix leakage risk)"; \
 			exit 1; \
 		fi; \
-		\
 	'; \
-	if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 dnsmasq invariants satisfied"; fi
+	if [ "$(or $(VERBOSE),0)" -ge 1 ]; then echo "🟢 dnsmasq invariants satisfied"; fi

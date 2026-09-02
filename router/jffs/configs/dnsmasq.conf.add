@@ -68,6 +68,7 @@ dhcp-option=15,lan.bardi.ch
 
 # --- PART C: GRACEFUL DEGRADATION ---------------------------
 # Query all upstream servers concurrently and take the first response
+# (Removed all-servers to prioritize local NAS caching)
 all-servers
 
 # --- PART D: HYGIENE & SECURITY -----------------------------

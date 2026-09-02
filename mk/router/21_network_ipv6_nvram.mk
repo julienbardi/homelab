@@ -11,45 +11,30 @@
 #   - Unified NVRAM converge
 # ------------------------------------------------------------
 
-# ------------------------------------------------------------
-# router-ssh-invariants:
-# Enforces LAN-only SSH by setting:
-#   ssh_wan=0  -> disable SSH on WAN
-#   ssh_lan=1  -> enable SSH on LAN
-# AsusWRT defaults to WAN-enabled SSH when ssh_wan is unset.
-# This target makes the invariant explicit and idempotent.
-# ------------------------------------------------------------
-
 define NVRAM_GET_BOTH
-ssh "$(SSH_HOST_ROUTER)" "\
-	nvram get ssh_wan 2>/dev/null || echo unset; \
-	nvram get ssh_lan 2>/dev/null || echo unset"
+ssh "$(SSH_HOST_ROUTER)" 'v=$$(nvram get sshd_enable 2>/dev/null); echo "$${v:-unset}"; v=$$(nvram get sshd_pass 2>/dev/null); echo "$${v:-unset}"'
 endef
 
 .PHONY: router-ssh-invariants
 router-ssh-invariants: router-ssh-check
-	@vals="$$( $(call NVRAM_GET_BOTH) )"; \
+	@vals=$$($(call NVRAM_GET_BOTH)); \
 	set -- $$vals; \
-	cur_wan="$$1"; \
-	cur_lan="$$2"; \
-	if [ "$$cur_wan" = "0" ] && [ "$$cur_lan" = "1" ]; then \
+	cur_enable="$$1"; \
+	cur_pass="$$2"; \
+	if [ "$$cur_enable" = "2" ] && [ "$$cur_pass" = "1" ]; then \
 		if [ "$(VERBOSE)" -ge 1 ]; then \
-			echo "🟢 Router SSH invariants already correct : ssh_wan=0, ssh_lan=1"; \
+			echo "🟢 Router SSH invariants already correct : sshd_enable=2, sshd_pass=1"; \
 		fi; \
 	else \
-		ssh "$(SSH_HOST_ROUTER)" "\
-			nvram set ssh_wan=0; \
-			nvram set ssh_lan=1; \
-			nvram commit; \
-			service restart_ssh >/dev/null 2>&1"; \
-		vals="$$( $(call NVRAM_GET_BOTH) )"; \
+		ssh "$(SSH_HOST_ROUTER)" "nvram set sshd_enable=2; nvram set sshd_pass=1; nvram commit; service restart_ssh >/dev/null 2>&1"; \
+		vals=$$($(call NVRAM_GET_BOTH)); \
 		set -- $$vals; \
-		new_wan="$$1"; \
-		new_lan="$$2"; \
-		if [ "$$new_wan" = "0" ] && [ "$$new_lan" = "1" ]; then \
-			echo "✅ Router SSH invariants enforced (ssh_wan=$$new_wan, ssh_lan=$$new_lan)"; \
+		new_enable="$$1"; \
+		new_pass="$$2"; \
+		if [ "$$new_enable" = "2" ] && [ "$$new_pass" = "1" ]; then \
+			echo "✅ Router SSH invariants enforced (sshd_enable=$$new_enable, sshd_pass=$$new_pass)"; \
 		else \
-			echo "❌ Router SSH invariants enforcement failed: ssh_wan=$$new_wan ssh_lan=$$new_lan"; \
+			echo "❌ Router SSH invariants enforcement failed: sshd_enable=$$new_enable sshd_pass=$$new_pass"; \
 			exit 1; \
 		fi; \
 	fi
@@ -73,11 +58,11 @@ router-lan-domain: | router-ssh-check secret-vars-check
 	esac; \
 	cur_lan_domain="$$( ssh "$(SSH_HOST_ROUTER)" "nvram get lan_domain 2>/dev/null || true" )"; \
 	if [ "$$cur_lan_domain" = "$$LAN_DOMAIN" ]; then \
-		test -z "$(VERBOSE)" || echo "🌐 LAN domain already converged ('$$LAN_DOMAIN')"; \
+		test -n "$(VERBOSE)" || echo "🌐 LAN domain already converged ('$$LAN_DOMAIN')"; \
 		exit 0; \
 	fi; \
 	ssh "$(SSH_HOST_ROUTER)" "\
-		nvram set lan_domain=\"$$LAN_DOMAIN\"; \
+		nvram set lan_domain='$$LAN_DOMAIN'; \
 		echo \"🌐 LAN domain staged: '$$LAN_DOMAIN' (commit in router-nvram-converge)\"; \
 		touch /jffs/homelab_nvram_dirty; \
 	"
@@ -311,9 +296,9 @@ router-nvram-converge: \
 			echo "🔄 restart radvd"; \
 			service restart_radvd || true; \
 		else \
-			echo "✅ No changes ➡️ no restarts"; \
+			if [ "$(VERBOSE)" -ge 1 ]; then echo "✅ No changes ➡️ no restarts"; fi;\
 		fi; \
-		echo "🟢 router-nvram-converge complete"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 router-nvram-converge complete"; fi; \
 	'
 
 # ------------------------------------------------------------
@@ -321,11 +306,19 @@ router-nvram-converge: \
 # ------------------------------------------------------------
 .PHONY: router-ipv6-converge
 router-ipv6-converge: router-nvram-converge router-dhcp6c-hook-converge router-ssh-check
-	@if [ "$(VERBOSE)" -ge 1 ]; then \
-		echo "🛡️ IPv6 converge: ensuring PD hook + dnsmasq RA"; \
-	fi
-	@ssh "$(SSH_HOST_ROUTER)" '
-		echo "Forcing DHCPv6-PD refresh"
-		service start_dhcp6c || true
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛡️ IPv6 converge: checking PD hook + dnsmasq RA"; fi; \
+	ssh "$(SSH_HOST_ROUTER)" '\
+		set -e; \
+		OLD_PREFIX="$$(cat /jffs/scripts/.ipv6_current_prefix 2>/dev/null || echo)"; \
+		service start_dhcp6c || true; \
+		NEW_PREFIX="$$(cat /jffs/scripts/.ipv6_current_prefix 2>/dev/null || echo)"; \
+		if [ "$$OLD_PREFIX" != "$$NEW_PREFIX" ] || [ -f /jffs/homelab_ipv6_dirty ]; then \
+			echo "🔄 IPv6 prefix changed or dirty ➡️ restarting services"; \
+			rm -f /jffs/homelab_ipv6_dirty; \
+			service restart_dnsmasq || true; \
+			service restart_radvd || true; \
+		else \
+			if [ "$(VERBOSE)" -ge 1 ]; then echo "✅ IPv6 prefix unchanged ➡️ no restarts"; fi; \
+		fi; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 router-ipv6-converge complete"; fi; \
 	'
-
