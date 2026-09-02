@@ -1,4 +1,4 @@
- # mk/60_unbound.mk — Unbound orchestration (IGOS-safe, config-only, pure DAG)
+# mk/60_unbound.mk — Unbound orchestration (config-only, pure DAG)
 
 UNBOUND_RESTART_STAMP := $(STAMP_DIR_ROOT)/unbound.restart
 STAMP_UNBOUND_ANCHOR  := $(STAMP_DIR_ROOT)/unbound_anchor.sha256
@@ -13,13 +13,14 @@ UNBOUND_LOCAL_INTERNAL_SRC := $(REPO_ROOT)/config/unbound/unbound.conf.d/local-i
 UNBOUND_LOCAL_INTERNAL_DST := /etc/unbound/unbound.conf.d/local-internal.conf
 
 .PHONY: \
-    deploy-unbound \
-    deploy-unbound-sysctl \
-    update-root-hints \
-    ensure-dnssec-trust-anchor \
-    deploy-unbound-config \
-    deploy-unbound-local-internal \
-    unbound-health
+	deploy-unbound \
+	deploy-unbound-sysctl \
+	fetch-root-hints \
+	update-root-hints \
+	ensure-dnssec-trust-anchor \
+	deploy-unbound-config \
+	deploy-unbound-local-internal \
+	unbound-health
 
 # ------------------------------------------------------------
 # Sysctl (safe: kernel tuning only)
@@ -41,11 +42,43 @@ deploy-unbound-sysctl: install-all
 # ------------------------------------------------------------
 # Root hints (pure data)
 # ------------------------------------------------------------
-update-root-hints:
-	@echo "🌐 Installing static root hints"
-	@$(run_as_root) install -d -m 0750 -o root -g unbound /var/lib/unbound
-	@$(run_as_root) install -m 0644 -o root -g unbound $(REPO_ROOT)/config/unbound/root.hints /var/lib/unbound/root.hints
-	@echo "✅ root hints installed"
+
+fetch-root-hints: install-all
+	@if [ "$(VERBOSE)" -ge "1" ]; then echo "🌐 Downloading latest root hints from internic.net"; fi; \
+	temp_hints="$$(mktemp)"; \
+	curl -sSL -o "$$temp_hints" https://www.internic.net/domain/named.root; \
+	if grep -q "NS.*A.ROOT-SERVERS.NET." "$$temp_hints"; then \
+		rc=0; \
+		$(call install_file,"$$temp_hints",$(REPO_ROOT)/config/unbound/root.hints,"$(USER_UID)","$(USER_GID)",0664) || rc=$$?; \
+		rm -f "$$temp_hints"; \
+		case "$${rc:-0}" in \
+			0) \
+				if [ "$(VERBOSE)" -ge "1" ]; then echo "ℹ️ root.hints is already up to date in repository source"; fi; \
+				;; \
+			$(INSTALL_IF_CHANGED_EXIT_CHANGED)) \
+				echo "✅ root.hints successfully verified and updated in repository source"; \
+				;; \
+			*) exit "$$rc" ;; \
+		esac; \
+	else \
+		rm -f "$$temp_hints"; \
+		echo "❌ Downloaded root hints validation failed — source file left untouched"; \
+		exit 1; \
+	fi
+
+update-root-hints: install-all fetch-root-hints
+	@if [ "$(VERBOSE)" -ge "1" ]; then echo "🌐 Installing static root hints"; fi; \
+	$(run_as_root) install -d -m 0750 -o root -g unbound /var/lib/unbound; \
+	rc=0; \
+	$(call install_file,$(REPO_ROOT)/config/unbound/root.hints,/var/lib/unbound/root.hints,root,unbound,0664) || rc=$$?; \
+	case "$${rc:-0}" in \
+		0) ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) \
+			echo "🔄 root.hints updated — scheduling restart. 👉 Run 'make deploy-unbound' to apply changes"; \
+			$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
+			;; \
+		*) exit "$$rc" ;; \
+	esac
 
 # ------------------------------------------------------------
 # Trust anchor (stamp-driven, no service control)
@@ -66,7 +99,7 @@ $(STAMP_UNBOUND_ANCHOR):
 	'
 
 # ------------------------------------------------------------
-# Config deployment (pure, IGOS-safe)
+# Config deployment
 # ------------------------------------------------------------
 deploy-unbound-config: update-root-hints deploy-unbound-local-internal install-all
 	@$(run_as_root) install -d -m 0755 /etc/unbound /etc/unbound/unbound.conf.d
@@ -96,86 +129,83 @@ deploy-unbound-local-internal: install-all
 	fi
 
 # ------------------------------------------------------------
-# Unbound health (IGOS-safe, read-only, no lifecycle control)
+# Unbound health (read-only, no lifecycle control)
 # ------------------------------------------------------------
 unbound-health:
-	@echo "🔍 Unbound health check (IGOS-safe)"
-
-	# 1. Process check
-	@if pgrep -x unbound >/dev/null 2>&1; then \
-		echo "   • ✅ process: unbound running"; \
+	@if [ "$(VERBOSE)" -ge "1" ]; then echo "🔍 Unbound health check"; fi; \
+	\
+	# 1. Process check \
+	if pgrep -x unbound >/dev/null 2>&1; then \
+		if [ "$(VERBOSE)" -ge "1" ]; then echo "✅ process: unbound running"; fi; \
 	else \
-		echo "   • ❌ process: unbound NOT running"; \
+		echo "❌ process: unbound NOT running"; \
 		exit 1; \
-	fi
-
-	# 2. Control socket check (IGOS uses /var/lib/unbound)
-	@if [ -S /var/lib/unbound/unbound.ctl ]; then \
-		echo "   • ✅ control socket: present"; \
+	fi; \
+	\
+	# 2. Control socket check \
+	if $(run_as_root) unbound-control -c /etc/unbound/unbound.conf status >/dev/null 2>&1; then \
+		if [ "$(VERBOSE)" -ge "1" ]; then echo "✅ control socket: responding"; fi; \
 	else \
-		echo "   • ❌ control socket: missing (/var/lib/unbound/unbound.ctl)"; \
+		echo "❌ control socket: not responding"; \
 		exit 1; \
-	fi
-
-	# 3. PID file check
-	@if [ -f /var/lib/unbound/unbound.pid ]; then \
-		echo "   • ✅ pid file: present"; \
-		else \
-		echo "   • ❌ pid file: missing (/var/lib/unbound/unbound.pid)"; \
-		exit 1; \
-	fi
-
-	# 4. DNS functional check (internal)
-	@if [ "$$(dig +short @127.0.0.1 apt.bardi.ch CNAME)" = "nas.bardi.ch." ]; then \
-		echo "   • ✅ DNS resolution: internal domain OK"; \
+	fi; \
+	\
+	# 3.DNS functional check (internal) \
+	if [ "$$(dig +short @127.0.0.1 -p $(UNBOUND_PORT) $(DOMAIN) CNAME)" = "" ]; then \
+		if [ "$(VERBOSE)" -ge "1" ]; then echo "✅ internal DNS OK"; fi; \
 	else \
-		echo "   • ❌ DNS resolution: internal domain FAILED"; \
+		echo "❌ internal DNS FAILED"; \
 		exit 1; \
-	fi
-
-	# 5. DNS functional check (external)
-	@if dig +short @127.0.0.1 cloudflare.com A >/dev/null 2>&1; then \
-		echo "   • ✅ DNS resolution: external domain OK"; \
+	fi; \
+	\
+	# 4. DNS functional check (external) \
+	if dig +short @127.0.0.1 cloudflare.com A >/dev/null 2>&1; then \
+		if [ "$(VERBOSE)" -ge "1" ]; then echo "✅ external DNS OK"; fi; \
 	else \
-		echo "   • ❌ DNS resolution: external domain FAILED"; \
+		echo "❌ external DNS FAILED"; \
 		exit 1; \
-	fi
-
-	@echo "🎉 Unbound health: ALL CHECKS PASSED"
+	fi; \
+	\
+	if [ "$(VERBOSE)" -ge "1" ]; then echo "🎉 Unbound health: ALL CHECKS PASSED"; fi
 
 .PHONY: enable-homelab-unbound
-
 enable-homelab-unbound: deploy-homelab-unbound-service
-	@echo "🚀 Enabling homelab-unbound.service"
-	@if ! systemctl is-enabled --quiet homelab-unbound.service 2>/dev/null; then \
+	@if [ "$(VERBOSE)" -ge "1" ]; then echo "🚀 Enabling homelab-unbound.service"; fi; \
+	message=""; \
+	if ! systemctl is-enabled --quiet homelab-unbound.service 2>/dev/null; then \
 		$(run_as_root) systemctl enable homelab-unbound.service; \
-	fi
-	@if ! systemctl is-active --quiet homelab-unbound.service; then \
+		message="enabled"; \
+	else \
+		message="already enabled"; \
+	fi; \
+	if ! systemctl is-active --quiet homelab-unbound.service; then \
+		$(run_as_root) sh -c '[ -f /etc/unbound/unbound_server.pem ] || unbound-control-setup -d /etc/unbound'; \
 		$(run_as_root) systemctl start homelab-unbound.service; \
-	fi
-	@echo "🟢 homelab-unbound enabled and started"
+		message="$$message and started"; \
+	else \
+		message="$$message and already active"; \
+	fi; \
+	if [ "$$message" != "already enabled and already active" -o "$(VERBOSE)" -ge "1" ]; then echo "🟢 homelab-unbound $$message"; fi \
 
 deploy-homelab-unbound-service: install-all
-	@changed=0; rc=0; \
+	@rc=0; \
 	$(call install_file,$(REPO_ROOT)/config/systemd/homelab-unbound.service,/etc/systemd/system/homelab-unbound.service,root,root,0644) || rc=$$?; \
 	case "$${rc:-0}" in \
 		0) ;; \
-		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) \
+			echo "🔄 homelab-unbound.service unit updated — reloading systemd context"; \
+			$(run_as_root) sh -c 'systemctl daemon-reload && touch "$(UNBOUND_RESTART_STAMP)"' \
+			;; \
 		*) exit "$$rc" ;; \
-	esac; \
-	if [ $$changed -eq 1 ]; then \
-		echo "🔄 homelab-unbound.service unit updated — reloading systemd context"; \
-		$(run_as_root) systemctl daemon-reload; \
-		$(run_as_root) touch $(UNBOUND_RESTART_STAMP); \
-	fi
+	esac
 
 deploy-unbound: deploy-unbound-config deploy-homelab-unbound-service
 	@if [ -f "$(UNBOUND_RESTART_STAMP)" ]; then \
 		echo "🔄 Executing deferred restart for homelab-unbound.service due to configuration drift"; \
-		$(run_as_root) systemctl restart homelab-unbound.service; \
-		$(run_as_root) rm -f $(UNBOUND_RESTART_STAMP); \
+		$(run_as_root) sh -c '[ -f /etc/unbound/unbound_server.pem ] || unbound-control-setup -d /etc/unbound'; \
+		$(run_as_root) sh -c 'systemctl restart homelab-unbound.service && rm -f "$(UNBOUND_RESTART_STAMP)"'; \
 	else \
-		echo "🟢 Unbound configuration layout holds no drift"; \
+		if [ "$(VERBOSE)" -ge "1" ]; then echo "🟢 Unbound configuration layout holds no drift"; fi;\
 	fi
 
 .PHONY: enable-unbound
@@ -183,10 +213,10 @@ enable-unbound: enable-homelab-unbound
 
 .PHONY: verify-internal-dns
 verify-internal-dns:
-	@echo "🔍 Verifying internal DNS"
-	@if [ "$$(dig +short @127.0.0.1 -p 15335 apt.bardi.ch CNAME)" = "nas.bardi.ch." ]; then \
-		echo "   • ✅ internal DNS OK"; \
+	@if [ "$(VERBOSE)" -ge "1" ]; then echo "🔍 Verifying internal DNS"; fi; \
+	if [ "$$(dig +short @127.0.0.1 -p $(UNBOUND_PORT) $(DOMAIN) CNAME)" = "" ]; then \
+		if [ "$(VERBOSE)" -ge "1" ]; then echo "✅ internal DNS OK"; fi; \
 	else \
-		echo "   • ❌ internal DNS FAILED"; \
+		echo "❌ internal DNS FAILED"; \
 		exit 1; \
 	fi

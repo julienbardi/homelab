@@ -2,32 +2,26 @@
 -- ------------------------------------------------------------
 -- Role:
 --   - dnsdist is the primary DNS frontend on Proxmox VE
---   - dnsdist listens on port 53 (UDP+TCP):
---       • 127.0.0.1:53
---       • ${DNSDIST_LAN_IP}:53
---       • [::1]:53
---       • [${DNSDIST_ULA_IP}]:53
---
---   - dnsdist forwards queries to Unbound on:
---       • 127.0.0.1:${UNBOUND_PORT}
---
---   - DoH is served on port ${DOH_PORT}:
---       • 127.0.0.1:${DOH_PORT}
---       • [::1]:${DOH_PORT}
---       • ${DNSDIST_LAN_IP}:${DOH_PORT}
---       • [${DNSDIST_ULA_IP}]:${DOH_PORT}
+--   - dnsdist listens on port 53 (UDP+TCP) & DoH port
 -- ------------------------------------------------------------
 
 local cert = "${DNSDIST_CERT}"
 local key  = "${DNSDIST_KEY}"
 
 -- ------------------------------------------------------------
--- DoH listeners
+-- DoH & DoH3 listeners (Public & Local)
 -- ------------------------------------------------------------
-addDOHLocal("127.0.0.1:${DOH_PORT}", cert, key, { "/dns-query" })
-addDOHLocal("[::1]:${DOH_PORT}",     cert, key, { "/dns-query" })
-addDOHLocal("${DNSDIST_LAN_IP}:${DOH_PORT}", cert, key, { "/dns-query" })
-addDOHLocal("[${DNSDIST_ULA_IP}]:${DOH_PORT}", cert, key, { "/dns-query" })
+local doh_endpoints = {
+   "127.0.0.1:${DOH_PORT}",
+   "[::1]:${DOH_PORT}",
+   "${DNSDIST_LAN_IP}:${DOH_PORT}",
+   "[${DNSDIST_ULA_IP}]:${DOH_PORT}"
+}
+
+for _, ep in ipairs(doh_endpoints) do
+   addDOHLocal(ep, cert, key, { "/dns-query" })
+   pcall(addDOH3Local, ep, cert, key, { "/dns-query" })
+end
 
 -- ------------------------------------------------------------
 -- Plain DNS listeners (UDP+TCP port 53)
@@ -45,18 +39,26 @@ newServer({ address = "127.0.0.1:${UNBOUND_PORT}", name = "unbound", checkType =
 setServerPolicy(firstAvailable)
 
 -- ------------------------------------------------------------
--- ACL: allow loopback, LAN, and WireGuard networks
+-- Packet Cache: Instant responses for repeat queries
+-- ------------------------------------------------------------
+pc = newPacketCache(10000, {maxTTL=86400, minTTL=60, staleTTL=60})
+getPool(""):setCache(pc)
+
+-- ------------------------------------------------------------
+-- ACL: Allow public testing probers alongside internal networks
 -- ------------------------------------------------------------
 setACL({
   "127.0.0.0/8",
   "::1/128",
   "10.0.0.0/8",
   "${LAN_SUBNET}",
-  "${ULA_PREFIX}"
+  "${ULA_PREFIX}",
+  "0.0.0.0/0",
+  "::/0"
 })
 
 -- ------------------------------------------------------------
--- Conservative safety defaults
+-- Performance & Safety Limits
 -- ------------------------------------------------------------
 setMaxUDPOutstanding(4096)
-setMaxTCPClientThreads(100)
+setMaxTCPClientThreads(200)

@@ -3,36 +3,34 @@
 
 ROTATE_SCRIPT_NAME      ?= dns-warm-rotate.sh
 ROTATE_SCRIPT_PATH      ?= $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
-#ROTATE_SCRIPT_SRC_INST  := $(INSTALL_PATH)/$(ROTATE_SCRIPT_NAME)
 ROTATE_SCRIPT_SRC := $(REPO_ROOT)/scripts/$(ROTATE_SCRIPT_NAME)
 
-DOMAINS_DIR    ?= /etc/dns-warm
-DOMAINS_FILE   ?= $(DOMAINS_DIR)/domains.txt
+DOMAINS_DIR     ?= /etc/dns-warm
+DOMAINS_FILE    ?= $(DOMAINS_DIR)/domains.txt
 
 DNS_WARM_STATE_DIR ?= /var/lib/dns-warm
 STATE_FILE         ?= $(DNS_WARM_STATE_DIR)/state.csv
 
-SERVICE        ?= dns-warm-rotate.service
-TIMER          ?= dns-warm-rotate.timer
-SERVICE_PATH   ?= $(SYSTEMD_DIR)/$(SERVICE)
-TIMER_PATH     ?= $(SYSTEMD_DIR)/$(TIMER)
+SERVICE         ?= dns-warm-rotate.service
+TIMER           ?= dns-warm-rotate.timer
+SERVICE_PATH    ?= $(SYSTEMD_DIR)/$(SERVICE)
+TIMER_PATH      ?= $(SYSTEMD_DIR)/$(TIMER)
 
 DNS_WARM_USER  := dnswarm
 DNS_WARM_GROUP := $(DNS_WARM_USER)
-# 127.0.0.1
+
 RESOLVER       ?= $(NAS_LAN_IP)
-# ::1 is reacheable but to $(NAS_LAN_IP6)
-RESOLVER_IP6   ?=
+RESOLVER_IP6   ?= $(NAS_LAN_IP6)
 PER_RUN        ?= 2000
 
 DNS_WARM_POLICY_SRC := $(REPO_ROOT)/scripts/dns-warm-update-domains.sh
 DNS_WARM_POLICY_DST := $(INSTALL_PATH)/dns-warm-update-domains
 
 .PHONY: install-dns-warm-policy update-dns-warm-domains prereqs-dns-warm-verify \
-	dns-warm-install dns-warm-enable dns-warm-disable \
-	dns-warm-uninstall dns-warm-start dns-warm-stop dns-warm-status \
-	dns-warm-create-user dns-warm-dirs dns-warm-install-script \
-	dns-warm-install-systemd dns-warm-async dns-warm-health dns-warm-now
+    dns-warm-install dns-warm-enable dns-warm-disable \
+    dns-warm-uninstall dns-warm-start dns-warm-stop dns-warm-status \
+    dns-warm-create-user dns-warm-dirs dns-warm-install-script \
+    dns-warm-install-systemd dns-warm-async dns-warm-health dns-warm-now
 
 install-dns-warm-policy: install-all
 	@echo "📦 Deploying DNS warm policy script..."
@@ -66,31 +64,30 @@ prereqs-dns-warm: prereqs-dns-warm-install prereqs-dns-warm-verify
 # -------------------------------------------------
 
 dns-warm-install: \
-	prereqs-dns-warm \
-	dns-warm-create-user \
-	dns-warm-dirs \
-	install-dns-warm-policy \
-	update-dns-warm-domains \
-	dns-warm-install-script \
-	dns-warm-install-systemd \
-	dns-warm-enable
+    prereqs-dns-warm \
+    dns-warm-create-user \
+    dns-warm-dirs \
+    install-dns-warm-policy \
+    update-dns-warm-domains \
+    dns-warm-install-script \
+    dns-warm-install-systemd \
+    dns-warm-enable
 
 dns-warm-status:
-	@$(run_as_root) systemctl status $(TIMER) --no-pager || true
-	@$(run_as_root) systemctl status $(SERVICE) --no-pager || true
+	@$(run_as_root) sh -c 'systemctl status $(TIMER) --no-pager || true; systemctl status $(SERVICE) --no-pager || true'
 
-# Fix parallel ordering
 dns-warm-enable: dns-warm-install-systemd
 	@echo "⚙️ Enabling and starting dns-warm timer..."
-	@$(run_as_root) systemctl unmask $(TIMER) > /dev/null 2>&1 || true
-	@$(run_as_root) systemctl enable $(TIMER)
-	@$(run_as_root) systemctl start $(TIMER)
-	@$(run_as_root) systemctl is-active --quiet $(TIMER) && echo "✅ $(TIMER) active"
+	@$(run_as_root) sh -c ' \
+		systemctl unmask $(TIMER) > /dev/null 2>&1 || true && \
+		systemctl enable $(TIMER) && \
+		systemctl start $(TIMER) && \
+		systemctl is-active --quiet $(TIMER) && echo "✅ $(TIMER) active" \
+	'
 
 dns-warm-disable:
 	@echo "Disabling dns-warm timer..."
-	-@$(run_as_root) systemctl disable --now $(TIMER)
-	-@$(run_as_root) systemctl stop $(SERVICE)
+	-@$(run_as_root) sh -c 'systemctl disable --now $(TIMER) && systemctl stop $(SERVICE)'
 
 dns-warm-start:
 	@$(run_as_root) systemctl start $(SERVICE)
@@ -100,9 +97,11 @@ dns-warm-stop:
 
 dns-warm-uninstall: dns-warm-disable
 	@echo "Removing dns-warm components..."
-	@$(run_as_root) rm -f $(SERVICE_PATH) $(TIMER_PATH) $(ROTATE_SCRIPT_PATH) $(DNS_WARM_POLICY_DST)
-	@$(run_as_root) rm -f $(STATE_FILE) $(DOMAINS_FILE)
-	@$(run_as_root) systemctl daemon-reload
+	@$(run_as_root) sh -c ' \
+		rm -f $(SERVICE_PATH) $(TIMER_PATH) $(ROTATE_SCRIPT_PATH) $(DNS_WARM_POLICY_DST) && \
+		rm -f $(STATE_FILE) $(DOMAINS_FILE) && \
+		systemctl daemon-reload \
+	'
 
 # -------------------------------------------------
 # Internal helper targets
@@ -127,7 +126,7 @@ dns-warm-install-systemd: dns-warm-install-script
 	@$(run_as_root) sh -c '\
 		mkdir -p "$(SYSTEMD_DIR)" && \
 		TMP_SVC=$$(mktemp) && TMP_TMR=$$(mktemp) && \
-		printf "[Unit]\nDescription=DNS cache warming job\nAfter=network.target\n\n[Service]\nType=oneshot\nUser=%s\nGroup=%s\nExecStart=/usr/bin/env bash %s %s %s\nNice=10\nWorkingDirectory=%s\nEnvironment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n\n[Install]\nWantedBy=multi-user.target\n" \
+		printf "[Unit]\nDescription=DNS cache warming job\nAfter=network.target\n\n[Service]\nType=oneshot\nUser=%s\nGroup=%s\nExecStart=/usr/bin/env bash %s %s %s %s\nNice=10\nWorkingDirectory=%s\nEnvironment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n\n[Install]\nWantedBy=multi-user.target\n" \
 			"$(DNS_WARM_USER)" \
 			"$(DNS_WARM_GROUP)" \
 			"$(ROTATE_SCRIPT_PATH)" \
@@ -190,18 +189,18 @@ dns-warm-health:
 	else \
 		echo "⚠️ State file missing (rotate job may not have run yet)"; \
 	fi
-	@if $(run_as_root) dig +time=1 +tries=1 @$(RESOLVER) $(DOMAIN) >/dev/null 2>&1; then \
-			echo "✅ Resolver IPv4: $(RESOLVER) reachable"; \
+	@if $(run_as_root) dig +time=1 +tries=1 -p $(UNBOUND_PORT) @127.0.0.1 $(DOMAIN) >/dev/null 2>&1; then \
+			echo "✅ Resolver IPv4 (Unbound :$(UNBOUND_PORT)): reachable"; \
 	else \
-			echo "❌ Resolver IPv4: $(RESOLVER) unreachable"; \
+			echo "❌ Resolver IPv4 (Unbound :$(UNBOUND_PORT)): unreachable"; \
 	fi
 
 	@if [ -n "$(RESOLVER_IP6)" ]; then \
 		$(run_as_root) sh -c 'err=$$(dig +time=1 +tries=1 @$(RESOLVER_IP6) $(DOMAIN) 2>&1 >/dev/null || true); \
 		if [ -z "$$err" ]; then \
-			echo "✅ Resolver IPv6 ($(RESOLVER_IP6)): $(RESOLVER_IP6) reachable"; \
+			echo "✅ Resolver IPv6 ($(RESOLVER_IP6)): reachable"; \
 		else \
-			echo "❌ Resolver IPv6 ($(RESOLVER_IP6)): $(RESOLVER_IP6) unreachable"; \
+			echo "❌ Resolver IPv6 ($(RESOLVER_IP6)): unreachable"; \
 			test -z "$(VERBOSE)" || echo "$$err"; \
 		fi'; \
 	else \

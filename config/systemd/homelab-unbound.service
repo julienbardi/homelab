@@ -1,5 +1,5 @@
 [Unit]
-Description=Homelab Unbound DNS Resolver (IGOS-safe)
+Description=Homelab Unbound DNS Resolver
 After=network-online.target
 Wants=network-online.target
 
