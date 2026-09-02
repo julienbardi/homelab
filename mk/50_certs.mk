@@ -140,16 +140,16 @@ $(STAMP_CERTS_CANONICAL): $(STAMP_PREPARE)
 # All deploy targets depend on canonical stamp
 # ============================================================
 deploy-caddy:      $(STAMP_CERTS_CANONICAL) router-install-scripts $(STAMP_SOPS)
-	$(call WITH_SECRETS, $(call deploy_with_status,caddy))
+	@$(call WITH_SECRETS, $(call deploy_with_status,caddy))
 
 deploy-headscale: headscale-user headscale-dirs $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
-	$(call WITH_SECRETS, $(call deploy_with_status,headscale))
+	@$(call WITH_SECRETS, $(call deploy_with_status,headscale))
 
 deploy-dnsdist:    $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
-	$(call WITH_SECRETS, $(call deploy_with_status,dnsdist))
+	@$(call WITH_SECRETS, $(call deploy_with_status,dnsdist))
 
 deploy-qnap:       $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
-	$(call WITH_SECRETS, $(call deploy_with_status,qnap))
+	@$(call WITH_SECRETS, $(call deploy_with_status,qnap))
 
 deploy-dsm:        $(STAMP_CERTS_CANONICAL)
 	@echo "🔄 DSM deploy triggered by canonical cert change"
@@ -161,10 +161,10 @@ deploy-ac86u:      $(STAMP_CERTS_CANONICAL)
 # Validation targets
 # ============================================================
 validate-caddy:
-	$(call validate_with_status,caddy)
+	@$(call validate_with_status,caddy)
 
 validate-headscale:
-	$(call validate_with_status,headscale)
+	@$(call validate_with_status,headscale)
 
 validate-diskstation: validate-dsm
 	@echo "🔄 DiskStation validation OK"

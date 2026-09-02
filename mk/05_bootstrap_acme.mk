@@ -46,7 +46,6 @@ ACME_VERSION := v3.1.4
 acme-ensure-dirs:
 	@$(run_as_root) install -d -m 0700 -o $(ROOT_UID) -g $(ROOT_GID) "$(ACME_HOME)"
 
-
 # ------------------------------------------------------------
 # Install or update acme.sh (sudo-safe mode)
 # ------------------------------------------------------------
@@ -63,16 +62,20 @@ acme-install: acme-ensure-dirs
 		exit 1; \
 	fi; \
 	\
-	CURRENT_VER="$$( $(run_as_root) sh -c 'test -x "$(ACME_BIN)" && "$(ACME_BIN)" --version | tail -n 1 | xargs || echo none' )"; \
+	CURRENT_VER="$$( $(run_as_root) sh -c 'if [ -x "$(ACME_BIN)" ]; then "$(ACME_BIN)" --version | tail -n 1 | xargs; else echo none; fi' )"; \
 	FORCE_REINSTALL=0; \
 	\
 	if ! $(run_as_root) grep -q "LE_WORKING_DIR" "$(ACME_HOME)/account.conf" 2>/dev/null; then \
-		echo "⚠️ ACME not installed in sudo-safe mode — forcing reinstall"; \
+		if [ "$$CURRENT_VER" != "none" ]; then \
+			echo "⚠️ ACME installed but not sudo-safe — forcing reinstall"; \
+		fi; \
 		FORCE_REINSTALL=1; \
 	fi; \
 	\
 	if [ "$$CURRENT_VER" != "$(ACME_VERSION)" ] || [ "$$FORCE_REINSTALL" = "1" ]; then \
-		echo "🔄 Installing acme.sh $(ACME_VERSION) (sudo-safe mode)..."; \
+		if [ "$$VERBOSE" = "1" ]; then \
+			echo "🔄 Installing acme.sh $(ACME_VERSION) (sudo-safe mode)..."; \
+		fi; \
 		$(call git_clone_or_fetch,$(ACME_SRC),https://github.com/acmesh-official/acme.sh.git,master); \
 		$(run_as_root) sh -euo pipefail -c '\
 			cd "$(ACME_SRC)"; \
@@ -81,12 +84,24 @@ acme-install: acme-ensure-dirs
 				--nocron \
 				--home "$(ACME_HOME)" \
 				--accountemail "$(DOMAIN)@$(DOMAIN)" \
-				--force; \
+				--force >/dev/null; \
 			chmod 700 "$(ACME_HOME)"; \
 			chmod 755 "$(ACME_HOME)/acme.sh"; \
 			find "$(ACME_HOME)/dnsapi" -type f -exec chmod 755 {} \;; \
 			find "$(ACME_HOME)" -type f -name "*.cer" -exec chmod 644 {} \;; \
 			find "$(ACME_HOME)" -type f -name "*.key" -exec chmod 600 {} \;; \
+			TMP="$$(mktemp)"; \
+			printf "LE_WORKING_DIR=\"%s\"\n" "$(ACME_HOME)" > "$$TMP"; \
+			RC=0; \
+			"$(INSTALL_FILE_IF_CHANGED)" -q \
+				"" "" "$$TMP" \
+				"" "" "$(ACME_HOME)/account.conf" \
+				"$(ROOT_UID)" "$(ROOT_GID)" 600 || RC=$$?; \
+			if [ "$$RC" -ne 0 ] && [ "$$RC" -ne "$(INSTALL_IF_CHANGED_EXIT_CHANGED)" ]; then \
+				echo "❌ IFC failed (exit $$RC)"; \
+				exit $$RC; \
+			fi; \
+			rm -f "$$TMP"; \
 		'; \
 	else \
 		echo "✅ acme.sh $$CURRENT_VER already installed (sudo-safe)."; \
@@ -108,7 +123,7 @@ acme-write-infomaniak-token: secrets-ready
 		TMP="$$(mktemp)"; \
 		printf "INFOMANIAK_API_TOKEN=\"%s\"\n" "$$TOKEN" > "$$TMP"; \
 		\
-		echo "🔐 Installing Infomaniak API token into $(ACME_HOME)/account.conf"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "🔐 Installing Infomaniak API token into $(ACME_HOME)/account.conf"; fi;\
 		RC=0; \
 		$(run_as_root) "$(INSTALL_FILE_IF_CHANGED)" -q \
 			"" "" "$$TMP" \

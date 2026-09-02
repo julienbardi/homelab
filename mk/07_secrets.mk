@@ -89,7 +89,7 @@ SECRETS_LOCK_MAX_AGE := 30
 define WITH_SECRETS
 ( \
 	[ -n "$$SOPS_BIN" ] && [ -n "$$YQ" ] || { echo "❌ SOPS_BIN or YQ not set"; exit 1; }; \
-	SECS="$$($$SOPS_BIN -d "/tank/julie/src/homelab/secrets.enc.yaml" | $$YQ -r '.. | select(tag == "!!str" or tag == "!!int" or tag == "!!bool") | (path | join("_")) + "=" + .')"; \
+	SECS="$$($$SOPS_BIN -d "$(SECRETS_FILE)" | $$YQ -r '.. | select(tag == "!!str" or tag == "!!int" or tag == "!!bool") | (path | join("_")) + "=" + .')"; \
 	if [ -n "$$SECS" ]; then export $$SECS; fi; \
 	$(1) \
 )
@@ -380,7 +380,7 @@ ddns-env: ddns-env-dir secrets-runtime-init $(YQ_STAMP)
 			\
 			install -m 600 -o $(ROOT_UID) -g $(ROOT_GID) "$$tmp" "$(DDNS_ENV_FILE)"; \
 		'; \
-		echo "🔐 Updated $(DDNS_ENV_FILE)"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then echo "🔐 Updated $(DDNS_ENV_FILE)"; fi; \
 	}
 
 DDNS_RUNTIME_FILE := $(HOMELAB_RUNTIME_USER)/ddns/ddns.conf

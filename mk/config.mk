@@ -18,6 +18,7 @@ export LAN6_ROUTER      := fd89:7a3b:42c0::1
 export LAN6_SYNOLOGY    := fd89:7a3b:42c0::2
 export LAN6_QNAP        := fd89:7a3b:42c0::3
 export LAN6_NAS         := fd89:7a3b:42c0::4
+export LAN6_RASPBERRYPI := fd89:7a3b:42c0::5
 export LAN6_AC86U       := fd89:7a3b:42c0::6
 
 # IPv6 policy target
