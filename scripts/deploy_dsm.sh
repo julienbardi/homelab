@@ -15,8 +15,8 @@ fi
 
 CERT_DIR="${4:-/var/lib/ssl/canonical}"
 
-FULLCHAIN="${CERT_DIR}/fullchain_ecc.pem"
-PRIVKEY="${CERT_DIR}/privkey_ecc.pem"
+FULLCHAIN="${CERT_DIR}/fullchain_rsa.pem"
+PRIVKEY="${CERT_DIR}/privkey_rsa.pem"
 CA_CER="${CERT_DIR}/ca.cer"
 
 COOKIE_JAR=$(mktemp)
@@ -47,13 +47,13 @@ trap 'rm -rf "$TMPDIR"' EXIT
 log "📁 [dsm] Copying canonical certs into RAM-safe temp directory…"
 
 # Root can always read with cat, even when cp fails. This is a known ZFS behavior.
-/usr/local/bin/run-as-root.sh sh -c "cat \"$PRIVKEY\""   > "$TMPDIR/privkey_ecc.pem"
-/usr/local/bin/run-as-root.sh sh -c "cat \"$FULLCHAIN\"" > "$TMPDIR/fullchain_ecc.pem"
+/usr/local/bin/run-as-root.sh sh -c "cat \"$PRIVKEY\""   > "$TMPDIR/privkey_rsa.pem"
+/usr/local/bin/run-as-root.sh sh -c "cat \"$FULLCHAIN\"" > "$TMPDIR/fullchain_rsa.pem"
 
-log "🔧 [dsm] Converting ECC private key to PKCS#8…"
+log "🔧 [dsm] Converting RSA private key to PKCS#8…"
 
 openssl pkcs8 -topk8 -nocrypt \
-    -in "$TMPDIR/privkey_ecc.pem" \
+    -in "$TMPDIR/privkey_rsa.pem" \
     -out "$TMPDIR/privkey_pkcs8.pem"
 
 # 3a. Trim fullchain to DSM‑compatible chain (leaf + intermediate only)
@@ -64,16 +64,16 @@ TRIMMED_CHAIN="$TMPDIR/fullchain_trimmed.pem"
 awk '
   /BEGIN CERTIFICATE/ { c++ }
   c <= 2 { print }
-' "$TMPDIR/fullchain_ecc.pem" > "$TRIMMED_CHAIN"
+' "$TMPDIR/fullchain_rsa.pem" > "$TRIMMED_CHAIN"
 
 # Replace the original fullchain with the trimmed version
-mv "$TRIMMED_CHAIN" "$TMPDIR/fullchain_ecc.pem"
+mv "$TRIMMED_CHAIN" "$TMPDIR/fullchain_rsa.pem"
 
 # 3. Combine inside RAM temp
 log "📦 [dsm] Combining certificate + key for DSM…"
 
 COMBINED="$TMPDIR/dsm_combined.pem"
-cat "$TMPDIR/privkey_pkcs8.pem" "$TMPDIR/fullchain_ecc.pem" > "$COMBINED"
+cat "$TMPDIR/privkey_pkcs8.pem" "$TMPDIR/fullchain_rsa.pem" > "$COMBINED"
 
 #echo "DEBUG: Combined PEM contents (secret):"
 #cat "$COMBINED"
