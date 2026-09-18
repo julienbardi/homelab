@@ -121,6 +121,9 @@ $(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY) $(STAMP_SOPS)
 			SSL_KEY_ECC="$(SSL_KEY_ECC)" \
 			ACME_HOME="$(ACME_HOME)" \
 		"$(CERTS_DEPLOY)" prepare; \
+		# Fix canonical permissions so deploy-dsm can read them \
+		chmod 600 "$(SSL_CANONICAL_DIR)/privkey_ecc.pem"; \
+		chmod 644 "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem"; \
 		# Compute canonical hash \
 		sha256sum \
 			"$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" \
@@ -140,19 +143,45 @@ $(STAMP_CERTS_CANONICAL): $(STAMP_PREPARE)
 # All deploy targets depend on canonical stamp
 # ============================================================
 deploy-caddy:      $(STAMP_CERTS_CANONICAL) router-install-scripts $(STAMP_SOPS)
-	@$(call WITH_SECRETS, $(call deploy_with_status,caddy))
+	@echo "🔧 Deploying Caddy certificates"
+	@if command -v caddy >/dev/null 2>&1; then \
+		echo "🔄 Reloading Caddy"; \
+		sudo caddy reload --config /etc/caddy/Caddyfile --force || \
+		sudo systemctl reload caddy || \
+		sudo systemctl restart caddy; \
+	else \
+		echo "⚠️ Caddy not installed — skipping reload"; \
+	fi
 
 deploy-headscale: headscale-user headscale-dirs $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
-	@$(call WITH_SECRETS, $(call deploy_with_status,headscale))
+	@echo "🔧 Deploying Headscale certificates"
+	@if systemctl is-active --quiet headscale; then \
+		echo "🔄 Reloading Headscale"; \
+		sudo systemctl restart headscale; \
+	else \
+		echo "⚠️ Headscale not running — skipping reload"; \
+	fi
 
-deploy-dnsdist:    $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
-	@$(call WITH_SECRETS, $(call deploy_with_status,dnsdist))
+deploy-dnsdist: $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
+	@echo "🔧 Deploying dnsdist certificates"
+	@if systemctl is-active --quiet dnsdist; then \
+		echo "🔄 Restarting dnsdist (reload unsupported)"; \
+		sudo systemctl restart dnsdist; \
+	else \
+		echo "⚠️ dnsdist not running — skipping restart"; \
+	fi
 
-deploy-qnap:       $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS)
-	@$(call WITH_SECRETS, $(call deploy_with_status,qnap))
+deploy-qnap:       $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS) install-all
+	@echo "🔧 Deploying QNAP certificates (BROKEN)"
+	@#$(INSTALL_PATH)/deploy_qnap.sh "$(SSL_CANONICAL_DIR)"
+	@#echo "🔐 QNAP certificates deployed"
 
-deploy-dsm:        $(STAMP_CERTS_CANONICAL)
-	@echo "🔄 DSM deploy triggered by canonical cert change"
+deploy-dsm: $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS) install-all
+	@$(call WITH_SECRETS, $(INSTALL_PATH)/deploy_dsm.sh 10.89.12.2 "$$DSM_USER" "" "$(SSL_CANONICAL_DIR)")
+	@echo "🔐 DSM certificates deployed"
+
+deploy-diskstation: deploy-dsm
+	@true
 
 deploy-ac86u:      $(STAMP_CERTS_CANONICAL)
 	@echo "🔄 AC86U deploy triggered by canonical cert change"
@@ -179,8 +208,19 @@ validate-qnap:
 	fi
 
 validate-dsm:
-	@echo "⚠️ [validate][dsm] Temporarily disabled — DSM certificate not validated"
-	@exit 0
+	@echo "🔍 [validate][dsm] Checking certificate on 10.89.12.2:5001..."
+	@set +e; \
+	cert_pem=$$(openssl s_client -connect 10.89.12.2:5001 -servername $(DOMAIN) -tls1_2 </dev/null 2>/dev/null | sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p'); \
+	if [ -z "$$cert_pem" ]; then \
+		echo "❌ [validate][dsm] Failed to fetch certificate from target"; exit 1; \
+	fi; \
+	subject=$$(echo "$$cert_pem" | openssl x509 -noout -subject 2>/dev/null); \
+	echo "ℹ️ Fetched subject: $$subject"; \
+	if echo "$$subject" | grep -q "$(DOMAIN)"; then \
+		echo "✅ [validate][dsm] Validation complete"; \
+	else \
+		echo "⚠️ [validate][dsm] Certificate validation failed (Subject mismatch)"; exit 1; \
+	fi
 
 validate-ac86u:
 	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443"; \
