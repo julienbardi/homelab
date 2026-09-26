@@ -76,6 +76,7 @@ include $(REPO_ROOT)/mk/25_routing.mk
 include $(REPO_ROOT)/mk/30_config_validation.mk
 include $(REPO_ROOT)/mk/40_acme.mk
 include $(REPO_ROOT)/mk/40_code-server.mk
+include $(REPO_ROOT)/mk/40_iscsi-game-drive.mk
 include $(REPO_ROOT)/mk/40_nas-caddy.mk
 #include $(REPO_ROOT)/mk/40_nas-traefik.mk
 include $(REPO_ROOT)/mk/netbird.mk
@@ -192,7 +193,8 @@ service-phase: install-systemd enable-systemd deploy-unbound-config monitoring \
 			router-certs-deploy \
 			router-caddy \
 			nas-caddy \
-			netbird-deploy
+			netbird-deploy \
+			iscsi-game-drive
 service-phase: wg-network-phase
 
 # Sub-groupings
