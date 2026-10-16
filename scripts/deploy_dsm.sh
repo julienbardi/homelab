@@ -56,19 +56,6 @@ openssl pkcs8 -topk8 -nocrypt \
     -in "$TMPDIR/privkey_rsa.pem" \
     -out "$TMPDIR/privkey_pkcs8.pem"
 
-# 3a. Trim fullchain to DSM‑compatible chain (leaf + intermediate only)
-log "🔧 [dsm] Trimming fullchain to DSM‑compatible chain…"
-
-TRIMMED_CHAIN="$TMPDIR/fullchain_trimmed.pem"
-
-awk '
-  /BEGIN CERTIFICATE/ { c++ }
-  c <= 2 { print }
-' "$TMPDIR/fullchain_rsa.pem" > "$TRIMMED_CHAIN"
-
-# Replace the original fullchain with the trimmed version
-mv "$TRIMMED_CHAIN" "$TMPDIR/fullchain_rsa.pem"
-
 # 3. Combine inside RAM temp
 log "📦 [dsm] Combining certificate + key for DSM…"
 
@@ -91,12 +78,10 @@ curl -sk -b "$COOKIE_JAR" -X POST \
   -F "version=1" \
   -F "method=import" \
   -F "_sid=$SID" \
-  -F "file=@${COMBINED};filename=dsm_combined.pem" \
+  -F "cert=@${TMPDIR}/fullchain_rsa.pem" \
+  -F "key=@${TMPDIR}/privkey_pkcs8.pem" \
   -F "desc=Homelab-Auto-Deploy" \
   "https://${HOST}:5001/webapi/entry.cgi" > /tmp/dsm_upload.log 2>&1
-
-echo "DEBUG: Combined PEM contents (secret):"
-sed -n '1,200p' "$COMBINED"
 
 if ! grep -q '"success":true' /tmp/dsm_upload.log; then
     log "❌ [dsm] Upload failed:"
@@ -114,8 +99,15 @@ NEW_ID=$(printf '%s' "$CERT_LIST" | grep -o '"id":"[^"]*"' | tail -n1 | cut -d'"
 
 if [ -n "$NEW_ID" ]; then
     log "🚀 [dsm] Activating certificate ID ${NEW_ID}…"
-    curl -sk -b "$COOKIE_JAR" \
-      "https://${HOST}:5001/webapi/entry.cgi?api=SYNO.Core.Certificate&version=1&method=set_default&id=${NEW_ID}&_sid=$SID" >/dev/null
+
+    RESP=$(curl -sk -b "$COOKIE_JAR" \
+      "https://${HOST}:5001/webapi/entry.cgi?api=SYNO.Core.Certificate&version=1&method=set_default&id=${NEW_ID}&_sid=$SID")
+
+    echo
+    echo "===== DSM SET DEFAULT RESPONSE ====="
+    echo "$RESP"
+    echo "===================================="
+    echo
 fi
 
 log "🔄 [dsm] Restarting DSM reverse proxy…"

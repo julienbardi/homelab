@@ -96,6 +96,15 @@ install-helpers: $(INSTALL_PATH)/common.sh \
 $(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY) $(STAMP_SOPS)
 	@$(call WITH_SECRETS, $(run_as_root) sh -c '\
 		set -euo pipefail; \
+		# ISSUE RSA CERT (DSM REQUIREMENT) \
+		if [ ! -f "$(SSL_CHAIN_RSA)" ]; then \
+			echo "⚠️ No RSA certificate found — issuing RSA 4096 cert for DSM..."; \
+			$(MAKE) -f $(REPO_ROOT)/graph.mk acme-issue-rsa VERBOSE=$(VERBOSE); \
+			if [ ! -f "$(SSL_CHAIN_RSA)" ]; then \
+				echo "❌ RSA certificate still missing after issuance"; exit 1; \
+			fi; \
+		fi; \
+		\
 		# Ensure ECC certificate exists (first-issue if missing) \
 		if [ ! -f "$(SSL_CHAIN_ECC)" ] || [ ! -f "$(SSL_CERT_ECC)" ] || [ ! -f "$(SSL_KEY_ECC)" ]; then \
 			echo "⚠️ No ECC certificate found — triggering ACME issuance via systemd"; \
@@ -119,15 +128,32 @@ $(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY) $(STAMP_SOPS)
 			SSL_CERT_ECC="$(SSL_CERT_ECC)" \
 			SSL_CHAIN_ECC="$(SSL_CHAIN_ECC)" \
 			SSL_KEY_ECC="$(SSL_KEY_ECC)" \
+			SSL_CERT_RSA="$(SSL_CERT_RSA)" \
+			SSL_CHAIN_RSA="$(SSL_CHAIN_RSA)" \
+			SSL_KEY_RSA="$(SSL_KEY_RSA)" \
 			ACME_HOME="$(ACME_HOME)" \
 		"$(CERTS_DEPLOY)" prepare; \
 		# Fix canonical permissions so deploy-dsm can read them \
 		chmod 600 "$(SSL_CANONICAL_DIR)/privkey_ecc.pem"; \
 		chmod 644 "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem"; \
-		# Compute canonical hash \
-		sha256sum \
+		# Build RSA canonical store for DSM (must exist now) \
+		if [ -f "$(SSL_KEY_RSA)" ] && \
+		   [ -f "$(SSL_CHAIN_RSA)" ]; then \
+			echo "🔐 RSA certificate present — building canonical RSA store for DSM"; \
+			install -m 600 "$(SSL_KEY_RSA)" \
+				"$(SSL_CANONICAL_DIR)/privkey_rsa.pem"; \
+			install -m 644 "$(SSL_CHAIN_RSA)" \
+				"$(SSL_CANONICAL_DIR)/fullchain_rsa.pem"; \
+		else \
+			echo "❌ FATAL: RSA certificate missing after issuance — aborting"; \
+			exit 1; \
+		fi; \
+		# Compute canonical hash (includes BOTH ECC and RSA) \
+		cat \
 			"$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" \
 			"$(SSL_CANONICAL_DIR)/privkey_ecc.pem" \
+			"$(SSL_CANONICAL_DIR)/fullchain_rsa.pem" \
+			"$(SSL_CANONICAL_DIR)/privkey_rsa.pem" \
 			| sha256sum | awk '\''{print $$1}'\'' \
 			> "$(STAMP_CERTS_CANONICAL)"; \
 		touch "$(STAMP_PREPARE)"; \
@@ -209,17 +235,22 @@ validate-qnap:
 
 validate-dsm:
 	@echo "🔍 [validate][dsm] Checking certificate on 10.89.12.2:5001..."
-	@set +e; \
-	cert_pem=$$(openssl s_client -connect 10.89.12.2:5001 -servername $(DOMAIN) -tls1_2 </dev/null 2>/dev/null | sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p'); \
-	if [ -z "$$cert_pem" ]; then \
-		echo "❌ [validate][dsm] Failed to fetch certificate from target"; exit 1; \
-	fi; \
-	subject=$$(echo "$$cert_pem" | openssl x509 -noout -subject 2>/dev/null); \
-	echo "ℹ️ Fetched subject: $$subject"; \
-	if echo "$$subject" | grep -q "$(DOMAIN)"; then \
+	@remote_fp=$$(echo | \
+		openssl s_client \
+			-connect 10.89.12.2:5001 \
+			-servername $(DOMAIN) \
+			2>/dev/null | \
+		openssl x509 -noout -fingerprint -sha256); \
+	local_fp=$$(openssl x509 \
+		-in $(SSL_CANONICAL_DIR)/fullchain_ecc.pem \
+		-noout -fingerprint -sha256); \
+	echo "ℹ️ Local : $$local_fp"; \
+	echo "ℹ️ Remote: $$remote_fp"; \
+	if [ "$$local_fp" = "$$remote_fp" ]; then \
 		echo "✅ [validate][dsm] Validation complete"; \
 	else \
-		echo "⚠️ [validate][dsm] Certificate validation failed (Subject mismatch)"; exit 1; \
+		echo "❌ [validate][dsm] Fingerprint mismatch"; \
+		exit 1; \
 	fi
 
 validate-ac86u:
