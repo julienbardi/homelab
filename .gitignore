@@ -65,6 +65,7 @@ config/*.generated
 # wireguard outputs
 wireguard/keys/
 wireguard/output/
+wireguard/psk/
 
 # === SOPS / Encryption Safety ===
 # Prevent accidentally committing decrypted buffers
