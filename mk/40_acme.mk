@@ -212,14 +212,22 @@ acme-validate-token:
 # ============================================================================
 .PHONY: acme-validate-issuance
 acme-validate-issuance:
-	@$(run_as_root) bash -euo pipefail -c '\
-		if [ "$(VERBOSE)" -ge 1 ]; then echo "🔍 Validating ACME issuance directory"; fi; \
-		if [ ! -d "$(ACME_HOME)/$(DOMAIN)_ecc" ]; then \
-			echo "❌ No issuance directory found: $(ACME_HOME)/$(DOMAIN)_ecc" >&2; \
-			exit 1; \
-		fi; \
-		if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 ACME issuance directory validated"; fi; \
-	'
+    @$(run_as_root) bash -euo pipefail -c '\
+        if [ "$(VERBOSE)" -ge 1 ]; then \
+            echo "🔍 Validating ACME issuance directories"; \
+        fi; \
+        if [ ! -d "$(ACME_DIR_ECC)" ]; then \
+            echo "❌ Missing ECC issuance directory: $(ACME_DIR_ECC)" >&2; \
+            exit 1; \
+        fi; \
+        if [ ! -d "$(ACME_DIR_RSA)" ]; then \
+            echo "❌ Missing RSA issuance directory: $(ACME_DIR_RSA)" >&2; \
+            exit 1; \
+        fi; \
+        if [ "$(VERBOSE)" -ge 1 ]; then \
+            echo "🟢 ACME issuance directories validated"; \
+        fi; \
+    '
 
 # ============================================================================
 # ACME Convergence Target
@@ -242,25 +250,28 @@ acme-selftest: \
 .PHONY: acme-issue
 acme-issue: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 	@$(run_as_root) bash -euo pipefail -c '\
-		if [ ! -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem" ]; then \
+		if [ ! -f "$(ACME_DIR_ECC)/fullchain.pem" ]; then \
 			echo "🚀 Issuing ACME certificate synchronously via acme.sh..."; \
 			export HOME="$(ACME_HOME)"; \
 			unset SUDO_USER; \
-			/var/lib/acme/acme.sh --issue --server letsencrypt --dns dns_infomaniak -d "$(DOMAIN)" -d "*.$(DOMAIN)" --home "$(ACME_HOME)" || true; \
+			/var/lib/acme/acme.sh --issue --server letsencrypt --dns dns_infomaniak \
+				-d "$(DOMAIN)" -d "*.$(DOMAIN)" \
+				--home "$(ACME_HOME)" \
+				--cert-home "$(ACME_DIR_ECC)" || true; \
 		else \
 			if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 ACME certificate already exists"; fi; \
 		fi; \
-		if [ -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" ]; then \
-			rm -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem"; \
-			cp "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem"; \
+		if [ -f "$(ACME_DIR_ECC)/fullchain.cer" ]; then \
+			rm -f "$(ACME_DIR_ECC)/fullchain.pem"; \
+			cp "$(ACME_DIR_ECC)/fullchain.cer" "$(ACME_DIR_ECC)/fullchain.pem"; \
 			echo "🟢 Updated fullchain.pem from fullchain.cer"; \
 		fi; \
 		ENV_FILE="$(ACME_HOME)/acme-env.sh"; \
 		{ \
-			echo "export SSL_KEY_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key\""; \
-			echo "export SSL_CERT_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer\""; \
-			echo "export SSL_CA_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/ca.cer\""; \
-			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem\""; \
+			echo "export SSL_KEY_ECC=\"$(ACME_DIR_ECC)/$(DOMAIN).key\""; \
+			echo "export SSL_CERT_ECC=\"$(ACME_DIR_ECC)/$(DOMAIN).cer\""; \
+			echo "export SSL_CA_ECC=\"$(ACME_DIR_ECC)/ca.cer\""; \
+			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_DIR_ECC)/fullchain.pem\""; \
 		} > "$$ENV_FILE"; \
 		chmod 600 "$$ENV_FILE"; \
 		STAMP_PATH="$(call STAMP_PATH_FROM_KEY,acme-issue)"; \
@@ -278,29 +289,102 @@ acme-issue: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 		mv -f "$$STAMP_PATH.tmp" "$$STAMP_PATH"; \
 	'
 
-export SSL_KEY_ECC = $(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key
-export SSL_CERT_ECC = $(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer
-export SSL_CA_ECC = $(ACME_HOME)/$(DOMAIN)_ecc/ca.cer
-export SSL_FULLCHAIN_ECC = $(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem
-
 .PHONY: acme-issue-sync
 acme-issue-sync: acme-issue
+
+# ============================================================================
+# 2.1. ACME RSA 4096 Issuance (parallel to ECC, DSM compatibility)
+# ============================================================================
+# This target issues a second certificate with RSA 4096 key for DSM compatibility.
+# It uses the same validation method as the ECC cert (DNS via Infomaniak API).
+# The RSA cert is NOT renewed automatically by systemd — you must manually renew it
+# or add a separate RSA renewal timer.
+# ============================================================================
+
+.PHONY: acme-issue-rsa
+acme-issue-rsa: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
+	@$(run_as_root) bash -euo pipefail -c '\
+		if [ ! -f "$(ACME_DIR_RSA)/fullchain.cer" ]; then \
+			echo "🚀 Issuing RSA 4096 ACME certificate synchronously..."; \
+			export HOME="$(ACME_HOME)"; \
+			unset SUDO_USER; \
+			/var/lib/acme/acme.sh --issue --server letsencrypt --dns dns_infomaniak \
+			  -d "$(DOMAIN)" -d "*.$(DOMAIN)" \
+			  --keylength 4096 \
+			  --home "$(ACME_HOME)" \
+			  --cert-home "$(ACME_DIR_RSA)" || true; \
+		else \
+			if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 RSA 4096 certificate already exists"; fi; \
+		fi; \
+		if [ -f "$(ACME_DIR_RSA)/fullchain.cer" ]; then \
+			rm -f "$(ACME_DIR_RSA)/fullchain.pem"; \
+			cp "$(ACME_DIR_RSA)/fullchain.cer" "$(ACME_DIR_RSA)/fullchain.pem"; \
+			echo "🟢 Updated RSA fullchain.pem from fullchain.cer"; \
+		fi; \
+		if [ -f "$(ACME_DIR_RSA)/$(DOMAIN).key" ]; then \
+			rm -f "$(ACME_DIR_RSA)/privkey.pem"; \
+			cp "$(ACME_DIR_RSA)/$(DOMAIN).key" "$(ACME_DIR_RSA)/privkey.pem"; \
+		fi; \
+		if [ -f "$(ACME_DIR_RSA)/$(DOMAIN).cer" ]; then \
+			rm -f "$(ACME_DIR_RSA)/cert.pem"; \
+			cp "$(ACME_DIR_RSA)/$(DOMAIN).cer" "$(ACME_DIR_RSA)/cert.pem"; \
+		fi; \
+		STAMP_PATH="$(call STAMP_PATH_FROM_KEY,acme-issue-rsa)"; \
+		_dir="$$(dirname "$$STAMP_PATH")"; \
+		mkdir -p "$$_dir"; \
+		_sha="$$(sha256sum "$(ACME_DIR_RSA)/fullchain.pem" 2>/dev/null | awk '\''{print $$1}'\'')"; \
+		{ \
+			echo "version=1"; \
+			echo "sha256=$$_sha"; \
+			echo "owner=root"; \
+			echo "group=root"; \
+			echo "perm=600"; \
+			echo "type=regular"; \
+		} > "$$STAMP_PATH.tmp"; \
+		mv -f "$$STAMP_PATH.tmp" "$$STAMP_PATH"; \
+	'
+
+# ============================================================================
+# RSA certificate lineage (DSM compatibility certificate)
+# ============================================================================
+
+export SSL_KEY_RSA = $(ACME_DIR_RSA)/privkey.pem
+export SSL_CERT_RSA = $(ACME_DIR_RSA)/cert.pem
+export SSL_CHAIN_RSA = $(ACME_DIR_RSA)/fullchain.pem
 
 # ============================================================================
 # 3. ACME Renewal (safe, idempotent, daily)
 # ============================================================================
 .PHONY: acme-renew
-acme-renew: acme-issue
+acme-renew: acme-issue acme-issue-rsa
 	@$(run_as_root) bash -euo pipefail -c '\
-		if [ -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" ]; then \
-			rm -f "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem"; \
-			cp "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" "$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem"; \
+		# Refresh ECC fullchain.pem from acme.sh raw output \
+		if [ -f "$(ACME_DIR_ECC)/fullchain.cer" ]; then \
+			rm -f "$(ACME_DIR_ECC)/fullchain.pem"; \
+			cp "$(ACME_DIR_ECC)/fullchain.cer" "$(ACME_DIR_ECC)/fullchain.pem"; \
+		fi; \
+		# Refresh RSA fullchain.pem from acme.sh raw output \
+		if [ -f "$(ACME_DIR_RSA)/fullchain.cer" ]; then \
+			rm -f "$(ACME_DIR_RSA)/fullchain.pem"; \
+			cp "$(ACME_DIR_RSA)/fullchain.cer" "$(ACME_DIR_RSA)/fullchain.pem"; \
+		fi; \
+		if [ -f "$(ACME_DIR_RSA)/$(DOMAIN).key" ]; then \
+			rm -f "$(ACME_DIR_RSA)/privkey.pem"; \
+			cp "$(ACME_DIR_RSA)/$(DOMAIN).key" "$(ACME_DIR_RSA)/privkey.pem"; \
+		fi; \
+		if [ -f "$(ACME_DIR_RSA)/$(DOMAIN).cer" ]; then \
+			rm -f "$(ACME_DIR_RSA)/cert.pem"; \
+			cp "$(ACME_DIR_RSA)/$(DOMAIN).cer" "$(ACME_DIR_RSA)/cert.pem"; \
 		fi; \
 		{ \
-			echo "export SSL_KEY_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key\""; \
-			echo "export SSL_CERT_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer\""; \
-			echo "export SSL_CA_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/ca.cer\""; \
-			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem\""; \
+			echo "export SSL_KEY_ECC=\"$(ACME_DIR_ECC)/$(DOMAIN).key\""; \
+			echo "export SSL_CERT_ECC=\"$(ACME_DIR_ECC)/$(DOMAIN).cer\""; \
+			echo "export SSL_CA_ECC=\"$(ACME_DIR_ECC)/ca.cer\""; \
+			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_DIR_ECC)/fullchain.pem\""; \
+			echo "export SSL_KEY_RSA=\"$(ACME_DIR_RSA)/$(DOMAIN).key\""; \
+			echo "export SSL_CERT_RSA=\"$(ACME_DIR_RSA)/$(DOMAIN).cer\""; \
+			echo "export SSL_CA_RSA=\"$(ACME_DIR_RSA)/ca.cer\""; \
+			echo "export SSL_FULLCHAIN_RSA=\"$(ACME_DIR_RSA)/fullchain.pem\""; \
 		} > /etc/homelab/acme-env.sh; \
 		systemctl start acme-renewal.service 2>/dev/null || true; \
 		echo "🔄 ACME renewal step completed"; \

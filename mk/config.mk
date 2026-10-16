@@ -181,6 +181,11 @@ SSL_CERT_ECC  := $(ACME_HOME)/$(DOMAIN)_ecc/cert.pem
 SSL_CHAIN_ECC := $(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem
 SSL_KEY_ECC   := $(ACME_HOME)/$(DOMAIN)_ecc/privkey.pem
 
+# RSA 4096 certificates (DSM compatibility requirement)
+SSL_CERT_RSA  := $(ACME_HOME)/$(DOMAIN)/cert.pem
+SSL_CHAIN_RSA := $(ACME_HOME)/$(DOMAIN)/fullchain.pem
+SSL_KEY_RSA   := $(ACME_HOME)/$(DOMAIN)/privkey.pem
+
 # Deployment targets
 SSL_DEPLOY_DIR_CADDY     := /etc/ssl/caddy
 SSL_DEPLOY_DIR_HEADSCALE := /etc/ssl/headscale

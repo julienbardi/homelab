@@ -1,13 +1,23 @@
 #!/bin/sh
-# acme-renew.sh — daily ACME renewal
+# ------------------------------------------------------------------
+# scripts/acme-renew.sh
+#
+# CONTRACT:
+# - Renews existing ACME certificate lineages
+# - Does NOT perform first issuance
+# - Does NOT modify SAN sets
+# - Renews all registered certificate families
+# - Expected certificate lineages:
+#     bardi.ch_ecc
+#     bardi.ch_rsa
+# - Safe to run repeatedly
+# ------------------------------------------------------------------
+
 set -eu
 
 ACME_HOME="/var/lib/acme"
 
-# acme.sh --cron performs:
-#   - renewal if needed
-#   - no re-issue
-#   - no SAN changes
-#   - no destructive operations
-#   - respects Infomaniak DNS provider
-exec "$ACME_HOME/acme.sh" --cron --debug 2 --home "$ACME_HOME"
+exec "$ACME_HOME/acme.sh" \
+    --cron \
+    --debug 2 \
+    --home "$ACME_HOME"

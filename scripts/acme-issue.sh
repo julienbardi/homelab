@@ -1,4 +1,5 @@
 #!/bin/sh
+# scripts/acme-issue.sh
 ACME_HOME="/var/lib/acme"
 PRIMARY_DOMAIN="${DOMAIN:-bardi.ch}"
 
