@@ -212,22 +212,22 @@ acme-validate-token:
 # ============================================================================
 .PHONY: acme-validate-issuance
 acme-validate-issuance:
-    @$(run_as_root) bash -euo pipefail -c '\
-        if [ "$(VERBOSE)" -ge 1 ]; then \
-            echo "🔍 Validating ACME issuance directories"; \
-        fi; \
-        if [ ! -d "$(ACME_DIR_ECC)" ]; then \
-            echo "❌ Missing ECC issuance directory: $(ACME_DIR_ECC)" >&2; \
-            exit 1; \
-        fi; \
-        if [ ! -d "$(ACME_DIR_RSA)" ]; then \
-            echo "❌ Missing RSA issuance directory: $(ACME_DIR_RSA)" >&2; \
-            exit 1; \
-        fi; \
-        if [ "$(VERBOSE)" -ge 1 ]; then \
-            echo "🟢 ACME issuance directories validated"; \
-        fi; \
-    '
+	@$(run_as_root) bash -euo pipefail -c '\
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🔍 Validating ACME issuance directories"; \
+		fi; \
+		if [ ! -d "$(ACME_DIR_ECC)" ]; then \
+			echo "❌ Missing ECC issuance directory: $(ACME_DIR_ECC)" >&2; \
+			exit 1; \
+		fi; \
+		if [ ! -d "$(ACME_DIR_RSA)" ]; then \
+			echo "❌ Missing RSA issuance directory: $(ACME_DIR_RSA)" >&2; \
+			exit 1; \
+		fi; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 ACME issuance directories validated"; \
+		fi; \
+	'
 
 # ============================================================================
 # ACME Convergence Target
@@ -304,7 +304,7 @@ acme-issue-sync: acme-issue
 .PHONY: acme-issue-rsa
 acme-issue-rsa: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 	@$(run_as_root) bash -euo pipefail -c '\
-		if [ ! -f "$(ACME_DIR_RSA)/fullchain.cer" ]; then \
+		if [ ! -f "$(SSL_CHAIN_RSA)" ]; then \
 			echo "🚀 Issuing RSA 4096 ACME certificate synchronously..."; \
 			export HOME="$(ACME_HOME)"; \
 			unset SUDO_USER; \
@@ -316,23 +316,10 @@ acme-issue-rsa: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 		else \
 			if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 RSA 4096 certificate already exists"; fi; \
 		fi; \
-		if [ -f "$(ACME_DIR_RSA)/fullchain.cer" ]; then \
-			rm -f "$(ACME_DIR_RSA)/fullchain.pem"; \
-			cp "$(ACME_DIR_RSA)/fullchain.cer" "$(ACME_DIR_RSA)/fullchain.pem"; \
-			echo "🟢 Updated RSA fullchain.pem from fullchain.cer"; \
-		fi; \
-		if [ -f "$(ACME_DIR_RSA)/$(DOMAIN).key" ]; then \
-			rm -f "$(ACME_DIR_RSA)/privkey.pem"; \
-			cp "$(ACME_DIR_RSA)/$(DOMAIN).key" "$(ACME_DIR_RSA)/privkey.pem"; \
-		fi; \
-		if [ -f "$(ACME_DIR_RSA)/$(DOMAIN).cer" ]; then \
-			rm -f "$(ACME_DIR_RSA)/cert.pem"; \
-			cp "$(ACME_DIR_RSA)/$(DOMAIN).cer" "$(ACME_DIR_RSA)/cert.pem"; \
-		fi; \
 		STAMP_PATH="$(call STAMP_PATH_FROM_KEY,acme-issue-rsa)"; \
 		_dir="$$(dirname "$$STAMP_PATH")"; \
 		mkdir -p "$$_dir"; \
-		_sha="$$(sha256sum "$(ACME_DIR_RSA)/fullchain.pem" 2>/dev/null | awk '\''{print $$1}'\'')"; \
+		_sha="$$(sha256sum "$(SSL_CHAIN_RSA)" 2>/dev/null | awk '\''{print $$1}'\'')"; \
 		{ \
 			echo "version=1"; \
 			echo "sha256=$$_sha"; \
@@ -348,9 +335,9 @@ acme-issue-rsa: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 # RSA certificate lineage (DSM compatibility certificate)
 # ============================================================================
 
-export SSL_KEY_RSA = $(ACME_DIR_RSA)/privkey.pem
-export SSL_CERT_RSA = $(ACME_DIR_RSA)/cert.pem
-export SSL_CHAIN_RSA = $(ACME_DIR_RSA)/fullchain.pem
+export SSL_KEY_RSA = $(ACME_LINEAGE_RSA)/$(DOMAIN).key
+export SSL_CERT_RSA = $(ACME_LINEAGE_RSA)/$(DOMAIN).cer
+export SSL_CHAIN_RSA = $(ACME_LINEAGE_RSA)/fullchain.cer
 
 # ============================================================================
 # 3. ACME Renewal (safe, idempotent, daily)

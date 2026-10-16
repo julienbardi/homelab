@@ -176,15 +176,29 @@ ACME_TIMER_FILE   := /etc/systemd/system/acme-renew.timer
 export ACME_SERVICE_FILE
 export ACME_TIMER_FILE
 
-# ECC certificates (acme.sh output: cert.pem, fullchain.pem, privkey.pem)
-SSL_CERT_ECC  := $(ACME_HOME)/$(DOMAIN)_ecc/cert.pem
-SSL_CHAIN_ECC := $(ACME_HOME)/$(DOMAIN)_ecc/fullchain.pem
-SSL_KEY_ECC   := $(ACME_HOME)/$(DOMAIN)_ecc/privkey.pem
+# ------------------------------------------------------------
+# ACME certificate lineage layout
+# ------------------------------------------------------------
+# ECC = canonical homelab certificate
+# RSA = DSM compatibility certificate
+# ------------------------------------------------------------
 
-# RSA 4096 certificates (DSM compatibility requirement)
-SSL_CERT_RSA  := $(ACME_HOME)/$(DOMAIN)/cert.pem
-SSL_CHAIN_RSA := $(ACME_HOME)/$(DOMAIN)/fullchain.pem
-SSL_KEY_RSA   := $(ACME_HOME)/$(DOMAIN)/privkey.pem
+export ACME_DIR_ECC := $(ACME_HOME)/$(DOMAIN)_ecc
+export ACME_DIR_RSA := $(ACME_HOME)/$(DOMAIN)_rsa
+
+# Actual certificate lineage locations consumed by automation
+export ACME_LINEAGE_ECC := $(ACME_DIR_ECC)
+export ACME_LINEAGE_RSA := $(ACME_DIR_RSA)/$(DOMAIN)
+
+# ECC certificates (canonical homelab certificate)
+export SSL_CERT_ECC  := $(ACME_LINEAGE_ECC)/cert.pem
+export SSL_CHAIN_ECC := $(ACME_LINEAGE_ECC)/fullchain.pem
+export SSL_KEY_ECC   := $(ACME_LINEAGE_ECC)/privkey.pem
+
+# RSA certificates (DSM compatibility certificate)
+export SSL_CERT_RSA  := $(ACME_LINEAGE_RSA)/cert.pem
+export SSL_CHAIN_RSA := $(ACME_LINEAGE_RSA)/fullchain.pem
+export SSL_KEY_RSA   := $(ACME_LINEAGE_RSA)/privkey.pem
 
 # Deployment targets
 SSL_DEPLOY_DIR_CADDY     := /etc/ssl/caddy
