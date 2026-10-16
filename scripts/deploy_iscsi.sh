@@ -26,9 +26,9 @@ else
 fi
 
 echo "Ensuring iSCSI backstore exists"
-if [ ! -d "/sys/kernel/config/target/core/block_${BACKSTORE}" ]; then
+if ! targetcli /backstores/block ls | grep -q "${BACKSTORE}"; then
     echo "Creating backstore ${BACKSTORE}"
-    targetcli /backstores/block create name=${BACKSTORE} dev=/dev/zvol/${ZVOL} || true
+    targetcli /backstores/block create \({BACKSTORE} /dev/zvol/\){ZVOL}
 else
     echo "Backstore ${BACKSTORE} already exists"
 fi
@@ -36,39 +36,39 @@ fi
 echo "Ensuring iSCSI target exists"
 if [ ! -d "/sys/kernel/config/target/iscsi/${TARGET}" ]; then
     echo "Creating target ${TARGET}"
-    targetcli /iscsi create ${TARGET} || true
+    targetcli /iscsi create ${TARGET}
 else
     echo "Target ${TARGET} already exists"
 fi
 
 echo "Ensuring LUN exists"
-if [ ! -L "/sys/kernel/config/target/iscsi/${TARGET}/tpg1/luns/lun_0" ]; then
-    echo "Creating LUN lun_0"
-    targetcli /iscsi/${TARGET}/tpg1/luns create storage_object=${BACKSTORE} || true
+if ! targetcli /iscsi/${TARGET}/tpg1/luns ls | grep -q "storage_object_name"; then
+    echo "Creating LUN"
+    targetcli /iscsi/\({TARGET}/tpg1/luns create /backstores/block/\){BACKSTORE}
 else
-    echo "LUN lun_0 already exists"
+    echo "LUN already exists"
 fi
 
 echo "Ensuring ACL exists"
-if [ ! -d "/sys/kernel/config/target/iscsi/${TARGET}/tpg1/acls/${INITIATOR}" ]; then
+if [ ! -d "/sys/kernel/config/target/iscsi/\({TARGET}/tpg1/acls/\){INITIATOR}" ]; then
     echo "Creating ACL for initiator ${INITIATOR}"
-    targetcli /iscsi/${TARGET}/tpg1/acls create ${INITIATOR} || true
+    targetcli /iscsi/\({TARGET}/tpg1/acls create\){INITIATOR}
 else
     echo "ACL already exists"
 fi
 
 echo "Ensuring IPv4 portal exists"
-if [ ! -d "/sys/kernel/config/target/iscsi/${TARGET}/tpg1/np/${LAN_NAS}:3260" ]; then
+if [ ! -d "/sys/kernel/config/target/iscsi/\({TARGET}/tpg1/np/\){LAN_NAS}:3260" ]; then
     echo "Creating IPv4 portal ${LAN_NAS}"
-    targetcli /iscsi/${TARGET}/tpg1/portals create ${LAN_NAS} || true
+    targetcli /iscsi/\({TARGET}/tpg1/portals create\){LAN_NAS}
 else
     echo "IPv4 portal already exists"
 fi
 
 echo "Ensuring IPv6 portal exists"
-if [ ! -d "/sys/kernel/config/target/iscsi/${TARGET}/tpg1/np/[${LAN6_NAS}]:3260" ]; then
+if [ ! -d "/sys/kernel/config/target/iscsi/\({TARGET}/tpg1/np/[\){LAN6_NAS}]:3260" ]; then
     echo "Creating IPv6 portal ${LAN6_NAS}"
-    targetcli /iscsi/${TARGET}/tpg1/portals create ${LAN6_NAS} || true
+    targetcli /iscsi/\({TARGET}/tpg1/portals create\){LAN6_NAS}
 else
     echo "IPv6 portal already exists"
 fi
