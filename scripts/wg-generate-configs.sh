@@ -267,12 +267,13 @@ EOF
         local endpoint_host="${DNS_TOPDOMAIN_NAME}"
 
         PSK_FILE="${WG_ROOT}/psk/${name}.psk"
-        if [ ! -f "$PSK_FILE" ]; then
-            echo "🔐 Generating missing PSK for peer '$name'..."
-            ( umask 0007; wg genpsk > "${PSK_FILE}.tmp" )
-            mv -f "${PSK_FILE}.tmp" "$PSK_FILE"
-        fi
-        PSK_VALUE="$(cat "$PSK_FILE")"
+
+		if [ ! -f "$PSK_FILE" ]; then
+			echo "❌ Missing PSK: $PSK_FILE" >&2
+			exit 1
+		fi
+
+		PSK_VALUE="$(cat "$PSK_FILE")"
         # PSK_VALUE is now available for both router + client config blocks
 
         install_content "$OUT_CLIENTS/$name.conf" "0600" <<EOF
