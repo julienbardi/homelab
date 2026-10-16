@@ -161,7 +161,7 @@ install_files_if_changed_v3() {
         local ret=$?
         if [ "$ret" -eq 3 ]; then
             _changed_ref=1
-        elif [ "$ret" -ne 0 && "$ret" -ne 3 ]; then
+        elif [[ "$ret" -ne 0 && "$ret" -ne 3 ]]; then
             return "$ret"
         fi
         shift 9

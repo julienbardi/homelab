@@ -33,7 +33,13 @@ endif
 # Shared helpers
 # ------------------------------------------------------------
 define router_validate_with_status
-	@$(run_as_root) $(CERTS_DEPLOY) validate $(1)
+    $(run_as_root) env \
+        SSL_CANONICAL_DIR="$(SSL_CANONICAL_DIR)" \
+        DOMAIN="$(DOMAIN)" \
+        ROUTER_ADDR="$(ROUTER_ADDR)" \
+        ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
+        SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
+        $(CERTS_DEPLOY) validate $(1)
 endef
 
 # ------------------------------------------------------------
@@ -78,6 +84,9 @@ router-certs-prepare: install-all acme-issue-sync certs-create router-certs-depl
 			SSL_CERT_ECC="$$CERT_FILE" \
 			SSL_CHAIN_ECC="$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" \
 			SSL_FULLCHAIN_ECC="$$CERT_FILE" \
+			SSL_CERT_RSA="$(SSL_CERT_RSA)" \
+			SSL_CHAIN_RSA="$(SSL_CHAIN_RSA)" \
+			SSL_KEY_RSA="$(SSL_KEY_RSA)" \
 			SSL_CANONICAL_DIR="$(SSL_CANONICAL_DIR)" \
 			CERT_DIR="$(CERT_DIR)" \
 			ACME_SSL_DIR="$(ACME_SSL_DIR)" \
@@ -107,6 +116,9 @@ router-certs-deploy: router-bootstrap-primitives install-all router-certs-prereq
 			SSL_CERT_ECC="$$CERT_FILE" \
 			SSL_CHAIN_ECC="$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" \
 			SSL_FULLCHAIN_ECC="$$CERT_FILE" \
+			SSL_CERT_RSA="$(SSL_CERT_RSA)" \
+			SSL_CHAIN_RSA="$(SSL_CHAIN_RSA)" \
+			SSL_KEY_RSA="$(SSL_KEY_RSA)" \
 			SSL_CANONICAL_DIR="$(SSL_CANONICAL_DIR)" \
 			CERT_DIR="$(CERT_DIR)" \
 			ACME_SSL_DIR="$(ACME_SSL_DIR)" \
@@ -120,7 +132,7 @@ router-certs-deploy: router-bootstrap-primitives install-all router-certs-prereq
 
 .PHONY: router-certs-validate
 router-certs-validate: router-certs-deploy $(STAMP_SOPS)
-	$(call WITH_SECRETS, $(call router_validate_with_status,router))
+	@$(call WITH_SECRETS, $(call router_validate_with_status,router))
 
 .PHONY: router-certs-validate-caddy
 router-certs-validate-caddy: install-all router-certs-deploy $(STAMP_SOPS)
@@ -128,13 +140,15 @@ router-certs-validate-caddy: install-all router-certs-deploy $(STAMP_SOPS)
 
 .PHONY: router-certs-status
 router-certs-status: router-bootstrap router-certs-prepare $(STAMP_SOPS)
-	@$(call WITH_SECRETS, sh -c '\
-		ROUTER_ADDR="$(ROUTER_ADDR)" \
-		ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
-		SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
-		SSH_OPTS="$(SSH_OPTS)" \
-		$(CERTS_DEPLOY) status router \
-	')
+	@$(call WITH_SECRETS, \
+		$(run_as_root) env \
+			SSL_CANONICAL_DIR="$(SSL_CANONICAL_DIR)" \
+			DOMAIN="$(DOMAIN)" \
+			ROUTER_ADDR="$(ROUTER_ADDR)" \
+			ROUTER_SSH_PORT="$(ROUTER_SSH_PORT)" \
+			SSH_USER_ROUTER="$(SSH_USER_ROUTER)" \
+			$(CERTS_DEPLOY) status router \
+	)
 
 # ------------------------------------------------------------
 # Legacy compatibility targets (required by mk/50_certs.mk)

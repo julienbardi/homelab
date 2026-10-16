@@ -127,8 +127,10 @@ prepare() {
             changed=0
 
             install_files_if_changed_v3.sh changed \
-                '' '' '$SSL_CHAIN_ECC'  '' '' '$SSL_CANONICAL_DIR/fullchain_ecc.pem'  root ssl-cert 0644 \
-                '' '' '$SSL_KEY_ECC'    '' '' '$SSL_CANONICAL_DIR/privkey_ecc.pem'    root ssl-cert 0640
+                '' '' "$SSL_CHAIN_ECC"  '' '' "$SSL_CANONICAL_DIR/fullchain_ecc.pem"  root ssl-cert 0644 \
+                '' '' "$SSL_KEY_ECC"    '' '' "$SSL_CANONICAL_DIR/privkey_ecc.pem"    root ssl-cert 0640 \
+                '' '' "$SSL_CHAIN_RSA"  '' '' "$SSL_CANONICAL_DIR/fullchain_rsa.pem"  root root 0644 \
+                '' '' "$SSL_KEY_RSA"    '' '' "$SSL_CANONICAL_DIR/privkey_rsa.pem"    root root 0600
 
             echo \"\$changed\"
         "
@@ -150,14 +152,27 @@ deploy_remote_fastpath() {
     local canon_fc="$SSL_CANONICAL_DIR/fullchain_ecc.pem"
     local canon_pk="$SSL_CANONICAL_DIR/privkey_ecc.pem"
 
-    local h1 h2 h3 h4
+    local h1 h2
+    local h3 h4
+    local h5 h6
+
     h1=$(hash_file "$canon_fc")
     h2=$(hash_file "$canon_pk")
-    h3=$( (hash_remote "$host" "$port" "$remote_fc" "$SSH_IDENTITY") || echo none)
-    h4=$( (hash_remote "$host" "$port" "$remote_pk" "$SSH_IDENTITY") || echo none)
 
-    if fastpath_match "$h1" "$h3" && fastpath_match "$h2" "$h4"; then
-        log "ℹ️ Remote TLS material up-to-date"
+    # Legacy deployment location
+    h3=$( (hash_remote "$host" "$port" "$remote_fc" "$SSH_IDENTITY") || echo none )
+    h4=$( (hash_remote "$host" "$port" "$remote_pk" "$SSH_IDENTITY") || echo none )
+
+    # ASUS upload store
+    h5=$( (hash_remote "$host" "$port" "/jffs/.cert/cert.pem" "$SSH_IDENTITY") || echo none )
+    h6=$( (hash_remote "$host" "$port" "/jffs/.cert/key.pem" "$SSH_IDENTITY") || echo none )
+
+    if fastpath_match "$h1" "$h3" \
+        && fastpath_match "$h2" "$h4" \
+        && fastpath_match "$h1" "$h5" \
+        && fastpath_match "$h2" "$h6"; then
+
+        log "ℹ️ Remote TLS material up-to-date (/jffs/ssl + /jffs/.cert)"
         return 0
     fi
 
@@ -240,27 +255,67 @@ deploy_dnsdist() {
 deploy_router() {
     log "🔐 Deploying ECC TLS to router"
 
-    if deploy_remote_fastpath \
+    ssh -p "$ROUTER_SSH_PORT" \
+        -i "$SSH_IDENTITY" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" \
-        "$ROUTER_SSH_PORT" \
-        "/jffs/ssl/fullchain.pem" \
-        "/jffs/ssl/privkey.pem"; then
-        log "ℹ️ router TLS material already up-to-date (fast-path)"
-        return 0
-    fi
+        'mkdir -p /jffs/.cert'
+
     local changed=0
+
     run_as_root install_files_if_changed_v3 changed \
         "" "22" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" \
         julie root 0644 \
         "" "22" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
+        julie root 0600 \
+        "" "22" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/.cert/cert.pem" \
+        julie root 0644 \
+        "" "22" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/.cert/key.pem" \
         julie root 0600
+
     if [[ "$changed" -eq 1 ]]; then
         log "📝 Router TLS material updated"
     else
-        log "ℹ️ Router TLS material already up-to-date (slow-path)"
+        log "ℹ️ Router TLS material already up-to-date"
     fi
+
+    ssh -p "$ROUTER_SSH_PORT" \
+        -i "$SSH_IDENTITY" \
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" '
+            mkdir -p /jffs/.cert
+            if [ "$(nvram get le_enable)" != "2" ]; then
+                nvram set le_enable=2
+                nvram commit
+            fi
+            /usr/sbin/gencert.sh -l 1
+
+            router_fp="$(
+                openssl x509 \
+                    -in /etc/cert.pem \
+                    -noout \
+                    -fingerprint \
+                    -sha256 \
+                | cut -d= -f2
+            )"
+
+            uploaded_fp="$(
+                openssl x509 \
+                    -in /jffs/.cert/cert.pem \
+                    -noout \
+                    -fingerprint \
+                    -sha256 \
+                | cut -d= -f2
+            )"
+
+            if [ "$router_fp" != "$uploaded_fp" ]; then
+                echo "❌ ASUS certificate activation failed"
+                exit 1
+            fi
+        '
+    log "✅ ASUS certificate activation verified"
 }
 
 # --------------------------------------------------------------------
@@ -289,44 +344,92 @@ validate_caddy() {
     fi
 }
 
+# Router GUI runs on 8443.
+# Port 443 is Caddy and MUST NOT be used for router certificate validation.
 validate_router() {
-    log "[validate][router] ECC handshake"
+    log "[validate][router] HTTPS certificate"
 
-    if echo | openssl s_client \
-        -connect "${ROUTER_ADDR}:443" \
-        -servername "$DOMAIN" \
-        -cipher ECDHE-ECDSA-AES128-GCM-SHA256 \
-        2>/dev/null | openssl x509 -noout -subject -dates; then
+    local router_fp
+    local uploaded_fp
 
-        log "✅ router ECC certificate validated successfully"
-    else
-        log "⚠️ router ECC handshake failed"
+    router_fp="$(
+        echo | openssl s_client \
+            -connect "${ROUTER_ADDR}:8443" \
+            -servername "$DOMAIN" \
+            2>/dev/null \
+        | openssl x509 -noout -fingerprint -sha256 \
+        | cut -d= -f2
+    )" || {
+        log "❌ Router TLS handshake failed"
+        return 1
+    }
+
+    uploaded_fp="$(
+        openssl x509 \
+            -in "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
+            -noout \
+            -fingerprint \
+            -sha256 \
+        | cut -d= -f2
+    )"
+
+    if [[ "$router_fp" != "$uploaded_fp" ]]; then
+        log "❌ Router certificate drift detected"
+        log "   local : $uploaded_fp"
+        log "   remote: $router_fp"
+        return 1
     fi
+
+    log "✅ Router certificate matches canonical store"
 }
 
+# Router GUI runs on 8443.
+# Port 443 is Caddy and MUST NOT be used for router certificate validation.
 status_router() {
     log "[status][router] Checking router TLS status"
+
+    local router_fp
+    local uploaded_fp
 
     # 1. Check reachability
     if ! ping -c1 -W1 "$ROUTER_ADDR" >/dev/null 2>&1; then
         log "⚠️ Router unreachable via ICMP"
-    else
-        log "ℹ️ Router reachable via ICMP"
+        return 1
     fi
 
-    # 2. Check HTTPS ECC handshake
-    if echo | openssl s_client \
-        -connect "${ROUTER_ADDR}:443" \
-        -servername "$DOMAIN" \
-        -cipher ECDHE-ECDSA-AES128-GCM-SHA256 \
-        2>/dev/null | openssl x509 -noout -subject -dates; then
+    log "ℹ️ Router reachable via ICMP"
 
-        log "✅ Router ECC certificate handshake successful"
+    # 2. Check active certificate fingerprint on router GUI
+    router_fp="$(
+        echo | openssl s_client \
+            -connect "${ROUTER_ADDR}:8443" \
+            -servername "$DOMAIN" \
+            2>/dev/null \
+        | openssl x509 -noout -fingerprint -sha256 \
+        | cut -d= -f2
+    )" || {
+        log "❌ Router TLS handshake failed"
+        return 1
+    }
+
+    uploaded_fp="$(
+        openssl x509 \
+            -in "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
+            -noout \
+            -fingerprint \
+            -sha256 \
+        | cut -d= -f2
+    )"
+
+    if [[ "$router_fp" == "$uploaded_fp" ]]; then
+        log "✅ Router serves canonical certificate"
     else
-        log "⚠️ Router ECC handshake failed"
+        log "⚠️ Router certificate drift detected"
+        log "   local : $uploaded_fp"
+        log "   remote: $router_fp"
     fi
 
-    # 3. Check TLS material drift (fast-path)
+    # 3. Check deployed TLS material
     if deploy_remote_fastpath \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" \
         "$ROUTER_SSH_PORT" \
@@ -337,6 +440,16 @@ status_router() {
     else
         log "⚠️ Router TLS material differs from canonical store"
     fi
+
+    # 4. Verify ASUS upload store exists
+    ssh -p "$ROUTER_SSH_PORT" \
+        -i "$SSH_IDENTITY" \
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" '
+            test -f /jffs/.cert/cert.pem &&
+            test -f /jffs/.cert/key.pem
+        ' >/dev/null 2>&1 \
+            && log "ℹ️ ASUS certificate upload store present" \
+            || log "⚠️ ASUS certificate upload store missing"
 }
 
 # --------------------------------------------------------------------
