@@ -17,27 +17,32 @@ set -eu
 ACME_HOME="/var/lib/acme"
 PRIMARY_DOMAIN="${DOMAIN:-bardi.ch}"
 
+ECC_LINEAGE="$ACME_HOME/${PRIMARY_DOMAIN}_ecc"
+RSA_LINEAGE="$ACME_HOME/${PRIMARY_DOMAIN}_rsa"
+
 # ------------------------------------------------------------------
 # ECC certificate (canonical homelab certificate)
 # ------------------------------------------------------------------
-if [ ! -d "$ACME_HOME/${PRIMARY_DOMAIN}_ecc" ]; then
+if [ ! -f "$ECC_LINEAGE/${PRIMARY_DOMAIN}_ecc/fullchain.cer" ]; then
     "$ACME_HOME/acme.sh" \
         --issue \
         --dns dns_infomaniak \
         --home "$ACME_HOME" \
         -d "$PRIMARY_DOMAIN" \
-        -d "*.$PRIMARY_DOMAIN"
+        -d "*.$PRIMARY_DOMAIN" \
+        -d "*.lan.$PRIMARY_DOMAIN"
 fi
 
 # ------------------------------------------------------------------
 # RSA certificate (DSM compatibility certificate)
 # ------------------------------------------------------------------
-if [ ! -d "$ACME_HOME/${PRIMARY_DOMAIN}_rsa" ]; then
+if [ ! -f "$RSA_LINEAGE/${PRIMARY_DOMAIN}/fullchain.cer" ]; then
     "$ACME_HOME/acme.sh" \
         --issue \
         --dns dns_infomaniak \
         --home "$ACME_HOME" \
-        --keylength 2048 \
+        --keylength 4096 \
         -d "$PRIMARY_DOMAIN" \
-        -d "*.$PRIMARY_DOMAIN"
+        -d "*.$PRIMARY_DOMAIN" \
+        -d "*.lan.$PRIMARY_DOMAIN"
 fi

@@ -50,9 +50,6 @@ export SSH_HOST_ROUTER := router
 export SSH_HOST_QNAP   := qnap
 export SSH_HOST_HUB01  := hub01
 
-# SSH options for router access: accept-new not yes so that automation survives router resets
-export SSH_OPTS := -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new
-
 ACTUAL_USER := $(or $(SUDO_USER),$(USER))
 # Capture the user context
 # DDA-Compliant: Resolve home directory via system database instead of hardcoded paths
@@ -132,6 +129,7 @@ HUB01_ADDR := 10.89.12.11
 HUB01_LAN_IFACE := ens3 # ip route get 10.89.12.1 | awk '/dev/ {print $5}'
 
 export SSH_PORT_AC86U := 2222
+
 # ============================================================================
 # ACME Configuration (Option C: FHS-compliant, system-level)
 # ============================================================================
@@ -139,25 +137,24 @@ export SSH_PORT_AC86U := 2222
 # Homelab domain (canonical identity)
 export DOMAIN               := bardi.ch
 export LAN_DOMAIN           := lan.bardi.ch
-RENEW_THRESHOLD_DAYS := 30
 export APT_CNAME_EXPECTED   := bardi.ch
 
-# ------------------------------------------------------------
-# ACME binary (operator-installed)
-# ------------------------------------------------------------
-ACME_BIN := /usr/local/bin/acme.sh
-export ACME_BIN
 # ------------------------------------------------------------
 # ACME state (root-owned, system-level), used by deploy scripts
 # ------------------------------------------------------------
 ACME_HOME := /var/lib/acme
 export ACME_HOME
+# ------------------------------------------------------------
+# ACME binary (operator-installed)
+# ------------------------------------------------------------
+ACME_BIN := $(ACME_HOME)/acme.sh
+export ACME_BIN
 
-# ------------------------------------------------------------
-# Canonical TLS store, used by dnsdist, traefik, homepage, router, etc.
-# ------------------------------------------------------------
-TLS_CANONICAL := /var/lib/ssl/canonical
-export TLS_CANONICAL
+ACME_ISSUE_SCRIPT := /usr/local/bin/acme-issue.sh
+export ACME_ISSUE_SCRIPT
+
+ACME_RENEW_SCRIPT := /usr/local/bin/acme-renew.sh
+export ACME_RENEW_SCRIPT
 
 # ------------------------------------------------------------
 # DDNS environment file (root-owned), used in mk/07_secrets.mk
@@ -167,14 +164,7 @@ export DDNS_ENV_FILE
 
 # Canonical certificate store
 SSL_CANONICAL_DIR := /var/lib/ssl/canonical
-
-# ------------------------------------------------------------
-# ACME systemd units, used in mk/40_acme.mk
-# ------------------------------------------------------------
-ACME_SERVICE_FILE := /etc/systemd/system/acme-renew.service
-ACME_TIMER_FILE   := /etc/systemd/system/acme-renew.timer
-export ACME_SERVICE_FILE
-export ACME_TIMER_FILE
+export SSL_CANONICAL_DIR
 
 # ------------------------------------------------------------
 # ACME certificate lineage layout
@@ -183,26 +173,53 @@ export ACME_TIMER_FILE
 # RSA = DSM compatibility certificate
 # ------------------------------------------------------------
 
-export ACME_DIR_ECC := $(ACME_HOME)/ecc
-export ACME_DIR_RSA := $(ACME_HOME)/rsa
+# Canonical certificate lineages
+ACME_LINEAGE_ECC := $(ACME_HOME)/$(DOMAIN)_ecc
+ACME_LINEAGE_RSA := $(ACME_HOME)/$(DOMAIN)_rsa
 
-# Actual certificate lineage locations consumed by automation
-export ACME_LINEAGE_ECC := $(ACME_DIR_ECC)/$(DOMAIN)
-export ACME_LINEAGE_RSA := $(ACME_DIR_RSA)/$(DOMAIN)
+export ACME_LINEAGE_ECC
+export ACME_LINEAGE_RSA
+
+# Current acme.sh layout
+ECC_CERT_DIR := $(ACME_LINEAGE_ECC)/$(DOMAIN)_ecc
+RSA_CERT_DIR := $(ACME_LINEAGE_RSA)/$(DOMAIN)
+
+export ECC_CERT_DIR
+export RSA_CERT_DIR
 
 # ECC certificates (canonical homelab certificate)
-export SSL_CERT_ECC  := $(ACME_LINEAGE_ECC)/cert.pem
-export SSL_CHAIN_ECC := $(ACME_LINEAGE_ECC)/fullchain.pem
-export SSL_KEY_ECC   := $(ACME_LINEAGE_ECC)/privkey.pem
+export SSL_CERT_ECC  := $(ECC_CERT_DIR)/cert.pem
+export SSL_CHAIN_ECC := $(ECC_CERT_DIR)/fullchain.pem
+export SSL_KEY_ECC   := $(ECC_CERT_DIR)/privkey.pem
 
 # RSA certificates (DSM compatibility certificate)
-export SSL_CERT_RSA  := $(ACME_LINEAGE_RSA)/cert.pem
-export SSL_CHAIN_RSA := $(ACME_LINEAGE_RSA)/fullchain.pem
-export SSL_KEY_RSA   := $(ACME_LINEAGE_RSA)/privkey.pem
+export SSL_CERT_RSA  := $(RSA_CERT_DIR)/cert.pem
+export SSL_CHAIN_RSA := $(RSA_CERT_DIR)/fullchain.pem
+export SSL_KEY_RSA   := $(RSA_CERT_DIR)/privkey.pem
+
+# ============================================================
+# ACME systemd units + scripts
+# ============================================================
+
+ACME_ISSUE_SERVICE := /etc/systemd/system/acme-issue.service
+export ACME_ISSUE_SERVICE
+
+ACME_ISSUE_TIMER := /etc/systemd/system/acme-issue.timer
+export ACME_ISSUE_TIMER
+
+ACME_RENEW_SERVICE := /etc/systemd/system/acme-renew.service
+export ACME_RENEW_SERVICE
+
+ACME_RENEW_TIMER := /etc/systemd/system/acme-renew.timer
+export ACME_RENEW_TIMER
+
 
 # Deployment targets
 SSL_DEPLOY_DIR_CADDY     := /etc/ssl/caddy
 SSL_DEPLOY_DIR_HEADSCALE := /etc/ssl/headscale
+
+export SSL_DEPLOY_DIR_CADDY
+export SSL_DEPLOY_DIR_HEADSCALE
 
 # Unbound
 UNBOUND_PORT := 15335
@@ -424,9 +441,11 @@ GEN_CLIENT_WRAPPER := $(ROUTER_SCRIPTS)/gen-client-cert-wrapper.sh
 SOPS_AGE_PUBKEY_EXPECTED := age1rzyyxnn2ejkchp4jewdpw92av689wdtj2kgrv3ys4p3chn862vjqc3fs5n
 
 # ----------------------------------------------------------------------------
-# 10. SSH Configuration for Router (Non-secret)
+# 10. Canonical SSH policy
 # ----------------------------------------------------------------------------
-SSH_OPTS   := -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes
+# SSH options for router access: accept-new not yes so that automation survives router resets
+SSH_OPTS := -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new
+export SSH_OPTS
 
 # ----------------------------------------------------------------------------
 # 11. Local Tooling Policy (Declarative Only)
@@ -501,28 +520,6 @@ SYSCTL_BIN := $(shell command -v sysctl)
 
 SYSCTL_SRC := $(REPO_ROOT)/config/sysctl.d/99-homelab-forwarding.conf.in
 SYSCTL_DST := /etc/sysctl.d/99-homelab-forwarding.conf
-
-# ============================================================
-# ACME systemd units + scripts
-# ============================================================
-
-ACME_ISSUE_SERVICE := /etc/systemd/system/acme-issue.service
-export ACME_ISSUE_SERVICE
-
-ACME_ISSUE_TIMER := /etc/systemd/system/acme-issue.timer
-export ACME_ISSUE_TIMER
-
-ACME_RENEW_SERVICE := /etc/systemd/system/acme-renew.service
-export ACME_RENEW_SERVICE
-
-ACME_RENEW_TIMER := /etc/systemd/system/acme-renew.timer
-export ACME_RENEW_TIMER
-
-ACME_ISSUE_SCRIPT := /usr/local/bin/acme-issue.sh
-export ACME_ISSUE_SCRIPT
-
-ACME_RENEW_SCRIPT := /usr/local/bin/acme-renew.sh
-export ACME_RENEW_SCRIPT
 
 # Out-of-repo absolute path for topology isolation of WireGuard input
 WG_INPUT_DIR := $(WG_ROOT)/input

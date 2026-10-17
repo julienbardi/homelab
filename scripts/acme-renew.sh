@@ -4,13 +4,20 @@
 #
 # CONTRACT:
 # - Renews existing ACME certificate lineages
-# - Does NOT perform first issuance
+# - Assumes ACME lineage state already exists
+# - Does NOT perform first issuance itself
 # - Does NOT modify SAN sets
-# - Renews all registered certificate families
-# - Expected certificate lineages:
+# - Renews all registered certificate families via acme.sh --cron
+# - Safe to run repeatedly
+#
+# Expected ACME certificate lineages:
 #     bardi.ch_ecc
 #     bardi.ch_rsa
-# - Safe to run repeatedly
+#
+# NOTE:
+# - The Make target may establish issuance prerequisites before
+#   invoking this script.
+# - This script itself performs renewal only.
 # ------------------------------------------------------------------
 
 set -eu

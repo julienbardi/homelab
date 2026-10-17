@@ -93,36 +93,12 @@ install-helpers: $(INSTALL_PATH)/common.sh \
 # prepare: run CERTS_DEPLOY prepare + compute canonical hash
 # ============================================================
 
-$(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY) $(STAMP_SOPS)
+$(STAMP_PREPARE): \
+    acme-renew \
+    $(CERTS_DEPLOY) \
+    $(STAMP_SOPS)
 	@$(call WITH_SECRETS, $(run_as_root) sh -c '\
 		set -euo pipefail; \
-		# ISSUE RSA CERT (DSM REQUIREMENT) \
-		if [ ! -f "$(SSL_CHAIN_RSA)" ]; then \
-			echo "⚠️ No RSA certificate found — issuing RSA 4096 cert for DSM..."; \
-			$(MAKE) -f $(REPO_ROOT)/graph.mk acme-issue-rsa VERBOSE=$(VERBOSE); \
-			if [ ! -f "$(SSL_CHAIN_RSA)" ]; then \
-				echo "❌ RSA certificate still missing after issuance"; exit 1; \
-			fi; \
-		fi; \
-		\
-		# Ensure ECC certificate exists (first-issue if missing) \
-		if [ ! -f "$(SSL_CHAIN_ECC)" ] || [ ! -f "$(SSL_CERT_ECC)" ] || [ ! -f "$(SSL_KEY_ECC)" ]; then \
-			echo "⚠️ No ECC certificate found — triggering ACME issuance via systemd"; \
-			systemctl start acme-issue.service; \
-			echo "⏳ Waiting for ACME issuance to complete..."; \
-			for i in $$(seq 1 30); do \
-				if [ -f "$(SSL_CHAIN_ECC)" ] && [ -f "$(SSL_CERT_ECC)" ] && [ -f "$(SSL_KEY_ECC)" ]; then \
-					echo "🟢 ECC certificate present"; \
-					break; \
-				fi; \
-				sleep 2; \
-			done; \
-			if [ ! -f "$(SSL_CHAIN_ECC)" ] || [ ! -f "$(SSL_CERT_ECC)" ] || [ ! -f "$(SSL_KEY_ECC)" ]; then \
-				echo "❌ ECC certificate still missing after ACME issuance"; \
-				exit 1; \
-			fi; \
-		fi; \
-		# Run prepare (SAN validation + canonical store) \
 		env DOMAIN="$(DOMAIN)" \
 			SSL_CANONICAL_DIR="$(SSL_CANONICAL_DIR)" \
 			SSL_CERT_ECC="$(SSL_CERT_ECC)" \
@@ -133,22 +109,15 @@ $(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY) $(STAMP_SOPS)
 			SSL_KEY_RSA="$(SSL_KEY_RSA)" \
 			ACME_HOME="$(ACME_HOME)" \
 		"$(CERTS_DEPLOY)" prepare; \
-		# Fix canonical permissions so deploy-dsm can read them \
+		\
 		chmod 600 "$(SSL_CANONICAL_DIR)/privkey_ecc.pem"; \
 		chmod 644 "$(SSL_CANONICAL_DIR)/fullchain_ecc.pem"; \
-		# Build RSA canonical store for DSM (must exist now) \
-		if [ -f "$(SSL_KEY_RSA)" ] && \
-		   [ -f "$(SSL_CHAIN_RSA)" ]; then \
-			echo "🔐 RSA certificate present — building canonical RSA store for DSM"; \
-			install -m 600 "$(SSL_KEY_RSA)" \
-				"$(SSL_CANONICAL_DIR)/privkey_rsa.pem"; \
-			install -m 644 "$(SSL_CHAIN_RSA)" \
-				"$(SSL_CANONICAL_DIR)/fullchain_rsa.pem"; \
-		else \
-			echo "❌ FATAL: RSA certificate missing after issuance — aborting"; \
-			exit 1; \
-		fi; \
-		# Compute canonical hash (includes BOTH ECC and RSA) \
+		\
+		install -m 600 "$(SSL_KEY_RSA)" \
+			"$(SSL_CANONICAL_DIR)/privkey_rsa.pem"; \
+		install -m 644 "$(SSL_CHAIN_RSA)" \
+			"$(SSL_CANONICAL_DIR)/fullchain_rsa.pem"; \
+		\
 		cat \
 			"$(SSL_CANONICAL_DIR)/fullchain_ecc.pem" \
 			"$(SSL_CANONICAL_DIR)/privkey_ecc.pem" \
@@ -156,6 +125,7 @@ $(STAMP_PREPARE): acme-renew $(CERTS_DEPLOY) $(STAMP_SOPS)
 			"$(SSL_CANONICAL_DIR)/privkey_rsa.pem" \
 			| sha256sum | awk '\''{print $$1}'\'' \
 			> "$(STAMP_CERTS_CANONICAL)"; \
+		\
 		touch "$(STAMP_PREPARE)"; \
 	') || { echo "❌ prepare failed"; exit 1; }
 
