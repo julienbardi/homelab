@@ -33,12 +33,37 @@ endef
 # ACME Permissions Helper
 # --------------------------------------------------------------------
 define acme_fix_perms
-	$(run_as_root) sh -c '\
-		chown -R $(ROOT_UID):$(ROOT_GID) "$(1)"; \
-		find "$(1)" -type d -exec chmod 0700 {} +; \
-		find "$(1)" -type f -name "*.sh" -exec chmod 0755 {} +; \
-		find "$(1)" -type f ! -name "*.sh" -exec chmod 0600 {} +; \
-	'
+    $(run_as_root) sh -eu -c '\
+        CERT_GROUP=root; \
+        if getent group ssl-cert >/dev/null 2>&1; then \
+            CERT_GROUP=ssl-cert; \
+        else \
+            echo "⚠️ ssl-cert group missing, falling back to root"; \
+        fi; \
+        \
+        chown -R $(ROOT_UID):$(ROOT_GID) "$(1)"; \
+        \
+        find "$(1)" -type d \
+            -exec chmod 0700 {} +; \
+        \
+        find "$(1)" -type f -name "*.sh" \
+            -exec chmod 0755 {} +; \
+        \
+        find "$(1)" -type f \( \
+            -name "*.key" -o \
+            -name "account.conf" \
+        \) -exec chmod 0600 {} +; \
+        \
+        find "$(1)" -type f \( \
+            -name "*.pem" -o \
+            -name "*.cer" \
+        \) -exec chgrp "$$CERT_GROUP" {} +; \
+        \
+        find "$(1)" -type f \( \
+            -name "*.pem" -o \
+            -name "*.cer" \
+        \) -exec chmod 0640 {} +; \
+    '
 endef
 
 
