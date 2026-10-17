@@ -5,6 +5,10 @@
 WG_OUTPUT_ROUTER := $(WG_ROOT)/output/router
 WG_FIREWALL      := $(WG_OUTPUT_ROUTER)/wg-firewall.sh
 
+# Runtime-generated artifacts (not stored in git)
+WG_RUNTIME_DIR := /run/homelab/wireguard
+WG_PSK_DIR := $(WG_RUNTIME_DIR)/psk
+
 # Persistent state tracking markers
 WG_ROUTER_DIRTY_STAMP := $(STAMP_DIR_ROOT)/wg_router_dirty.stamp
 WG_NAS_DIRTY_STAMP    := $(STAMP_DIR_ROOT)/wg_nas_dirty.stamp

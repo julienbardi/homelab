@@ -7,6 +7,7 @@ mkdir -p "$TMPDIR"
 
 # --- 1. Environment Requirements ---
 : "${WG_ROOT:?WG_ROOT must be exported by the Makefile}"
+: "${WG_PSK_DIR:?WG_PSK_DIR must be exported by the Makefile}"
 : "${INSTALL_FILE_IF_CHANGED:?INSTALL_FILE_IF_CHANGED must be exported by the Makefile}"
 : "${LAN_NAS:?LAN_NAS must be exported by the Makefile}"
 : "${LAN6_NAS:?LAN6_NAS must be exported by the Makefile}"
@@ -228,12 +229,6 @@ EOF
     #
     # --- CLIENT GENERATION ---
     #
-    # Ensure PSK directory exists (setgid + correct perms)
-    if [ ! -d "${WG_ROOT}/psk" ]; then
-        mkdir -p "${WG_ROOT}/psk"
-        chmod 2770 "${WG_ROOT}/psk"
-        chown "${ROOT_UID}":"${USER_GID}" "${WG_ROOT}/psk"
-    fi
 # shellcheck disable=SC2034
     while IFS=$'\t' read -r name dev os iface mode acc lan rest; do
         # Trim whitespace
@@ -263,17 +258,34 @@ EOF
         # Endpoint MUST always be the bare domain (WAN IP, no split-horizon override).
         # Using host_id.domain (e.g. router.bardi.ch) is wrong for LAN clients because
         # Unbound's split-horizon returns the router's *internal* IP, causing the
-        # Wireguard handshake to target teh wrong host and silently black-hole.
+        # Wireguard handshake to target the wrong host and silently black-hole.
         local endpoint_host="${DNS_TOPDOMAIN_NAME}"
 
-        PSK_FILE="${WG_ROOT}/psk/${name}.psk"
+		# PSK lifecycle contract:
+		#
+		# Source of truth:
+		#   secrets.enc.yaml
+		#
+		# Runtime cache:
+		#   /run/homelab/wireguard/psk/*.psk
+		#
+		# Rotation:
+		#   1. wg genpsk
+		#   2. make secrets-edit
+		#   3. update wireguard_psk_<peer> in secrets.enc.yaml
+		#   4. make wg-generate
+		#   5. deploy updated configs
+		#
+		# Never edit rendered .psk files directly.
+		local PSK_FILE="${WG_PSK_DIR}/${name}.psk"
 
 		if [ ! -f "$PSK_FILE" ]; then
 			echo "❌ Missing PSK: $PSK_FILE" >&2
 			exit 1
 		fi
 
-		PSK_VALUE="$(cat "$PSK_FILE")"
+		local PSK_VALUE
+		PSK_VALUE="$(<"$PSK_FILE")"
         # PSK_VALUE is now available for both router + client config blocks
 
         install_content "$OUT_CLIENTS/$name.conf" "0600" <<EOF
@@ -316,7 +328,6 @@ AllowedIPs = $(
     fi
 )
 PersistentKeepalive = 25
-# Rotate PSK: rm ${WG_ROOT}/psk/${name}.psk && make wg-generate && make wg-install-${IF_HOST[$iface]} && make wg-up-${IF_HOST[$iface]}
 EOF
     # -------------------------------
     # Compute router AllowedIPs safely
