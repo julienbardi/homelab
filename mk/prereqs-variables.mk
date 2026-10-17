@@ -7,6 +7,9 @@ PREREQS_PACKAGES := \
 	apt-cacher-ng \
 	aspell \
 	aspell-en \
+	shellcheck \
+	codespell \
+	ripgrep \
 	ethtool \
 	ndppd \
 	wireguard-tools \
@@ -14,7 +17,8 @@ PREREQS_PACKAGES := \
 	libc-ares-dev \
 	qrencode \
 	ldnsutils \
-	coreutils util-linux
+	coreutils \
+	util-linux
 
 PREREQS_SOURCES := \
 	mk/00_prereqs.mk \

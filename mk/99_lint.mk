@@ -237,6 +237,7 @@ lint-headscale-strict:
 
 .PHONY: check-control-plane-reasoning
 check-control-plane-reasoning:
+	$(call require_tool,rg)
 	@echo "🔍 Checking for forbidden intent-level semantic reasoning in router shell scripts..."
 	@set -eu; \
 	if rg -n --hidden --no-ignore-vcs \

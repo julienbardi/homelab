@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Load homelab operator environment from same directory
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/common.sh"
 
 RUNTIME_SNAP_BEFORE="$1"
@@ -16,6 +17,7 @@ difffile="$($(run_as_root) sh -c 'mktemp -p /run homelab.XXXXXX' 2>/dev/null || 
 
 case "$difffile" in
   /run/*)
+    # shellcheck disable=SC2016
     $(run_as_root) sh -c ': > "$1" && chmod 644 "$1"' _ "$difffile"
     trap '$(run_as_root) rm -f "$difffile" >/dev/null 2>&1 || true' EXIT INT TERM
     ;;
@@ -40,12 +42,14 @@ for f in wg.dump ip.addr route.v4 route.v6; do
 done
 
 # If no drift ➡️ done
+# shellcheck disable=SC2016
 if ! $(run_as_root) sh -c '[ -s "$1" ]' _ "$difffile"; then
   echo "♻️  Runtime network state already converged"
   exit 0
 fi
 
 echo "⚠️  Runtime network drift detected"
+# shellcheck disable=SC2016
 $(run_as_root) sh -c 'sed "s/^/   - /" "$1"' _ "$difffile"
 
 # Drift cause classification
@@ -82,8 +86,8 @@ ROUTE4_CHANGED="$(grep -q '^ROUTE4_CHANGED=1' "$difffile" && echo 1 || echo 0)"
 ROUTE6_CHANGED="$(grep -q '^ROUTE6_CHANGED=1' "$difffile" && echo 1 || echo 0)"
 
 if [ "$IP_CHANGED" = "1" ]; then
-  final_ip="$(awk '/inet / {print $2}' $RUNTIME_SNAP_AFTER/ip.addr | cut -d/ -f1)"
-  desired_ip="$(awk '/inet / {print $2}' $RUNTIME_SNAP_BEFORE/ip.addr | cut -d/ -f1)"
+  final_ip="$(awk '/inet / {print $2}' "$RUNTIME_SNAP_AFTER"/ip.addr | cut -d/ -f1)"
+  desired_ip="$(awk '/inet / {print $2}' "$RUNTIME_SNAP_BEFORE"/ip.addr | cut -d/ -f1)"
   if [ "$final_ip" = "$desired_ip" ]; then
     echo "♻️  Suppressed: transient IP drift (final state correct)"
     continue_flag=1
@@ -91,8 +95,8 @@ if [ "$IP_CHANGED" = "1" ]; then
 fi
 
 if [ "$ROUTE4_CHANGED" = "1" ]; then
-  final_r4="$(awk '/default/ {print $3}' $RUNTIME_SNAP_AFTER/route.v4)"
-  desired_r4="$(awk '/default/ {print $3}' $RUNTIME_SNAP_BEFORE/route.v4)"
+  final_r4="$(awk '/default/ {print $3}' "$RUNTIME_SNAP_AFTER"/route.v4)"
+  desired_r4="$(awk '/default/ {print $3}' "$RUNTIME_SNAP_BEFORE"/route.v4)"
   if [ "$final_r4" = "$desired_r4" ]; then
     echo "♻️  Suppressed: transient IPv4 route drift (final state correct)"
     continue_flag=1
@@ -100,8 +104,8 @@ if [ "$ROUTE4_CHANGED" = "1" ]; then
 fi
 
 if [ "$ROUTE6_CHANGED" = "1" ]; then
-  final_r6="$(awk '/default/ {print $3}' $RUNTIME_SNAP_AFTER/route.v6)"
-  desired_r6="$(awk '/default/ {print $3}' $RUNTIME_SNAP_BEFORE/route.v6)"
+  final_r6="$(awk '/default/ {print $3}' "$RUNTIME_SNAP_AFTER"/route.v6)"
+  desired_r6="$(awk '/default/ {print $3}' "$RUNTIME_SNAP_BEFORE"/route.v6)"
   if [ "$final_r6" = "$desired_r6" ]; then
     echo "♻️  Suppressed: transient IPv6 route drift (final state correct)"
     continue_flag=1
