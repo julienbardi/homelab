@@ -96,7 +96,7 @@ apply_backoff_and_restart() {
 # -----------------------------
 
 detect_dnsmasq_race() {
-    COUNT="$(ps | grep '[d]nsmasq' | wc -l)"
+    COUNT="$(ps | grep -c '[d]nsmasq')"
     if [ "$COUNT" -ne 1 ]; then
         log "RACE: Multiple dnsmasq processes detected (count=$COUNT)"
     fi

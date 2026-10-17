@@ -97,7 +97,9 @@ echo "[ok] client p12 created: $P12"
 
 # Remove CA serial file created by -CAcreateserial
 CA_SRL="$(dirname "$CA_PUB")/$(basename "$CA_PUB").srl"
-[ -f "$CA_SRL" ] && rm -f "$CA_SRL" || true
+if [ -f "$CA_SRL" ]; then
+    rm -f "$CA_SRL"
+fi
 
 rm -rf "$TMPDIR"
 exit 0

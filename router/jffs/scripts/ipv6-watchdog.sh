@@ -53,7 +53,7 @@ fix_forwarding() {
 # Treat any missing file, read error, or non-"1" value as failure.
 # Ensures fail-fast behavior and eliminates silent forwarding drift.
 read_flag() {
-    val=$(cat "$1" 2>/dev/null | tr -d '\r\n')
+    val=$(tr -d '\r\n' < "$1" 2>/dev/null)
     [ "$val" = "1" ] && return 0
     return 1
 }
