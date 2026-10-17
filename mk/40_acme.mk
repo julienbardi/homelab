@@ -249,7 +249,7 @@ acme-selftest: \
 # ============================================================================
 
 .PHONY: acme-issue
-acme-issue: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
+acme-issue: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token $(ACME_ISSUE_SCRIPT)
 	@$(run_as_root) $(ACME_ISSUE_SCRIPT)
 
 .PHONY: acme-issue-sync

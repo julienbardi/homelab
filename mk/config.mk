@@ -174,28 +174,28 @@ export SSL_CANONICAL_DIR
 # ------------------------------------------------------------
 
 # Canonical certificate lineages
+ACME_LINEAGE_RSA := $(ACME_HOME)/$(DOMAIN)
 ACME_LINEAGE_ECC := $(ACME_HOME)/$(DOMAIN)_ecc
-ACME_LINEAGE_RSA := $(ACME_HOME)/$(DOMAIN)_rsa
 
-export ACME_LINEAGE_ECC
 export ACME_LINEAGE_RSA
+export ACME_LINEAGE_ECC
 
 # Current acme.sh layout
-ECC_CERT_DIR := $(ACME_LINEAGE_ECC)/$(DOMAIN)_ecc
-RSA_CERT_DIR := $(ACME_LINEAGE_RSA)/$(DOMAIN)
+RSA_CERT_DIR := $(ACME_LINEAGE_RSA)
+ECC_CERT_DIR := $(ACME_LINEAGE_ECC)
 
-export ECC_CERT_DIR
 export RSA_CERT_DIR
+export ECC_CERT_DIR
 
 # ECC certificates (canonical homelab certificate)
-export SSL_CERT_ECC  := $(ECC_CERT_DIR)/cert.pem
-export SSL_CHAIN_ECC := $(ECC_CERT_DIR)/fullchain.pem
-export SSL_KEY_ECC   := $(ECC_CERT_DIR)/privkey.pem
+export SSL_CERT_ECC  := $(ECC_CERT_DIR)/$(DOMAIN).cer
+export SSL_CHAIN_ECC := $(ECC_CERT_DIR)/fullchain.cer
+export SSL_KEY_ECC   := $(ECC_CERT_DIR)/$(DOMAIN).key
 
 # RSA certificates (DSM compatibility certificate)
-export SSL_CERT_RSA  := $(RSA_CERT_DIR)/cert.pem
-export SSL_CHAIN_RSA := $(RSA_CERT_DIR)/fullchain.pem
-export SSL_KEY_RSA   := $(RSA_CERT_DIR)/privkey.pem
+export SSL_CERT_RSA  := $(RSA_CERT_DIR)/$(DOMAIN).cer
+export SSL_CHAIN_RSA := $(RSA_CERT_DIR)/fullchain.cer
+export SSL_KEY_RSA   := $(RSA_CERT_DIR)/$(DOMAIN).key
 
 # ============================================================
 # ACME systemd units + scripts
