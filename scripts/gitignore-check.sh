@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Load shared stamp primitives
 COMMON="$SCRIPT_DIR/stamps.sh"
 [[ -f "$COMMON" ]] || { echo "❌ Error: $COMMON not found" >&2; exit 1; }
+# shellcheck disable=SC1090
 source "$COMMON"
 
 # ------------------------------------------------------------

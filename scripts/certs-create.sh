@@ -11,6 +11,7 @@ SCRIPT_NAME=""
 
 COMMON="$SCRIPT_DIR/common.sh"
 [[ -f "$COMMON" ]] || { echo "❌ Error: $COMMON not found" >&2; exit 1; }
+# shellcheck disable=SC1090
 source "$COMMON"
 
 CA_KEY="/etc/ssl/private/ca/homelab_bardi_CA.key"

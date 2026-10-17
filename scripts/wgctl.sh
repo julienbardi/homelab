@@ -83,7 +83,7 @@ do_up() {
 		fi
 
 		# Discover NAS link-local IPv6 on NAS_LAN_IFACE
-		NAS_LL6="$(ip -6 addr show dev ${NAS_LAN_IFACE} | awk '/scope link/ {print $2; exit}' | cut -d/ -f1)"
+		NAS_LL6="$(ip -6 addr show dev "${NAS_LAN_IFACE}" | awk '/scope link/ {print $2; exit}' | cut -d/ -f1)"
 
 		if [[ -z "$NAS_LL6" || ! "$NAS_LL6" =~ ^fe80: ]]; then
 			log "❌ Could not determine valid NAS link-local IPv6 on ${NAS_LAN_IFACE}"

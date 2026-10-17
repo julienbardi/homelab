@@ -90,7 +90,7 @@ if [ -n "$OBJ_DIRS" ]; then
 $OBJ_DIRS
 EOF
 fi | wc -l | awk '{print $1}' | {
-  read UNREF_OBJS
+  read -r UNREF_OBJS
   echo "Unreferenced objs: $UNREF_OBJS"
 }
 

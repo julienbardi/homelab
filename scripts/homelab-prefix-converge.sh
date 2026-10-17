@@ -82,7 +82,7 @@ ip -6 addr show dev "$NAS_LAN_IFACE" scope global \
 log "SETTING accept_ra = 2 (host mode with forwarding)"
 echo 2 > /proc/sys/net/ipv6/conf/all/accept_ra || log "WARN: failed to set all/accept_ra"
 if [ -d "/proc/sys/net/ipv6/conf/$NAS_LAN_IFACE" ]; then
-    echo 2 > /proc/sys/net/ipv6/conf/$NAS_LAN_IFACE/accept_ra || log "WARN: failed to set $NAS_LAN_IFACE/accept_ra"
+    echo 2 > /proc/sys/net/ipv6/conf/"$NAS_LAN_IFACE"/accept_ra || log "WARN: failed to set $NAS_LAN_IFACE/accept_ra"
 else
     log "WARN: /proc/sys/net/ipv6/conf/$NAS_LAN_IFACE does not exist"
 fi
@@ -155,7 +155,7 @@ if [ -f "$TSV" ]; then
     ' "$TSV")
 
     for IF in $WG_LIST; do
-        IDX=$(echo "$IF" | sed 's/wg//')
+        IDX="${IF#wg}"
         HEX_SUFFIX=$(printf "%02x" "$IDX")
 
         WG_IF="$IF"
