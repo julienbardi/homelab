@@ -156,16 +156,32 @@ ensure_rule() {
 install_files_if_changed_v3() {
     local -n _changed_ref="$1"
     shift
+
     while [ "$#" -ge 9 ]; do
-        "$INSTALL_FILE_IF_CHANGED" -q "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
-        local ret=$?
-        if [ "$ret" -eq 3 ]; then
-            _changed_ref=1
-        elif [[ "$ret" -ne 0 && "$ret" -ne 3 ]]; then
-            return "$ret"
+
+        if "$INSTALL_FILE_IF_CHANGED" -q \
+            "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
+        then
+            ret=0
+        else
+            ret=$?
         fi
+
+        case "$ret" in
+            0)
+                ;;
+            3)
+                _changed_ref=1
+                ;;
+            *)
+                return "$ret"
+                ;;
+        esac
+
         shift 9
     done
+
+    return 0
 }
 
 # Require file exists and is non‑empty

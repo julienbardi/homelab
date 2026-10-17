@@ -255,7 +255,9 @@ acme-issue: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 			export HOME="$(ACME_HOME)"; \
 			unset SUDO_USER; \
 			/var/lib/acme/acme.sh --issue --server letsencrypt --dns dns_infomaniak \
-				-d "$(DOMAIN)" -d "*.$(DOMAIN)" \
+				-d "$(DOMAIN)" \
+				-d "*.$(DOMAIN)" \
+				-d "*.lan.$(DOMAIN)" \
 				--home "$(ACME_HOME)" \
 				--cert-home "$(ACME_DIR_ECC)" || true; \
 		else \
@@ -309,7 +311,9 @@ acme-issue-rsa: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 			export HOME="$(ACME_HOME)"; \
 			unset SUDO_USER; \
 			/var/lib/acme/acme.sh --issue --server letsencrypt --dns dns_infomaniak \
-			  -d "$(DOMAIN)" -d "*.$(DOMAIN)" \
+			  -d "$(DOMAIN)" \
+			  -d "*.$(DOMAIN)" \
+			  -d "*.lan.$(DOMAIN)" \
 			  --keylength 4096 \
 			  --home "$(ACME_HOME)" \
 			  --cert-home "$(ACME_DIR_RSA)" || true; \

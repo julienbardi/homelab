@@ -233,20 +233,22 @@ validate-qnap:
 		echo "✅ [validate][qnap] Validation complete"; \
 	fi
 
+# DSM uses RSA certificates because Synology's upload API
+# does not support ECC certificate uploads.
 validate-dsm:
 	@echo "🔍 [validate][dsm] Checking certificate on 10.89.12.2:5001..."
-	@remote_fp=$$(echo | \
-		openssl s_client \
+	@expected_fp=$$(openssl x509 \
+		-in $(SSL_CANONICAL_DIR)/fullchain_rsa.pem \
+		-noout -fingerprint -sha256); \
+	observed_fp=$$(echo | \
+		timeout 5 openssl s_client \
 			-connect 10.89.12.2:5001 \
 			-servername $(DOMAIN) \
 			2>/dev/null | \
 		openssl x509 -noout -fingerprint -sha256); \
-	local_fp=$$(openssl x509 \
-		-in $(SSL_CANONICAL_DIR)/fullchain_ecc.pem \
-		-noout -fingerprint -sha256); \
-	echo "ℹ️ Local : $$local_fp"; \
-	echo "ℹ️ Remote: $$remote_fp"; \
-	if [ "$$local_fp" = "$$remote_fp" ]; then \
+	echo "ℹ️ Expected: $$expected_fp"; \
+	echo "ℹ️ Observed: $$observed_fp"; \
+	if [ "$$expected_fp" = "$$observed_fp" ]; then \
 		echo "✅ [validate][dsm] Validation complete"; \
 	else \
 		echo "❌ [validate][dsm] Fingerprint mismatch"; \
@@ -254,11 +256,23 @@ validate-dsm:
 	fi
 
 validate-ac86u:
-	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443"; \
-	sleep 0.3; \
-	remote_fp=$$(openssl s_client -connect $(LAN_AC86U):8443 -servername $(DOMAIN) -tls1_2 -showcerts </dev/null 2>/dev/null | openssl x509 -noout -fingerprint -sha256); \
-	echo "ℹ️ Remote Fingerprint: $$remote_fp"; \
-	echo "🔄 AC86U validation OK (best-effort)"
+	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443..."; \
+	observed_fp=$$(timeout 5 openssl s_client \
+		-connect $(LAN_AC86U):8443 \
+		-servername $(DOMAIN) \
+		</dev/null 2>/dev/null | \
+		openssl x509 -noout -fingerprint -sha256); \
+	expected_fp=$$(openssl x509 \
+		-in $(SSL_CANONICAL_DIR)/fullchain_ecc.pem \
+		-noout -fingerprint -sha256); \
+	echo "ℹ️ Expected: $$expected_fp"; \
+	echo "ℹ️ Observed: $$observed_fp"; \
+	if [ "$$expected_fp" = "$$observed_fp" ]; then \
+		echo "✅ [validate][ac86u] Validation complete"; \
+	else \
+		echo "❌ [validate][ac86u] Fingerprint mismatch"; \
+		exit 1; \
+	fi
 
 # ============================================================
 # All-in-one targets
