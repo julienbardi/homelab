@@ -67,6 +67,7 @@ do_up() {
 	if [[ "$TARGET" == "router" ]]; then
 		# Source homelab prefix configuration
 		if [[ -f /etc/homelab/homelab-prefix.env ]]; then
+			# shellcheck disable=SC1091
 			. /etc/homelab/homelab-prefix.env
 		fi
 

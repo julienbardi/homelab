@@ -8,6 +8,7 @@ if [ ! -f "$ENV_FILE" ]; then
     echo "ERROR: Missing $ENV_FILE. Please run 'make homelab-prefix-env' first." >&2
     exit 1
 fi
+# shellcheck disable=SC1090
 . "$ENV_FILE"
 
 if [ -z "${STAMP_DIR_ROOT:-}" ]; then
