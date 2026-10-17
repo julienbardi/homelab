@@ -1922,7 +1922,7 @@ Structural enforcement:
 
 - When a Makefile is split, all concurrency constraints MUST be re-established
   in the owning module files.
-- Failure to re-declare required .NOTPARALLEL constraints after a split
+- Failure to redeclare required .NOTPARALLEL constraints after a split
   is a contract violation, even if behavior appears unchanged under -j1.
 
 Recursive invocation discipline:

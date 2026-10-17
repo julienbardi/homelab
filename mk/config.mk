@@ -148,7 +148,7 @@ export APT_CNAME_EXPECTED   := bardi.ch
 ACME_BIN := /usr/local/bin/acme.sh
 export ACME_BIN
 # ------------------------------------------------------------
-# ACME state (root-owned, system-level), used by depoy scripts
+# ACME state (root-owned, system-level), used by deploy scripts
 # ------------------------------------------------------------
 ACME_HOME := /var/lib/acme
 export ACME_HOME

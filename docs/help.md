@@ -207,7 +207,7 @@ The router Caddy module manages the full lifecycle of the router‑side Caddy re
 
 The local VS Code server is managed declaratively.
 
-- `make code-server-update` — Fetchs the latest version
+- `make code-server-update` — Fetches the latest version
 
 - `make code-server-install` — Installs or upgrades code‑server using the upstream installer.
   Always installs the latest stable release (e.g. v4.115.0).
