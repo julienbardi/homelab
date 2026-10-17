@@ -100,7 +100,7 @@
     - Domain name: (leave empty)
     - Root password: (leave empty)
     - Set up users and passwords: Full name for the new user: <fullname>
-    - Username: first 5 letters (like on Windows) for convinience
+    - Username: first 5 letters (like on Windows) for convenience
     - Partitioning: Guided - use entire disk
     - Partition Disks: All files in one partition (recommended for new users)
     - Configure the package manager - scan extra installation media? No
