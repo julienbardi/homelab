@@ -247,10 +247,14 @@ acme-selftest: \
 # ============================================================================
 # 2. ACME Initial Issuance (safe, idempotent, synchronous)
 # ============================================================================
+
 .PHONY: acme-issue
-acme-issue: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
+acme-issue: acme-issue-ecc acme-issue-rsa
+
+.PHONY: acme-issue-ecc
+acme-issue-ecc: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 	@$(run_as_root) bash -euo pipefail -c '\
-		if [ ! -f "$(ACME_DIR_ECC)/fullchain.pem" ]; then \
+		if [ ! -f "$(SSL_CHAIN_ECC)" ]; then \
 			echo "🚀 Issuing ACME certificate synchronously via acme.sh..."; \
 			export HOME="$(ACME_HOME)"; \
 			unset SUDO_USER; \
@@ -263,17 +267,17 @@ acme-issue: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 		else \
 			if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 ACME certificate already exists"; fi; \
 		fi; \
-		if [ -f "$(ACME_DIR_ECC)/fullchain.cer" ]; then \
-			rm -f "$(ACME_DIR_ECC)/fullchain.pem"; \
-			cp "$(ACME_DIR_ECC)/fullchain.cer" "$(ACME_DIR_ECC)/fullchain.pem"; \
+		if [ -f "$(ACME_LINEAGE_ECC)/fullchain.cer" ]; then \
+			rm -f "$(ACME_LINEAGE_ECC)/fullchain.pem"; \
+			cp "$(ACME_LINEAGE_ECC)/fullchain.cer" "$(ACME_LINEAGE_ECC)/fullchain.pem"; \
 			echo "🟢 Updated fullchain.pem from fullchain.cer"; \
 		fi; \
 		ENV_FILE="$(ACME_HOME)/acme-env.sh"; \
 		{ \
-			echo "export SSL_KEY_ECC=\"$(ACME_DIR_ECC)/$(DOMAIN).key\""; \
-			echo "export SSL_CERT_ECC=\"$(ACME_DIR_ECC)/$(DOMAIN).cer\""; \
-			echo "export SSL_CA_ECC=\"$(ACME_DIR_ECC)/ca.cer\""; \
-			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_DIR_ECC)/fullchain.pem\""; \
+			echo "export SSL_KEY_ECC=\"$(ACME_LINEAGE_ECC)/privkey.pem\""; \
+			echo "export SSL_CERT_ECC=\"$(ACME_LINEAGE_ECC)/cert.pem\""; \
+			echo "export SSL_CA_ECC=\"$(ACME_LINEAGE_ECC)/ca.cer\""; \
+			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_LINEAGE_ECC)/fullchain.pem\""; \
 		} > "$$ENV_FILE"; \
 		chmod 600 "$$ENV_FILE"; \
 		STAMP_PATH="$(call STAMP_PATH_FROM_KEY,acme-issue)"; \
@@ -335,47 +339,48 @@ acme-issue-rsa: acme-bootstrap ddns-env acme-install acme-write-infomaniak-token
 		mv -f "$$STAMP_PATH.tmp" "$$STAMP_PATH"; \
 	'
 
-# ============================================================================
-# RSA certificate lineage (DSM compatibility certificate)
-# ============================================================================
-
-export SSL_KEY_RSA = $(ACME_LINEAGE_RSA)/$(DOMAIN).key
-export SSL_CERT_RSA = $(ACME_LINEAGE_RSA)/$(DOMAIN).cer
-export SSL_CHAIN_RSA = $(ACME_LINEAGE_RSA)/fullchain.cer
 
 # ============================================================================
 # 3. ACME Renewal (safe, idempotent, daily)
 # ============================================================================
 .PHONY: acme-renew
-acme-renew: acme-issue acme-issue-rsa
+acme-renew: acme-issue
 	@$(run_as_root) bash -euo pipefail -c '\
 		# Refresh ECC fullchain.pem from acme.sh raw output \
-		if [ -f "$(ACME_DIR_ECC)/fullchain.cer" ]; then \
-			rm -f "$(ACME_DIR_ECC)/fullchain.pem"; \
-			cp "$(ACME_DIR_ECC)/fullchain.cer" "$(ACME_DIR_ECC)/fullchain.pem"; \
+		if [ -f "$(ACME_LINEAGE_ECC)/fullchain.cer" ]; then \
+			rm -f "$(ACME_LINEAGE_ECC)/fullchain.pem"; \
+			cp "$(ACME_LINEAGE_ECC)/fullchain.cer" "$(ACME_LINEAGE_ECC)/fullchain.pem"; \
+		fi; \
+		if [ -f "$(ACME_LINEAGE_ECC)/$(DOMAIN).key" ]; then \
+			rm -f "$(ACME_LINEAGE_ECC)/privkey.pem"; \
+			cp "$(ACME_LINEAGE_ECC)/$(DOMAIN).key" "$(ACME_LINEAGE_ECC)/privkey.pem"; \
+		fi; \
+		if [ -f "$(ACME_LINEAGE_ECC)/$(DOMAIN).cer" ]; then \
+			rm -f "$(ACME_LINEAGE_ECC)/cert.pem"; \
+			cp "$(ACME_LINEAGE_ECC)/$(DOMAIN).cer" "$(ACME_LINEAGE_ECC)/cert.pem"; \
 		fi; \
 		# Refresh RSA fullchain.pem from acme.sh raw output \
-		if [ -f "$(ACME_DIR_RSA)/fullchain.cer" ]; then \
-			rm -f "$(ACME_DIR_RSA)/fullchain.pem"; \
-			cp "$(ACME_DIR_RSA)/fullchain.cer" "$(ACME_DIR_RSA)/fullchain.pem"; \
+		if [ -f "$(ACME_LINEAGE_RSA)/fullchain.cer" ]; then \
+			rm -f "$(ACME_LINEAGE_RSA)/fullchain.pem"; \
+			cp "$(ACME_LINEAGE_RSA)/fullchain.cer" "$(ACME_LINEAGE_RSA)/fullchain.pem"; \
 		fi; \
-		if [ -f "$(ACME_DIR_RSA)/$(DOMAIN).key" ]; then \
-			rm -f "$(ACME_DIR_RSA)/privkey.pem"; \
-			cp "$(ACME_DIR_RSA)/$(DOMAIN).key" "$(ACME_DIR_RSA)/privkey.pem"; \
+		if [ -f "$(ACME_LINEAGE_RSA)/$(DOMAIN).key" ]; then \
+			rm -f "$(ACME_LINEAGE_RSA)/privkey.pem"; \
+			cp "$(ACME_LINEAGE_RSA)/$(DOMAIN).key" "$(ACME_LINEAGE_RSA)/privkey.pem"; \
 		fi; \
-		if [ -f "$(ACME_DIR_RSA)/$(DOMAIN).cer" ]; then \
-			rm -f "$(ACME_DIR_RSA)/cert.pem"; \
-			cp "$(ACME_DIR_RSA)/$(DOMAIN).cer" "$(ACME_DIR_RSA)/cert.pem"; \
+		if [ -f "$(ACME_LINEAGE_RSA)/$(DOMAIN).cer" ]; then \
+			rm -f "$(ACME_LINEAGE_RSA)/cert.pem"; \
+			cp "$(ACME_LINEAGE_RSA)/$(DOMAIN).cer" "$(ACME_LINEAGE_RSA)/cert.pem"; \
 		fi; \
 		{ \
-			echo "export SSL_KEY_ECC=\"$(ACME_DIR_ECC)/$(DOMAIN).key\""; \
-			echo "export SSL_CERT_ECC=\"$(ACME_DIR_ECC)/$(DOMAIN).cer\""; \
-			echo "export SSL_CA_ECC=\"$(ACME_DIR_ECC)/ca.cer\""; \
-			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_DIR_ECC)/fullchain.pem\""; \
-			echo "export SSL_KEY_RSA=\"$(ACME_DIR_RSA)/$(DOMAIN).key\""; \
-			echo "export SSL_CERT_RSA=\"$(ACME_DIR_RSA)/$(DOMAIN).cer\""; \
-			echo "export SSL_CA_RSA=\"$(ACME_DIR_RSA)/ca.cer\""; \
-			echo "export SSL_FULLCHAIN_RSA=\"$(ACME_DIR_RSA)/fullchain.pem\""; \
+			echo "export SSL_KEY_ECC=\"$(ACME_LINEAGE_ECC)/privkey.pem\""; \
+echo "export SSL_CERT_ECC=\"$(ACME_LINEAGE_ECC)/cert.pem\""; \
+			echo "export SSL_CA_ECC=\"$(ACME_LINEAGE_ECC)/ca.cer\""; \
+			echo "export SSL_FULLCHAIN_ECC=\"$(ACME_LINEAGE_ECC)/fullchain.pem\""; \
+			echo "export SSL_KEY_RSA=\"$(ACME_LINEAGE_RSA)/privkey.pem\""; \
+			echo "export SSL_CERT_RSA=\"$(ACME_LINEAGE_RSA)/cert.pem\""; \
+			echo "export SSL_CA_RSA=\"$(ACME_LINEAGE_RSA)/ca.cer\""; \
+			echo "export SSL_FULLCHAIN_RSA=\"$(ACME_LINEAGE_RSA)/fullchain.pem\""; \
 		} > /etc/homelab/acme-env.sh; \
 		systemctl start acme-renewal.service 2>/dev/null || true; \
 		echo "🔄 ACME renewal step completed"; \

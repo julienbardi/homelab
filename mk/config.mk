@@ -183,11 +183,11 @@ export ACME_TIMER_FILE
 # RSA = DSM compatibility certificate
 # ------------------------------------------------------------
 
-export ACME_DIR_ECC := $(ACME_HOME)/$(DOMAIN)_ecc
-export ACME_DIR_RSA := $(ACME_HOME)/$(DOMAIN)_rsa
+export ACME_DIR_ECC := $(ACME_HOME)/ecc
+export ACME_DIR_RSA := $(ACME_HOME)/rsa
 
 # Actual certificate lineage locations consumed by automation
-export ACME_LINEAGE_ECC := $(ACME_DIR_ECC)
+export ACME_LINEAGE_ECC := $(ACME_DIR_ECC)/$(DOMAIN)
 export ACME_LINEAGE_RSA := $(ACME_DIR_RSA)/$(DOMAIN)
 
 # ECC certificates (canonical homelab certificate)

@@ -74,16 +74,12 @@ router-certs-prepare: install-all acme-issue-sync certs-create router-certs-depl
 			. /etc/homelab/acme-env.sh; \
 			set +a; \
 		fi; \
-		CERT_FILE="$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer"; \
-		if [ ! -f "$$CERT_FILE" ]; then \
-			CERT_FILE="$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer"; \
-		fi; \
 		echo "📦 Preparing canonical certificate store at $(SSL_CANONICAL_DIR)"; \
 		$(run_as_root) env \
-			SSL_KEY_ECC="$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key" \
-			SSL_CERT_ECC="$$CERT_FILE" \
-			SSL_CHAIN_ECC="$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" \
-			SSL_FULLCHAIN_ECC="$$CERT_FILE" \
+			SSL_KEY_ECC="$(SSL_KEY_ECC)" \
+			SSL_CERT_ECC="$(SSL_CERT_ECC)" \
+			SSL_CHAIN_ECC="$(SSL_CHAIN_ECC)" \
+			SSL_FULLCHAIN_ECC="$(SSL_CHAIN_ECC)" \
 			SSL_CERT_RSA="$(SSL_CERT_RSA)" \
 			SSL_CHAIN_RSA="$(SSL_CHAIN_RSA)" \
 			SSL_KEY_RSA="$(SSL_KEY_RSA)" \
@@ -107,15 +103,11 @@ router-certs-deploy: router-bootstrap-primitives install-all router-certs-prereq
 			. /etc/homelab/acme-env.sh; \
 			set +a; \
 		fi; \
-		CERT_FILE="$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).cer"; \
-		if [ ! -f "$$CERT_FILE" ]; then \
-			CERT_FILE="$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer"; \
-		fi; \
 		$(run_as_root) env \
-			SSL_KEY_ECC="$(ACME_HOME)/$(DOMAIN)_ecc/$(DOMAIN).key" \
-			SSL_CERT_ECC="$$CERT_FILE" \
-			SSL_CHAIN_ECC="$(ACME_HOME)/$(DOMAIN)_ecc/fullchain.cer" \
-			SSL_FULLCHAIN_ECC="$$CERT_FILE" \
+			SSL_KEY_ECC="$(SSL_KEY_ECC)" \
+			SSL_CERT_ECC="$(SSL_CERT_ECC)" \
+			SSL_CHAIN_ECC="$(SSL_CHAIN_ECC)" \
+			SSL_FULLCHAIN_ECC="$(SSL_CHAIN_ECC)" \
 			SSL_CERT_RSA="$(SSL_CERT_RSA)" \
 			SSL_CHAIN_RSA="$(SSL_CHAIN_RSA)" \
 			SSL_KEY_RSA="$(SSL_KEY_RSA)" \
