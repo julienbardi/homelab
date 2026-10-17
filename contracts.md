@@ -2,12 +2,12 @@
 
 ===============================================================================
 
-Homelab and WireGuard Control Plane — Global Contracts
+Homelab Control Plane — Global Contracts
 
 ===============================================================================
 
-This file defines all non-negotiable invariants for the Homelab as well as for
-WireGuard control plane.
+
+This file defines all non-negotiable invariants for the Homelab control plane.
 
 It is documentation-as-law.
 It contains no executable logic.
@@ -37,6 +37,8 @@ Governance & authority:
 - Complete and Unshortened Output Invariant
 - BusyBox-Compatible AWK and Makefile Quoting Invariant
 - Assistant Change‑Safety Extensions
+- Single Producer Authority
+- License & reuse
 
 Document law & scope:
 
@@ -44,6 +46,8 @@ Document law & scope:
 - Document structure & formatting
 - Contract index completeness
 - Mandatory File Header
+- Documentation correctness
+- Non-goals
 
 Enforcement & evolution:
 
@@ -53,7 +57,8 @@ Enforcement & evolution:
 - Contract supersession & lifecycle
 - Versioning & release semantics
 - Contract violation handling & review blocking
-- Drift-Aware Verification
+- Drift-aware verification & remediation
+- File size & structural limits
 
 Runtime & execution environment:
 
@@ -64,6 +69,13 @@ Runtime & execution environment:
 - Makefile recipe invariants
 - Control-plane reasoning authority
 - Privilege Boundary Invariants
+- Content addressing & hashing
+- Execution root & working directory confinement
+- Write confinement & side-effect boundaries
+- Connectivity preservation & management access
+- Router mutation exclusivity
+- NAS IPv6 forwarding and RA acceptance
+- Dump locality & inspectability
 
 Intent model & compilation:
 
@@ -77,6 +89,13 @@ Intent model & compilation:
 - Intent inventory
 - Design completeness gate
 - Broken model freeze
+- Profiles
+- Key lifecycle
+- Renderers
+- Interface lifecycle & revocation
+- Interface host binding
+- Host identity
+- WireGuard public endpoint
 
 Data encoding & determinism:
 
@@ -88,8 +107,16 @@ Output & operator interface:
 
 - Output icon semantics
 - Routing authority
+- Contract for the AGE key
 - NAT66 capability constraints
-- Output icon semantics
+
+Build & orchestration:
+
+- Wiring order
+- Make orchestration & deployment
+- Makefile shell constructs
+
+
 
 -------------------------------------------------------------------------------
 
@@ -563,7 +590,9 @@ or embedded systems. No exceptions
 CONTRACT: Scope & applicability
 -------------------------------------------------------------------------------
 
-This document defines invariants for all scripts deployed to the router.
+This document defines invariants governing the Homelab architecture,
+control plane, repository governance, control-plane tooling,
+deployment processes, and runtime artifacts.
 
 Rules:
 
@@ -989,7 +1018,26 @@ Rationale:
 - Prevents silent rule replacement.
 - Enables evolution without erasing intent.
 
+
+Consistency requirement:
+
+- Active contracts MUST be mutually satisfiable.
+
+- If two active contracts appear to impose incompatible requirements,
+  the situation constitutes a contract defect.
+
+- Implementations, operators, and agents MUST NOT resolve an apparent
+  conflict through interpretation, risk assessment, convenience,
+  operational necessity, or local optimization.
+
+- Execution and design changes that rely on an unresolved contract
+  conflict are invalid.
+
+- Apparently conflicting contracts MUST be resolved through explicit
+  contract amendment, clarification, or supersession committed by the
+  repository owner.
 -------------------------------------------------------------------------------
+
 
 -------------------------------------------------------------------------------
 
@@ -2044,6 +2092,30 @@ Enforcement:
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
+CONTRACT: Single Producer Authority
+-------------------------------------------------------------------------------
+
+Every mutable artifact, state transition, or lifecycle
+must have exactly one authoritative producer.
+
+- Multiple implementations of the same lifecycle are forbidden.
+
+- Makefiles MUST NOT reimplement logic that already exists
+  in an authoritative script.
+
+- Scripts MUST NOT reimplement logic already owned by
+  another authoritative script.
+
+- Systemd units, Make targets, wrappers, orchestration layers,
+  and deployment helpers MAY invoke a producer,
+  but MUST NOT duplicate producer logic.
+
+- Any state transition must have exactly one authoritative
+  implementation.
+
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
 
 CONTRACT: Content addressing & hashing
 -------------------------------------------------------------------------------
@@ -2456,7 +2528,11 @@ Enforcement status:
 
 -------------------------------------------------------------------------------
 
-Contract for the AGE key
+
+-------------------------------------------------------------------------------
+CONTRACT: Contract for the AGE key
+-------------------------------------------------------------------------------
+
 Authoritative truth:
 
 Location: /etc/sops/keys/age.key
@@ -2473,6 +2549,8 @@ Bootstrap: may create the key only if it does not exist; must never overwrite an
 
 -------------------------------------------------------------------------------
 
+
+-------------------------------------------------------------------------------
 CONTRACT: NAS IPv6 forwarding and RA acceptance
 -------------------------------------------------------------------------------
 
