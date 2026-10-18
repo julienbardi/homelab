@@ -1,6 +1,6 @@
 # Debian 13 VM Creation Checklist (Proxmox) for debian13-xfce
 
-01. Open https://10.89.12.4:8006
+01. Open <https://10.89.12.4:8006>
 02. Log in to Proxmox
         - User name: root
         - Password (see Keepass)
@@ -11,12 +11,12 @@
     - ISO Images → Download from URL
     - URL: [https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso](https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso)
     - File Name: debian-13.6.0-amd64-netinst.iso
-    See https://www.debian.org/download
+    See <https://www.debian.org/download>
     - Hash algorithm: `SHA-512`
     - Checksum: `ce0eeee7b51fdcdbed1e5116668c1fee27e528767bdf488e5f115a67b225e5dfd0afca1d456aaa9408ceb6b8527521ff7b6b5d62fdbe6f8c5faaf8df56a96292`
-    according to https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS
+    according to <https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS>
     - Download
-    - optional:  read https://www.debian.org/releases/stable/amd64/index.en.html
+    - optional:  read <https://www.debian.org/releases/stable/amd64/index.en.html>
 
 04. Create VM
     - Click: Create VM
@@ -99,7 +99,7 @@
     - Hostname: `debian`
     - Domain name: (leave empty)
     - Root password: (leave empty)
-    - Set up users and passwords: Full name for the new user: <fullname>
+    - Set up users and passwords: Full name for the new user: `fullname`
     - Username: first 5 letters (like on Windows) for convenience
     - Partitioning: Guided - use entire disk
     - Partition Disks: All files in one partition (recommended for new users)
@@ -140,27 +140,30 @@
 
 19. Install XRDP (Debian 13 + XFCE)
 
-# 19.1 Install XRDP + Xorg backend
+## 19.1 Install XRDP + Xorg backend
+
 sudo apt update
 sudo apt install xrdp xorgxrdp dbus-x11 polkitd
 sudo systemctl enable --now xrdp
 
-# 19.2 Create a clean .xsession (XRDP will execute this)
+## 19.2 Create a clean .xsession (XRDP will execute this)
+
 echo "xfce4-session" > ~/.xsession
 chmod +x ~/.xsession
 
-# 19.3 Replace Debian 13’s broken /etc/xrdp/startwm.sh
+## 19.3 Replace Debian 13’s broken /etc/xrdp/startwm.sh
+
 ```bash
 sudo tee /etc/xrdp/startwm.sh >/dev/null <<'EOF'
-#!/bin/sh
+##!/bin/sh
 
-# Load locale
+## Load locale
 if [ -r /etc/default/locale ]; then
     . /etc/default/locale
     export LANG LANGUAGE
 fi
 
-# Force XFCE session (Debian 13 fix)
+## Force XFCE session (Debian 13 fix)
 export XDG_SESSION_TYPE=x11
 export DESKTOP_SESSION=xfce
 export XDG_SESSION_DESKTOP=xfce
@@ -172,53 +175,61 @@ EOF
 sudo chmod +x /etc/xrdp/startwm.sh
 ```
 
-# 19.4 Restart XRDP
-```
+## 19.4 Restart XRDP
+
+```bash
 sudo systemctl restart xrdp xrdp-sesman
 ```
 
-# 19.5 Log out of local GUIsession
-Log out of the local GUI session
-# (Debian 13 cannot run two Xorg sessions for the same user)
+## 19.5 Log out of local GUIsession
 
-# 19.6 Connect via RDP (Session type: Xorg)
+Log out of the local GUI session
+
+## (Debian 13 cannot run two Xorg sessions for the same user)
+
+## 19.6 Connect via RDP (Session type: Xorg)
+
 If it fails, try to reboot the machine
 
-# 20. Operator provisioning
+## 20. Operator provisioning
 
-## Operator Provisioning (BAS → sudo → SSH → XRDP)
+### Operator Provisioning (BAS → sudo → SSH → XRDP)
+
 ```bash
-# BAS: Base Account Setup (standard UNIX user)
+## BAS: Base Account Setup (standard UNIX user)
 sudo adduser leona
 
-# Optional: elevate leona to operator (sudo privileges)
+## Optional: elevate leona to operator (sudo privileges)
 sudo usermod -aG sudo leona
 ```
 
-## give leona SSH key‑based login
+### give leona SSH key‑based login
+
 ```bash
 sudo install -d -m 700 -o leona -g leona /home/leona/.ssh
 sudo install -m 600 -o leona -g leona /dev/null /home/leona/.ssh/authorized_keys
 ```
 
-## Provision XRDP Session
+### Provision XRDP Session
+
 ```bash
 echo "xfce4-session" | sudo tee /home/leona/.xsession >/dev/null
 sudo chown leona:leona /home/leona/.xsession
 sudo chmod 755 /home/leona/.xsession
 ```
 
-# Allow you machine to access via SSH (example for julie)
+### Allow you machine to access via SSH (example for julie)
+
 Windows: ensure OpenSSH Client is installed (Settings → Optional Features)
 
 1. locate your SSH public key
+
 ```powershell
 cat $env:USERPROFILE\.ssh\id_ed25519.pub
 ```
 
-2. copy your public key to the Debian VM using scp
+1. copy your public key to the Debian VM using scp
 This assumes that debian is the hostname of the machine has been configured in the DNS.
-
 
 ```powershell
 scp $env:USERPROFILE\.ssh\id_ed25519.pub julie@<VM-IP>:/home/julie/
@@ -226,24 +237,26 @@ scp $env:USERPROFILE\.ssh\id_ed25519.pub julie@<VM-IP>:/home/julie/
 
 Troubleshooting: to find the IP address of the VM, run: `hostname -I`
 
-3. On Debian: install the key properly
+1. On Debian: install the key properly
 
 ```bash
 sudo install -d -m 700 -o julie -g julie /home/julie/.ssh
 sudo install -m 600 -o julie -g julie /home/julie/id_ed25519.pub /home/julie/.ssh/authorized_keys
 ```
 
-4. Test SSH login from Windows
+1. Test SSH login from Windows
+
 ```powershell
 ssh julie@debian
 ```
 
-## 21. Graphical Scaling (XFCE + XRDP) to 200%
+### 21. Graphical Scaling (XFCE + XRDP) to 200%
 
 ### 21.1 Enable custom DPI (200%)
+
 Open the XFCE appearance settings:
 
-```
+```bash
 xfce4-appearance-settings
 ```
 
@@ -258,9 +271,10 @@ This fixes tiny fonts in menus, windows, dialogs, Thunar, and XFCE settings.
 ---
 
 ### 21.2 Adjust XFCE panel size
+
 Open panel preferences:
 
-```
+```bash
 xfce4-panel --preferences
 ```
 
@@ -273,9 +287,10 @@ This prevents the top panel from staying tiny after DPI scaling.
 ---
 
 ### 21.3 Force system-wide DPI (important for XRDP)
+
 Create the fontconfig directory:
 
-```
+```bash
 mkdir -p ~/.config/fontconfig
 nano ~/.config/fontconfig/fonts.conf
 ```
@@ -299,13 +314,15 @@ This ensures consistent scaling for older GTK apps and XRDP sessions.
 ---
 
 ### 21.4 Restart the XFCE panel
-```
+
+```bash
 xfce4-panel -r
 ```
 
 ---
 
 ### 21.5 Ensure XRDP uses Xorg session
+
 When connecting from Windows RDP:
 
 - Select **Session type: Xorg**
@@ -315,9 +332,10 @@ XRDP scaling does not work correctly under Xvnc.
 ---
 
 ### 21.6 (Optional) Increase icon size
+
 Open:
 
-```
+```bash
 xfce4-settings-manager
 ```
 
@@ -327,7 +345,8 @@ Then:
 
 ---
 
-### Result
+#### Result
+
 With:
 
 - Custom DPI = 192
@@ -337,31 +356,36 @@ With:
 
 XFCE becomes fully readable at **200% scaling**, including menus, windows, Thunar, dialogs, and RDP sessions.
 
-## 22. NetBird Client Onboarding (Debian 13)
+### 22. NetBird Client Onboarding (Debian 13)
 
 ### 22.1 Install curl (Debian netinst does not include it)
-```
+
+```bash
 sudo apt update
 sudo apt install curl
 ```
 
 ### 22.2 Install NetBird client
-```
+
+```bash
 curl -sSL https://pkgs.netbird.io/install.sh | sudo bash
 ```
 
 This installs:
+
 - netbird
 - netbird-cli
 - systemd service
 
 ### 22.3 Enable and start NetBird
-```
+
+```bash
 sudo systemctl enable --now netbird
 ```
 
 ### 22.4 Authenticate the machine into your NetBird mesh
-```
+
+```bash
 netbird up
 ```
 
@@ -369,20 +393,24 @@ This will open a browser window or print a URL.
 Authenticate the VM with your NetBird account.
 
 ### 22.5 Verify connectivity
-```
+
+```bash
 netbird status
 ```
 
 You should see:
+
 - connected peers
 - relay/direct connectivity
 - mesh status
 
 ### 22.6 Do NOT configure this VM as an exit node
+
 This Debian 13 XFCE VM is a workstation VM, not infrastructure.
 It should remain a **NetBird client only**.
 
 (Exit nodes must be stable, always‑on machines such as your router, PVE host, or cloud nodes.)
 
-### Result
+### NetBird onboarding result
+
 The Debian 13 VM is now fully onboarded as a NetBird client and integrated into your homelab mesh.
