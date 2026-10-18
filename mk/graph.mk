@@ -85,6 +85,7 @@ include $(REPO_ROOT)/mk/40_wireguard.mk
 include $(REPO_ROOT)/mk/41_firewall-nas.mk
 include $(REPO_ROOT)/mk/50_certs.mk
 include $(REPO_ROOT)/mk/55_router-certs.mk
+include $(REPO_ROOT)/mk/56_ac86u-certs.mk
 include $(REPO_ROOT)/mk/60_unbound.mk
 include $(REPO_ROOT)/mk/70_dnsdist.mk
 include $(REPO_ROOT)/mk/71_dns-warm.mk

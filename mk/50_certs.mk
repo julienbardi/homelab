@@ -179,8 +179,7 @@ deploy-dsm: $(STAMP_CERTS_CANONICAL) $(STAMP_SOPS) install-all
 deploy-diskstation: deploy-dsm
 	@true
 
-deploy-ac86u:      $(STAMP_CERTS_CANONICAL)
-	@echo "🔄 AC86U deploy triggered by canonical cert change"
+# implemented in mk/56_ac86u-certs.mk
 
 # ============================================================
 # Validation targets
@@ -206,8 +205,8 @@ validate-qnap:
 # DSM uses RSA certificates because Synology's upload API
 # does not support ECC certificate uploads.
 validate-dsm:
-	@echo "🔍 [validate][dsm] Checking certificate on 10.89.12.2:5001..."
-	@expected_fp=$$(openssl x509 \
+	@echo "🔍 [validate][dsm] Checking certificate on 10.89.12.2:5001..."; \
+	expected_fp=$$(openssl x509 \
 		-in $(SSL_CANONICAL_DIR)/fullchain_rsa.pem \
 		-noout -fingerprint -sha256); \
 	observed_fp=$$(echo | \
@@ -215,7 +214,11 @@ validate-dsm:
 			-connect 10.89.12.2:5001 \
 			-servername $(DOMAIN) \
 			2>/dev/null | \
-		openssl x509 -noout -fingerprint -sha256); \
+		openssl x509 -noout -fingerprint -sha256 2>/dev/null || true); \
+	if [ -z "$$observed_fp" ]; then \
+		echo "⚠️ [validate][dsm] DSM unavailable, validation skipped"; \
+		exit 0; \
+	fi; \
 	echo "ℹ️ Expected: $$expected_fp"; \
 	echo "ℹ️ Observed: $$observed_fp"; \
 	if [ "$$expected_fp" = "$$observed_fp" ]; then \

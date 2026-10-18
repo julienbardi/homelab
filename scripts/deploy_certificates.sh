@@ -249,12 +249,15 @@ deploy_dnsdist() {
     "
 }
 
-# --------------------------------------------------------------------
-# Deploy: router
-# --------------------------------------------------------------------
-deploy_router() {
-    log "🔐 Deploying ECC TLS to router"
 
+detect_router_model() {
+    ssh -p "$ROUTER_SSH_PORT" \
+        -i "$SSH_IDENTITY" \
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" \
+        'nvram get odmpid'
+}
+
+deploy_router_files() {
     ssh -p "$ROUTER_SSH_PORT" \
         -i "$SSH_IDENTITY" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" \
@@ -281,15 +284,19 @@ deploy_router() {
     else
         log "ℹ️ Router TLS material already up-to-date"
     fi
+}
 
+activate_router_ax86u() {
     ssh -p "$ROUTER_SSH_PORT" \
         -i "$SSH_IDENTITY" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" '
             mkdir -p /jffs/.cert
+
             if [ "$(nvram get le_enable)" != "2" ]; then
                 nvram set le_enable=2
                 nvram commit
             fi
+
             /usr/sbin/gencert.sh -l 1
 
             router_fp="$(
@@ -297,8 +304,8 @@ deploy_router() {
                     -in /etc/cert.pem \
                     -noout \
                     -fingerprint \
-                    -sha256 \
-                | cut -d= -f2
+                    -sha256 |
+                cut -d= -f2
             )"
 
             uploaded_fp="$(
@@ -306,8 +313,8 @@ deploy_router() {
                     -in /jffs/.cert/cert.pem \
                     -noout \
                     -fingerprint \
-                    -sha256 \
-                | cut -d= -f2
+                    -sha256 |
+                cut -d= -f2
             )"
 
             if [ "$router_fp" != "$uploaded_fp" ]; then
@@ -315,7 +322,49 @@ deploy_router() {
                 exit 1
             fi
         '
+
     log "✅ ASUS certificate activation verified"
+}
+
+activate_router_ac86u() {
+    log "❌ RT-AC86U activation path not implemented"
+
+    log "ℹ️ Deployment succeeded:"
+    log "   /jffs/ssl/*.pem updated"
+    log "   /jffs/.cert/*.pem updated"
+
+    log "ℹ️ Firmware activation contract remains unknown"
+
+    return 1
+}
+
+
+# --------------------------------------------------------------------
+# Deploy: router
+# --------------------------------------------------------------------
+deploy_router() {
+    log "🔐 Deploying ECC TLS to router"
+
+    local model
+
+    model="$(detect_router_model)"
+
+    log "ℹ️ ASUS model: $model"
+
+    deploy_router_files
+
+    case "$model" in
+        RT-AX86U*|RT-AX86U_Pro*)
+            activate_router_ax86u
+            ;;
+        RT-AC86U*)
+            activate_router_ac86u
+            ;;
+        *)
+            log "❌ Unsupported ASUS model: $model"
+            return 1
+            ;;
+    esac
 }
 
 # --------------------------------------------------------------------

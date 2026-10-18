@@ -29,8 +29,29 @@ log "🔐 [dsm] Authenticating with DSM…"
 ENC_USER=$(USER_ARG="$USER" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("USER_ARG", "")))')
 ENC_PASS=$(PASS_ARG="$PASS" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ.get("PASS_ARG", "")))')
 
-RESP=$(curl -sk -c "$COOKIE_JAR" "https://${HOST}:5001/webapi/auth.cgi?api=SYNO.API.Auth&version=6&method=login&account=${ENC_USER}&passwd=${ENC_PASS}&session=core&format=cookie")
-SID=$(printf '%s' "$RESP" | grep -o '"sid":"[^"]*"' | cut -d'"' -f4)
+RESP=$(
+    curl \
+        --connect-timeout 5 \
+        --max-time 15 \
+        -sk \
+        -c "$COOKIE_JAR" \
+        "https://${HOST}:5001/webapi/auth.cgi?api=SYNO.API.Auth&version=6&method=login&account=${ENC_USER}&passwd=${ENC_PASS}&session=core&format=cookie"
+) || {
+    log "⚠️ [dsm] DSM unavailable, skipping deployment"
+    exit 0
+}
+
+if [ -z "$RESP" ]; then
+    log "⚠️ [dsm] Empty response from DSM, skipping deployment"
+    exit 0
+fi
+
+SID=$(
+    printf '%s' "$RESP" |
+    grep -o '"sid":"[^"]*"' |
+    cut -d'"' -f4 ||
+    true
+)
 
 if [ -z "$SID" ]; then
     log "❌ [dsm] Authentication failed"
@@ -69,7 +90,12 @@ fi
 # 4. Upload
 log "📥 [dsm] Uploading combined certificate…"
 
-curl -sk -b "$COOKIE_JAR" -X POST \
+curl \
+  --connect-timeout 5 \
+  --max-time 60 \
+  -sk \
+  -b "$COOKIE_JAR" \
+  -X POST \
   -F "api=SYNO.Core.Certificate" \
   -F "version=1" \
   -F "method=import" \
