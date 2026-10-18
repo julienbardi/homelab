@@ -184,4 +184,4 @@ Other enabled NAS interfaces are generated but only become active if deployed.
 - All WireGuard configs are generated from TSVs
 - Deployment is atomic and idempotent
 - Disabled interfaces in TSV are ignored
-- Clients always connect to router’s public endpoint (bardi.ch:<port>)
+- Clients always connect to router’s public endpoint (`bardi.ch:<port>`)
