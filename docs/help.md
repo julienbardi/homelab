@@ -74,6 +74,7 @@
 ## 🌐 DNS
 
 ### Unbound (recursive resolver)
+
 - `make enable-unbound`
 - `make deploy-unbound`
 - `make unbound-status`
@@ -87,9 +88,11 @@
 - `make dns-runtime-check`
 
 ### dnsmasq (local forwarder)
+
 - `make enable-dnsmasq`
 
 ### dnsdist (DoH frontend)
+
 - `make dnsdist`
 - `make dnsdist-status`
 
@@ -105,8 +108,8 @@
 - `make dns-warm-uninstall` — Remove dns‑warm components
 - `make dns-warm-now` — Update domain list → run warm job → show last run + health summary
 
-
 ### DNS health tooling
+
 - `make install-dns-health`
 - `make check-dns`
 
@@ -132,7 +135,6 @@ Execution model:
 
 No cron jobs are installed.
 DDNS updates are triggered manually via Make or automatically by Asuswrt‑Merlin’s native event system.
-
 
 ## 📦 Infrastructure
 
@@ -218,15 +220,12 @@ The local VS Code server is managed declaratively.
 - `make code-server-ensure-running` — Ensures code‑server is running with the correct configuration and systemd override.
   Restarts automatically if configuration changed.
 
-
-
 ### Notes
 
 - The systemd override forces code‑server to run with the managed config at
   `~/.config/code-server/config.yaml`.
 - The install target tracks upstream automatically.
 - If deterministic version pinning is required, replace the installer script with a pinned release artifact.
-
 
 ## 🔐 WireGuard — minimal lifecycle (new architecture)
 
@@ -277,7 +276,7 @@ Key invariants:
 
 ### 🚀 WireGuard — bring-up
 
-#### Router
+Router
 
 - `make wg-up-router` — Ensures module is loaded (wg-router-preflight), then:
 
@@ -286,7 +285,7 @@ Key invariants:
   - Assigns IPs
   - Sets link up
 
-#### NAS
+NAS
 
 - `make wg-up-nas` — Waits for router to be fully up, then:
 
