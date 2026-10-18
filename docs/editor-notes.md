@@ -5,6 +5,7 @@ This repository contains tab‑significant Makefiles and `.mk` includes.
 ## VS Code
 
 Editor behavior is enforced via `.vscode/settings.json`:
+
 - literal tabs
 - tabSize = 4
 - no auto‑indent detection
@@ -13,6 +14,7 @@ Editor behavior is enforced via `.vscode/settings.json`:
 These settings are part of the Editor Contract and must remain committed.
 
 ## Vim / terminal editors
+
 When editing Makefiles or `mk/*.mk` with Vim, ensure:
 
 - `noexpandtab`

@@ -96,6 +96,7 @@ All generated WireGuard client configs MUST use the bare domain `bardi.ch`
 as the peer endpoint, **not** a sub-domain such as `router.bardi.ch`.
 
 Rationale:
+
 - Unbound split-horizon DNS resolves `router.bardi.ch` to `10.89.12.1` (router
   LAN IP) for clients on the LAN segment.
 - wg7 (and other NAS-hosted interfaces) run on `10.89.12.4`, **not** on

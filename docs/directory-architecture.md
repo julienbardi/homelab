@@ -1,6 +1,6 @@
 # 📁 Homelab Directory Architecture
 
-**Authoritative separation of operator configuration vs system state**
+## Authoritative separation of operator configuration vs system state
 
 This document defines the canonical directory layout for the homelab.
 It establishes the privilege boundary between:
@@ -18,7 +18,7 @@ This separation ensures:
 
 ---
 
-## 🧱 1. Operator Domain — `/root/src/homelab/`
+## 🧱 1. Operator Domain — `~/src/homelab/`
 
 **Persistent, backed up, versioned, human‑authored.**
 This is the *source of truth* for the entire homelab.
@@ -32,32 +32,32 @@ This is the *source of truth* for the entire homelab.
 - Never overwritten by automation
 - Safe to edit
 
-## ✔️ Contents
+## ✔️ Operator Contents
 
 ### 1.1 Root
 
 | Path | Purpose |
-|------|---------|
-| `/root/src/homelab/homelab.env` | Global operator configuration (env vars) |
-| `/root/src/homelab/docs/`       | Documentation, architecture, notes |
-| `/root/src/homelab/security/`   | Security metadata (e.g., compromised_keys.tsv) |
-| `/root/src/homelab/secrets/`    | Encrypted or WITH_SECRETS‑protected material |
+| ------ | --------- |
+| `~/src/homelab/homelab.env` | Global operator configuration (env vars) |
+| `~/src/homelab/docs/` | Documentation, architecture, notes |
+| `~/src/homelab/security/` | Security metadata (e.g., compromised_keys.tsv) |
+| `~/src/homelab/secrets/` | Encrypted or WITH_SECRETS‑protected material |
 
 ### 1.2 WireGuard (authoritative control plane)
 
 | Path | Purpose |
-|------|---------|
-| `/root/src/homelab/wireguard/input/`  | TSVs defining intent (clients, hosts, interfaces) |
-| `/root/src/homelab/wireguard/bin/`    | Generation scripts (operator‑maintained) |
-| `/root/src/homelab/wireguard/keys/`   | Long‑term private keys (must be backed up) |
-| `/root/src/homelab/wireguard/output/` | Delivered artifacts (configs, QR codes, router configs) |
+| ------ | --------- |
+| `~/src/homelab/wireguard/input/` | TSVs defining intent (clients, hosts, interfaces) |
+| `~/src/homelab/wireguard/bin/` | Generation scripts (operator‑maintained) |
+| `~/src/homelab/wireguard/keys/` | Long‑term private keys (must be backed up) |
+| `~/src/homelab/wireguard/output/` | Delivered artifacts (configs, QR codes, router configs) |
 
 **Important:**
 `wireguard/output/` stays here because it must survive SSD replacement and be backed up.
 
 ### 1.3 Git repository
 
-Your entire repo lives under `/root/src/homelab/`.
+Your entire repo lives under `~/src/homelab/`.
 This is the declarative configuration layer.
 
 ---
@@ -67,7 +67,7 @@ This is the declarative configuration layer.
 **Ephemeral, root‑owned, auto‑generated, not backed up.**
 This is the *state directory* for automation.
 
-## ✔️ Characteristics
+### ✔️ System State Characteristics
 
 - Written by automation
 - Never edited manually
@@ -77,70 +77,70 @@ This is the *state directory* for automation.
 - Root‑owned
 - Lives on system SSD
 
-## ✔️ Contents
+### ✔️ Contents
 
 ### 2.1 WireGuard (generated state)
 
-| Path | Purpose |
-|------|---------|
-| `/var/lib/homelab/wg-subnets.mk` | Generated subnets from wg-interfaces.tsv |
-| `/var/lib/homelab/peer-map.tsv`  | Generated peer mapping                   |
+| Path                                   | Purpose                                  |
+| -------------------------------------- | ---------------------------------------- |
+| `/var/lib/homelab/wg-subnets.mk`       | Generated subnets from wg-interfaces.tsv |
+| `/var/lib/homelab/peer-map.tsv`        | Generated peer mapping                   |
 
 ### 2.2 Firewall
 
-| Path | Purpose |
-|------|---------|
-| `/var/lib/homelab/nftables.applied.hash`   | Hash of applied ruleset    |
-| `/var/lib/homelab/nftables.last-run.stamp` | Timestamp of last converge |
+| Path                                         | Purpose                    |
+| -------------------------------------------- | -------------------------- |
+| `/var/lib/homelab/nftables.applied.hash`     | Hash of applied ruleset    |
+| `/var/lib/homelab/nftables.last-run.stamp`   | Timestamp of last converge |
 
 ### 2.3 Certificates
 
-| Path | Purpose |
-|------|---------|
-| `/var/lib/homelab/certs.last-renew.stamp`   | ACME renewal timestamp |
-| `/var/lib/homelab/certs.last-deploy.stamp`  | Deployment timestamp   |
-| `/var/lib/homelab/certs.last-prepare.stamp` | Pre-deploy timestamp   |
+| Path                                        | Purpose                  |
+| ------------------------------------------- | ------------------------ |
+| `/var/lib/homelab/certs.last-renew.stamp`   | ACME renewal timestamp   |
+| `/var/lib/homelab/certs.last-deploy.stamp`  | Deployment timestamp     |
+| `/var/lib/homelab/certs.last-prepare.stamp` | Pre-deploy timestamp     |
 
 ### 2.4 Headscale
 
-| Path | Purpose |
-|------|---------|
-| `/var/lib/homelab/headscale-acl.processed.json`   | Processed ACL policy     |
-| `/var/lib/homelab/headscale-acl.last-apply.stamp` | Last ACL apply timestamp |
+| Path                                              | Purpose                    |
+| ------------------------------------------------- | -------------------------- |
+| `/var/lib/homelab/headscale-acl.processed.json`   | Processed ACL policy       |
+| `/var/lib/homelab/headscale-acl.last-apply.stamp` | Last ACL apply timestamp   |
 
 ### 2.5 Router deploy
 
-| Path | Purpose |
-|------|---------|
-| `/var/lib/homelab/router.last-deploy.stamp` | Router cert deploy timestamp |
-| `/var/lib/homelab/router.last-sync.stamp`   | Router helper sync timestamp |
+| Path                                            | Purpose                      |
+| ----------------------------------------------- | ---------------------------- |
+| `/var/lib/homelab/router.last-deploy.stamp`     | Router cert deploy timestamp |
+| `/var/lib/homelab/router.last-sync.stamp`       | Router helper sync timestamp |
 
 ### 2.6 General
 
-| Path | Purpose |
-|------|---------|
-| `/var/lib/homelab/*.stamp` | Any converge marker        |
-| `/var/lib/homelab/*.hash`  | Any applied hash           |
-| `/var/lib/homelab/*.mk`    | Any generated Make include |
+| Path                         | Purpose                      |
+| ---------------------------- | ---------------------------- |
+| `/var/lib/homelab/*.stamp`   | Any converge marker          |
+| `/var/lib/homelab/*.hash`    | Any applied hash             |
+| `/var/lib/homelab/*.mk`      | Any generated Make include   |
 
 ---
 
-# 🔐 3. Privilege Boundary Summary
+## 🔐 3. Privilege Boundary Summary
 
-| Directory | Owner  | Backed Up | Editable | Purpose |
-|-----------|--------|-----------|----------|---------|
-| `/root/src/homelab/` | julie:admin | **Yes** | **Yes** | Operator configuration & delivered artifacts |
-| `/var/lib/homelab/`  | root:root   | **No**  | No      | Generated state & converge metadata |
+| Directory            | Owner       | Backed Up | Editable | Purpose                                      |
+| -------------------- | ----------- | --------- | -------- | -------------------------------------------- |
+| `~/src/homelab/`     | julie:admin | **Yes**   | **Yes**  | Operator configuration & delivered artifacts |
+| `/var/lib/homelab/`  | root:root   | **No**    | No       | Generated state & converge metadata          |
 
 This boundary is **non‑negotiable** for deterministic automation.
 
 ---
 
-# 🚀 4. Why this architecture matters
+## 🚀 4. Why this architecture matters
 
 ### ✔️ SSD replacement becomes trivial
 
-All operator data lives on `/root/src`.
+All operator data lives on `~/src`.
 All system state is regenerated.
 
 ### ✔️ Backups become clean
@@ -162,12 +162,12 @@ State is always regenerated from intent.
 
 ---
 
-# 📊 5. Homelab Directory Architecture — Diagram
+## 📊 5. Homelab Directory Architecture — Diagram
 
-```
+```text
                           ┌──────────────────────────────────────────────┐
                           │            Operator Domain                   │
-                          │        /root/src/homelab/ (persistent)       │
+                          │        ~/src/homelab/ (persistent)       │
                           └──────────────────────────────────────────────┘
                                         ▲                 ▲
                                         │                 │
@@ -212,12 +212,12 @@ State is always regenerated from intent.
 
 ---
 
-# 🔐 6. WireGuard Control‑Plane Architecture — Diagram
+## 🔐 6. WireGuard Control‑Plane Architecture — Diagram
 
-```
+```text
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │     /root/src/homelab/wireguard/input/       │
+                          │     ~/src/homelab/wireguard/input/       │
                           └──────────────────────────────────────────────┘
                                         ▲
                                         │  (TSVs define desired state)
@@ -232,7 +232,7 @@ State is always regenerated from intent.
                                         ▼
                           ┌──────────────────────────────────────────────┐
                           │      NAS: WireGuard Config Generation        │
-                          │   /root/src/homelab/wireguard/bin/*.sh       │
+                          │   ~/src/homelab/wireguard/bin/*.sh       │
                           └──────────────────────────────────────────────┘
                                         │
                                         │  (produce authoritative configs)
@@ -292,7 +292,7 @@ State is always regenerated from intent.
      └──────────────────────────────┴──────────────────────────────┴──────────────────────────────┘
 ```
 
-# 🧩 7. Make DAG — High‑Level Architecture Diagram
+## 🧩 7. Make DAG — High‑Level Architecture Diagram
 
 This diagram shows how the homelab’s Make targets form a **deterministic DAG**:
 
@@ -307,10 +307,10 @@ No cycles.
 No hidden state.
 Everything flows from declarative inputs.
 
-```
+```text
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │     /root/src/homelab/{env,tsv,keys}         │
+                          │     ~/src/homelab/{env,tsv,keys}         │
                           └──────────────────────────────────────────────┘
                                         │
                                         │  (inputs define desired state)
@@ -385,7 +385,7 @@ Everything flows from declarative inputs.
                           └──────────────────────────────────────────────┘
 ```
 
-# 🔐 8. Router Certificate Lifecycle — Diagram
+## 🔐 8. Router Certificate Lifecycle — Diagram
 
 This diagram shows the complete lifecycle of router certificates:
 
@@ -396,10 +396,10 @@ This diagram shows the complete lifecycle of router certificates:
 - Validation ensures router TLS matches canonical store
 - Runtime state is recorded in `/var/lib/homelab/`
 
-```
+```text
                           ┌──────────────────────────────────────────────┐
                           │            Internal CA (NAS)                 │
-                          │   /root/src/homelab/security + certs store   │
+                          │   ~/src/homelab/security + certs store   │
                           └──────────────────────────────────────────────┘
                                         ▲
                                         │  (CA is authoritative)
@@ -484,7 +484,7 @@ This diagram shows the complete lifecycle of router certificates:
                           └──────────────────────────────────────────────┘
 ```
 
-# 🌐 9. DNS Pipeline — Architecture Diagram
+## 🌐 9. DNS Pipeline — Architecture Diagram
 
 This diagram shows the complete DNS pipeline:
 
@@ -495,10 +495,10 @@ This diagram shows the complete DNS pipeline:
 - Health checks ensure correctness
 - Runtime state lives in `/var/lib/homelab/`
 
-```
+```text
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │     /root/src/homelab/{dns configs}          │
+                          │     ~/src/homelab/{dns configs}          │
                           │     - unbound.conf fragments                 │
                           │     - dnsdist configs                        │
                           │     - warm domain lists                      │
@@ -575,7 +575,7 @@ This diagram shows the complete DNS pipeline:
                           └──────────────────────────────────────────────┘
 ```
 
-# 🧠 10. Headscale ACL Pipeline — Architecture Diagram
+## 🧠 10. Headscale ACL Pipeline — Architecture Diagram
 
 This diagram shows the complete ACL lifecycle:
 
@@ -586,10 +586,10 @@ This diagram shows the complete ACL lifecycle:
 - Runtime state is recorded in `/var/lib/homelab/`
 - Validation ensures no drift
 
-```
+```text
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │   /root/src/homelab/headscale/acl/*.json     │
+                          │   ~/src/homelab/headscale/acl/*.json     │
                           │   - acl.json (authoritative policy)          │
                           │   - groups, tags, users                      │
                           └──────────────────────────────────────────────┘
@@ -663,7 +663,7 @@ This diagram shows the complete ACL lifecycle:
                           └──────────────────────────────────────────────┘
 ```
 
-# 🔥 11. NAS Firewall Pipeline — Architecture Diagram
+## 🔥 11. NAS Firewall Pipeline — Architecture Diagram
 
 This diagram shows the complete NAS firewall lifecycle:
 
@@ -674,10 +674,10 @@ This diagram shows the complete NAS firewall lifecycle:
 - Runtime state is recorded in `/var/lib/homelab/`
 - Validation ensures no drift
 
-```
+```text
                           ┌──────────────────────────────────────────────┐
                           │            Operator Intent                   │
-                          │   /root/src/homelab/wireguard/input/*.tsv    │
+                          │   ~/src/homelab/wireguard/input/*.tsv    │
                           │   - wg-interfaces.tsv                        │
                           │   - hosts.tsv                                │
                           │   - clients.tsv                              │
@@ -755,7 +755,7 @@ This diagram shows the complete NAS firewall lifecycle:
                           └──────────────────────────────────────────────┘
 ```
 
-# 🏠 12. End‑to‑End Homelab Architecture — Diagram
+## 🏠 12. End‑to‑End Homelab Architecture — Diagram
 
 This diagram ties everything together:
 
@@ -765,10 +765,10 @@ This diagram ties everything together:
 - DNS, Headscale, Firewall, Certs
 - Deterministic Make DAG over all subsystems
 
-```
+```text
                           ┌──────────────────────────────────────────────┐
                           │            Operator Domain                   │
-                          │        /root/src/homelab/ (persistent)       │
+                          │        ~/src/homelab/ (persistent)       │
                           │  - homelab.env                               │
                           │  - docs/                                     │
                           │  - security/                                 │
