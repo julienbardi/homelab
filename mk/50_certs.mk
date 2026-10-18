@@ -228,25 +228,6 @@ validate-dsm:
 		exit 1; \
 	fi
 
-validate-ac86u:
-	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443..."; \
-	observed_fp=$$(timeout 5 openssl s_client \
-		-connect $(LAN_AC86U):8443 \
-		-servername $(DOMAIN) \
-		</dev/null 2>/dev/null | \
-		openssl x509 -noout -fingerprint -sha256); \
-	expected_fp=$$(openssl x509 \
-		-in $(SSL_CANONICAL_DIR)/fullchain_ecc.pem \
-		-noout -fingerprint -sha256); \
-	echo "ℹ️ Expected: $$expected_fp"; \
-	echo "ℹ️ Observed: $$observed_fp"; \
-	if [ "$$expected_fp" = "$$observed_fp" ]; then \
-		echo "✅ [validate][ac86u] Validation complete"; \
-	else \
-		echo "❌ [validate][ac86u] Fingerprint mismatch"; \
-		exit 1; \
-	fi
-
 # ============================================================
 # All-in-one targets
 # ============================================================

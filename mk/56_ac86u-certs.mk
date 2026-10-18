@@ -121,27 +121,15 @@ ac86u-certs-deploy: \
 .PHONY: ac86u-certs-validate
 
 ac86u-certs-validate:
-	@echo "🔍 [validate][ac86u] Checking certificate on $(LAN_AC86U):8443..."; \
-	observed_fp=$$(timeout 5 openssl s_client \
-		-connect $(LAN_AC86U):8443 \
-		-servername $(DOMAIN) \
-		</dev/null 2>/dev/null | \
-		openssl x509 -noout -fingerprint -sha256 2>/dev/null || true); \
-	if [ -z "$$observed_fp" ]; then \
-		echo "⚠️ [validate][ac86u] AC86U unavailable, validation skipped"; \
-		exit 0; \
-	fi; \
-	expected_fp=$$(openssl x509 \
-		-in $(SSL_CANONICAL_DIR)/fullchain_ecc.pem \
-		-noout -fingerprint -sha256); \
-	echo "ℹ️ Expected: $$expected_fp"; \
-	echo "ℹ️ Observed: $$observed_fp"; \
-	if [ "$$expected_fp" = "$$observed_fp" ]; then \
-		echo "✅ [validate][ac86u] Validation complete"; \
-	else \
-		echo "❌ [validate][ac86u] Fingerprint mismatch"; \
-		exit 1; \
-	fi
+	@$(call WITH_SECRETS, \
+		$(run_as_root) env \
+			SSL_CANONICAL_DIR="$(SSL_CANONICAL_DIR)" \
+			DOMAIN="$(DOMAIN)" \
+			ROUTER_ADDR="$(LAN_AC86U)" \
+			ROUTER_SSH_PORT="$(SSH_PORT_AC86U)" \
+			SSH_USER_ROUTER="$(SSH_USER_AC86U)" \
+			$(CERTS_DEPLOY) validate router \
+	)
 
 # ------------------------------------------------------------
 # Status
