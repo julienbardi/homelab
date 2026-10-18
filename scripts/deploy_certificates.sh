@@ -361,7 +361,6 @@ activate_router_ac86u() {
 	log "ℹ️ Active HTTPS certificate fingerprint: $fp"
 	log "ℹ️ Canonical certificate deployed successfully"
 
-    return 0
 }
 
 validate_router_ax86u() {
@@ -501,26 +500,12 @@ status_router() {
     log "ℹ️ Router reachable via ICMP"
 
     # 2. Check active certificate fingerprint on router GUI
-    router_fp="$(
-        echo | openssl s_client \
-            -connect "${ROUTER_ADDR}:8443" \
-            -servername "$DOMAIN" \
-            2>/dev/null \
-        | openssl x509 -noout -fingerprint -sha256 \
-        | cut -d= -f2
-    )" || {
+    router_fp="$(get_router_https_fingerprint)" || {
         log "❌ Router TLS handshake failed"
         return 1
     }
 
-    uploaded_fp="$(
-        openssl x509 \
-            -in "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-            -noout \
-            -fingerprint \
-            -sha256 \
-        | cut -d= -f2
-    )"
+    uploaded_fp="$(get_canonical_fingerprint)"
 
     if [[ "$router_fp" == "$uploaded_fp" ]]; then
         log "✅ Router serves canonical certificate"
