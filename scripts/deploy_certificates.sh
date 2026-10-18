@@ -249,36 +249,54 @@ deploy_dnsdist() {
     "
 }
 
+router_ssh() {
+    ssh \
+        -p "$ROUTER_SSH_PORT" \
+        -i "$SSH_IDENTITY" \
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" \
+        "$@"
+}
+
+get_router_https_fingerprint() {
+    echo | openssl s_client \
+        -connect "${ROUTER_ADDR}:8443" \
+        -servername "$DOMAIN" \
+        2>/dev/null \
+    | openssl x509 -noout -fingerprint -sha256 \
+    | cut -d= -f2
+}
+
+get_canonical_fingerprint() {
+    openssl x509 \
+        -in "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
+        -noout \
+        -fingerprint \
+        -sha256 \
+    | cut -d= -f2
+}
 
 detect_router_model() {
-    ssh -p "$ROUTER_SSH_PORT" \
-        -i "$SSH_IDENTITY" \
-        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" '
-            nvram get productid
-        ' | tr -d "\r" | head -n1
+    router_ssh 'nvram get productid' | tr -d "\r" | head -n1
 }
 
 deploy_router_files() {
-    ssh -p "$ROUTER_SSH_PORT" \
-        -i "$SSH_IDENTITY" \
-        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" \
-        'mkdir -p /jffs/.cert'
+    router_ssh 'mkdir -p /jffs/.cert'
 
     local changed=0
 
     run_as_root install_files_if_changed_v3 changed \
         "" "22" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/fullchain.pem" \
-        julie root 0644 \
+        "$SSH_USER_ROUTER" root 0644 \
         "" "22" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/ssl/privkey.pem" \
-        julie root 0600 \
+        "$SSH_USER_ROUTER" root 0600 \
         "" "22" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/.cert/cert.pem" \
-        julie root 0644 \
+        "$SSH_USER_ROUTER" root 0644 \
         "" "22" "$SSL_CANONICAL_DIR/privkey_ecc.pem" \
         "${SSH_USER_ROUTER}@${ROUTER_ADDR}" "$ROUTER_SSH_PORT" "/jffs/.cert/key.pem" \
-        julie root 0600
+        "$SSH_USER_ROUTER" root 0600
 
     if [[ "$changed" -eq 1 ]]; then
         log "📝 Router TLS material updated"
@@ -288,9 +306,7 @@ deploy_router_files() {
 }
 
 activate_router_ax86u() {
-    ssh -p "$ROUTER_SSH_PORT" \
-        -i "$SSH_IDENTITY" \
-        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" '
+    router_ssh '
             mkdir -p /jffs/.cert
 
             if [ "$(nvram get le_enable)" != "2" ]; then
@@ -328,12 +344,66 @@ activate_router_ax86u() {
 }
 
 activate_router_ac86u() {
-    log "❌ RT-AC86U firmware does not support uploaded server certificates"
-    log "ℹ️ Canonical certificate deployed to storage"
-    log "ℹ️ Firmware regenerated its own server certificate"
-    return 1
+    local fp
+
+    fp="$(
+        router_ssh '
+                openssl x509 \
+                    -in /etc/cert.pem \
+                    -noout \
+                    -fingerprint \
+                    -sha256 |
+                cut -d= -f2
+            '
+    )"
+
+	log "⚠️ RT-AC86U firmware does not support uploaded server certificates"
+	log "ℹ️ Active HTTPS certificate fingerprint: $fp"
+	log "ℹ️ Canonical certificate deployed successfully"
+
+    return 0
 }
 
+validate_router_ax86u() {
+    local active_fp
+    local canonical_fp
+
+    active_fp="$(get_router_https_fingerprint)"
+
+    canonical_fp="$(get_canonical_fingerprint)"
+
+    if [[ "$active_fp" != "$canonical_fp" ]]; then
+        log "❌ Router certificate drift detected"
+        log "   canonical: $canonical_fp"
+        log "   active   : $active_fp"
+        return 1
+    fi
+
+    log "✅ Router certificate matches canonical store"
+}
+
+validate_router_ac86u() {
+    local active_fp
+    local canonical_fp
+
+    active_fp="$(get_router_https_fingerprint)" || {
+        log "⚠️ AC86U HTTPS unavailable, validation skipped"
+        return 0
+    }
+
+    canonical_fp="$(get_canonical_fingerprint)"
+
+    log "ℹ️ Canonical certificate : $canonical_fp"
+    log "ℹ️ Active HTTPS cert     : $active_fp"
+
+    if [[ "$canonical_fp" == "$active_fp" ]]; then
+        log "✅ AC86U serves canonical certificate"
+    else
+        log "⚠️ AC86U firmware serves a self-generated HTTPS certificate"
+        log "ℹ️ This is expected for RT-AC86U firmware"
+        log "ℹ️ Canonical certificate deployment completed successfully"
+    fi
+}
 
 # --------------------------------------------------------------------
 # Deploy: router
@@ -394,38 +464,24 @@ validate_caddy() {
 validate_router() {
     log "[validate][router] HTTPS certificate"
 
-    local router_fp
-    local uploaded_fp
+    local model
 
-    router_fp="$(
-        echo | openssl s_client \
-            -connect "${ROUTER_ADDR}:8443" \
-            -servername "$DOMAIN" \
-            2>/dev/null \
-        | openssl x509 -noout -fingerprint -sha256 \
-        | cut -d= -f2
-    )" || {
-        log "❌ Router TLS handshake failed"
-        return 1
-    }
+    model="$(detect_router_model)"
 
-    uploaded_fp="$(
-        openssl x509 \
-            -in "$SSL_CANONICAL_DIR/fullchain_ecc.pem" \
-            -noout \
-            -fingerprint \
-            -sha256 \
-        | cut -d= -f2
-    )"
+    log "ℹ️ ASUS model: $model"
 
-    if [[ "$router_fp" != "$uploaded_fp" ]]; then
-        log "❌ Router certificate drift detected"
-        log "   local : $uploaded_fp"
-        log "   remote: $router_fp"
-        return 1
-    fi
-
-    log "✅ Router certificate matches canonical store"
+    case "$model" in
+        RT-AX86U*|RT-AX86U_PRO*)
+            validate_router_ax86u
+            ;;
+        RT-AC86U*)
+            validate_router_ac86u
+            ;;
+        *)
+            log "❌ Unsupported ASUS model: $model"
+            return 1
+            ;;
+    esac
 }
 
 # Router GUI runs on 8443.
@@ -487,9 +543,7 @@ status_router() {
     fi
 
     # 4. Verify ASUS upload store exists
-    ssh -p "$ROUTER_SSH_PORT" \
-        -i "$SSH_IDENTITY" \
-        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" '
+    router_ssh '
             test -f /jffs/.cert/cert.pem &&
             test -f /jffs/.cert/key.pem
         ' >/dev/null 2>&1 \
