@@ -17,7 +17,6 @@ CERT_DIR="${4:-/var/lib/ssl/canonical}"
 
 FULLCHAIN="${CERT_DIR}/fullchain_rsa.pem"
 PRIVKEY="${CERT_DIR}/privkey_rsa.pem"
-CA_CER="${CERT_DIR}/ca.cer"
 
 COOKIE_JAR=$(mktemp)
 trap 'rm -f "$COOKIE_JAR"' EXIT
@@ -62,9 +61,6 @@ log "📦 [dsm] Combining certificate + key for DSM…"
 COMBINED="$TMPDIR/dsm_combined.pem"
 cat "$TMPDIR/privkey_pkcs8.pem" "$TMPDIR/fullchain_rsa.pem" > "$COMBINED"
 
-#echo "DEBUG: Combined PEM contents (secret):"
-#cat "$COMBINED"
-
 if [ ! -s "$COMBINED" ]; then
     log "❌ [dsm] Combined PEM is empty — aborting"
     exit 1
@@ -89,30 +85,20 @@ if ! grep -q '"success":true' /tmp/dsm_upload.log; then
     exit 26
 fi
 
+UPLOAD=$(cat /tmp/dsm_upload.log)
+
 log "📦 [dsm] Certificate uploaded"
 
-# 5. Set Default
-CERT_LIST=$(curl -sk -b "$COOKIE_JAR" \
-  "https://${HOST}:5001/webapi/entry.cgi?api=SYNO.Core.Certificate&version=1&method=list&_sid=$SID")
+# 5. Activation not yet implemented
 
-NEW_ID=$(printf '%s' "$CERT_LIST" | grep -o '"id":"[^"]*"' | tail -n1 | cut -d'"' -f4)
+NEW_ID=$(printf '%s' "$UPLOAD" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
 
-if [ -n "$NEW_ID" ]; then
-    log "🚀 [dsm] Activating certificate ID ${NEW_ID}…"
-
-    RESP=$(curl -sk -b "$COOKIE_JAR" \
-      "https://${HOST}:5001/webapi/entry.cgi?api=SYNO.Core.Certificate&version=1&method=set_default&id=${NEW_ID}&_sid=$SID")
-
-    echo
-    echo "===== DSM SET DEFAULT RESPONSE ====="
-    echo "$RESP"
-    echo "===================================="
-    echo
+if [ -z "$NEW_ID" ]; then
+    log "❌ [dsm] Upload succeeded but no certificate ID was returned"
+    exit 1
 fi
 
-log "🔄 [dsm] Restarting DSM reverse proxy…"
-curl -sk -b "$COOKIE_JAR" \
-  "https://${HOST}:5001/webapi/entry.cgi?api=SYNO.Core.Service&version=1&method=restart&service=nginx&_sid=$SID" \
-  >/dev/null
-
-log "🟢 [dsm] DSM certificate deployment complete"
+log "ℹ️ [dsm] Uploaded certificate ID: $NEW_ID"
+log "⚠️ [dsm] Default certificate activation not yet implemented"
+log "🟢 [dsm] Certificate upload completed"
+exit 0
