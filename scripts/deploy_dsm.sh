@@ -77,7 +77,8 @@ curl -sk -b "$COOKIE_JAR" -X POST \
   -F "cert=@${TMPDIR}/fullchain_rsa.pem" \
   -F "key=@${TMPDIR}/privkey_pkcs8.pem" \
   -F "desc=Homelab-Auto-Deploy" \
-  "https://${HOST}:5001/webapi/entry.cgi" > /tmp/dsm_upload.log 2>&1
+  "https://${HOST}:5001/webapi/entry.cgi" \
+  > /tmp/dsm_upload.log 2>&1
 
 if ! grep -q '"success":true' /tmp/dsm_upload.log; then
     log "❌ [dsm] Upload failed:"
