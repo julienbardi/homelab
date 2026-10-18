@@ -253,8 +253,9 @@ deploy_dnsdist() {
 detect_router_model() {
     ssh -p "$ROUTER_SSH_PORT" \
         -i "$SSH_IDENTITY" \
-        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" \
-        'nvram get odmpid'
+        "${SSH_USER_ROUTER}@${ROUTER_ADDR}" '
+            nvram get productid
+        ' | tr -d "\r" | head -n1
 }
 
 deploy_router_files() {
@@ -327,14 +328,9 @@ activate_router_ax86u() {
 }
 
 activate_router_ac86u() {
-    log "❌ RT-AC86U activation path not implemented"
-
-    log "ℹ️ Deployment succeeded:"
-    log "   /jffs/ssl/*.pem updated"
-    log "   /jffs/.cert/*.pem updated"
-
-    log "ℹ️ Firmware activation contract remains unknown"
-
+    log "❌ RT-AC86U firmware does not support uploaded server certificates"
+    log "ℹ️ Canonical certificate deployed to storage"
+    log "ℹ️ Firmware regenerated its own server certificate"
     return 1
 }
 
@@ -351,13 +347,13 @@ deploy_router() {
 
     log "ℹ️ ASUS model: $model"
 
-    deploy_router_files
-
     case "$model" in
-        RT-AX86U*|RT-AX86U_Pro*)
+        RT-AX86U*|RT-AX86U_PRO*)
+            deploy_router_files
             activate_router_ax86u
             ;;
         RT-AC86U*)
+            deploy_router_files
             activate_router_ac86u
             ;;
         *)
