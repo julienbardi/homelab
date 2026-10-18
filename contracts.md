@@ -6,7 +6,6 @@ Homelab Control Plane — Global Contracts
 
 ===============================================================================
 
-
 This file defines all non-negotiable invariants for the Homelab control plane.
 
 It is documentation-as-law.
@@ -16,7 +15,6 @@ It MUST be kept in Git and reviewed like code.
 All compiler, renderer, checker, and deployment scripts MUST comply with
 these contracts.
 
--------------------------------------------------------------------------------
 
 Contract index (non-normative)
 
@@ -81,7 +79,7 @@ Intent model & compilation:
 
 - Enumeration model
 - Compiled dumps
-- Interfaces
+- Interface Identity Authority
 - Schema authority & consumer closure
 - Intent dimension completeness
 - Compiler purity & environment independence
@@ -96,6 +94,7 @@ Intent model & compilation:
 - Interface host binding
 - Host identity
 - WireGuard public endpoint
+- Router Control‑Plane Contracts
 
 Data encoding & determinism:
 
@@ -115,8 +114,6 @@ Build & orchestration:
 - Wiring order
 - Make orchestration & deployment
 - Makefile shell constructs
-
-
 
 -------------------------------------------------------------------------------
 
@@ -174,6 +171,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Agent behavior & contract amendment boundaries
+
 -------------------------------------------------------------------------------
 
 Agents are advisory only.
@@ -209,16 +207,17 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Tool Capability & Constraint Verification Invariant
+
 -------------------------------------------------------------------------------
 
-### 1. Scope
+Section 1: Scope
 
 This invariant applies to all tools, libraries, CLIs, and services used in the
 system (including but not limited to: SOPS, YAML/JSON processors, templating
 engines, SSH helpers, and future tools). It governs any proposal that introduces
 a tool into a pipeline or changes how a tool is used.
 
-### 2. Mandatory Invariant
+Section 2: Mandatory Invariant
 
 No agent may propose, modify, or refactor a workflow that depends on a tool
 without first verifying that the tool’s capabilities and constraints are
@@ -230,7 +229,7 @@ compatible with:
 
 Assumptions about tool behavior are forbidden.
 
-### 3. Verification Requirements
+Section 3: Verification Requirements
 
 Before a tool is used in a new way (or introduced into a new path), the agent
 MUST:
@@ -243,7 +242,7 @@ MUST:
    pipeline (no hidden or generic errors that obscure root cause).
 5. Refuse to propose refactors that violate any of the above.
 
-### 4. Prohibited Behavior
+Section 4: Prohibited Behavior
 
 The following behaviors are strictly forbidden:
 
@@ -254,7 +253,7 @@ The following behaviors are strictly forbidden:
   conditions.
 - Introducing a tool into a critical path without a minimal, reproducible test.
 
-### 5. Enforcement
+Section 5: Enforcement
 
 Any proposal or change that uses a tool without satisfying this invariant:
 
@@ -268,6 +267,7 @@ pattern that led to the SOPS `exec-env` failure.
 -------------------------------------------------------------------------------
 
 CONTRACT: Authority & decision ownership
+
 -------------------------------------------------------------------------------
 
 This system is intentionally single-authority.
@@ -309,11 +309,12 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Repository authority & source of truth
+
 -------------------------------------------------------------------------------
 
 The GitHub repository at:
 
-  <https://github.com/julienbardi/homelab>
+  https://github.com/julienbardi/homelab
 
 is the authoritative source of truth for this system.
 
@@ -340,6 +341,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Delegated authority
+
 -------------------------------------------------------------------------------
 
 The repository owner MAY designate a deputy.
@@ -370,6 +372,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Temporary incapacity
+
 -------------------------------------------------------------------------------
 
 In the event of temporary incapacity of the repository owner,
@@ -404,6 +407,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Authority succession
+
 -------------------------------------------------------------------------------
 
 In the event of death or permanent incapacity of the repository owner,
@@ -437,22 +441,51 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Mechanical grounding & hallucination prevention
+
 -------------------------------------------------------------------------------
 
 Agents MUST NOT rely on memory or "standard patterns" for file contents.
 
 Rules:
 
-- Before describing the contents of any file (Makefile, script, or config),
-  the agent MUST verify the exact filename and content via the
-  file_content_fetcher or browsing tool.
-- If a tool call fails or returns "not in search index," the agent MUST
-  explicitly state the failure and request the content from the operator
-  rather than inferring the content.
-- When referencing included files (e.g., in a Makefile), the agent MUST
-  list only the exact strings found in the source code.
-- Summaries or "hallucinations" of file lists based on typical project
-  structures are strictly forbidden.
+- Before describing the contents of any file (Makefile, script, config,
+  contract, or generated artifact), the agent MUST verify both the exact
+  filename and the current file contents using an authoritative retrieval
+  mechanism capable of reading the actual file content.
+
+- The agent MUST distinguish between:
+  - verified file content
+  - repository structure
+  - assumptions or hypotheses
+
+  Only verified content may be presented as fact.
+
+- If retrieval fails, returns incomplete content, returns truncated content,
+  or the requested file is unavailable, the agent MUST explicitly state the
+  limitation and request the minimal additional evidence required.
+
+- The agent MUST NOT infer file contents, included files, dependency
+  relationships, ownership, wiring, or execution behavior from:
+  - memory
+  - previous conversations
+  - common project layouts
+  - naming conventions
+  - typical implementation patterns
+
+- When referencing included files, targets, variables, functions,
+  dependencies, or configuration entries, the agent MUST reference only
+  text that has been mechanically verified from the source material.
+
+- Summaries or architectural conclusions derived from repository content
+  MUST cite the specific files, lines, references, commands, or other
+  repository evidence on which the conclusion is based.
+
+- Any claim that a file is unused, unreachable, orphaned, deprecated,
+  non-canonical, dead code, safe to remove, not referenced, not deployed,
+  not executed, or not consumed MUST be supported by explicit repository
+  evidence.
+
+- Absence of evidence MUST be treated as unknown, not as evidence of absence.
 
 Rationale:
 
@@ -467,6 +500,7 @@ Enforcement status:
 -------------------------------------------------------------------------------
 
 CONTRACT: Complete and Unshortened Output Invariant
+
 -------------------------------------------------------------------------------
 
 The assistant MUST emit complete, literal, and unshortened code, configuration,
@@ -500,94 +534,74 @@ Rationale:
 
 -------------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
-# CONTRACT: BusyBox-Compatible AWK and Makefile Quoting Invariant
+CONTRACT: BusyBox-Compatible AWK and Makefile Quoting Invariant
 
-# ---------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
-# This contract governs all AWK usage inside Makefile recipes executed on
+This contract governs all AWK usage inside Makefile recipes executed on
+constrained systems (BusyBox awk, ash, Alpine, embedded NAS environments)
 
-# constrained systems (BusyBox awk, ash, Alpine, embedded NAS environments)
-
-#
-
-# 1. AWK programs MUST use single quotes exclusively
+Section 1: AWK programs MUST use single quotes exclusively
 
 - No double quotes inside AWK programs.
 - No escaped quotes.
 - No mixed quoting.
 
-#
+Section 2: Field separators MUST use single-quoted -F expressions
 
-# 2. Field separators MUST use single-quoted -F expressions
+  Allowed:   `awk -F': *' '...'`
+  Forbidden: `awk -F":*" '...'`
+       `awk -F\": *\" ...`
 
-  Allowed:   awk -F': *' '...'
-  Forbidden: awk -F":*" '...'
-       awk -F\": *\" ...
+Section 3: AWK variable names MUST NOT shadow reserved words
 
-#
+  Forbidden: `in=1`
+  Allowed:   `block=1, state=1, flag=1`
 
-# 3. AWK variable names MUST NOT shadow reserved words
+Section 4: Boolean shortcuts in AWK pattern sections are forbidden
 
-  Forbidden: in=1
-  Allowed:   block=1, state=1, flag=1
+  Forbidden: `block && /^[ ]/`
+  Allowed:   `block==1 && /^[ ]/`
 
-#
-
-# 4. Boolean shortcuts in AWK pattern sections are forbidden
-
-  Forbidden: block && /^[ ]/
-  Allowed:   block==1 && /^[ ]/
-
-#
-
-# 5. GNU awk extensions are forbidden
+Section 5: GNU awk extensions are forbidden
 
   Forbidden: gensub, FPAT, IGNORECASE, BEGINFILE, ENDFILE, match(..., array)
   Only POSIX AWK features are permitted.
 
-#
+Section 6: AWK programs MUST NOT contain double quotes in action blocks
 
-# 6. AWK programs MUST NOT contain double quotes in action blocks
+  Forbidden: `print "$$2"`
+  Allowed:   `print $$2`
 
-  Forbidden: print "$$2"
-  Allowed:   print $$2
-
-#
-
-# 7. AWK programs MUST NOT be embedded inside Makefile double-quoted strings
+Section 7: AWK programs MUST NOT be embedded inside Makefile double-quoted strings
 
   All AWK invocations MUST be inside single-quoted Makefile strings.
 
-#
+Section 8: All AWK code inside Makefiles MUST escape $ as $$
 
-# 8. All AWK code inside Makefiles MUST escape $ as $$
+  Required: `print $$2`
 
-  Required: print $$2
-
-#
-
-# 9. AWK extraction logic MUST be line-oriented and POSIX-only
+Section 9: AWK extraction logic MUST be line-oriented and POSIX-only
 
 - No multiline regex.
 - No RS/ORS manipulation.
 - No non-POSIX features.
 
-#
-
-# 10. All AWK usage MUST be BusyBox-compatible and Makefile-safe
+Section 10: All AWK usage MUST be BusyBox-compatible and Makefile-safe
 
    Any AWK program violating this invariant MUST be rejected and rewritten.
 
 This invariant is mandatory and applies globally to all Makefile recipes,
 extraction logic, parsing logic, and any AWK usage executed on NAS, router,
 or embedded systems. No exceptions
----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 
 CONTRACT: Scope & applicability
+
 -------------------------------------------------------------------------------
 
 This document defines invariants governing the Homelab architecture,
@@ -646,6 +660,7 @@ to stdout or stderr are permitted
 -------------------------------------------------------------------------------
 
 CONTRACT: Assistant Change‑Safety Extensions
+
 -------------------------------------------------------------------------------
 
 These clauses extend existing assistant‑behavior rules. They do not modify,
@@ -694,6 +709,7 @@ weaken, or supersede any prior contract. They are strictly additive.
 -------------------------------------------------------------------------------
 
 CONTRACT: Document structure & formatting
+
 -------------------------------------------------------------------------------
 
 This document uses a single, consistent structural grammar.
@@ -744,6 +760,7 @@ renders the document invalid
 -------------------------------------------------------------------------------
 
 CONTRACT: Contract index completeness
+
 -------------------------------------------------------------------------------
 
 The contract index is normative.
@@ -768,6 +785,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Mandatory File Header
+
 -------------------------------------------------------------------------------
 
 All source files in the repository MUST declare their identity and purpose.
@@ -796,6 +814,7 @@ Enforcement status:
 -------------------------------------------------------------------------------
 
 CONTRACT: Contract enforcement & failure semantics
+
 -------------------------------------------------------------------------------
 
 All contracts in this document are enforceable invariants.
@@ -845,6 +864,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Contract violation handling & review blocking
+
 -------------------------------------------------------------------------------
 
 Contract violations are absolute.
@@ -884,6 +904,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Drift-aware verification & remediation
+
 -------------------------------------------------------------------------------
 
 Verification targets MUST detect both absence and divergence of state.
@@ -917,6 +938,7 @@ Enforcement status:
 -------------------------------------------------------------------------------
 
 CONTRACT: Enforcement coverage declaration
+
 -------------------------------------------------------------------------------
 
 All contracts MUST have a known enforcement status.
@@ -956,6 +978,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Change control & evolution
+
 -------------------------------------------------------------------------------
 
 Contracts are stable by default.
@@ -983,6 +1006,7 @@ Unjustified contract drift is a contract violation
 -------------------------------------------------------------------------------
 
 CONTRACT: Contract supersession & lifecycle
+
 -------------------------------------------------------------------------------
 
 Contracts are permanent records of architectural intent.
@@ -1018,7 +1042,6 @@ Rationale:
 - Prevents silent rule replacement.
 - Enables evolution without erasing intent.
 
-
 Consistency requirement:
 
 - Active contracts MUST be mutually satisfiable.
@@ -1036,12 +1059,13 @@ Consistency requirement:
 - Apparently conflicting contracts MUST be resolved through explicit
   contract amendment, clarification, or supersession committed by the
   repository owner.
--------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 
 CONTRACT: Versioning & release semantics
+
 -------------------------------------------------------------------------------
 
 The control plane follows semantic versioning.
@@ -1099,6 +1123,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Runtime tool availability
+
 -------------------------------------------------------------------------------
 
 The router runtime environment MUST provide the following BusyBox tools:
@@ -1132,6 +1157,7 @@ is a contract violation
 -------------------------------------------------------------------------------
 
 CONTRACT: Control-plane language boundaries
+
 -------------------------------------------------------------------------------
 
 Python is a control-plane implementation detail.
@@ -1165,6 +1191,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Secret Handling and Ephemeral Decryption Invariant
+
 -------------------------------------------------------------------------------
 
 This contract governs all handling of encrypted and decrypted secret material
@@ -1228,9 +1255,26 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Canonical storage & disaster recovery
+
 -------------------------------------------------------------------------------
 
-All canonical intent MUST reside on persistent router storage under /jffs/scripts/.
+Definitions:
+
+- Authoritative source of truth:
+  The location that defines architectural intent and governs all
+  other copies. In the event of conflict, the authoritative source
+  of truth prevails.
+
+- Canonical runtime storage:
+  The required operational location where authoritative intent is
+  materialized for execution.
+
+The GitHub repository is the authoritative source of truth.
+
+The copy under /jffs/scripts/ is the canonical runtime copy and MUST
+be derived from the authoritative repository state.
+
+All canonical runtime intent MUST reside on persistent router storage under /jffs/scripts/.
 
 Canonical files:
 
@@ -1249,7 +1293,10 @@ authoritative repository and MUST NOT be treated as runtime artifacts.
 
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+
 CONTRACT: Makefile recipe invariants
+
 -------------------------------------------------------------------------------
 
 Makefile recipes are executable logic and MUST follow strict structural and
@@ -1265,10 +1312,10 @@ Rules:
   invocations.
 
     Forbidden examples:
-      $(MAKE) target
-      make target
-      #$(MAKE) $(1)
-      sh -c "make ..."
+      `$(MAKE) target`
+      `make target`
+      `#$(MAKE) $(1)`
+      `sh -c "make ..."`
 
 - Rationale: Recursive Make destroys the single-pass DAG evaluation model,
   re-parses the entire repository in a new process, overrides or drops
@@ -1282,7 +1329,7 @@ Rules:
 - Verification: A CI rule MUST scan all parsed Makefiles for recursive-make
   patterns and fail loudly if any are found:
 
-    grep -R --line-number -E '(^|[^A-Za-z0-9_])make([^A-Za-z0-9_]|$)|\$\((MAKE)\)' $(MAKEFILE_LIST)
+    `grep -R --line-number -E '(^|[^A-Za-z0-9_])make([^A-Za-z0-9_]|$)|\$\((MAKE)\)' $(MAKEFILE_LIST)`
 
 - Enforcement: Any occurrence of recursive Make is a contract violation.
   Execution MUST abort, merge MUST be blocked, and correction is mandatory.
@@ -1344,8 +1391,8 @@ Enforcement status:
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
-
 CONTRACT: Control-plane reasoning authority
+
 -------------------------------------------------------------------------------
 
 Python is the preferred / canonical reasoning engine for intent-level semantics,
@@ -1365,7 +1412,7 @@ Rules:
 - No router-resident shell script MAY implement intent-level semantic
   aggregation or classification; such reasoning MUST be performed by
   control-plane Python tooling.
-- Semantic reasoning” means deriving intent-level conclusions
+- Semantic reasoning means deriving intent-level conclusions
   (grouping, counting, set construction, policy decisions), not
   mechanical parsing or formatting.
 
@@ -1420,6 +1467,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Privilege Boundary Invariants
+
 -------------------------------------------------------------------------------
 
 Rules:
@@ -1445,6 +1493,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Enumeration model
+
 -------------------------------------------------------------------------------
 
 The system enumerates the full valid state space:
@@ -1466,6 +1515,7 @@ plan.tsv is the sole source of truth for intent resolution.
 -------------------------------------------------------------------------------
 
 CONTRACT: Compiled dumps
+
 -------------------------------------------------------------------------------
 
 The following files are materialized database snapshots:
@@ -1495,7 +1545,8 @@ When WG_DUMP is unset or 0, dumps MUST NOT be written.
 
 -------------------------------------------------------------------------------
 
-CONTRACT: Interfaces
+CONTRACT: Interface Identity Authority
+
 -------------------------------------------------------------------------------
 
 The 'iface' field uniquely identifies the WireGuard server endpoint.
@@ -1520,6 +1571,7 @@ with that iface, not from implicit conventions or naming.
 -------------------------------------------------------------------------------
 
 CONTRACT: Schema authority & consumer closure
+
 -------------------------------------------------------------------------------
 
 Authoritative compiled dumps define the system schema.
@@ -1555,6 +1607,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Intent dimension completeness
+
 -------------------------------------------------------------------------------
 
 All first-class intent dimensions MUST be represented explicitly
@@ -1586,6 +1639,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Compiler purity & environment independence
+
 -------------------------------------------------------------------------------
 
 wg-compile is a pure intent compiler.
@@ -1624,6 +1678,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Compile-time intent dimensions
+
 -------------------------------------------------------------------------------
 
 Certain intent dimensions are resolved fully during compilation and do not
@@ -1671,6 +1726,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Intent inventory
+
 -------------------------------------------------------------------------------
 
 The system MUST maintain an explicit inventory of intent dimensions.
@@ -1700,6 +1756,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Design completeness gate
+
 -------------------------------------------------------------------------------
 
 Implementation MUST NOT proceed until the intent model is complete.
@@ -1711,15 +1768,13 @@ Rules:
   - named
   - placed in authoritative compiled dumps
   - and validated
-  before any renderer or deployment logic is written or modified.
+    before any renderer or deployment logic is written or modified.
 
 - Introducing or modifying implementation code while the intent model
   is incomplete is forbidden.
 
 - "Temporary" or "placeholder" implementations are forbidden
   for unresolved intent dimensions.
-
-- A key must be rotated if its confidentiality is suspected to be compromised.
 
 Enforcement:
 
@@ -1728,7 +1783,7 @@ Enforcement:
 - Any attempt to render, deploy, or apply with an incomplete intent
   model MUST abort execution.
 
-  Enforcement status:
+Enforcement status:
   enforceable but not yet enforced
 
 Rationale:
@@ -1742,6 +1797,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Broken model freeze
+
 -------------------------------------------------------------------------------
 
 If the intent model is known to be incomplete or inconsistent,
@@ -1768,6 +1824,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: TSV encoding
+
 -------------------------------------------------------------------------------
 
 All dump files are UTF-8 encoded TSV with:
@@ -1791,6 +1848,7 @@ Any violation MUST abort compilation loudly.
 -------------------------------------------------------------------------------
 
 CONTRACT: TSV schema literals in code
+
 -------------------------------------------------------------------------------
 
 TSV schemas referenced in source code MUST be represented using explicit
@@ -1829,6 +1887,7 @@ representation is a contract violation
 -------------------------------------------------------------------------------
 
 CONTRACT: Deterministic ordering
+
 -------------------------------------------------------------------------------
 
 All dump rows MUST be emitted in a stable, deterministic order.
@@ -1844,6 +1903,7 @@ This guarantees:
 -------------------------------------------------------------------------------
 
 CONTRACT: Profiles
+
 -------------------------------------------------------------------------------
 
 Profiles are named routing intents.
@@ -1862,6 +1922,7 @@ Realization happens at render time.
 -------------------------------------------------------------------------------
 
 CONTRACT: Key lifecycle
+
 -------------------------------------------------------------------------------
 
 Client keys are scoped to:
@@ -1872,12 +1933,21 @@ Keys are:
 
 - generated idempotently
 - never rotated implicitly
+- MUST be rotated if their confidentiality is suspected to be compromised
+
+Governance:
+
+- Suspected compromise is determined by the repository owner
+  or operator based on available evidence.
 
 Profile or OS changes MUST NOT affect key identity.
 
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+
 CONTRACT: Renderers
+
 -------------------------------------------------------------------------------
 
 Renderers are dumb consumers of the authoritative compiled plan (plan.tsv).
@@ -1913,6 +1983,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Wiring order
+
 -------------------------------------------------------------------------------
 
 WireGuard is the foundational layer.
@@ -1928,6 +1999,7 @@ No service above WireGuard may influence WireGuard intent.
 -------------------------------------------------------------------------------
 
 CONTRACT: Make orchestration & deployment
+
 -------------------------------------------------------------------------------
 
 Make executes locally (WSL). The router is the canonical runtime store.
@@ -1994,6 +2066,7 @@ Any Makefile that invokes $(MAKE) inside a recipe is invalid
 -------------------------------------------------------------------------------
 
 CONTRACT: Makefile shell constructs
+
 -------------------------------------------------------------------------------
 
 Makefile recipes MUST NOT use shell here-documents (<<EOF or variants).
@@ -2026,6 +2099,7 @@ This is a structural invariant, not a stylistic preference
 -------------------------------------------------------------------------------
 
 CONTRACT: File size & structural limits
+
 -------------------------------------------------------------------------------
 
 No Makefile may exceed 10000 characters.
@@ -2050,6 +2124,7 @@ This is a structural invariant, not a stylistic guideline
 -------------------------------------------------------------------------------
 
 CONTRACT: Documentation correctness
+
 -------------------------------------------------------------------------------
 
 All comments that describe structure, ordering, ownership, or intent
@@ -2092,7 +2167,9 @@ Enforcement:
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
+
 CONTRACT: Single Producer Authority
+
 -------------------------------------------------------------------------------
 
 Every mutable artifact, state transition, or lifecycle
@@ -2118,13 +2195,14 @@ must have exactly one authoritative producer.
 -------------------------------------------------------------------------------
 
 CONTRACT: Content addressing & hashing
+
 -------------------------------------------------------------------------------
 
 Deployment and drift detection rely on SHA-256 content hashing.
 
 The router platform MUST provide SHA-256 hashing via one of:
 
-- sha256sum(1)
+- sha256sum
 - busybox sha256sum
 
 Implementations MUST accept either form.
@@ -2138,6 +2216,7 @@ is a contract violation
 -------------------------------------------------------------------------------
 
 CONTRACT: Non-goals
+
 -------------------------------------------------------------------------------
 
 This document intentionally does NOT define:
@@ -2161,6 +2240,7 @@ as contracts is a contract violation
 -------------------------------------------------------------------------------
 
 CONTRACT: Execution root & working directory confinement
+
 -------------------------------------------------------------------------------
 
 All control-plane scripts MUST execute with a well-defined execution root.
@@ -2192,6 +2272,7 @@ directory is a contract violation
 -------------------------------------------------------------------------------
 
 CONTRACT: Write confinement & side-effect boundaries
+
 -------------------------------------------------------------------------------
 
 Control-plane scripts MUST NOT write outside their declared ownership scope.
@@ -2226,6 +2307,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Dump locality & inspectability
+
 -------------------------------------------------------------------------------
 
 All compiled dumps MUST be emitted into a canonical, inspectable location.
@@ -2253,6 +2335,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Connectivity preservation & management access
+
 -------------------------------------------------------------------------------
 
 Loss of LAN connectivity or management access is the highest-severity failure.
@@ -2331,6 +2414,7 @@ a router-resident script is invalid
 -------------------------------------------------------------------------------
 
 CONTRACT: License & reuse
+
 -------------------------------------------------------------------------------
 
 This contract text is licensed for use, reuse, and adaptation under the
@@ -2350,6 +2434,7 @@ Use of this contract implies acceptance of its terms
 -------------------------------------------------------------------------------
 
 CONTRACT: Interface lifecycle & revocation
+
 -------------------------------------------------------------------------------
 
 Each WireGuard interface has an explicit lifecycle state.
@@ -2383,6 +2468,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Interface host binding
+
 -------------------------------------------------------------------------------
 
 WireGuard interfaces are host-bound and immutable.
@@ -2410,6 +2496,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: NAT66 capability constraints
+
 -------------------------------------------------------------------------------
 
 NAT66 is an explicit, opt-in capability.
@@ -2436,6 +2523,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Routing authority
+
 -------------------------------------------------------------------------------
 
 Routing authority is centralized on the router.
@@ -2458,6 +2546,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Host identity
+
 -------------------------------------------------------------------------------
 
 The WireGuard control plane recognizes exactly two hosts:
@@ -2481,6 +2570,7 @@ Rationale:
 -------------------------------------------------------------------------------
 
 CONTRACT: Output icon semantics
+
 -------------------------------------------------------------------------------
 
 This contract defines the canonical icon set for all operator‑visible output produced by Makefiles, shell scripts, and deployment tooling. Icons are part of the system’s observable behavior and MUST remain stable, intentional, and semantically consistent.
@@ -2528,9 +2618,10 @@ Enforcement status:
 
 -------------------------------------------------------------------------------
 
-
 -------------------------------------------------------------------------------
+
 CONTRACT: Contract for the AGE key
+
 -------------------------------------------------------------------------------
 
 Authoritative truth:
@@ -2549,9 +2640,10 @@ Bootstrap: may create the key only if it does not exist; must never overwrite an
 
 -------------------------------------------------------------------------------
 
-
 -------------------------------------------------------------------------------
+
 CONTRACT: NAS IPv6 forwarding and RA acceptance
+
 -------------------------------------------------------------------------------
 
 Setting net.ipv6.conf.all.forwarding = 1 is required for WireGuard and
@@ -2580,11 +2672,12 @@ Rationale:
   every NAS deployment.
 
 Enforcement status:
-  enforceable and enforced (sysctl-preflight guard + ensure-accept-ra target)
+  enforced (sysctl-preflight guard + ensure-accept-ra target)
 
 -------------------------------------------------------------------------------
 
 CONTRACT: WireGuard public endpoint
+
 -------------------------------------------------------------------------------
 
 All generated WireGuard client configurations MUST use the bare domain
@@ -2592,9 +2685,9 @@ bardi.ch as the [Peer] Endpoint, never a sub-domain.
 
 Invariants:
 
-- Endpoint = bardi.ch:<port>  MUST appear in every generated client config.
-- Endpoint = router.bardi.ch:<port> is FORBIDDEN.
-- Endpoint = <any sub-domain>:<port> is FORBIDDEN.
+- Endpoint = `bardi.ch:<port>`  MUST appear in every generated client config.
+- Endpoint = `router.bardi.ch:<port>` is FORBIDDEN.
+- Endpoint = `<any sub-domain>:<port>` is FORBIDDEN.
 - No Unbound local-data record for bardi.ch (bare) MUST exist; it MUST
   resolve via public DNS to the WAN IP on all network segments.
 
@@ -2603,7 +2696,7 @@ Rationale:
 - router.bardi.ch is resolved by Unbound split-horizon to 10.89.12.1
   (router LAN IP).  NAS-hosted WireGuard interfaces (wg1–wg15) listen on
   the NAS (10.89.12.4), not on the router.  A LAN client using
-  router.bardi.ch: <NAS port> sends its handshake to the router, which has
+  `router.bardi.ch:<NAS port>` sends its handshake to the router, which has
   no listener on that port, producing a silent black hole.
 - bardi.ch has no split-horizon override and always resolves to the WAN IP
   via public DNS, producing consistent behaviour from LAN (NAT hairpin) and
@@ -2612,7 +2705,11 @@ Rationale:
 Enforcement status:
   enforceable (wg-generate-configs.sh hardcodes DNS_TOPDOMAIN_NAME as endpoint)
 
-## Router Control‑Plane Contracts
+-------------------------------------------------------------------------------
+
+CONTRACT: Router Control‑Plane Contracts
+
+-------------------------------------------------------------------------------
 
 This document defines the **authoritative, non‑negotiable contracts** governing the router converge pipeline.
 It is the single source of truth for:
@@ -2626,7 +2723,7 @@ It is the single source of truth for:
 
 Any commit violating these contracts must be rejected.
 
-## 1. Control‑Plane DAG
+Section 1: Control‑Plane DAG
 
                    ┌──────────────────────────────┐
                    │  secrets-ready               │
@@ -2664,7 +2761,7 @@ Any commit violating these contracts must be rejected.
 Manual override path:
 router-install-%  →  single-file IFC (local drift detection)
 
-## 2. Control‑Plane Contract Table
+Section 2: Control‑Plane Contract Table
 
 Node: secrets-ready
 
@@ -2715,7 +2812,7 @@ Node: router-install-%
 - Primary Contract Responsibility: Manual override: install exactly one script
 - Exit Code Semantics: 0 no change, 3 changed, non‑zero failure
 
-## 3. Control‑Plane Invariants
+Section 3: Control‑Plane Invariants
 
 INV‑01 — Atomicity Boundary
 
@@ -2769,7 +2866,7 @@ INV‑10 — SSH Boundary Discipline
 - Remote operations must use a single SSH boundary per converge step.
 - Vectorized IFC must use exactly one SSH call for drift detection.
 
-## 4. Contract Stability
+Section 4: Contract Stability
 
 This document defines stable, versioned, enforceable contracts.
 Any modification must:
@@ -2784,6 +2881,6 @@ Breaking changes require explicit contract evolution.
 
 ===============================================================================
 
-End of contracts.inc
+End of contracts.md
 
 ===============================================================================
