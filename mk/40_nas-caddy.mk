@@ -41,8 +41,8 @@ nas-caddy: gitcheck nas-assert-caddy-ports-free acme-issue deploy-caddy install-
 	esac; \
 	\
 	echo "📋⬇️ Installing SSL Certificates"; \
-	$(call install_file,$(ACME_LINEAGE_ECC)/cert.pem,/etc/ssl/caddy/bardi.ch.cer,root,caddy,0640); \
-	$(call install_file,$(ACME_LINEAGE_ECC)/privkey.pem,/etc/ssl/caddy/bardi.ch.key,root,caddy,0640); \
+	$(call install_file,$(ACME_LINEAGE_ECC)/fullchain.cer,/etc/ssl/caddy/bardi.ch.cer,root,caddy,0640); \
+	$(call install_file,$(ACME_LINEAGE_ECC)/bardi.ch.key,/etc/ssl/caddy/bardi.ch.key,root,caddy,0640); \
 	\
 	echo "📋⬇️ Installing Caddyfile"; \
 	$(run_as_root) install -d -m 0755 -o $(ROOT_UID) -g $(ROOT_GID) /etc/caddy; \
