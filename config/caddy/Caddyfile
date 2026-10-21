@@ -3,7 +3,6 @@
 # This Caddyfile MUST NOT bind to :80.
 # Port 443 is explicitly managed here.
 # ------------------------------------------------------------
-
 {
 	auto_https off
 	# PVE loopback is fully reliable; restrict admin API to localhost for security
@@ -55,7 +54,7 @@ bardi.ch:8384 {
 		host netbird.bardi.ch
 		path /api/* /signalexchange.SignalExchange/* /management.ManagementService/* /management.ProxyService/* /relay/* /ws-proxy/* /oauth2/*
 	}
-	reverse_proxy @netbird_api 10.89.12.4:10080 {
+	reverse_proxy @netbird_api 127.0.0.1:10080 {
 		transport http {
 			versions h2c 2
 		}
@@ -65,7 +64,7 @@ bardi.ch:8384 {
 	@netbird_ui {
 		host netbird.bardi.ch
 	}
-	reverse_proxy @netbird_ui 10.89.12.4:10081
+	reverse_proxy @netbird_ui 127.0.0.1:10081
 
 	# DNS over HTTPS (public)
 	@doh {
@@ -224,16 +223,17 @@ bardi.ch:8384 {
 
 	# Unknown host fallback
 	@unknown not host \
-		bardi.ch \
-		router.bardi.ch \
-		dns.bardi.ch \
-		vpn.bardi.ch \
-		derp.bardi.ch \
-		qnap.bardi.ch \
-		nas.bardi.ch \
-		dev.bardi.ch \
-		apt.bardi.ch \
-		pve.bardi.ch
+ bardi.ch \
+ router.bardi.ch \
+ dns.bardi.ch \
+ vpn.bardi.ch \
+ derp.bardi.ch \
+ qnap.bardi.ch \
+ nas.bardi.ch \
+ dev.bardi.ch \
+ apt.bardi.ch \
+ pve.bardi.ch \
+ netbird.bardi.ch
 
 	respond @unknown "Not Found" 404
 }
