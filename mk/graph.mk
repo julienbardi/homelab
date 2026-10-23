@@ -61,6 +61,7 @@ include $(REPO_ROOT)/mk/router/90_health.mk
 include $(REPO_ROOT)/mk/pve/network.mk
 
 # Step 5 — Everything else
+include $(REPO_ROOT)/mk/05_bootstrap_time.mk
 include $(REPO_ROOT)/mk/05_bootstrap_acme.mk
 include $(REPO_ROOT)/mk/10_bootstrap_security.mk
 include $(REPO_ROOT)/mk/10_groups.mk
@@ -114,7 +115,14 @@ include $(REPO_ROOT)/mk/99_lint.mk
 # 3. ensure-known-hosts: Verify SSH trust for repo/router
 # ============================================================
 .PHONY: bootstrap
-bootstrap: sanity security-bootstrap acme-bootstrap install-pkg-sops ensure-known-hosts check-secrets-src
+bootstrap: \
+	sanity \
+	time-bootstrap \
+	security-bootstrap \
+	acme-bootstrap \
+	install-pkg-sops \
+	ensure-known-hosts \
+	secrets-ready
 	@echo "------------------------------------------------------------"
 	@echo "✅ GLOBAL BOOTSTRAP COMPLETE"
 	@echo " Next Step: make all"
