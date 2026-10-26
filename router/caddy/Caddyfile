@@ -169,6 +169,7 @@
  apt.bardi.ch \
  nas.bardi.ch \
  netbird.bardi.ch \
+ immich.bardi.ch \
 	}
 	reverse_proxy @nas_services 10.89.12.4:443 {
 		header_up Host {http.request.host}
@@ -198,7 +199,8 @@
  nas.bardi.ch \
  dev.bardi.ch \
  apt.bardi.ch \
- netbird.bardi.ch
+ netbird.bardi.ch \
+ immich.bardi.ch
 
 	respond @unknown "Not Found" 404
 }

@@ -200,6 +200,13 @@ bardi.ch:8384 {
 		}
 	}
 
+	# Immich
+	@immich {
+		host immich.bardi.ch
+	}
+
+	reverse_proxy @immich 10.89.12.25:2283
+
 	# apt-cacher-ng (internal only)
 	@apt_internal {
 		host apt.bardi.ch
@@ -233,7 +240,8 @@ bardi.ch:8384 {
  dev.bardi.ch \
  apt.bardi.ch \
  pve.bardi.ch \
- netbird.bardi.ch
+ netbird.bardi.ch \
+ immich.bardi.ch
 
 	respond @unknown "Not Found" 404
 }
