@@ -231,3 +231,132 @@ require_bin() {
 		exit 1
 	fi
 }
+
+# ============================================================
+# 5. Reconciliation-style output helpers
+# ============================================================
+
+if [ -t 1 ]; then
+    CLR_RESET="$(printf '\033[0m')"
+    CLR_BOLD="$(printf '\033[1m')"
+    CLR_GREEN="$(printf '\033[32m')"
+    CLR_BLUE="$(printf '\033[34m')"
+    CLR_YELLOW="$(printf '\033[33m')"
+    CLR_RED="$(printf '\033[31m')"
+    CLR_CYAN="$(printf '\033[36m')"
+    INTERACTIVE=1
+else
+    CLR_RESET=""
+    CLR_BOLD=""
+    CLR_GREEN=""
+    CLR_BLUE=""
+    CLR_YELLOW=""
+    CLR_RED=""
+    CLR_CYAN=""
+    INTERACTIVE=0
+fi
+
+RECON_CREATED=0
+RECON_MODIFIED=0
+RECON_UNCHANGED=0
+
+recon_banner() {
+    echo
+    printf "%b%s%b\n" \
+        "$CLR_BOLD" \
+        "$1" \
+        "$CLR_RESET"
+
+    printf "%b%s%b\n" \
+        "$CLR_CYAN" \
+        "────────────────────────────────────────────────────────" \
+        "$CLR_RESET"
+}
+
+recon_check() {
+    if [ "$INTERACTIVE" -eq 1 ]; then
+        printf "%b⠋%b %-18s\r" \
+            "$CLR_BLUE" \
+            "$CLR_RESET" \
+            "$1"
+    fi
+}
+
+recon_verified() {
+    RECON_UNCHANGED=$((RECON_UNCHANGED + 1))
+
+    printf "%b✔%b  %-10s %-18s %s\n" \
+        "$CLR_GREEN" \
+        "$CLR_RESET" \
+        "Verified" \
+        "$1" \
+        "$2"
+}
+
+recon_created() {
+    RECON_CREATED=$((RECON_CREATED + 1))
+
+    printf "%b✔%b  %-10s %-18s %s\n" \
+        "$CLR_GREEN" \
+        "$CLR_RESET" \
+        "Created" \
+        "$1" \
+        "$2"
+}
+
+recon_updated() {
+    RECON_MODIFIED=$((RECON_MODIFIED + 1))
+
+    printf "%b↻%b  %-10s %-18s %s\n" \
+        "$CLR_BLUE" \
+        "$CLR_RESET" \
+        "Updated" \
+        "$1" \
+        "$2"
+}
+
+recon_warning() {
+    printf "%b⚠%b  %-10s %s\n" \
+        "$CLR_YELLOW" \
+        "$CLR_RESET" \
+        "Warning" \
+        "$1"
+}
+
+recon_error() {
+    printf "%b✖%b  %-10s %s\n" \
+        "$CLR_RED" \
+        "$CLR_RESET" \
+        "Error" \
+        "$1"
+}
+
+recon_success() {
+    printf "%b✔%b  %s\n" \
+        "$CLR_GREEN" \
+        "$CLR_RESET" \
+        "$1"
+}
+
+recon_summary() {
+    echo
+
+    printf "%b%s%b\n" \
+        "$CLR_CYAN" \
+        "────────────────────────────────────────────────────────" \
+        "$CLR_RESET"
+
+    echo
+
+    printf "%b[+]%b Configuration summary\n" \
+        "$CLR_BLUE" \
+        "$CLR_RESET"
+
+    echo
+
+    printf "    Created:    %d\n" "$RECON_CREATED"
+    printf "    Modified:   %d\n" "$RECON_MODIFIED"
+    printf "    Unchanged:  %d\n" "$RECON_UNCHANGED"
+
+    echo
+}

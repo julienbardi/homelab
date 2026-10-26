@@ -1,80 +1,239 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_NAME="deploy_iscsi"
+
+source /usr/local/bin/common.sh
+
 ZVOL="tank/game-lun"
 BACKSTORE="gamebackend"
 TARGET="iqn.2026-09.ch.bardi:pve.game"
 INITIATOR="iqn.1991-05.com.microsoft:omen30l-20250504"
 
-# IPv4 + IPv6 portals (exported from Makefile)
 LAN_NAS="${LAN_NAS:-10.89.12.4}"
 LAN6_NAS="${LAN6_NAS:-fd89:7a3b:42c0::4}"
 
-echo "Ensuring ZFS zvol exists: ${ZVOL}"
-if ! zfs list "${ZVOL}" >/dev/null 2>&1; then
-    echo "Creating zvol ${ZVOL} (4T, lz4, 16K)"
-    zfs create -V 4T -o compression=lz4 -o volblocksize=16K "${ZVOL}"
-else
-    echo "Zvol ${ZVOL} already exists"
+CHECK_ONLY=0
+CHANGED=0
+
+if [ "${1:-}" = "--check" ]; then
+	CHECK_ONLY=1
 fi
 
-echo "Ensuring targetcli is installed"
-if ! dpkg -s targetcli-fb >/dev/null 2>&1; then
-    apt update
-    apt install -y targetcli-fb
+mark_changed() {
+	CHANGED=1
+}
+
+ensure() {
+	if [ "$CHECK_ONLY" -eq 1 ]; then
+		recon_error "$1"
+		exit 1
+	fi
+}
+
+create_or_fail() {
+	local description="$1"
+	shift
+
+	ensure "${description}"
+
+	"$@"
+
+	mark_changed
+}
+
+recon_banner "iSCSI Game Drive"
+
+#
+# ZFS zvol
+#
+
+recon_check "ZVOL"
+
+if zfs list "${ZVOL}" >/dev/null 2>&1; then
+	recon_verified "ZVOL" "${ZVOL}"
 else
-    echo "targetcli-fb already installed"
+	create_or_fail "zvol missing" \
+		zfs create \
+			-V 4T \
+			-o compression=lz4 \
+			-o volblocksize=16K \
+			"${ZVOL}"
+
+	recon_created "ZVOL" "${ZVOL}"
 fi
 
-echo "Ensuring iSCSI backstore exists"
-if ! targetcli /backstores/block ls | grep -q "${BACKSTORE}"; then
-    echo "Creating backstore ${BACKSTORE}"
-    targetcli /backstores/block create name="${BACKSTORE}" dev="/dev/zvol/${ZVOL}"
+#
+# Package
+#
+
+recon_check "Package"
+
+if dpkg -s targetcli-fb >/dev/null 2>&1; then
+	recon_verified "Package" "targetcli-fb"
 else
-    echo "Backstore ${BACKSTORE} already exists"
+	ensure "targetcli-fb missing"
+
+	apt update
+	apt install -y targetcli-fb
+
+	mark_changed
+
+	recon_created "Package" "targetcli-fb"
 fi
 
-echo "Ensuring iSCSI target exists"
-if [ ! -d "/sys/kernel/config/target/iscsi/${TARGET}" ]; then
-    echo "Creating target ${TARGET}"
-    targetcli /iscsi create "${TARGET}"
+#
+# State snapshots
+#
+
+TARGETCLI_BACKSTORES="$(targetcli /backstores/block ls 2>/dev/null || true)"
+TARGETCLI_ISCSI="$(targetcli /iscsi ls 2>/dev/null || true)"
+
+#
+# Backstore
+#
+
+recon_check "Backstore"
+
+if echo "${TARGETCLI_BACKSTORES}" | grep -Fq "${BACKSTORE}"; then
+
+	if ! echo "${TARGETCLI_BACKSTORES}" | grep -Fq "/dev/zvol/${ZVOL}"; then
+		recon_error \
+			"Backstore ${BACKSTORE} points to unexpected device"
+		exit 1
+	fi
+
+	recon_verified "Backstore" "${BACKSTORE}"
+
 else
-    echo "Target ${TARGET} already exists"
+
+	create_or_fail "backstore missing" \
+		targetcli /backstores/block create \
+			name="${BACKSTORE}" \
+			dev="/dev/zvol/${ZVOL}"
+
+	recon_created "Backstore" "${BACKSTORE}"
 fi
 
-echo "Ensuring LUN exists"
-if ! targetcli /iscsi/"${TARGET}"/tpg1/luns ls | grep -q "${BACKSTORE}"; then
-    echo "Creating LUN"
-    targetcli /iscsi/"${TARGET}"/tpg1/luns create "/backstores/block/${BACKSTORE}"
+#
+# Target
+#
+
+recon_check "Target"
+
+if echo "${TARGETCLI_ISCSI}" | grep -Fq "${TARGET}"; then
+	recon_verified "Target" "${TARGET}"
 else
-    echo "LUN already exists"
+	create_or_fail "target missing" \
+		targetcli /iscsi create "${TARGET}"
+
+	recon_created "Target" "${TARGET}"
 fi
 
-echo "Ensuring ACL exists"
-if [ ! -d "/sys/kernel/config/target/iscsi/${TARGET}/tpg1/acls/${INITIATOR}" ]; then
-    echo "Creating ACL for initiator ${INITIATOR}"
-    targetcli /iscsi/"${TARGET}"/tpg1/acls create "${INITIATOR}"
+#
+# LUN
+#
+
+LUNS="$(targetcli /iscsi/${TARGET}/tpg1/luns ls 2>/dev/null || true)"
+
+recon_check "LUN"
+
+if echo "${LUNS}" | grep -Fq "${BACKSTORE}"; then
+	recon_verified "LUN" "${BACKSTORE}"
 else
-    echo "ACL already exists"
+	create_or_fail "LUN missing" \
+		targetcli \
+			/iscsi/"${TARGET}"/tpg1/luns \
+			create \
+			"/backstores/block/${BACKSTORE}"
+
+	recon_created "LUN" "${BACKSTORE}"
 fi
 
-echo "Ensuring IPv4 portal exists"
-if [ ! -d "/sys/kernel/config/target/iscsi/${TARGET}/tpg1/np/${LAN_NAS}:3260" ]; then
-    echo "Creating IPv4 portal ${LAN_NAS}"
-    targetcli /iscsi/"${TARGET}"/tpg1/portals create "${LAN_NAS}"
+#
+# ACL
+#
+
+ACLS="$(targetcli /iscsi/${TARGET}/tpg1/acls ls 2>/dev/null || true)"
+
+recon_check "ACL"
+
+if echo "${ACLS}" | grep -Fq "${INITIATOR}"; then
+	recon_verified "ACL" "${INITIATOR}"
 else
-    echo "IPv4 portal already exists"
+	create_or_fail "ACL missing" \
+		targetcli \
+			/iscsi/"${TARGET}"/tpg1/acls \
+			create \
+			"${INITIATOR}"
+
+	recon_created "ACL" "${INITIATOR}"
 fi
 
-echo "Ensuring IPv6 portal exists"
-if [ ! -d "/sys/kernel/config/target/iscsi/${TARGET}/tpg1/np/[${LAN6_NAS}]:3260" ]; then
-    echo "Creating IPv6 portal ${LAN6_NAS}"
-    targetcli /iscsi/"${TARGET}"/tpg1/portals create "${LAN6_NAS}"
+#
+# Portals
+#
+
+PORTALS="$(targetcli /iscsi/${TARGET}/tpg1/portals ls 2>/dev/null || true)"
+
+recon_check "IPv4 Portal"
+
+if echo "${PORTALS}" | grep -Fq "0.0.0.0:3260"; then
+	recon_verified "IPv4 Portal" "0.0.0.0:3260"
 else
-    echo "IPv6 portal already exists"
+	create_or_fail "IPv4 portal missing" \
+		targetcli \
+			/iscsi/"${TARGET}"/tpg1/portals \
+			create \
+			"${LAN_NAS}"
+
+	recon_created "IPv4 Portal" "${LAN_NAS}:3260"
 fi
 
-echo "Saving iSCSI configuration"
-targetcli saveconfig
+PORTALS="$(targetcli /iscsi/${TARGET}/tpg1/portals ls 2>/dev/null || true)"
 
-echo "iSCSI configuration successfully applied."
+recon_check "IPv6 Portal"
+
+if echo "${PORTALS}" | grep -Fq "[${LAN6_NAS}]:3260"; then
+	recon_verified "IPv6 Portal" "[${LAN6_NAS}]:3260"
+else
+	create_or_fail "IPv6 portal missing" \
+		targetcli \
+			/iscsi/"${TARGET}"/tpg1/portals \
+			create \
+			"${LAN6_NAS}"
+
+	recon_created "IPv6 Portal" "[${LAN6_NAS}]:3260"
+fi
+
+#
+# Summary
+#
+
+recon_summary
+
+if [ "$CHECK_ONLY" -eq 1 ]; then
+	recon_success "Configuration converged"
+	exit 0
+fi
+
+if [ "$CHANGED" -eq 1 ]; then
+	targetcli saveconfig >/dev/null
+	recon_success "Saved targetcli configuration"
+else
+	recon_success "Configuration already converged"
+fi
+
+if [ "$RECON_CREATED" -gt 0 ]; then
+
+	echo
+	echo "Next steps for operator (Windows: Omen30l-20250504):"
+	echo "  1. Open 'iSCSI Initiator' on Windows."
+	echo "  2. Go to 'Discovery' -> 'Add Portal' -> enter the PVE host IP address."
+	echo "  3. Go to 'Targets' -> select iqn.2026-09.ch.bardi:pve.game -> Connect."
+	echo "  4. Open 'Disk Management' -> initialize disk (GPT) -> create NTFS volume."
+	echo "  5. (Optional) Add PrimoCache L1/L2 caching."
+	echo
+	echo "Drive is now ready for use on Omen30l-20250504."
+
+fi
