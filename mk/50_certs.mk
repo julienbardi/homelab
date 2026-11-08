@@ -42,7 +42,7 @@ gen-client-cert: $(GEN_CLIENT_WRAPPER) $(GEN_CLIENT_CERT)
 	@FORCE_FLAG=''; if [ "$(FORCE)" = "1" ]; then FORCE_FLAG="--force"; fi; \
 	$(GEN_CLIENT_WRAPPER) "$(CN)" "$(run_as_root)" "$(INSTALL_PATH)" "$$FORCE_FLAG"
 
-certs-deploy: certs-create $(CERTS_DEPLOY)
+certs-deploy: homelab-env certs-create $(CERTS_DEPLOY)
 	@$(run_as_root) $(CERTS_DEPLOY) deploy caddy
 	@$(run_as_root) $(CERTS_DEPLOY) deploy dnsdist
 	@$(run_as_root) $(CERTS_DEPLOY) deploy headscale

@@ -26,7 +26,9 @@ readonly _HOMELAB_COMMON_SH_LOADED=1
 # 1. Secure environment loading (operator‑based trust model)
 # ============================================================
 
-HOMELAB_ENV="/root/src/homelab/config/homelab.env"
+: "${HOMELAB_ROOT:=/tank/julie/src/homelab}"
+
+HOMELAB_ENV="${HOMELAB_ROOT}/config/homelab.env"
 
 # Trusted users: root + operators
 TRUSTED_USERS=("root" "julie" "leona")
