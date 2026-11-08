@@ -204,6 +204,26 @@ deploy_caddy() {
     fi
 }
 
+
+deploy_proxmox()
+{
+    log "🔐 Deploying ECC TLS to proxmox"
+
+    local changed=0
+
+    run_as_root install_files_if_changed_v3.sh changed \
+        "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "/etc/pve/local/pveproxy-ssl.pem" root www-data 0640 \
+        "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "/etc/pve/local/pveproxy-ssl.key" root www-data 0640
+
+    if [[ "$changed" -eq 1 ]]; then
+        log "📝 Proxmox TLS material updated"
+        run_as_root systemctl restart pveproxy
+    else
+        log "ℹ️ Proxmox TLS material already up-to-date"
+    fi
+}
+
+
 # --------------------------------------------------------------------
 # Deploy: headscale
 # --------------------------------------------------------------------
@@ -357,9 +377,9 @@ activate_router_ac86u() {
             '
     )"
 
-	log "⚠️ RT-AC86U firmware does not support uploaded server certificates"
-	log "ℹ️ Active HTTPS certificate fingerprint: $fp"
-	log "ℹ️ Canonical certificate deployed successfully"
+    log "⚠️ RT-AC86U firmware does not support uploaded server certificates"
+    log "ℹ️ Active HTTPS certificate fingerprint: $fp"
+    log "ℹ️ Canonical certificate deployed successfully"
 
 }
 
@@ -458,6 +478,20 @@ validate_caddy() {
     fi
 }
 
+validate_proxmox()
+{
+    log "[validate][proxmox] HTTPS certificate"
+
+    echo | openssl s_client \
+        -connect 127.0.0.1:8006 \
+        -servername "pve.lan.$DOMAIN" \
+        2>/dev/null \
+    | openssl x509 -noout -ext subjectAltName \
+    | grep -q "DNS:\*.lan.bardi.ch"
+
+    log "✅ proxmox certificate validated"
+}
+
 # Router GUI runs on 8443.
 # Port 443 is Caddy and MUST NOT be used for router certificate validation.
 validate_router() {
@@ -536,12 +570,24 @@ status_router() {
             || log "⚠️ ASUS certificate upload store missing"
 }
 
+
+status_proxmox()
+{
+    echo | openssl s_client \
+        -connect 127.0.0.1:8006 \
+        -servername "pve.lan.${DOMAIN}" \
+        2>/dev/null \
+    | openssl x509 -noout -subject -issuer -dates
+}
+
+
 # --------------------------------------------------------------------
 # Dispatch
 # --------------------------------------------------------------------
 dispatch_deploy() {
     case "$1" in
         caddy)     deploy_caddy ;;
+        proxmox)   deploy_proxmox ;;
         headscale) deploy_headscale ;;
         dnsdist)   deploy_dnsdist ;;
         router)    deploy_router ;;
@@ -553,6 +599,7 @@ dispatch_deploy() {
 dispatch_validate() {
     case "$1" in
         caddy)  validate_caddy ;;
+        proxmox)  validate_proxmox ;;
         router) validate_router ;;
         *) usage ;;
     esac
@@ -560,6 +607,7 @@ dispatch_validate() {
 
 dispatch_status() {
     case "$1" in
+        proxmox) status_proxmox ;;
         router) status_router ;;
         *) usage ;;
     esac

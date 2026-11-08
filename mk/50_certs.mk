@@ -45,6 +45,8 @@ gen-client-cert: $(GEN_CLIENT_WRAPPER) $(GEN_CLIENT_CERT)
 certs-deploy: certs-create $(CERTS_DEPLOY)
 	@$(run_as_root) $(CERTS_DEPLOY) deploy caddy
 	@$(run_as_root) $(CERTS_DEPLOY) deploy dnsdist
+	@$(run_as_root) $(CERTS_DEPLOY) deploy headscale
+	@$(run_as_root) $(CERTS_DEPLOY) deploy proxmox
 	@$(run_as_root) $(CERTS_DEPLOY) deploy router
 	@echo "🔐 Certificates deployed"
 
@@ -228,6 +230,15 @@ validate-dsm:
 		exit 1; \
 	fi
 
+.PHONY: validate-proxmox all-proxmox
+
+validate-proxmox:
+	@$(run_as_root) $(CERTS_DEPLOY) validate proxmox
+
+all-proxmox: $(STAMP_PREPARE)
+	@$(run_as_root) $(CERTS_DEPLOY) deploy proxmox
+	@$(run_as_root) $(CERTS_DEPLOY) validate proxmox
+
 # ============================================================
 # All-in-one targets
 # ============================================================
@@ -238,7 +249,12 @@ all-diskstation: $(STAMP_PREPARE) deploy-diskstation validate-diskstation
 all-qnap:        $(STAMP_PREPARE) deploy-qnap        validate-qnap
 all-ac86u:       $(STAMP_PREPARE) deploy-ac86u       validate-ac86u
 
-all-remote: all-router all-diskstation all-qnap all-ac86u
+all-remote: \
+	all-router \
+	all-proxmox \
+	all-diskstation \
+	all-qnap \
+	all-ac86u
 
 # ============================================================
 # Cert watchers

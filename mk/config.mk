@@ -593,6 +593,11 @@ homelab-env: $(BOOTSTRAP_CORE) $(run_as_root)
 	printf "%s\n" "LAN6_PREFIX_BASE=\"$(LAN6_PREFIX_BASE)\"" >> "$$tmp"; \
 	printf "%s\n" "# Required by mk/config.mk" >> "$$tmp"; \
 	printf "%s\n" "ACME_HOME=\"$(ACME_HOME)\"" >> "$$tmp"; \
+	printf "%s\n" "# SSL deployment paths" >> "$$tmp"; \
+	printf "%s\n" "DOMAIN=\"$(DOMAIN)\"" >> "$$tmp"; \
+	printf "%s\n" "SSL_CANONICAL_DIR=\"$(SSL_CANONICAL_DIR)\"" >> "$$tmp"; \
+	printf "%s\n" "SSL_DEPLOY_DIR_CADDY=\"$(SSL_DEPLOY_DIR_CADDY)\"" >> "$$tmp"; \
+	printf "%s\n" "SSL_DEPLOY_DIR_HEADSCALE=\"$(SSL_DEPLOY_DIR_HEADSCALE)\"" >> "$$tmp"; \
 	printf "%s\n" "# Required by IFC v3" >> "$$tmp"; \
 	printf "%s\n" "INSTALL_PATH=\"$(INSTALL_PATH)\"" >> "$$tmp"; \
 	printf "%s\n" "INSTALL_SBIN_PATH=\"$(INSTALL_SBIN_PATH)\"" >> "$$tmp"; \
