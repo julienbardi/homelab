@@ -32,7 +32,9 @@ update_ip() {
     AUTH="-u ${DDNSUSERNAME}:${DDNSPASSWORD}"
 
     IPV4=$(curl -4 -s --fail https://icanhazip.com | tr -d '\n')
-    IPV6=$(curl -6 -s --fail https://icanhazip.com | tr -d '\n')
+    #IPV6=$(curl -6 -s --fail https://icanhazip.com | tr -d '\n')
+	# IPv6 publication temporarily disabled.
+	IPV6=""
 
     # --- 1. Main Domain Update (IPv4 + IPv6) --------------------------------
     status4=$(curl -s $AUTH \

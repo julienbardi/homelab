@@ -84,16 +84,11 @@ bardi.ch:8384 {
 		fail_duration 30s
 	}
 
-	# DiskStation main HTTPS site (WAN - accessible to all for future static site)
+	# Public website
 	@bardi_internal {
 		host bardi.ch
 	}
-	reverse_proxy @bardi_internal https://10.89.12.2:443 {
-		header_up Host bardi.ch
-		transport http {
-			tls_insecure_skip_verify
-		}
-	}
+	reverse_proxy @bardi_internal 127.0.0.1:8081
 
 	# DSM management (LAN + NetBird + WireGuard allowed)
 	@syno5001_internal {
