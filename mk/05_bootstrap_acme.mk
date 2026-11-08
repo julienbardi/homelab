@@ -37,7 +37,7 @@
 # ACME_HOME is defined in mk/config.mk
 # ------------------------------------------------------------
 ACME_BIN     := $(ACME_HOME)/acme.sh
-ACME_VERSION := v3.1.7
+ACME_VERSION := v3.1.6
 
 # ------------------------------------------------------------
 # Ensure ACME_HOME exists (identity directory)
@@ -77,6 +77,9 @@ acme-install: acme-ensure-dirs
 			echo "🔄 Installing acme.sh $(ACME_VERSION) (sudo-safe mode)..."; \
 		fi; \
 		$(call git_clone_or_fetch,$(ACME_SRC),https://github.com/acmesh-official/acme.sh.git,master); \
+		cd "$(ACME_SRC)"; \
+		git fetch --tags --quiet; \
+		git checkout --quiet "$(ACME_VERSION)"; \
 		$(run_as_root) sh -euo pipefail -c '\
 			cd "$(ACME_SRC)"; \
 			LE_FORCE_SUDO=1 ./acme.sh \
