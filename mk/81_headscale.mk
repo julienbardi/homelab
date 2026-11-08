@@ -68,30 +68,25 @@ $(HEADSCALE_OVERRIDE_SHADOW):    | $(STAMP_DIR_USER)
 	headscale-user \
 	headscale-dirs
 
-
-# Ensure /etc/headscale directory and files have correct ownership and permissions
 # --------------------------------------------------------------------
 # Ensure /etc/headscale directory and files have correct ownership
 # --------------------------------------------------------------------
 .PHONY: headscale-perms
-headscale-perms:
+headscale-perms: headscale-dirs
 	@echo "🔧 Ensuring correct permissions for /etc/headscale..."; \
 	$(run_as_root) /bin/sh -c '\
-		chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale && \
-		chmod 0770 /etc/headscale && \
-		\
-		chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale/config.yaml && \
+		chown $(HEADSCALE_USER):$(HEADSCALE_GROUP) /etc/headscale/config.yaml && \
 		chmod 0640 /etc/headscale/config.yaml && \
 		\
-		chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale/acl.json && \
+		chown $(HEADSCALE_USER):$(HEADSCALE_GROUP) /etc/headscale/acl.json && \
 		chmod 0640 /etc/headscale/acl.json && \
 		\
-		chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale/derp.yaml && \
+		chown $(HEADSCALE_USER):$(HEADSCALE_GROUP) /etc/headscale/derp.yaml && \
 		chmod 0640 /etc/headscale/derp.yaml && \
 		\
 		if [ -f /etc/headscale/noise_private.key ]; then \
 			echo "🔐 Fixing permissions for existing Noise key"; \
-			chown $(ROOT_UID):$(HEADSCALE_GROUP) /etc/headscale/noise_private.key && \
+			chown $(HEADSCALE_USER):$(HEADSCALE_GROUP) /etc/headscale/noise_private.key && \
 			chmod 0640 /etc/headscale/noise_private.key; \
 		else \
 			echo "🔐 Noise key missing — headscale will create it on startup"; \
@@ -116,7 +111,8 @@ headscale: \
 	headscale-restart \
 	headscale-acls \
 	headscale-verify
-	@$(run_as_root) systemctl status headscale --no-pager --lines=0
+	@$(run_as_root) systemctl is-active --quiet headscale \
+		&& echo "✔  Headscale running"
 	@echo "ℹ️  For detailed Headscale status:"
 	@echo "      sudo systemctl status headscale"
 	@echo "      sudo journalctl -u headscale -n 200"
@@ -166,7 +162,7 @@ $(HEADSCALE_CONFIG_SHADOW): $(HEADSCALE_CONFIG_SRC) install-all | headscale-bin
 	NEW_HASH=$$(sha256sum "$(HEADSCALE_CONFIG_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
 		echo "🔧 Syncing Headscale system configuration"; \
-		$(call install_file,$(HEADSCALE_CONFIG_SRC),$(HEADSCALE_CONFIG_DST),headscale,headscale,0640) && \
+		$(call install_file,$(HEADSCALE_CONFIG_SRC),$(HEADSCALE_CONFIG_DST),$(HEADSCALE_USER),$(HEADSCALE_GROUP),0640) && \
 		touch "$(HEADSCALE_CHANGED_STAMP)"; \
 	  fi
 	@touch "$@"
@@ -176,7 +172,7 @@ $(HEADSCALE_DERP_SHADOW): $(HEADSCALE_DERP_CONFIG_SRC) install-all | headscale-b
 	NEW_HASH=$$(sha256sum "$(HEADSCALE_DERP_CONFIG_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
 		echo "🔧 Syncing Headscale DERP configuration"; \
-		$(call install_file,$(HEADSCALE_DERP_CONFIG_SRC),$(HEADSCALE_DERP_CONFIG_DST),headscale,headscale,0640) && \
+		$(call install_file,$(HEADSCALE_DERP_CONFIG_SRC),$(HEADSCALE_DERP_CONFIG_DST),$(HEADSCALE_USER),$(HEADSCALE_GROUP),0640) && \
 		touch "$(HEADSCALE_CHANGED_STAMP)"; \
 	  fi
 	@touch "$@"
@@ -186,7 +182,7 @@ $(HEADSCALE_ACL_SHADOW): $(HEADSCALE_ACL_SRC) install-all | headscale-bin
 	NEW_HASH=$$(sha256sum "$(HEADSCALE_ACL_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
 		echo "🔧 Syncing Headscale ACL policy configuration"; \
-		$(call install_file,$(HEADSCALE_ACL_SRC),$(HEADSCALE_ACL_DST),headscale,headscale,0640) && \
+		$(call install_file,$(HEADSCALE_ACL_SRC),$(HEADSCALE_ACL_DST),$(HEADSCALE_USER),$(HEADSCALE_GROUP),0640) && \
 		touch "$(HEADSCALE_CHANGED_STAMP)"; \
 	fi
 	@touch "$@"
@@ -201,32 +197,29 @@ headscale-restart: headscale-user headscale-dirs
 	if [ "$$NEED_RESTART" -eq 1 ]; then \
 		echo "🔄 Invariant modification verified — restarting Headscale control plane"; \
 		$(run_as_root) systemctl restart headscale; \
-	  fi
+		rm -f "$(HEADSCALE_CHANGED_STAMP)"; \
+	else \
+		echo "⏩ Headscale already converged"; \
+	fi
 
 # --------------------------------------------------------------------
 # Verification Suite (Gated by Drift Signature)
 # --------------------------------------------------------------------
 # Define a function instead of a target
 define HEADSCALE_VERIFY_FN
-	/bin/sh -c '\
-		echo "[verify] 🔍 Running headscale verification"; \
-		$(run_as_root) systemctl status headscale --no-pager; \
-		$(run_as_root) journalctl -u headscale -n 200 --no-pager; \
-		echo "[verify] 🔧 Headscale control plane ready" \
-	'
+    /bin/sh -c '\
+        echo "[verify] 🔍 Verifying Headscale"; \
+        $(run_as_root) systemctl is-active --quiet headscale || exit 1; \
+        echo "[verify] ✅ Headscale service running"; \
+    '
 endef
 
+headscale-debug:
+	@$(run_as_root) systemctl status headscale --no-pager
+	@$(run_as_root) journalctl -u headscale -n 200 --no-pager
+
 headscale-verify: headscale-user headscale-dirs
-	@RUN_VERIFY=0; \
-	if [ -f "$(HEADSCALE_CHANGED_STAMP)" ]; then RUN_VERIFY=1; fi; \
-	if ! $(run_as_root) systemctl is-active --quiet headscale 2>/dev/null; then RUN_VERIFY=1; fi; \
-	if [ "$$RUN_VERIFY" -eq 1 ]; then \
-		$(call HEADSCALE_VERIFY_FN) && \
-		$(run_as_root) rm -f "$(HEADSCALE_CHANGED_STAMP)" && \
-		echo "[verify] 🎉 Parallel verification complete"; \
-	else \
-		echo "🔧 Headscale deployment state holds zero drift — skipping heavy verification loops"; \
-	fi
+	@$(call HEADSCALE_VERIFY_FN)
 
 # Deterministic sequential validation wrapper target
 headscale-verify-run: headscale-user headscale-dirs headscale-wait-ready test-headscale-core test-headscale-unit test-headscale-override
@@ -329,8 +322,6 @@ headscale-user:
 			--shell /usr/sbin/nologin \
 			--gid $(HEADSCALE_GROUP) \
 			$(HEADSCALE_USER) || true; \
-	else \
-		echo "🟢 headscale user already exists"; \
 	fi
 
 headscale-dirs: headscale-user
@@ -338,6 +329,6 @@ headscale-dirs: headscale-user
 		# Runtime directories (service-owned) \
 		install -d -m 0750 -o headscale -g headscale /var/lib/headscale; \
 		install -d -m 0750 -o headscale -g headscale /var/run/headscale; \
-		# Configuration directory (root-owned) \
-		install -d -m 0750 -o root -g headscale /etc/headscale \
+		# Configuration directory \
+		install -d -m 0770 -o headscale -g headscale /etc/headscale \
 	'

@@ -129,12 +129,32 @@ router-bootstrap-primitives: secrets-ready ensure-host-default-route
 		echo "✅ Router primitives installed"; \
 	fi
 
+.PHONY: router-nas-ssh-key
+router-nas-ssh-key: router-ssh-check
+	@echo "🔑 Ensuring persistent Router→NAS SSH key"; \
+	$(SSH_ROUTER) '\
+		set -e; \
+		mkdir -p /jffs/.ssh; \
+		chown $(SSH_USER_ROUTER):root /jffs/.ssh; \
+		chmod 700 /jffs/.ssh; \
+		if [ ! -f /jffs/.ssh/id_ed25519 ] || [ ! -f /jffs/.ssh/id_ed25519.pub ]; then \
+			echo "Generating persistent router SSH client key"; \
+			comment="$(SSH_HOST_ROUTER)-$$(date +%F)"; \
+			ssh-keygen -t ed25519 -N "" \
+				-C "$$comment" \
+				-f /jffs/.ssh/id_ed25519; \
+			chmod 600 /jffs/.ssh/id_ed25519; \
+			chmod 644 /jffs/.ssh/id_ed25519.pub; \
+		fi; \
+	'
+
 # ------------------------------------------------------------
 # ROUTER BOOTSTRAP (PRIMITIVE)
 # ------------------------------------------------------------
 .PHONY: router-bootstrap
 router-bootstrap: export ROUTER_BOOTSTRAP=1
 router-bootstrap: \
+	router-nas-ssh-key \
 	router-install-scripts \
 	ensure-host-default-route \
 	ensure-router-ula \

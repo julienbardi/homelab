@@ -178,7 +178,6 @@ generate_configs() {
     for iface in $(printf '%s\n' "${!IF_ENABLED[@]}" | sort); do
         # Skip empty, header, or bogus iface keys
         if [[ -z "$iface" ]] || [[ "$iface" == "iface" ]] || [[ "$iface" == "enabled" ]]; then
-            echo "DEBUG: skipping bogus iface='$iface'"
             continue
         fi
 

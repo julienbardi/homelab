@@ -35,7 +35,7 @@ export WG_DNS_ROUTER_IPV4 := $(LAN_ROUTER)
 export WG_DNS_NAS_IPV6    := $(LAN6_NAS)
 
 # operator key at make runtime
-SSH_PUBLIC_KEY := $(shell cat ~/.ssh/id_ed25519.pub)
+SSH_PUBLIC_KEY := $(shell getent passwd $${SUDO_USER:-$$(id -un)} | cut -d: -f6 | xargs -I{} cat {}/.ssh/id_ed25519.pub)
 
 # SSH users per host
 export SSH_USER_ROUTER   := julie
@@ -57,6 +57,10 @@ ACTUAL_HOME := $(or \
 	$(shell getent passwd $(ACTUAL_USER) | cut -d: -f6), \
 	$(HOME) \
 )
+
+# User-level stamp directory
+STAMP_DIR_USER := $(ACTUAL_HOME)/.local/state/homelab
+export STAMP_DIR_USER
 
 # Bind ROUTER_USER for dns-suite
 export ROUTER_USER := $(SSH_USER_ROUTER)
@@ -227,13 +231,6 @@ UNBOUND_PORT := 15335
 # ----------------------------------------------------------------------------
 # 4. State / Stamp Directory Configuration
 # ----------------------------------------------------------------------------
-
-# Ensure HOME is always set inside Make (sudo sometimes clears it)
-HOME ?= $(shell echo $$HOME)
-
-# User-level stamp directory
-STAMP_DIR_USER := $(HOME)/.local/state/homelab
-export STAMP_DIR_USER
 
 # System-wide stamp directory (never mixed with user stamps)
 STAMP_DIR_ROOT := /tank/julie/src/homelab/.state/stamps
@@ -418,7 +415,7 @@ ROUTER_CADDYFILE_DST := /jffs/caddy/Caddyfile
 # Router-side WireGuard firewall script (non-secret, generated)
 ROUTER_WG_FIREWALL_DST := /jffs/scripts/wg-firewall.sh
 
-ROUTER_CADDY_VERSION ?= 2.11.2
+ROUTER_CADDY_VERSION ?= 2.11.7
 ROUTER_CADDY_ARCH    ?= linux_arm64
 ROUTER_CADDY_URL     := https://github.com/caddyserver/caddy/releases/download/v$(ROUTER_CADDY_VERSION)/caddy_$(ROUTER_CADDY_VERSION)_$(ROUTER_CADDY_ARCH).tar.gz
 ROUTER_CADDY_BIN     := /tmp/mnt/sda/router/bin/caddy
@@ -622,6 +619,7 @@ homelab-prefix-env: $(BOOTSTRAP_CORE) $(run_as_root)
 	printf "%s\n" "HOMELAB_ROOT=\"$(HOMELAB_DIR)\"" >> "$$tmp"; \
 	printf "%s\n" "ULA_BASE=\"$(LAN6_PREFIX_BASE)\"" >> "$$tmp"; \
 	printf "%s\n" "NAS_LAN_IFACE=\"$(NAS_LAN_IFACE)\"" >> "$$tmp"; \
+	printf "%s\n" "LAN6_NAS=\"$(LAN6_NAS)\"" >> "$$tmp"; \
 	printf "%s\n" "STAMP_DIR_ROOT=\"$(STAMP_DIR_ROOT)\"" >> "$$tmp"; \
 	$(run_as_root) chmod 640 "$$tmp"; \
 	rc=0; \

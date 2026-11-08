@@ -6,39 +6,58 @@ export ROUTER_CADDY_BIN
 
 .PHONY: router-health
 router-health: router-ssh-check router-bootstrap-primitives
-	@echo "📊 Router health check"
+	@echo
+	@echo "Router Health"
+	@echo "────────────────────────────────────────────────────────"
 	@ssh "$(SSH_HOST_ROUTER)" ' \
 		set -e; \
-		echo "-> System"; uname -a; \
-		echo "-> Uptime"; uptime; \
-		echo "-> Storage"; df -h /jffs /tmp/mnt/sda || true; \
-		echo "-> Firewall"; \
+		echo "System      : $$(uname -m)"; \
+		echo "Uptime      : $$(uptime | sed "s/^ *//")"; \
+		echo "Storage     :"; \
+		df -h /jffs /tmp/mnt/sda || true; \
+		echo; \
 		if iptables -S | grep -qE -- "-A .* -p tcp .*--dport 443 .* -j ACCEPT"; then \
-			echo "❌ HTTPS ingress allowed"; exit 1; \
+			echo "✖  Firewall     WAN HTTPS exposed"; \
+			exit 1; \
 		else \
-			echo "📝 WAN HTTPS blocked"; \
+			echo "✔  Firewall     WAN HTTPS blocked"; \
 		fi; \
-		echo "-> WireGuard"; \
-		if iptables -C INPUT -p udp --dport 51819 -j ACCEPT 2>/dev/null; then \
-			echo "📝 UDP 51819 OK"; \
+		if wg show wgs1 >/dev/null 2>&1; then \
+			echo "✔  WireGuard    wgs1 interface"; \
 		else \
-			echo "❌ UDP 51819 missing"; exit 1; \
+			echo "✖  WireGuard    wgs1 missing"; \
+			exit 1; \
+		fi; \
+		if wg show wgs1 | grep -q "listening port: 51819"; then \
+			echo "✔  WireGuard    UDP 51819 listening"; \
+		else \
+			echo "✖  WireGuard    UDP 51819 not listening"; \
+			exit 1; \
 		fi; \
 		if iptables -C FORWARD -i wgs1 -j ACCEPT 2>/dev/null && \
 		   iptables -C FORWARD -o wgs1 -j ACCEPT 2>/dev/null; then \
-			echo "📝 wgs1 forwarding OK"; \
+			echo "✔  WireGuard    forwarding"; \
 		else \
-			echo "❌ wgs1 forwarding missing"; exit 1; \
+			echo "✖  WireGuard    forwarding missing"; \
+			iptables -S FORWARD | grep wgs1 || true; \
+			exit 1; \
 		fi; \
-		echo "-> Caddy"; \
-		test -x "$(ROUTER_CADDY_BIN)" || { echo "❌ Caddy missing"; exit 1; }; \
-		pidof caddy >/dev/null || { echo "❌ Caddy not running"; exit 1; }; \
+		test -x "$(ROUTER_CADDY_BIN)" || { \
+			echo "✖  Caddy        binary missing"; \
+			exit 1; \
+		}; \
+		pidof caddy >/dev/null || { \
+			echo "✖  Caddy        not running"; \
+			exit 1; \
+		}; \
 		"$(ROUTER_CADDY_BIN)" validate --config "$(ROUTER_CADDYFILE_DST)" >/dev/null 2>&1 || { \
-			echo "❌ Caddy config invalid"; exit 1; }; \
-		echo "📝 Caddy OK"; \
-		echo "-> IPv6"; \
-		echo "📝 WG IPv6 per-peer model active"; \
-		echo "✅ Router healthy" \
+			echo "✖  Caddy        invalid config"; \
+			exit 1; \
+		}; \
+		echo "✔  Caddy        healthy"; \
+		echo "✔  IPv6         per-peer model active"; \
+		echo; \
+		echo "✔  Router healthy"; \
 	'
 
 .PHONY: router-health-strict

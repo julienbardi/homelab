@@ -18,6 +18,11 @@ router-firewall-hardened: | router-ssh-check
 	@echo "🛡️ Router firewall hardened"
 
 define ROUTER_NAT_SYNOLOGY
+
+# 4. Synology DSM / Photos (5001)
+iptables -t nat -A HOMELAB_NAT -p tcp --dport 5001 -j DNAT --to-destination $(LAN_SYNOLOGY):5001
+iptables -A HOMELAB_FWD -p tcp -d $(LAN_SYNOLOGY) --dport 5001 -j ACCEPT
+
 # 5. Synology WebDAV (5006)
 iptables -t nat -A HOMELAB_NAT -p tcp --dport 5006 -j DNAT --to-destination $(LAN_SYNOLOGY):5006
 iptables -A HOMELAB_FWD -p tcp -d $(LAN_SYNOLOGY) --dport 5006 -j ACCEPT
@@ -25,6 +30,7 @@ iptables -A HOMELAB_FWD -p tcp -d $(LAN_SYNOLOGY) --dport 5006 -j ACCEPT
 # 6. Synology Drive (6690)
 iptables -t nat -A HOMELAB_NAT -p tcp --dport 6690 -j DNAT --to-destination $(LAN_SYNOLOGY):6690
 iptables -A HOMELAB_FWD -p tcp -d $(LAN_SYNOLOGY) --dport 6690 -j ACCEPT
+
 endef
 
 # Base NAT script body — WG rules dynamically appended from wg-interfaces.tsv
