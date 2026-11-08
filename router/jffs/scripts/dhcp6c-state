@@ -42,7 +42,7 @@ ip -6 addr flush dev "$IF" scope global
 # If no prefix, leave br0 with only link-local
 if [ -z "$PREFIX" ] || [ -z "$PLEN" ]; then
     logger -t ipv6-lan "No IPv6 prefix in nvram, skipping GUA config on $IF"
-    killall -HUP dnsmasq
+    killall -HUP dnsmasq 2>/dev/null || true
     exit 0
 fi
 
@@ -58,5 +58,13 @@ logger -t ipv6-lan "Configuring $IF with ${LAN_ADDR}/${PLEN}"
 
 ip -6 addr add "${LAN_ADDR}/${PLEN}" dev "$IF"
 
+# Restore ULA
+ULA_ADDR="$(nvram get ipv6_lan_addr)"
+ULA_PLEN="$(nvram get ipv6_lan_prefix)"
+
+if [ -n "$ULA_ADDR" ] && [ -n "$ULA_PLEN" ]; then
+    ip -6 addr add "${ULA_ADDR}/${ULA_PLEN}" dev "$IF" 2>/dev/null || true
+fi
+
 # Restart dnsmasq so RA/DHCPv6 see the new prefix
-killall -HUP dnsmasq
+killall -HUP dnsmasq 2>/dev/null || true

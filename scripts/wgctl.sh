@@ -84,14 +84,9 @@ do_up() {
 		fi
 
 		# Discover NAS link-local IPv6 on NAS_LAN_IFACE
-		NAS_LL6="$(ip -6 addr show dev "${NAS_LAN_IFACE}" | awk '/scope link/ {print $2; exit}' | cut -d/ -f1)"
+		: "${LAN6_NAS:?Missing LAN6_NAS}"
 
-		if [[ -z "$NAS_LL6" || ! "$NAS_LL6" =~ ^fe80: ]]; then
-			log "❌ Could not determine valid NAS link-local IPv6 on ${NAS_LAN_IFACE}"
-			exit 1
-		fi
-
-		log "Using NAS link-local IPv6 (${NAS_LAN_IFACE}): ${NAS_LL6}"
+		log "Using NAS ULA (${NAS_LAN_IFACE}): ${LAN6_NAS}"
 
 		ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" "
 			# 🔧 FIX 1: Enable strict error handling (fail fast on any command error)
@@ -119,9 +114,25 @@ do_up() {
 			# Assign IPv4 server address
 			ip addr add 10.89.101.1/24 dev wgs1 2>/dev/null || true
 
-			# IPv6: router cannot host WG v6, but must route NAS wg7 ULA back to NAS
+			/jffs/scripts/dhcp6c-state
+
+			# Ensure router ULA is present before installing NAS ULA routes.
+			ip -6 addr add fd89:7a3b:42c0::1/64 dev br0 2>/dev/null || true
+
+			# Allow DAD to complete.
+			sleep 3
+
 			ip -6 route del fd89:7a3b:42c0:7::/64 2>/dev/null || true
-			ip -6 route replace fd89:7a3b:42c0:7::/64 via ${NAS_LL6} dev ${ROUTER_LAN_IFACE}
+
+			ip -6 route replace \
+				fd89:7a3b:42c0:7::/64 \
+				via ${LAN6_NAS} \
+				dev ${ROUTER_LAN_IFACE}
+
+			# Re-apply firewall invariants now that wgs1 exists
+			if [ -x /jffs/scripts/firewall-start ]; then
+				/jffs/scripts/firewall-start
+			fi
 		"
 	else
 		for f in "${NAS_WG_CONF}"/*.conf; do

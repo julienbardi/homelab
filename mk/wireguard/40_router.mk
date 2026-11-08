@@ -46,9 +46,7 @@ router-firewall: | wg-generate
 			$(ROUTER_HOST) $(ROUTER_SSH_PORT) "$(ROUTER_SCRIPTS)/wg-firewall.sh" \
 			"0" "0" "0755" || FEC=$$?; \
 		if [ "$$FEC" != "0" ] && [ "$$FEC" != "3" ]; then exit "$$FEC"; fi; \
-		if [ "$$FEC" = "0" ]; then \
-			ssh "$(SSH_HOST_ROUTER)" "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
-		fi \
+		ssh "$(SSH_HOST_ROUTER)" "$(ROUTER_SCRIPTS)/wg-firewall.sh" || true; \
 	)
 
 router-ensure-wg-dir:
@@ -121,10 +119,22 @@ wg-install-router: router-ensure-wg-module \
 				$(WG_SUDO) rm -f "$(WG_ROUTER_DIRTY_STAMP)"; \
 		else \
 				echo "✨ Router interfaces match runtime expectations (skipping processing)"; \
-		fi \
+		fi; \
+		echo "🛡️ Re-applying WireGuard firewall invariants"; \
+		ssh "$(SSH_HOST_ROUTER)" "/jffs/scripts/wg-firewall.sh" || { \
+			echo "❌ wg-firewall.sh failed"; \
+			exit 1; \
+		}; \
+		ssh "$(SSH_HOST_ROUTER)" "\
+			iptables -C FORWARD -i wgs1 -j ACCEPT && \
+			iptables -C FORWARD -o wgs1 -j ACCEPT \
+		" || { \
+			echo "❌ WireGuard firewall invariants not present after apply"; \
+			exit 1; \
+		}; \
 	'
 
-wg-up-router: wg-install-router
+wg-up-router: router-ipv6-converge wg-install-router
 	@SSH_CONTROL_PATH="$(SSH_SOCK_FILE_ROUTER)" \
 	$(WG_ENV) \
 	ROUTER_CONTROL_PLANE=1 \

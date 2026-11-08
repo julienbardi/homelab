@@ -62,8 +62,15 @@ fi
 
 NEW_PREFIX_RAW=$(cat "$STAMP")
 NEW_PREFIX=$(printf '%s\n' "$NEW_PREFIX_RAW" | sed 's/::.*$/::/')
+
 log "NEW PREFIX (raw) = $NEW_PREFIX_RAW"
 log "NEW PREFIX (norm) = $NEW_PREFIX"
+
+if [ -z "$NEW_PREFIX_RAW" ] || [ -z "$NEW_PREFIX" ]; then
+    log "ERROR: Empty delegated prefix in stamp file"
+    rm -f "$MARKER"
+    exit 1
+fi
 
 # 1. Flush stale global IPv6 addresses while preserving the ULA prefix
 log "FLUSHING OLD GLOBAL ADDRESSES on $NAS_LAN_IFACE (preserving ULA)"
@@ -92,8 +99,24 @@ fi
 log "RESTARTING systemd-networkd"
 systemctl restart systemd-networkd || log "WARN: systemd-networkd restart failed"
 
-# 4. Wait for addresses to appear
-sleep 3
+# 4. Wait for global IPv6 to reappear
+TIMEOUT=30
+
+while [ "$TIMEOUT" -gt 0 ]; do
+    if ip -6 addr show dev "$NAS_LAN_IFACE" | grep -Eq 'inet6 2[0-9a-f]'; then
+        log "OK: Global IPv6 address restored"
+        break
+    fi
+
+    sleep 1
+    TIMEOUT=$((TIMEOUT - 1))
+done
+
+if [ "$TIMEOUT" -eq 0 ]; then
+    log "ERROR: Global IPv6 address did not reappear"
+    rm -f "$MARKER"
+    exit 1
+fi
 
 # 5. Force DHCPv6 renew (if dhcp6c exists)
 if command -v dhcp6c >/dev/null 2>&1; then
@@ -103,30 +126,50 @@ else
     log "INFO: dhcp6c not present, skipping DHCPv6 renew"
 fi
 
-# 6. Rebuild routing table
-log "FLUSHING IPv6 ROUTES (table main)"
-ip -6 route flush table main || log "WARN: route flush failed"
+# 6. Wait for the RA default route to return
+TIMEOUT=30
 
-log "RESTARTING systemd-networkd (post-route-flush)"
-systemctl restart systemd-networkd || log "WARN: systemd-networkd restart (2nd) failed"
+while [ "$TIMEOUT" -gt 0 ]; do
+    if ip -6 route show default | grep -q "dev $NAS_LAN_IFACE"; then
+        log "OK: IPv6 default route restored"
+        break
+    fi
+
+    sleep 1
+    TIMEOUT=$((TIMEOUT - 1))
+done
+
+if [ "$TIMEOUT" -eq 0 ]; then
+    log "ERROR: IPv6 default route failed to return"
+    rm -f "$MARKER"
+    exit 1
+fi
 
 # 7. Verify prefix is actually present on interface
-if ip -6 addr show dev "$NAS_LAN_IFACE" | grep -q "${NEW_PREFIX}"; then
+if ip -6 addr show dev "$NAS_LAN_IFACE" | grep -Fq "${NEW_PREFIX}"; then
     log "OK: New prefix present on $NAS_LAN_IFACE"
 else
     log "ERROR: New prefix NOT present on $NAS_LAN_IFACE"
+    rm -f "$MARKER"
+    exit 1
 fi
 
 # 8. Verify IPv6 default route exists
-if ip -6 route | grep -q "default via"; then
+if ip -6 route show default | grep -q "dev $NAS_LAN_IFACE"; then
     log "OK: IPv6 default route present"
 else
     log "ERROR: No IPv6 default route in table main"
+    rm -f "$MARKER"
+    exit 1
 fi
 
 # 9. Restart resolver to pick up new IPv6 DNS (non-fatal if resolved service is absent)
-log "RESTARTING systemd-resolved"
-systemctl restart systemd-resolved || log "WARN: systemd-resolved restart failed"
+if systemctl list-unit-files 2>/dev/null | grep -q '^systemd-resolved.service'; then
+    log "RESTARTING systemd-resolved"
+    systemctl restart systemd-resolved || log "WARN: systemd-resolved restart failed"
+else
+    log "INFO: systemd-resolved not installed"
+fi
 
 # 10. Verify IPv6 egress (ICMP)
 if ping6 -c1 -W1 2001:4860:4860::8888 >/dev/null 2>&1; then
@@ -156,17 +199,32 @@ if [ -f "$TSV" ]; then
     ' "$TSV")
 
     for IF in $WG_LIST; do
-        IDX="${IF#wg}"
-        HEX_SUFFIX=$(printf "%02x" "$IDX")
-
         WG_IF="$IF"
-        ULA_PREFIX="${ULA_BASE}:${IDX}::"
-        WG_GUA="${WG_PREFIX_BASE}${HEX_SUFFIX}::1/64"
 
-        log "WG${IDX}: desired global = $WG_GUA"
+        WG_V6=$(awk -v ifc="$WG_IF" '
+            $1 == ifc { print $6 }
+        ' "$TSV")
+
+        if [ -z "$WG_V6" ]; then
+            log "WARN: no IPv6 definition found for $WG_IF in $TSV"
+            continue
+        fi
+
+        SUBNET_ID=$(printf '%s\n' "$WG_V6" \
+        | awk -F: '{print $(NF-1)}')
+
+        if [ -z "$SUBNET_ID" ] || [ "$SUBNET_ID" = "$WG_V6" ]; then
+            log "ERROR: failed to derive subnet id from $WG_V6"
+            continue
+        fi
+
+        ULA_PREFIX="${ULA_BASE}:${SUBNET_ID}::"
+        WG_GUA="${WG_PREFIX_BASE}:${SUBNET_ID}::1/64"
+
+        log "${WG_IF}: desired global = $WG_GUA"
 
         ip link show "$WG_IF" >/dev/null 2>&1 || {
-            log "WG${IDX}: interface missing, skipping"
+            log "${WG_IF}: interface missing, skipping"
             continue
         }
 
@@ -177,21 +235,21 @@ if [ -f "$TSV" ]; then
                     ${ULA_PREFIX}*/64) ;;
                     "$WG_GUA") ;;
                     *)
-                        log "WG${IDX}: removing stale global $addr"
+                        log "${WG_IF}: removing stale global $addr"
                         ip -6 addr del "$addr" dev "$WG_IF" 2>/dev/null || true
                         ;;
                 esac
             done
 
         if ! ip -6 addr show dev "$WG_IF" scope global | grep -q "${WG_GUA%/*}"; then
-            log "WG${IDX}: adding global $WG_GUA"
+            log "${WG_IF}: adding global $WG_GUA"
             ip -6 addr add "$WG_GUA" dev "$WG_IF" 2>/dev/null || \
-                log "WG${IDX}: WARN: failed to add $WG_GUA"
+                log "${WG_IF}: WARN: failed to add $WG_GUA"
         else
-            log "WG${IDX}: global already present"
+            log "${WG_IF}: global already present"
         fi
 
-        log "WG${IDX}: dual-stack converge complete (ULA + GUA)"
+        log "${WG_IF}: dual-stack converge complete (ULA + GUA)"
     done
 else
     log "WARN: WG interfaces TSV not found at $TSV, skipping WG GUA assignment"

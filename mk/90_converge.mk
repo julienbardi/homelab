@@ -30,44 +30,6 @@
 
 SNAPSHOT_NETWORK  := $(INSTALL_PATH)/snapshot-network.sh
 
-ROUTER_PREFIX_CURRENT := /run/homelab/router-prefix.current
-STAMP_PREFIX := $(STAMP_DIR_ROOT)/router-prefix.last
-
-router-prefix-current:
-	@$(run_as_root) sh -c 'mkdir -p /run/homelab && \
-		ssh ${SSH_OPTS} -i "${ROUTER_IDENTITY}" -p "${ROUTER_SSH_PORT}" "${SSH_USER_ROUTER}@${ROUTER_ADDR}" ip -6 addr show dev eth0 \
-		| awk "/scope global/ {print \$$2}" \
-		| cut -d/ -f1 \
-		| sed "s/:[0-9a-fA-F]\\{1,4\\}\$$/::/" \
-		| sed "s/::\\+\$$/::/" > "$(ROUTER_PREFIX_CURRENT)"'
-
-.PHONY: prefix-bootstrap
-prefix-bootstrap: router-prefix-current
-	@$(run_as_root) sh -c 'set -e; \
-		current="$$(cat "$(ROUTER_PREFIX_CURRENT)")"; \
-		if ! test -f "$(STAMP_PREFIX)"; then \
-			echo "📌 Prefix bootstrap: no stamp found"; \
-			echo "    new: $$current"; \
-			need_update=1; \
-		else \
-			stamped="$$(cat "$(STAMP_PREFIX)")"; \
-			if ! diff -q "$(ROUTER_PREFIX_CURRENT)" "$(STAMP_PREFIX)" >/dev/null; then \
-				echo "📌 Prefix changed — updating stamp"; \
-				echo "    old: $$stamped"; \
-				echo "    new: $$current"; \
-				need_update=1; \
-			else \
-				echo "📌 Prefix already converged: $$current"; \
-				need_update=0; \
-			fi; \
-		fi; \
-		if [ "$$need_update" -eq 1 ]; then \
-			tmp="$(STAMP_DIR_ROOT)/tmp.router-prefix"; \
-			cp "$(ROUTER_PREFIX_CURRENT)" "$$tmp"; \
-			mv "$$tmp" "$(STAMP_PREFIX)"; \
-			touch "$(ROUTER_PREFIX_MARKER)"; \
-		fi'
-
 # ------------------------------------------------------------
 # Runtime snapshot locations (ephemeral, root-owned)
 # ------------------------------------------------------------
@@ -87,11 +49,6 @@ converge-network: check-forwarding \
 				  wg-stack
 	@echo "✅ Network convergence complete"
 
-.PHONY: converge-router-prefix
-converge-router-prefix: $(STAMP_DIR_ROOT) router-converge $(ROUTER_PREFIX_MARKER)
-	@echo "🌐 Router prefix changed — router DAG converged"
-	@rm -f $(ROUTER_PREFIX_MARKER)
-	@echo " Marker consumed"
 
 # ------------------------------------------------------------
 # WireGuard convergence DAG
@@ -139,7 +96,7 @@ runtime-snapshot-after:
 # runtime-diff:
 # - Pure comparison only
 # - Must never mutate kernel or filesystem state (except diff marker)
-runtime-diff: prefix-bootstrap install-all
+runtime-diff: install-all
 	@$(run_as_root) $(INSTALL_PATH)/runtime-diff.sh "$(RUNTIME_SNAP_BEFORE)" "$(RUNTIME_SNAP_AFTER)"
 
 # ------------------------------------------------------------
