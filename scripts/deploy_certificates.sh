@@ -125,12 +125,25 @@ prepare() {
             mkdir -p '$SSL_CANONICAL_DIR'
 
             changed=0
+			rc=0
 
             install_files_if_changed_v3.sh changed \
                 '' '' "$SSL_CHAIN_ECC"  '' '' "$SSL_CANONICAL_DIR/fullchain_ecc.pem"  root ssl-cert 0644 \
                 '' '' "$SSL_KEY_ECC"    '' '' "$SSL_CANONICAL_DIR/privkey_ecc.pem"    root ssl-cert 0640 \
                 '' '' "$SSL_CHAIN_RSA"  '' '' "$SSL_CANONICAL_DIR/fullchain_rsa.pem"  root root 0644 \
-                '' '' "$SSL_KEY_RSA"    '' '' "$SSL_CANONICAL_DIR/privkey_rsa.pem"    root root 0600
+                '' '' "$SSL_KEY_RSA"    '' '' "$SSL_CANONICAL_DIR/privkey_rsa.pem"    root root 0600 \
+				|| rc=\$?
+
+			case "\$rc" in
+				0)
+					;;
+				3)
+					changed=1
+					;;
+				*)
+					exit "\$rc"
+					;;
+			esac
 
             echo \"\$changed\"
         "
@@ -192,7 +205,7 @@ deploy_caddy() {
     fi
 
     local changed=0
-    run_as_root install_files_if_changed_v3.sh changed \
+    install_files_if_changed_v3 changed \
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$SSL_DEPLOY_DIR_CADDY/fullchain.pem" caddy caddy 0644 \
         "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$SSL_DEPLOY_DIR_CADDY/privkey.pem"   caddy caddy 0640
 
@@ -211,7 +224,7 @@ deploy_proxmox()
 
     local changed=0
 
-    run_as_root install_files_if_changed_v3.sh changed \
+    install_files_if_changed_v3 changed \
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "/etc/pve/local/pveproxy-ssl.pem" root www-data 0640 \
         "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "/etc/pve/local/pveproxy-ssl.key" root www-data 0640
 
@@ -232,7 +245,7 @@ deploy_headscale() {
     run_as_root mkdir -p "$SSL_DEPLOY_DIR_HEADSCALE"
 
     local changed=0
-    run_as_root install_files_if_changed_v3.sh changed \
+    install_files_if_changed_v3 changed \
         "" "" "$SSL_CANONICAL_DIR/fullchain_ecc.pem" "" "" "$SSL_DEPLOY_DIR_HEADSCALE/fullchain.pem" headscale headscale 0644 \
         "" "" "$SSL_CANONICAL_DIR/privkey_ecc.pem"   "" "" "$SSL_DEPLOY_DIR_HEADSCALE/privkey.pem"   headscale headscale 0640
 
