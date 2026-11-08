@@ -172,16 +172,15 @@ router-dnsmasq-validate: router-dnsmasq-sync
 		'check_line_exact "ptr-record=$(LAN6_RASPBERRYPI),raspberrypi.$(LAN_DOMAIN)" "raspberrypi IPv6 PTR mismatch"' \
 		'check_line_exact "server=$(LAN_NAS)#$(UNBOUND_PORT)" "Unbound IPv4 upstream mismatch"' \
 		'check_line_exact "server=$(LAN6_NAS)#$(UNBOUND_PORT)" "Unbound IPv6 upstream mismatch"' \
-		'check_line_exact "server=/#/9.9.9.9" "fallback Quad9 IPv4 missing"' \
-		'check_line_exact "server=/#/2620:fe::fe" "fallback Quad9 IPv6 missing"' \
-		'check_line_exact "server=/#/130.59.31.248" "fallback Switch IPv4 missing"' \
-		'check_line_exact "server=/#/2001:620:0:ff::2" "fallback Switch IPv6 missing"' \
-		'check_line_exact "server=/#/185.95.218.42" "fallback Digitale Gesellschaft IPv4 missing"' \
-		'check_line_exact "server=/#/2a05:fc84::42" "fallback Digitale Gesellschaft IPv6 missing"' \
+		'check_line_exact "server=9.9.9.9" "fallback Quad9 IPv4 missing"' \
+		'check_line_exact "server=2620:fe::fe" "fallback Quad9 IPv6 missing"' \
+		'check_line_exact "server=130.59.31.248" "fallback Switch IPv4 missing"' \
+		'check_line_exact "server=2001:620:0:ff::2" "fallback Switch IPv6 missing"' \
+		'check_line_exact "server=185.95.218.42" "fallback Digitale Gesellschaft IPv4 missing"' \
+		'check_line_exact "server=2a05:fc84::42" "fallback Digitale Gesellschaft IPv6 missing"' \
 		'check_line_exact "dhcp-option=6,$(LAN_ROUTER)" "DHCPv4 DNS mismatch"' \
 		'check_line_exact "dhcp-option=option6:dns-server,[$(LAN6_ROUTER)]" "DHCPv6 DNS mismatch"' \
 		'check_line_exact "dhcp-option=15,$(LAN_DOMAIN)" "DHCP option 15 domain mismatch"' \
-		'check_line_exact "all-servers" "all-servers concurrency flag missing"' \
 		'check_line_exact "domain-needed" "domain-needed hygiene flag missing"' \
 		'check_line_exact "bogus-priv" "bogus-priv hygiene flag missing"' \
 		'echo "dnsmasq.conf.add validated successfully"' \

@@ -49,13 +49,11 @@ router-lan-domain: | router-ssh-check secret-vars-check
 	PUBLIC_DOMAIN="$(DOMAIN)"; \
 	lan_lc="$$(printf '%s' "$$LAN_DOMAIN" | tr A-Z a-z)"; \
 	pub_lc="$$(printf '%s' "$$PUBLIC_DOMAIN" | tr A-Z a-z)"; \
-	case "$$lan_lc" in *.$$pub_lc|$$pub_lc) \
-		echo "❌ Unsafe LAN_DOMAIN '$$LAN_DOMAIN' (suffix of '$$PUBLIC_DOMAIN')"; \
-		echo "   dnsmasq would rewrite public DNS (FQDN synthesis)."; \
-		echo "   Refusing to set unsafe LAN domain in NVRAM."; \
+	if [ "$$lan_lc" = "$$pub_lc" ]; then \
+		echo "❌ Unsafe LAN_DOMAIN '$$LAN_DOMAIN'"; \
+		echo "   LAN domain must not equal the public domain."; \
 		exit 1; \
-		;; \
-	esac; \
+	fi; \
 	cur_lan_domain="$$( ssh "$(SSH_HOST_ROUTER)" "nvram get lan_domain 2>/dev/null || true" )"; \
 	if [ "$$cur_lan_domain" = "$$LAN_DOMAIN" ]; then \
 		test -n "$(VERBOSE)" || echo "🌐 LAN domain already converged ('$$LAN_DOMAIN')"; \

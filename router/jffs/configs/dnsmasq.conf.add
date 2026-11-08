@@ -6,7 +6,6 @@
 # Role:
 #   • Router = authoritative DNS server for LAN + WG (IPv4 + IPv6)
 #   • NAS Unbound = backend recursive resolver (DNSSEC, DoT)
-#   • Parallel query with public fallbacks enabled via all-servers
 # ============================================================
 
 # --- PART A: LOCAL SOVEREIGNTY ------------------------------
@@ -36,26 +35,30 @@ address=/pve.lan.bardi.ch/fd89:7a3b:42c0::4
 ptr-record=10.89.12.4,pve.lan.bardi.ch
 ptr-record=fd89:7a3b:42c0::4,pve.lan.bardi.ch
 
+# Immich (private only) - Correctly points to Edge Router
+address=/immich.lan.bardi.ch/10.89.12.1
+address=/immich.lan.bardi.ch/fd89:7a3b:42c0::1
+
 address=/raspberrypi.lan.bardi.ch/10.89.12.5
 address=/raspberrypi.lan.bardi.ch/fd89:7a3b:42c0::5
 ptr-record=10.89.12.5,raspberrypi.lan.bardi.ch
 ptr-record=fd89:7a3b:42c0::5,raspberrypi.lan.bardi.ch
 
 # --- PART B: UPSTREAM RESOLVER SELECTION ---------------------
-# Primary local Unbound (IPv4 + IPv6)
+# Primary local Unbound (IPv4 + IPv6) - Queried first
 server=10.89.12.4#15335
 server=fd89:7a3b:42c0::4#15335
 
-# Parallel public fallback resolvers (IPv4 & IPv6)
+# Fallback public resolvers (Strict compliance syntax)
 # 1) CH Quad9
-server=/#/9.9.9.9
-server=/#/2620:fe::fe
+server=9.9.9.9
+server=2620:fe::fe
 # 2) CH Switch
-server=/#/130.59.31.248
-server=/#/2001:620:0:ff::2
+server=130.59.31.248
+server=2001:620:0:ff::2
 # 3) CH Digitale Gesellschaft
-server=/#/185.95.218.42
-server=/#/2a05:fc84::42
+server=185.95.218.42
+server=2a05:fc84::42
 
 # DHCPv4 DNS option pointing to router
 dhcp-option=6,10.89.12.1
@@ -67,9 +70,8 @@ dhcp-option=option6:dns-server,[fd89:7a3b:42c0::1]
 dhcp-option=15,lan.bardi.ch
 
 # --- PART C: GRACEFUL DEGRADATION ---------------------------
-# Query all upstream servers concurrently and take the first response
-# (Removed all-servers to prioritize local NAS caching)
-all-servers
+# Strict-order ensures Unbound is always preferred over public fallbacks
+strict-order
 
 # --- PART D: HYGIENE & SECURITY -----------------------------
 domain-needed

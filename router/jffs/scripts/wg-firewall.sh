@@ -2,8 +2,12 @@
 # wg-firewall.sh, generated - DO NOT EDIT
 set -e
 
-# Exit quietly if WireGuard interface is not present
-ip link show wgs1 >/dev/null 2>&1 || exit 0
+# Skip firewall rendering until WireGuard is available.
+# This is expected during early boot before wgs1 is created.
+ip link show wgs1 >/dev/null 2>&1 || {
+    logger -t wg-firewall "wgs1 not present yet"
+    exit 0
+}
 
 # Basic State Tracking
 iptables -C FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT

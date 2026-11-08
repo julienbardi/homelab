@@ -92,7 +92,23 @@ log "baseline IPv6 firewall invariants enforced"
 
 if [ -x /jffs/scripts/wg-firewall.sh ]; then
     log "applying dynamic wg-firewall.sh rules"
-    /jffs/scripts/wg-firewall.sh
+
+    if ! /jffs/scripts/wg-firewall.sh; then
+        log "ERROR: wg-firewall.sh failed"
+        exit 1
+    fi
+
+    if ip link show wgs1 >/dev/null 2>&1; then
+        iptables -C FORWARD -i wgs1 -j ACCEPT 2>/dev/null || {
+            log "ERROR: missing FORWARD -i wgs1"
+            exit 1
+        }
+
+        iptables -C FORWARD -o wgs1 -j ACCEPT 2>/dev/null || {
+            log "ERROR: missing FORWARD -o wgs1"
+            exit 1
+        }
+    fi
 fi
 
 # ------------------------------------------------------------

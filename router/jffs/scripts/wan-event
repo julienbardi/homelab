@@ -31,23 +31,20 @@ LOG="/jffs/prefix-change.log"
 PREFIX_STATE="/jffs/prefix-current"
 
 NAS="julie@10.89.12.4"
-NAS_STAMP="/var/lib/homelab/router-prefix.last"
-NAS_MARKER="/var/lib/homelab/router-prefix.changed"
+NAS_STAMP="/tank/julie/src/homelab/.state/stamps/router-prefix.last"
+NAS_MARKER="/tank/julie/src/homelab/.state/stamps/router-prefix.changed"
 
-# --- Discover WireGuard server interfaces (wgs1..wgs15) ---
-WG_IF_LIST=$(ip -o link show | awk -F': ' '$2 ~ /^wgs[0-9]+/ {print $2}')
-
-# --- Extract WAN GUA (wait for convergence) ---
+# --- Extract LAN-advertised GUA from br0 (wait for convergence) ---
 RAW_GUA=""
 for i in 1 2 3 4 5; do
-    RAW_GUA=$(ip -6 addr show dev eth0 scope global \
+    RAW_GUA=$(ip -6 addr show dev br0 scope global \
         | awk '/inet6/ {print $2}' | cut -d/ -f1 | head -n1)
     [ -n "$RAW_GUA" ] && break
     sleep 1
 done
 
 if [ -z "$RAW_GUA" ]; then
-    echo "$(date) ERROR: WAN connected but no global IPv6 on eth0" >> "$LOG"
+    echo "$(date) ERROR: No global IPv6 found on br0" >> "$LOG"
     exit 0
 fi
 
@@ -63,46 +60,37 @@ case "$PREFIX" in
         ;;
 esac
 
-# --- Compute BASE_PREFIX for WG GUAs (no /64, no ::) ---
-BASE_PREFIX=$(printf '%s' "$PREFIX" | sed 's/::\/64$//')
-
 CHANGED=0
 
-# --- Update all wgsN GUAs ---
-for WG_IF in $WG_IF_LIST; do
-    IDX=$(echo "$WG_IF" | sed 's/wgs//')
-    HEX_SUFFIX=$(printf "%02x" "$IDX")
+if [ ! -f "$PREFIX_STATE" ]; then
+    echo "$PREFIX" > "$PREFIX_STATE"
+    CHANGED=1
+    echo "$(date) INIT PREFIX=$PREFIX" >> "$LOG"
+else
+    OLD_PREFIX=$(cat "$PREFIX_STATE")
 
-    CUR="${BASE_PREFIX}${HEX_SUFFIX}::1/64"
-    STATE_FILE="${PREFIX_STATE}.${WG_IF}"
-
-    if [ ! -f "$STATE_FILE" ]; then
-        echo "$CUR" > "$STATE_FILE"
+    if [ "$OLD_PREFIX" != "$PREFIX" ]; then
+        echo "$(date) PREFIX CHANGE old=$OLD_PREFIX new=$PREFIX" >> "$LOG"
+        echo "$PREFIX" > "$PREFIX_STATE"
         CHANGED=1
-        echo "$(date) INIT ${WG_IF}=$CUR" >> "$LOG"
-        ip -6 addr add "$CUR" dev "$WG_IF" 2>/dev/null || true
-        continue
+	else
+        echo "$(date) PREFIX UNCHANGED $PREFIX" >> "$LOG"
     fi
-
-    OLD=$(cat "$STATE_FILE")
-
-    if [ "$CUR" != "$OLD" ]; then
-        echo "$(date) PREFIX CHANGE ${WG_IF} old=$OLD new=$CUR" >> "$LOG"
-        echo "$CUR" > "$STATE_FILE"
-        CHANGED=1
-
-        ip -6 addr show dev "$WG_IF" scope global \
-            | awk '/inet6/ {print $2}' \
-            | while read -r old_addr; do
-                ip -6 addr del "$old_addr" dev "$WG_IF" 2>/dev/null || true
-            done
-
-        ip -6 addr add "$CUR" dev "$WG_IF" 2>/dev/null || true
-    fi
-done
+fi
 
 # --- Send prefix to NAS + notify converge ---
 if [ "$CHANGED" -eq 1 ]; then
-    echo "$PREFIX" | ssh -p 2222 "$NAS" "cat > '$NAS_STAMP'"
-    ssh -p 2222 "$NAS" "touch '$NAS_MARKER'"
+    echo "$PREFIX" | ssh \
+        -i /jffs/.ssh/id_ed25519 \
+        -o BatchMode=yes \
+        -p 22 \
+        "$NAS" \
+        "cat > '$NAS_STAMP'"
+
+    ssh \
+        -i /jffs/.ssh/id_ed25519 \
+        -o BatchMode=yes \
+        -p 22 \
+        "$NAS" \
+        "touch '$NAS_MARKER'"
 fi
