@@ -32,10 +32,8 @@ PID=$$
 : "${TMPDIR:=/tmp}"
 
 # Resolve SSH identity
-SSH_IDENTITY="$HOME/.ssh/id_ed25519"
-if [ -n "${SUDO_USER:-}" ] && [ -f "/home/${SUDO_USER}/.ssh/id_ed25519" ]; then
-    SSH_IDENTITY="/home/${SUDO_USER}/.ssh/id_ed25519"
-fi
+USER_HOME="$(getent passwd "${SUDO_USER:-$(id -un)}" | cut -d: -f6)"
+SSH_IDENTITY="${USER_HOME}/.ssh/id_ed25519"
 
 log() {
     [ "$quiet" -eq 0 ] && echo "$*" >&2

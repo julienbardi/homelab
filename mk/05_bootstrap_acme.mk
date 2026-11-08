@@ -37,7 +37,7 @@
 # ACME_HOME is defined in mk/config.mk
 # ------------------------------------------------------------
 ACME_BIN     := $(ACME_HOME)/acme.sh
-ACME_VERSION := v3.1.4
+ACME_VERSION := v3.1.7
 
 # ------------------------------------------------------------
 # Ensure ACME_HOME exists (identity directory)
@@ -114,7 +114,7 @@ acme-install: acme-ensure-dirs
 .PHONY: acme-write-infomaniak-token
 acme-write-infomaniak-token: secrets-ready
 	@$(call WITH_SECRETS, sh -euo pipefail -c '\
-		TOKEN="$$INFOMANIAK_API_TOKEN"; \
+		TOKEN="$${infomaniak_api_token:-}"; \
 		if [ -z "$$TOKEN" ]; then \
 			echo "❌ ERROR: INFOMANIAK_API_TOKEN missing from secrets.enc.yaml"; \
 			exit 1; \

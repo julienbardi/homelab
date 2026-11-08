@@ -16,15 +16,17 @@ prereqs-root-ssh-key:
 
 .PHONY: prereqs-operator-ssh-key
 prereqs-operator-ssh-key:
-	@key=$$HOME/.ssh/id_ed25519; \
-	if [ -f $$key ]; then :; else \
-		host=$$(hostname -s); \
-		user=$$(id -un); \
-		comment="$$host-operator-$$user-$$(date +%F)"; \
-		echo "🔐 Generating operator SSH key"; \
-		mkdir -p -m 700 $$HOME/.ssh; \
-		ssh-keygen -t ed25519 -f $$key -N "" -C "$$comment"; \
-	fi
+		@user_home="$$(getent passwd $$(id -un) | cut -d: -f6)"; \
+		key="$$user_home/.ssh/id_ed25519"; \
+		if [ -f "$$key" ]; then :; else \
+				host=$$(hostname -s); \
+				user=$$(id -un); \
+				comment="$$host-operator-$$user-$$(date +%F)"; \
+				echo "🔐 Generating operator SSH key"; \
+				mkdir -p -m 700 "$$user_home/.ssh"; \
+				ssh-keygen -t ed25519 -f "$$key" -N "" -C "$$comment"; \
+		fi
+
 .PHONY: install-ssh-config
 install-ssh-config: prereqs-operator-ssh-key
 	@sh -c '\

@@ -21,7 +21,7 @@ fi
 
 # 2. Establish fully isolated, deterministic root PATH (eliminates inherited pollution)
 ROOT_PATH=
-ROOT_PATH="/usr/sbin:/usr/bin:/sbin:/bin:${HOME}/.local/tools/yq"
+ROOT_PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 readonly ROOT_PATH
 
 # 3. Explicit contract-driven environment variable passthrough profile
