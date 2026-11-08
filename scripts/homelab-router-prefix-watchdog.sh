@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # --------------------------------------------------------------------
-# router-prefix-watchdog.sh  (NAS-side marker executor)
+# homelab-router-prefix-watchdog.sh  (NAS-side marker executor)
 #
 # IMPORTANT:
 #   - This script runs on the NAS, NOT on the router.
@@ -12,7 +12,7 @@
 # --------------------------------------------------------------------
 set -euo pipefail
 
-: "${STAMP_DIR_ROOT:=${HOME}/.local/state/homelab}"
+: "${STAMP_DIR_ROOT:=/tank/julie/src/homelab/.state/stamps}"
 MARKER="${STAMP_DIR_ROOT}/router-prefix.changed"
 LOGTAG="router-prefix-watchdog"
 
@@ -25,6 +25,14 @@ LOGTAG="router-prefix-watchdog"
 }
 
 logger -t "$LOGTAG" "Starting watchdog (repo: $REPO_ROOT)"
+
+ENV_FILE="/etc/homelab/homelab-prefix.env"
+
+if [ -f "$ENV_FILE" ]; then
+    . "$ENV_FILE"
+fi
+
+: "${NAS_LAN_IFACE:?NAS_LAN_IFACE must be defined}"
 
 # Prevent log from growing beyond 1MB
 if [[ -f /var/log/router-prefix-watchdog.log ]] && \
@@ -58,7 +66,7 @@ while true; do
         else
             logger -t "$LOGTAG" "IPv6 to router broken — healing NAS IPv6 stack"
 
-            ip -6 addr flush dev eth0
+            ip -6 addr flush dev "$NAS_LAN_IFACE"
             ip -6 route flush default
             systemctl restart homelab-network || true
             sleep 3
