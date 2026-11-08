@@ -84,7 +84,7 @@ bardi.ch:8384 {
 		fail_duration 30s
 	}
 
-	# DiskStation main HTTPS site (WAN)
+	# DiskStation main HTTPS site (WAN - accessible to all for future static site)
 	@bardi_internal {
 		host bardi.ch
 	}
@@ -95,11 +95,14 @@ bardi.ch:8384 {
 		}
 	}
 
-	# DSM management (internal only)
+	# DSM management (LAN + NetBird + WireGuard allowed)
 	@syno5001_internal {
 		host bardi.ch
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
+		remote_ip 10.0.0.0/8
+		remote_ip fd89:7a3b:42c0::/48
+		remote_ip 100.64.0.0/10
 	}
 	reverse_proxy @syno5001_internal https://10.89.12.2:5001 {
 		header_up Host bardi.ch
@@ -108,11 +111,14 @@ bardi.ch:8384 {
 		}
 	}
 
-	# Synology service (internal only)
+	# Synology service (LAN + NetBird + WireGuard allowed)
 	@syno5006_internal {
 		host bardi.ch
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
+		remote_ip 10.0.0.0/8
+		remote_ip fd89:7a3b:42c0::/48
+		remote_ip 100.64.0.0/10
 	}
 	reverse_proxy @syno5006_internal https://10.89.12.2:5006 {
 		header_up Host bardi.ch
@@ -121,11 +127,14 @@ bardi.ch:8384 {
 		}
 	}
 
-	# Synology Drive (internal only)
+	# Synology Drive (LAN + NetBird + WireGuard allowed)
 	@syno6690_internal {
 		host bardi.ch
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
+		remote_ip 10.0.0.0/8
+		remote_ip fd89:7a3b:42c0::/48
+		remote_ip 100.64.0.0/10
 	}
 	reverse_proxy @syno6690_internal https://10.89.12.2:6690 {
 		header_up Host bardi.ch
@@ -154,14 +163,6 @@ bardi.ch:8384 {
 		remote_ip fd89:7a3b:42c0::/64
 	}
 	reverse_proxy @qnap_internal 10.89.12.3:8080
-
-	# NAS internal service (internal only)
-	@nas_internal {
-		host nas.bardi.ch
-		remote_ip 10.89.12.0/24
-		remote_ip fd89:7a3b:42c0::/64
-	}
-	reverse_proxy @nas_internal 10.89.12.4:9999
 
 	# Router (internal only)
 	@router_internal {
@@ -200,12 +201,33 @@ bardi.ch:8384 {
 		}
 	}
 
-	# Immich
-	@immich {
-		host immich.bardi.ch
+	# --- 1. Allowed Immich Traffic (LAN / NetBird / WireGuard) ---
+	@immich_authorized {
+		host immich.bardi.ch immich.lan.bardi.ch
+		remote_ip 10.89.12.0/24
+		remote_ip fd89:7a3b:42c0::/64
+		remote_ip 10.0.0.0/8
+		remote_ip fd89:7a3b:42c0::/48
+		remote_ip 100.64.0.0/10
+	}
+	reverse_proxy @immich_authorized 10.89.12.25:2283 {
+		header_up Host {http.request.host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Scheme https
 	}
 
-	reverse_proxy @immich 10.89.12.25:2283
+	# --- 2. Denied Immich Traffic (Public WAN Fallback) ---
+	@immich_denied {
+		host immich.bardi.ch immich.lan.bardi.ch
+		not remote_ip 10.89.12.0/24
+		not remote_ip fd89:7a3b:42c0::/64
+		not remote_ip 10.0.0.0/8
+		not remote_ip fd89:7a3b:42c0::/48
+		not remote_ip 100.64.0.0/10
+	}
+	respond @immich_denied `<html><body style="font-family:sans-serif; text-align:center; padding:50px; background:#f4f6f9; color:#333;"><h2>Access Denied</h2><p>This service is private.</p><p><strong>Please connect to the LAN via NetBird or WireGuard to access Immich.</strong></p></body></html>` 403 {
+		close
+	}
 
 	# apt-cacher-ng (internal only)
 	@apt_internal {
@@ -241,7 +263,8 @@ bardi.ch:8384 {
  apt.bardi.ch \
  pve.bardi.ch \
  netbird.bardi.ch \
- immich.bardi.ch
+ immich.bardi.ch \
+ immich.lan.bardi.ch
 
 	respond @unknown "Not Found" 404
 }

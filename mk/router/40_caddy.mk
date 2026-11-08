@@ -45,7 +45,7 @@ ROUTER_CADDY_BIN_CMD := \
   mkdir -p '$(dir $(ROUTER_CADDY_STAMP))'; \
   if cat '$(ROUTER_CADDY_STAMP)' 2>/dev/null | grep -qx '$(ROUTER_CADDY_SHA256)' && \
 	 [ -x '$(ROUTER_CADDY_BIN)' ]; then \
-	  echo "⏩ caddy $(ROUTER_CADDY_VERSION) fast-path OK"; \
+		echo "⏩ caddy $(ROUTER_CADDY_VERSION) verified"; \
 	  exit 0; \
   fi; \
   echo "⬇️  Downloading Caddy tarball"; \
@@ -62,6 +62,9 @@ ROUTER_CADDY_BIN_CMD := \
 .PHONY: router-caddy-bin
 router-caddy-bin: | router-ssh-check router-require-arm64
 	@echo "⬇️  Ensuring Caddy $(ROUTER_CADDY_VERSION) ($(ROUTER_CADDY_ARCH)) on router"
+	@echo "CMD:"
+	@printf '%s\n' "$(call one_line,$(ROUTER_CADDY_BIN_CMD))"
+	@echo "-----"
 	@$(call WITH_SECRETS, \
 		ssh "$(SSH_HOST_ROUTER)" "$(call one_line,$(ROUTER_CADDY_BIN_CMD))" \
 	)
