@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic Infomaniak IPv6 DynDNS reconciliation
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

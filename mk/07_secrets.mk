@@ -305,22 +305,23 @@ secrets-init:
 
 .PHONY: check-age-key
 check-age-key:
-	@echo "🔍 Checking system AGE key (/etc/sops/keys/age.key)"
+	@echo "🔍 Checking system AGE key ($(SOPS_AGE_KEY_FILE))"
 
-	@{ \
-		key="/etc/sops/keys/age.key"; \
+	@$(run_as_root) sh -eu -c '\
+		key="$(SOPS_AGE_KEY_FILE)"; \
 		if [ ! -f "$$key" ]; then \
 			echo "❌ AGE key missing at $$key"; \
 			exit 1; \
 		fi; \
-		info="$$(stat -c '%a %U %G' "$$key" 2>/dev/null || echo MISSING)"; \
-		if [ "$$info" != "640 root admin" ]; then \
-			echo "⚠️  AGE key permissions drifted ($$info ➡️ fixing)"; \
-			$(run_as_root) sh -c "chown root:admin \"$$key\" && chmod 640 \"$$key\""; \
-			info="$$(stat -c '%a %U %G' "$$key")"; \
-			echo "🛠️  Permissions set to $$info"; \
+		info="$$(stat -c "%a %U %G" "$$key")"; \
+		if [ "$$info" != "640 root admins" ]; then \
+			echo "⚠️ AGE key permissions drifted ($$info ➡️ fixing)"; \
+			chown root:admins "$$key"; \
+			chmod 640 "$$key"; \
+			info="$$(stat -c "%a %U %G" "$$key")"; \
+			echo "🛠️ Permissions set to $$info"; \
 		fi; \
-	}
+	'
 
 	@if ! sudo -E -u "$(USER)" sops -d "$(SECRETS_FILE)" >/dev/null 2>&1; then \
 		echo "❌ AGE key exists but cannot decrypt $(SECRETS_FILE) as $(USER)"; \
@@ -328,12 +329,13 @@ check-age-key:
 	fi
 
 	@{ \
-		pub="$$( $(run_as_root) age-keygen -y /etc/sops/keys/age.key 2>/dev/null )"; \
+		pub="$$( $(run_as_root) age-keygen -y "$(SOPS_AGE_KEY_FILE)" 2>/dev/null )"; \
 		if [ -z "$$pub" ]; then \
 			echo "❌ AGE key is invalid or unreadable"; \
 			exit 1; \
 		fi; \
-		echo "🟢 AGE key OK — ts=$$(stat -c '%y' /etc/sops/keys/age.key) pub=$$pub user=$(USER)"; \
+		ts="$$( $(run_as_root) stat -c '%y' "$(SOPS_AGE_KEY_FILE)" )"; \
+		echo "🟢 AGE key OK — ts=$$ts pub=$$pub user=$(USER)"; \
 	}
 
 # Ensure per-user runtime secrets workspace exists (RAM-only, managed by systemd)
@@ -387,35 +389,42 @@ DDNS_RUNTIME_FILE := $(HOMELAB_RUNTIME_USER)/ddns/ddns.conf
 # Contract: root-owned, RAM-only, consumed by DDNS updater
 
 .PHONY: ddns-runtime
-ddns-runtime: $(YQ_STAMP) secrets-runtime-init
+ddns-runtime: \
+	secrets-ready \
+	$(YQ_STAMP) \
+	secrets-runtime-init \
+	$(INSTALL_FILE_IF_CHANGED)
 	@{ \
-		export SOPS_BIN="$(SOPS_BIN)"; \
-		export SECRETS_FILE="$(SECRETS_FILE)"; \
-		export YQ="$(YQ)"; \
-		\
-		$(run_as_root) bash -euo pipefail -c '\
-			tmp="$$(mktemp)"; \
-			trap "rm -f \"$$tmp\"" EXIT; \
-			umask 077; \
-			\
-			eval "$$( \
-				"$$SOPS_BIN" -d "$$SECRETS_FILE" \
-				| "$$YQ" -r '\'' \
-					"ddns_username=\(.ddns_username)", \
-					"ddns_password=\(.ddns_password)", \
-					"ddns_topdomain=\(.ddns_topdomain)" \
-				'\'' \
-			)"; \
-			\
-			printf "%s\n" \
-				"ddns_username=$$ddns_username" \
-				"ddns_password=$$ddns_password" \
-				"ddns_topdomain=$$ddns_topdomain" \
-				> "$$tmp"; \
-			\
-			install -m 600 -o $(ROOT_UID) -g $(ROOT_GID) "$$tmp" "$(DDNS_RUNTIME_FILE)"; \
-		'; \
-		echo "🔐 DDNS runtime file updated: $(DDNS_RUNTIME_FILE)"; \
+		$(run_as_root) env \
+			SOPS_BIN="$(SOPS_BIN)" \
+			SECRETS_FILE="$(SECRETS_FILE)" \
+			YQ="$(YQ)" \
+			bash -euo pipefail -c '\
+				tmp="$$(mktemp)"; \
+				trap "rm -f \"$$tmp\"" EXIT; \
+				umask 077; \
+				\
+				eval "$$( \
+					"$$SOPS_BIN" -d "$$SECRETS_FILE" \
+					| "$$YQ" -r '\'' \
+						"ddns_username=\(.ddns_username)", \
+						"ddns_password=\(.ddns_password)", \
+						"ddns_topdomain=\(.ddns_topdomain)" \
+					'\'' \
+				)"; \
+				\
+				printf "%s\n" \
+					"ddns_username=$$ddns_username" \
+					"ddns_password=$$ddns_password" \
+					"ddns_topdomain=$$ddns_topdomain" \
+					> "$$tmp"; \
+				\
+				$(INSTALL_FILE_IF_CHANGED) \
+					"" "" "$$tmp" \
+					"" "" "$(DDNS_RUNTIME_FILE)" \
+					"$(ROOT_UID)" "$(ROOT_GID)" "0600" \
+					>/dev/null; \
+			'; \
 	}
 
 .PHONY: test-infomaniak-token
@@ -457,8 +466,21 @@ test-infomaniak-txt-dryrun: $(STAMP_SOPS)
 	)
 
 .PHONY: compute-stamp-salt
-compute-stamp-salt:
-	@install -d -o "$(ROOT_UID)" -g "$(ROOT_GID)" -m 700 /run/user/$(ROOT_UID)/homelab
-	@STAMP_SALT="$$(sha256sum "$(SOPS_AGE_KEY_FILE)" | awk '{print $$1}')"; \
-		echo "export STAMP_SALT=$$STAMP_SALT" > /run/user/$(ROOT_UID)/homelab/stamp_salt.env
-	@echo "🔐 STAMP_SALT computed and stored in /run/user/$(ROOT_UID)/homelab/stamp_salt.env"
+compute-stamp-salt: check-age-key secrets-runtime-init $(INSTALL_FILE_IF_CHANGED)
+	@{ \
+		tmp="$$(mktemp)"; \
+		trap 'rm -f "$$tmp"' EXIT; \
+		STAMP_SALT="$$($(run_as_root) sha256sum "$(SOPS_AGE_KEY_FILE)" | awk '{print $$1}')"; \
+		printf 'export STAMP_SALT=%s\n' "$$STAMP_SALT" > "$$tmp"; \
+		rc=0; \
+		$(INSTALL_FILE_IF_CHANGED) \
+			"" "" "$$tmp" \
+			"" "" "$(HOMELAB_RUNTIME_USER)/stamp_salt.env" \
+			"$(USER_UID)" "$(USER_GID)" "0600" \
+			>/dev/null || rc=$$?; \
+		\
+		if [ "$$rc" -ne 0 ] && [ "$$rc" -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+			exit "$$rc"; \
+		fi; \
+	}
+	@echo "🔐 STAMP_SALT computed and stored in $(HOMELAB_RUNTIME_USER)/stamp_salt.env"

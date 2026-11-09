@@ -1,0 +1,8 @@
+[Unit]
+Description=Homelab Infomaniak IPv6 DynDNS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=${INSTALL_PATH}/homelab-infomaniak-ddns.sh

@@ -53,7 +53,7 @@ install-nas-prefix-watchdog-v1:
 
 .PHONY: install-systemd enable-systemd verify-systemd uninstall-systemd
 
-install-systemd: install-dns-health
+install-systemd: install-dns-health install-infomaniak-ddns
 	@$(run_as_root) sh -c '\
 		# --- fix vendor-broken index_serv.service --- \
 		mkdir -p "$(SYSTEMD_DIR)/index_serv.service.d"; \
@@ -125,3 +125,83 @@ restart:
 		systemctl restart tailscaled-lan.service >/dev/null 2>&1 || true; \
 		echo "✅ tailscaled services restarted"; \
 	'
+
+# ============================================================================
+# Infomaniak IPv6 DynDNS
+# ============================================================================
+
+DDNS_SERVICE_SRC := $(REPO_ROOT)/config/systemd/homelab-infomaniak-ddns.service.in
+DDNS_SERVICE_DST := /etc/systemd/system/homelab-infomaniak-ddns.service
+
+DDNS_TIMER_SRC := $(REPO_ROOT)/config/systemd/homelab-infomaniak-ddns.timer.in
+DDNS_TIMER_DST := /etc/systemd/system/homelab-infomaniak-ddns.timer
+
+.PHONY: install-infomaniak-ddns
+install-infomaniak-ddns: \
+	ddns-runtime \
+	ensure-state-dirs \
+	$(INSTALL_PATH)/homelab-infomaniak-ddns.sh
+	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🛠️ Installing Infomaniak DDNS services" || true; fi; \
+	CHANGED=0; \
+	\
+	tmp="$$(umask 077 && mktemp -p "$(RUNTIME_DIR)" tmp.ddns.service.XXXXXX)"; \
+	ROOT_UID="$(ROOT_UID)" \
+	ROOT_GID="$(ROOT_GID)" \
+	REPO_ROOT="$(REPO_ROOT)" \
+	INSTALL_PATH="$(INSTALL_PATH)" \
+	envsubst < "$(DDNS_SERVICE_SRC)" > "$$tmp"; \
+	\
+	IFC_STATUS=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q \
+		"" "" "$$tmp" \
+		"" "" "$(DDNS_SERVICE_DST)" \
+		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || IFC_STATUS=$$?; \
+	rm -f "$$tmp"; \
+	\
+	if [ $$IFC_STATUS -ne 0 ] && [ $$IFC_STATUS -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		echo "❌ IFC: Fatal error installing homelab-infomaniak-ddns.service"; \
+		exit $$IFC_STATUS; \
+	fi; \
+	\
+	if [ $$IFC_STATUS -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		CHANGED=1; \
+	fi; \
+	\
+	tmp="$$(umask 077 && mktemp -p "$(RUNTIME_DIR)" tmp.ddns.timer.XXXXXX)"; \
+	ROOT_UID="$(ROOT_UID)" \
+	ROOT_GID="$(ROOT_GID)" \
+	REPO_ROOT="$(REPO_ROOT)" \
+	INSTALL_PATH="$(INSTALL_PATH)" \
+	envsubst < "$(DDNS_TIMER_SRC)" > "$$tmp"; \
+	\
+	IFC_STATUS=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) -q \
+		"" "" "$$tmp" \
+		"" "" "$(DDNS_TIMER_DST)" \
+		"$(ROOT_UID)" "$(ROOT_GID)" "0644" || IFC_STATUS=$$?; \
+	rm -f "$$tmp"; \
+	\
+	if [ $$IFC_STATUS -ne 0 ] && [ $$IFC_STATUS -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		echo "❌ IFC: Fatal error installing homelab-infomaniak-ddns.timer"; \
+		exit $$IFC_STATUS; \
+	fi; \
+	\
+	if [ $$IFC_STATUS -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		CHANGED=1; \
+	fi; \
+	\
+	if [ $$CHANGED -eq 1 ]; then \
+		$(run_as_root) systemctl daemon-reload; \
+	fi; \
+	\
+	if ! systemctl is-enabled homelab-infomaniak-ddns.timer >/dev/null 2>&1; then \
+		$(run_as_root) systemctl enable --now homelab-infomaniak-ddns.timer; \
+	else \
+		    $(run_as_root) systemctl start homelab-infomaniak-ddns.timer >/dev/null 2>&1 || true; \
+	fi; \
+	\
+	if [ "$(VERBOSE)" -ge 1 ]; then echo "🟢 Infomaniak DDNS timer active" || true; fi
+
+.PHONY: ddns-now
+ddns-now:
+	@$(run_as_root) systemctl start homelab-infomaniak-ddns.service
