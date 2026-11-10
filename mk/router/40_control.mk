@@ -75,6 +75,7 @@ router-dnsmasq-invariant:
 	fi
 	@echo "✅ dnsmasq singleton invariant OK"
 
+# 	router-caddy \ removed before router-health \
 .PHONY: router-converge
 router-converge: \
 	router-ssh-check \
@@ -82,7 +83,6 @@ router-converge: \
 	router-dnsmasq-invariant \
 	router-firewall-hardened \
 	router-certs-deploy \
-	router-caddy \
 	router-health \
 	router-health-strict
 	@echo "🚀 Router fully converged"

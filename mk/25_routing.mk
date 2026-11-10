@@ -64,13 +64,26 @@ ensure-default-route: \
 	# ------------------------------------------------------------ \
 	\
 	# 1. Require IPv6 default route (router must advertise one for NAT66 to work) \
-	if ! ip -6 route show default | grep -q .; then \
-		echo "⚠️ No IPv6 default route - router RA not yet configured for IPv6."; \
-		echo "   wg7 IPv6 internet will not work until the router delegates a prefix."; \
-		echo "   This is non-fatal: IPv6 clients will fast-fail via ICMPv6 and use IPv4."; \
-	else \
-		echo "✅ IPv6 default route present"; \
+	echo "🔍 Waiting for IPv6 default route..."; \
+	route6_ready=0; \
+	for i in 1 2 3 4 5 6 7 8 9 10; do \
+			if ip -6 route show default | grep -q .; then \
+					route6_ready=1; \
+					break; \
+			fi; \
+			sleep 1; \
+	done; \
+	if [ "$$route6_ready" -eq 0 ]; then \
+			echo "❌ No IPv6 default route detected after convergence wait"; \
+			echo "--- IPv6 addresses on $(NAS_LAN_IFACE) ---"; \
+			ip -6 addr show dev $(NAS_LAN_IFACE) || true; \
+			echo "--- IPv6 default routes ---"; \
+			ip -6 route show default || true; \
+			echo "--- Full IPv6 routing table ---"; \
+			ip -6 route show || true; \
+			exit 1; \
 	fi; \
+	echo "✅ IPv6 default route present"; \
 	\
 	# 2. Require global IPv6 address (2xxx::/3) — needed for NAT66 masquerade source \
 	if ! ip -6 addr show dev $(NAS_LAN_IFACE) | grep -q 'inet6 2'; then \

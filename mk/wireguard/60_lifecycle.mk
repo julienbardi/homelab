@@ -4,6 +4,7 @@
 
 wg-install: wg-install-router wg-install-nas
 
+wg-up: converge-network
 wg-up: wg-up-router wg-up-nas
 		@echo "🚀 WireGuard fully converged"
 

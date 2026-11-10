@@ -100,6 +100,10 @@ SSH_ROUTER := ssh -p $(ROUTER_SSH_PORT) $(SSH_USER_ROUTER)@$(ROUTER_ADDR)
 # Router specific paths
 export ROUTER_SCRIPTS    := /jffs/scripts
 ROUTER_WG_DIR            := /jffs/configs
+# Legacy path from former router-Caddy deployment.
+# The external USB disk was retired on 2026-11-10.
+# Router health, WireGuard, DDNS and homelab convergence no longer
+# depend on this path. Kept only until router-caddy subsystem is removed.
 ROUTER_CADDY_BIN         := /tmp/mnt/sda/router/bin/caddy
 ROUTER_CADDY_STAMP       := /jffs/.stamps/caddy.stamp
 

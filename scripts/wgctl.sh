@@ -89,11 +89,10 @@ do_up() {
         log "Using NAS ULA (${NAS_LAN_IFACE}): ${LAN6_NAS}"
 
         ssh -i "$ROUTER_IDENTITY" -p "$ROUTER_SSH_PORT" "$ROUTER_HOST" "
-            # 🔧 FIX 1: Enable strict error handling (fail fast on any command error)
+            # Fail fast on remote-side errors.
             set -euo pipefail
 
-            # 🔧 FIX 2: Ensure WireGuard kernel module is loaded before creating interface
-            # modprobe returns 0 if already loaded, so this is idempotent
+            # Ensure WireGuard kernel support is available.
             echo '📦 Ensuring WireGuard kernel module...'
             modprobe wireguard || { echo '❌ Failed to load wireguard module'; exit 1; }
 
@@ -104,7 +103,7 @@ do_up() {
             fi
 
             # Bring interface up before applying config
-            echo 'Bringing wgs1 up'
+            echo '🔌 Bringing wgs1 up'
             ip link set wgs1 up
 
             # Apply WireGuard config
@@ -123,9 +122,7 @@ do_up() {
 
             while [ "\$timeout" -gt 0 ]; do
                 if ip -6 addr show dev br0 | grep -q 'fd89:7a3b:42c0::1/64'; then
-                    if ! ip -6 addr show dev br0 | grep -q 'tentative'; then
-                        break
-                    fi
+                    break
                 fi
 
                 timeout=\$((timeout - 1))
@@ -134,30 +131,28 @@ do_up() {
 
             [ "\$timeout" -gt 0 ] || {
                 echo "❌ Timed out waiting for ULA readiness"
+                echo "=== br0 ==="
+                ip -6 addr show dev br0
                 exit 1
             }
-
-            echo "=== AFTER ULA ADD ==="
-            ip -6 addr show dev br0
 
             # Allow DAD to complete.
             sleep 3
 
             ip -6 route del fd89:7a3b:42c0:7::/64 2>/dev/null || true
 
-            echo "=== BEFORE ROUTE ==="
-            ip -6 addr show dev br0
-            ip -6 route
-            echo "LAN6_NAS=${LAN6_NAS}"
-            echo "ROUTER_LAN_IFACE=${ROUTER_LAN_IFACE}"
+            ip -6 addr add fd89:7a3b:42c0::1/64 dev br0 2>/dev/null || true
+
+            if ! ip -6 addr show dev br0 | grep -q 'fd89:7a3b:42c0::1/64'; then
+                echo "❌ Router ULA vanished from br0"
+                ip -6 addr show dev br0
+                exit 1
+            fi
 
             ip -6 route replace \
                 fd89:7a3b:42c0:7::/64 \
                 via ${LAN6_NAS} \
                 dev ${ROUTER_LAN_IFACE}
-
-            echo "=== AFTER ROUTE ==="
-            ip -6 route | grep fd89
 
             # Re-apply firewall invariants now that wgs1 exists
             if [ -x /jffs/scripts/firewall-start ]; then

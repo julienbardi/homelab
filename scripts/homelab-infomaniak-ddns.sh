@@ -58,23 +58,34 @@ if [ -z "$CURRENT_IPV6" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Previous successful address
+# Verify published DNS state
 # ---------------------------------------------------------------------------
 
-LAST_IPV6=""
+AUTH_NS="$(
+    dig +short NS "$ddns_topdomain" \
+    | sort \
+    | head -n1 \
+    | sed 's/\.$//'
+)"
 
-if [ -f "$STATE_FILE" ]; then
-    LAST_IPV6="$(cat "$STATE_FILE")"
+if [ -z "$AUTH_NS" ]; then
+    log "ERROR: unable to discover authoritative nameserver"
+    exit 1
 fi
 
-if [ "$CURRENT_IPV6" = "$LAST_IPV6" ]; then
-    log "IPv6 unchanged ($CURRENT_IPV6)"
+PUBLISHED_IPV6="$(
+    dig +short AAAA "$ddns_topdomain" @"$AUTH_NS" | head -n1
+)"
+
+if [ "$CURRENT_IPV6" = "$PUBLISHED_IPV6" ]; then
+    printf '%s\n' "$CURRENT_IPV6" > "$STATE_FILE"
+    log "DNS already correct ($CURRENT_IPV6)"
     exit 0
 fi
 
-log "IPv6 change detected"
-log "OLD=${LAST_IPV6:-<none>}"
-log "NEW=$CURRENT_IPV6"
+log "DNS mismatch detected"
+log "DNS=${PUBLISHED_IPV6:-<none>}"
+log "HOST=$CURRENT_IPV6"
 
 # ---------------------------------------------------------------------------
 # Update Infomaniak DynDNS

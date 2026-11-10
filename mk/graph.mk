@@ -193,6 +193,7 @@ wg-network-phase: converge-network router-ra-policy tailscaled-dependencies-met 
 wg-network-phase: nft-apply-phase
 
 # Phase 3: Services (Independent of each other)
+# router-caddy \ removed before nas-caddy \
 .PHONY: service-phase
 service-phase: | nft-confirm
 service-phase: install-systemd enable-systemd deploy-unbound-config monitoring \
@@ -200,7 +201,6 @@ service-phase: install-systemd enable-systemd deploy-unbound-config monitoring \
 			enable-unbound verify-internal-dns all-remote \
 			router-certs-prepare \
 			router-certs-deploy \
-			router-caddy \
 			nas-caddy \
 			netbird-deploy \
 			iscsi-game-drive

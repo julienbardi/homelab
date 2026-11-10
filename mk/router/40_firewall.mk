@@ -319,6 +319,7 @@ router-firewall-started: router-install-scripts router-nat-install
 .PHONY: router
 router: router-all
 
+# remove 	router-caddy after router-dnsmasq-invariants \
 .PHONY: router-all
 router-all: \
 	sanity \
@@ -330,8 +331,7 @@ router-all: \
 	router-dnsmasq-sync \
 	router-nat-install \
 	router-firewall-started \
-	router-dnsmasq-invariants \
-	router-caddy
+	router-dnsmasq-invariants
 	@echo "🎯 Router bootstrap + converge + verify complete"
 
 .PHONY: router-reachability

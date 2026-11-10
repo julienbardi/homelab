@@ -14,7 +14,7 @@ router-health: router-ssh-check router-bootstrap-primitives
 		echo "System      : $$(uname -m)"; \
 		echo "Uptime      : $$(uptime | sed "s/^ *//")"; \
 		echo "Storage     :"; \
-		df -h /jffs /tmp/mnt/sda || true; \
+		df -h /jffs 2>/dev/null || true; \
 		echo; \
 		if iptables -S | grep -qE -- "-A .* -p tcp .*--dport 443 .* -j ACCEPT"; then \
 			echo "✖  Firewall     WAN HTTPS exposed"; \
@@ -42,19 +42,15 @@ router-health: router-ssh-check router-bootstrap-primitives
 			iptables -S FORWARD | grep wgs1 || true; \
 			exit 1; \
 		fi; \
-		test -x "$(ROUTER_CADDY_BIN)" || { \
-			echo "✖  Caddy        binary missing"; \
-			exit 1; \
-		}; \
-		pidof caddy >/dev/null || { \
-			echo "✖  Caddy        not running"; \
-			exit 1; \
-		}; \
-		"$(ROUTER_CADDY_BIN)" validate --config "$(ROUTER_CADDYFILE_DST)" >/dev/null 2>&1 || { \
-			echo "✖  Caddy        invalid config"; \
-			exit 1; \
-		}; \
-		echo "✔  Caddy        healthy"; \
+		if [ -x "$(ROUTER_CADDY_BIN)" ]; then \
+			if pidof caddy >/dev/null; then \
+				echo "✔  Caddy        healthy"; \
+			else \
+				echo "ℹ️  Caddy        installed but disabled"; \
+			fi; \
+		else \
+			echo "ℹ️  Caddy        not installed"; \
+		fi; \
 		echo "✔  IPv6         per-peer model active"; \
 		echo; \
 		echo "✔  Router healthy"; \

@@ -21,6 +21,7 @@ HOST_IPV6_IFACE := $(shell \
 verify-ipv6-invariants:
 	@set -eu; \
 	echo "🔍 Verifying IPv6 invariants..."; \
+	echo "HOST_IPV6_IFACE=$(HOST_IPV6_IFACE)"; \
 	\
 	# $(HOST_IPV6_IFACE) MUST have a ULA (fdxx::) \
 	if ! ip -6 addr show dev "$(HOST_IPV6_IFACE)" 2>/dev/null | grep -Eq 'inet6 fd[0-9a-f]'; then \
@@ -31,9 +32,24 @@ verify-ipv6-invariants:
 	HAS_GUA=$$(ip -6 addr show dev "$(HOST_IPV6_IFACE)" 2>/dev/null | grep -Eq 'inet6 2[0-9a-f]' && echo yes || echo no); \
 	\
 	if [ "$$HAS_GUA" = "yes" ]; then \
-		# If GUA exists, default route MUST exist \
-		if ! ip -6 route show default | grep -q "dev $(HOST_IPV6_IFACE)"; then \
-			echo "❌ $(HOST_IPV6_IFACE) has global IPv6 but no default IPv6 route"; exit 1; \
+		ROUTE_OK=no; \
+		for _ in 1 2 3 4 5; do \
+			if ip -6 route show default | grep -q "dev $(HOST_IPV6_IFACE)"; then \
+				ROUTE_OK=yes; \
+				break; \
+			fi; \
+			sleep 1; \
+		done; \
+		if [ "$$ROUTE_OK" != "yes" ]; then \
+			echo "❌ $(HOST_IPV6_IFACE) has global IPv6 but no default IPv6 route"; \
+			echo "HOST_IPV6_IFACE=$(HOST_IPV6_IFACE)"; \
+			echo "--- IPv6 addresses ---"; \
+			ip -6 addr show dev "$(HOST_IPV6_IFACE)" || true; \
+			echo "--- Default routes ---"; \
+			ip -6 route show default || true; \
+			echo "--- All routes ---"; \
+			ip -6 route show || true; \
+			exit 1; \
 		fi; \
 		echo "✅ $(HOST_IPV6_IFACE): GUA + default IPv6 route OK"; \
 	else \
