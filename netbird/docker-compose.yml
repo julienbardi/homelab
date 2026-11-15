@@ -14,6 +14,8 @@ services:
       - AUTH_AUDIENCE=netbird-dashboard
       - AUTH_CLIENT_ID=netbird-dashboard
       - AUTH_AUTHORITY=https://netbird.bardi.ch/oauth2
+      - AUTH_REDIRECT_URI=/nb-auth
+      - AUTH_SILENT_REDIRECT_URI=/nb-silent-auth
       - AUTH_SUPPORTED_SCOPES=openid profile email
       - USE_AUTH0=false
       - LETSENCRYPT_DOMAIN=none

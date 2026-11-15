@@ -31,7 +31,7 @@ bardi.ch:8384 {
 		# Restrict sensitive API, OIDC, and management endpoints strictly
 		zone netbird_api_zone {
 			match {
-				path /api/* /oauth2/* /signalexchange.SignalExchange/* /management.ManagementService/* /management.ProxyService/* /relay/* /ws-proxy/*
+				path /api/* /oauth2/* /signalexchange.SignalExchange/* /management.ManagementService/* /management.ProxyService/* /relay /relay/* /ws-proxy/*
 			}
 			key {http.request.remote.host}
 			events 60
@@ -49,10 +49,17 @@ bardi.ch:8384 {
 		}
 	}
 
+	# NetBird Relay WebSocket
+	@netbird_relay {
+		host netbird.bardi.ch
+		path /relay /relay/*
+	}
+	reverse_proxy @netbird_relay 127.0.0.1:10080
+
 	# NetBird Management API & gRPC (h2c)
 	@netbird_api {
 		host netbird.bardi.ch
-		path /api/* /signalexchange.SignalExchange/* /management.ManagementService/* /management.ProxyService/* /relay/* /ws-proxy/* /oauth2/*
+		path /api/* /signalexchange.SignalExchange/* /management.ManagementService/* /management.ProxyService/* /ws-proxy/* /oauth2/*
 	}
 	reverse_proxy @netbird_api 127.0.0.1:10080 {
 		transport http {
