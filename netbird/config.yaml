@@ -15,7 +15,7 @@ server:
   dataDir: "/var/lib/netbird"
 
   auth:
-    issuer: "https://auth.bardi.ch/application/o/netbird/"
+    issuer: "https://netbird.bardi.ch/oauth2"
     clientID: "netbird-dashboard"
     audience: "netbird"
     signKeyRefreshEnabled: true
