@@ -252,6 +252,16 @@ bardi.ch:8384 {
 		respond "APT cache temporarily unavailable" 503
 	}
 
+	# Authentik
+	@authentik {
+		host auth.bardi.ch
+	}
+
+	reverse_proxy @authentik 127.0.0.1:19000 {
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host {http.request.host}
+	}
+
 	# Unknown host fallback
 	@unknown not host \
  bardi.ch \
@@ -265,6 +275,7 @@ bardi.ch:8384 {
  apt.bardi.ch \
  pve.bardi.ch \
  netbird.bardi.ch \
+ auth.bardi.ch \
  immich.bardi.ch \
  immich.lan.bardi.ch
 

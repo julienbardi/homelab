@@ -81,6 +81,7 @@ include $(REPO_ROOT)/mk/40_iscsi-game-drive.mk
 include $(REPO_ROOT)/mk/40_nas-caddy.mk
 #include $(REPO_ROOT)/mk/40_nas-traefik.mk
 include $(REPO_ROOT)/mk/netbird.mk
+include $(REPO_ROOT)/mk/authentik.mk
 # STAMP_DIR_ROOT must be defined before any WG DAG fragments are included
 include $(REPO_ROOT)/mk/40_wireguard.mk
 include $(REPO_ROOT)/mk/41_firewall-nas.mk
