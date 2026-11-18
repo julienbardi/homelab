@@ -10,6 +10,7 @@ export LAN_NAS         := 10.89.12.4
 export LAN_RASPBERRYPI := 10.89.12.5
 export LAN_AC86U       := 10.89.12.6
 export LAN_HUB01       := 10.89.12.11
+export LAN_IMMICH      := 10.89.12.25
 
 # IPv6 ULA Topology (authoritative)
 export LAN6_PREFIX_BASE := fd89:7a3b:42c0
