@@ -1,32 +1,35 @@
 # config.mk — committed, non-secret configuration
 
 # LAN Topology (authoritative)
-export LAN_NET         := 10.89.12.0/24
-export LAN_NET_ADDR    := 10.89.12.0
-export LAN_ROUTER      := 10.89.12.1
-export LAN_SYNOLOGY    := 10.89.12.2
-export LAN_QNAP        := 10.89.12.3
-export LAN_NAS         := 10.89.12.4
-export LAN_RASPBERRYPI := 10.89.12.5
-export LAN_AC86U       := 10.89.12.6
-export LAN_HUB01       := 10.89.12.11
-export LAN_IMMICH      := 10.89.12.25
+export LAN_NET          := 10.89.12.0/24
+export LAN_NET_ADDR     := 10.89.12.0
+export LAN_ROUTER       := 10.89.12.1
+export LAN_SYNOLOGY     := 10.89.12.2
+export LAN_QNAP         := 10.89.12.3
+export LAN_NAS          := 10.89.12.4
+export LAN_RASPBERRYPI  := 10.89.12.5
+export LAN_AC86U        := 10.89.12.6
+export LAN_HUB01        := 10.89.12.11
+export LAN_NETBIRD_EXIT := 10.89.12.20
+export LAN_IMMICH       := 10.89.12.25
 
 # IPv6 ULA Topology (authoritative)
 export LAN6_PREFIX_BASE := fd89:7a3b:42c0
 
-export LAN6_ROUTER      := fd89:7a3b:42c0::1
-export LAN6_SYNOLOGY    := fd89:7a3b:42c0::2
-export LAN6_QNAP        := fd89:7a3b:42c0::3
-export LAN6_NAS         := fd89:7a3b:42c0::4
-export LAN6_RASPBERRYPI := fd89:7a3b:42c0::5
-export LAN6_AC86U       := fd89:7a3b:42c0::6
+export LAN6_ROUTER       := fd89:7a3b:42c0::1
+export LAN6_SYNOLOGY     := fd89:7a3b:42c0::2
+export LAN6_QNAP         := fd89:7a3b:42c0::3
+export LAN6_NAS          := fd89:7a3b:42c0::4
+export LAN6_RASPBERRYPI  := fd89:7a3b:42c0::5
+export LAN6_AC86U        := fd89:7a3b:42c0::6
+export LAN6_NETBIRD_EXIT := fd89:7a3b:42c0::20
+export LAN6_IMMICH       := fd89:7a3b:42c0::25
 
 # IPv6 policy target
 export LAN6_PREFIX_LEN     := 48
 export LAN6_LAN_PREFIX_LEN := 64
 export ULA_PREFIX_NVRAM    := $(LAN6_PREFIX_BASE)::/$(LAN6_PREFIX_LEN)
-export LAN6_NET         := $(LAN6_PREFIX_BASE)::/$(LAN6_LAN_PREFIX_LEN)
+export LAN6_NET            := $(LAN6_PREFIX_BASE)::/$(LAN6_LAN_PREFIX_LEN)
 
 # WireGuard DNS topology (authoritative, non-secret)
 # Fastest-first ordering: DoH ➡️ Router IPv4 ➡️ NAS IPv6

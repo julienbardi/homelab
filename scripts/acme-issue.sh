@@ -10,8 +10,8 @@
 # - RSA exists for DSM compatibility
 # - Safe to run repeatedly
 # - Validates certificate contracts before any ACME operation
-# - Issues missing lineages
-# - Requests renewal for certificates within the renewal window
+# - Ensures certificate lineages exist and satisfy contract requirements
+# - Renewal policy is delegated to acme-renew.sh / acme.sh
 # - Refuses silent contract drift
 #
 # RUNTIME REQUIREMENT:
@@ -32,11 +32,20 @@ ECC_KEY="$ECC_LINEAGE/${PRIMARY_DOMAIN}.key"
 RSA_CERT="$RSA_LINEAGE/fullchain.cer"
 RSA_KEY="$RSA_LINEAGE/${PRIMARY_DOMAIN}.key"
 
-RENEW_MARGIN_DAYS=60
-RENEW_MARGIN_SECS=$((RENEW_MARGIN_DAYS * 24 * 60 * 60))
-
 # ------------------------------------------------------------------
 # Validate certificate contract
+#
+# Validation checks:
+#   - certificate exists
+#   - key exists
+#   - certificate is readable
+#   - certificate is not expired
+#   - required SANs are present
+#   - certificate and key match
+#   - algorithm matches expected type
+#
+# Renewal eligibility is NOT evaluated here.
+# Renewal policy is delegated to acme.sh.
 #
 # Arguments:
 #   $1 cert
@@ -70,10 +79,10 @@ validate_cert() {
 	}
 
 	openssl x509 \
-		-checkend "$RENEW_MARGIN_SECS" \
+		-checkend 0 \
 		-noout \
 		-in "$cert" >/dev/null 2>&1 || {
-		echo "🔄 certificate expires within ${RENEW_MARGIN_DAYS} days, renewal required"
+		echo "⚠️ certificate already expired"
 		return 1
 	}
 
@@ -185,7 +194,7 @@ validate_cert() {
 	eval "${prefix}_DAYS=\"\$days_remaining\""
 	eval "${prefix}_FP=\"\$fingerprint\""
 
-	echo "✅ $prefix certificate valid (> ${RENEW_MARGIN_DAYS} days remaining)"
+	echo "✅ $prefix certificate valid"
 
 	return 0
 }
@@ -241,16 +250,14 @@ if ! validate_cert "$RSA_CERT" "$RSA_KEY" rsa RSA; then
 fi
 
 echo "│"
-printf '│ ECC %-3s expires in %3s days  (renew below %s)  %s\n' \
+printf '│ ECC %-3s expires in %3s days  %s\n' \
     "${ECC_STATUS:-FAIL}" \
     "${ECC_DAYS:-0}" \
-    "${RENEW_MARGIN_DAYS}" \
     "${ECC_EXPIRY:-N/A}"
 
-printf '│ RSA %-3s expires in %3s days  (renew below %s)  %s\n' \
+printf '│ RSA %-3s expires in %3s days  %s\n' \
     "${RSA_STATUS:-FAIL}" \
     "${RSA_DAYS:-0}" \
-    "${RENEW_MARGIN_DAYS}" \
     "${RSA_EXPIRY:-N/A}"
 echo "│"
 echo "│ ECC issuer      ${ECC_ISSUER:-N/A}, ECC subject ${ECC_SUBJECT:-N/A}"

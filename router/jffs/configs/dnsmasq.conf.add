@@ -35,9 +35,9 @@ address=/pve.lan.bardi.ch/fd89:7a3b:42c0::4
 ptr-record=10.89.12.4,pve.lan.bardi.ch
 ptr-record=fd89:7a3b:42c0::4,pve.lan.bardi.ch
 
-# Immich (private only) - Correctly points to Edge Router
-address=/immich.lan.bardi.ch/10.89.12.1
-address=/immich.lan.bardi.ch/fd89:7a3b:42c0::1
+# Immich (private only)
+address=/immich.lan.bardi.ch/10.89.12.25
+address=/immich.lan.bardi.ch/fd89:7a3b:42c0::25
 
 address=/raspberrypi.lan.bardi.ch/10.89.12.5
 address=/raspberrypi.lan.bardi.ch/fd89:7a3b:42c0::5
