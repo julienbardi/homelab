@@ -97,6 +97,7 @@ include $(REPO_ROOT)/mk/80_tailnet.mk
 include $(REPO_ROOT)/mk/81_headscale.mk
 include $(REPO_ROOT)/mk/83_headscale-users.mk
 include $(REPO_ROOT)/mk/84_headscale-acls.mk
+include $(REPO_ROOT)/mk/85_immich.mk
 include $(REPO_ROOT)/mk/85_monitoring.mk
 include $(REPO_ROOT)/mk/85_tailscaled.mk
 include $(REPO_ROOT)/mk/90_dns-health.mk

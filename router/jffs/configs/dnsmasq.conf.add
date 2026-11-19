@@ -35,7 +35,13 @@ address=/pve.lan.bardi.ch/fd89:7a3b:42c0::4
 ptr-record=10.89.12.4,pve.lan.bardi.ch
 ptr-record=fd89:7a3b:42c0::4,pve.lan.bardi.ch
 
-# Immich (private only)
+# Immich (canonical user-facing URL)
+# Must resolve to Caddy, not directly to Immich,
+# so TLS, Authentik, access control and sharing links work correctly.
+address=/immich.bardi.ch/10.89.12.4
+address=/immich.bardi.ch/fd89:7a3b:42c0::4
+
+# Direct backend service (optional legacy/internal access)
 address=/immich.lan.bardi.ch/10.89.12.25
 address=/immich.lan.bardi.ch/fd89:7a3b:42c0::25
 

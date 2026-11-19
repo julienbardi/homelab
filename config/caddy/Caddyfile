@@ -205,7 +205,7 @@ bardi.ch:8384 {
 
 	# --- 1. Allowed Immich Traffic (LAN / NetBird / WireGuard) ---
 	@immich_authorized {
-		host immich.bardi.ch immich.lan.bardi.ch
+		host immich.bardi.ch
 		remote_ip 10.89.12.0/24
 		remote_ip fd89:7a3b:42c0::/64
 		remote_ip 10.0.0.0/8
@@ -220,7 +220,7 @@ bardi.ch:8384 {
 
 	# --- 2. Denied Immich Traffic (Public WAN Fallback) ---
 	@immich_denied {
-		host immich.bardi.ch immich.lan.bardi.ch
+		host immich.bardi.ch
 		not remote_ip 10.89.12.0/24
 		not remote_ip fd89:7a3b:42c0::/64
 		not remote_ip 10.0.0.0/8
@@ -276,8 +276,7 @@ bardi.ch:8384 {
  pve.bardi.ch \
  netbird.bardi.ch \
  auth.bardi.ch \
- immich.bardi.ch \
- immich.lan.bardi.ch
+ immich.bardi.ch
 
 	respond @unknown "Not Found" 404
 }
