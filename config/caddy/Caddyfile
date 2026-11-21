@@ -31,6 +31,7 @@ bardi.ch:8384 {
 		# Restrict sensitive API, OIDC, and management endpoints strictly
 		zone netbird_api_zone {
 			match {
+				host netbird.bardi.ch
 				path /api/* /oauth2/* /signalexchange.SignalExchange/* /management.ManagementService/* /management.ProxyService/* /relay /relay/* /ws-proxy/*
 			}
 			key {http.request.remote.host}
