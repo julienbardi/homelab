@@ -65,7 +65,7 @@ acme-install: acme-ensure-dirs
 	CURRENT_VER="$$( $(run_as_root) sh -c 'if [ -x "$(ACME_BIN)" ]; then "$(ACME_BIN)" --version | tail -n 1 | xargs; else echo none; fi' )"; \
 	FORCE_REINSTALL=0; \
 	\
-	if ! $(run_as_root) grep -q "LE_WORKING_DIR" "$(ACME_HOME)/account.conf" 2>/dev/null; then \
+	if ! $(run_as_root) grep -q "LE_WORKING_DIR" "$(ACME_HOME)/acme.sh.env" 2>/dev/null; then \
 		if [ "$$CURRENT_VER" != "none" ]; then \
 			echo "⚠️ ACME installed but not sudo-safe — forcing reinstall"; \
 		fi; \
