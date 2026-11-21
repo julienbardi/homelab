@@ -32,6 +32,7 @@ Governance & authority:
 - Temporary incapacity
 - Authority succession
 - Mechanical grounding & hallucination prevention
+- Environment grounding before command emission
 - Complete and Unshortened Output Invariant
 - BusyBox-Compatible AWK and Makefile Quoting Invariant
 - Assistant Change‑Safety Extensions
@@ -499,6 +500,76 @@ Enforcement status:
 
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+
+CONTRACT: Environment grounding before command emission
+
+-------------------------------------------------------------------------------
+
+Agents MUST distinguish between runtime facts that are verified,
+operator-supplied, and assumed.
+
+Rules:
+
+The agent MUST explicitly distinguish between:
+- verified runtime facts
+- operator-supplied facts
+- assumptions or hypotheses
+
+Any command emitted by the agent MUST depend only on:
+- verified runtime facts
+- operator-supplied facts
+
+If a required runtime fact is unknown, the agent MUST state that the
+fact is unknown and MUST request the minimal evidence required to
+establish it.
+
+Examples of runtime facts include (non-exhaustive):
+
+- container names
+- service names
+- systemd unit names
+- hostnames
+- interface names
+- filesystem paths
+- repository locations
+- mount points
+- deployment targets
+
+Commands containing invented, inferred, assumed, or unverified:
+
+- paths
+- container names
+- service names
+- interface names
+- targets
+- filenames
+- hostnames
+
+are forbidden.
+
+The agent MUST NOT substitute standard deployment patterns,
+common conventions, vendor defaults, remembered values, or
+architectural assumptions for verified runtime facts.
+
+Absence of evidence MUST be treated as unknown, not as evidence
+of a standard deployment pattern.
+
+Rationale:
+
+Runtime-environment hallucinations can produce incorrect commands,
+misleading diagnostics, and destructive recommendations.
+
+Mechanical grounding of repository contents alone is insufficient;
+commands must also be grounded in verified runtime state.
+
+This contract extends the mechanical grounding & hallucination
+prevention contract to command emission and operational diagnostics.
+
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+
 CONTRACT: Complete and Unshortened Output Invariant
 
 -------------------------------------------------------------------------------
@@ -666,43 +737,76 @@ CONTRACT: Assistant Change‑Safety Extensions
 These clauses extend existing assistant‑behavior rules. They do not modify,
 weaken, or supersede any prior contract. They are strictly additive.
 
-- Minimal‑Change Invariant
-  The assistant must propose only the smallest possible modification required
-  to satisfy the user’s explicit request. Structural, semantic, or behavioral
-  changes are forbidden unless the user explicitly requests them. If a change
-  requires more than five lines of modification, the assistant must stop and
-  ask whether a larger refactor is desired.
+Minimal‑Change Invariant
 
-- Structure‑Preservation Invariant
-  The assistant must not propose changes to file layout, directory structure,
-  Makefile target names, Make DAG dependencies, privilege boundaries
-  (including run_as_root), bootstrap chain, or systemd units unless the user
-  explicitly requests structural changes.
+ The assistant must propose only the smallest possible modification required
+ to satisfy the user’s explicit request. Structural, semantic, or behavioral
+ changes are forbidden unless the user explicitly requests them. If a change
+ requires more than five lines of modification, the assistant must stop and
+ ask whether a larger refactor is desired.
 
-- Invocation‑Model Invariant
-  The assistant must not alter how scripts are invoked, how arguments are
-  passed, or how Make macros expand unless explicitly requested. Multi‑argument
-  script invocations must not be rewritten unless the user authorizes it.
+Structure‑Preservation Invariant
 
-- Fast‑Path Semantics Invariant
-  For any script implementing a fast‑path (“already up‑to‑date”) branch, the
-  assistant must preserve the invariant that fast‑path exits with code 0.
-  The assistant must not propose changes that alter this behavior.
+ The assistant must not propose changes to file layout, directory structure,
+ Makefile target names, Make DAG dependencies, privilege boundaries
+ (including run_as_root), bootstrap chain, or systemd units unless the user
+ explicitly requests structural changes.
 
-- Repo‑Source‑of‑Truth Invariant
-  The assistant must treat repository files (scripts/, mk/, config/) as the
-  canonical source of truth. Installed copies under /usr/local/bin or /etc
-  must not be modified unless the user explicitly requests deployment.
+Invocation‑Model Invariant
 
-- No Implicit Contract Changes
-  The assistant must not reinterpret, weaken, or replace existing contract
-  clauses. Any modification to the contract itself requires explicit user
-  authorization.
+ The assistant must not alter how scripts are invoked, how arguments are
+ passed, or how Make macros expand unless explicitly requested. Multi‑argument
+ script invocations must not be rewritten unless the user authorizes it.
 
-- Stop‑and‑Ask Rule
-  If the assistant is not certain that a proposed change is minimal,
-  safe, privilege‑correct, DAG‑correct, and contract‑preserving, the
-  assistant must stop and ask for confirmation before proposing any change.
+Fast‑Path Semantics Invariant
+
+ For any script implementing a fast‑path (“already up‑to‑date”) branch, the
+ assistant must preserve the invariant that fast‑path exits with code 0.
+ The assistant must not propose changes that alter this behavior.
+
+Repo‑Source‑of‑Truth Invariant
+
+ The assistant must treat repository files (scripts/, mk/, config/) as the
+ canonical source of truth. Installed copies under /usr/local/bin or /etc
+ must not be modified unless the user explicitly requests deployment.
+
+Output‑Preservation Invariant
+
+ When the user provides existing code, configuration, contracts,
+ documentation, Makefiles, scripts, tables, structured text, or other
+ authoritative content and requests modification, insertion, replacement,
+ or extension, the assistant must preserve the existing formatting style
+ exactly.
+
+ The assistant must not introduce formatting drift including:
+ - indentation changes
+ - leading-space changes
+ - blank-line changes
+ - paragraph-separation changes
+ - bullet-style changes
+ - separator changes
+ - line-wrap changes
+ - capitalization changes
+ - spacing changes
+
+ except where explicitly required by the requested modification.
+
+ If reproducing or extending existing content, the assistant must treat
+ formatting as authoritative rather than cosmetic.
+
+ Unrequested formatting changes constitute a contract violation.
+
+No Implicit Contract Changes
+
+ The assistant must not reinterpret, weaken, or replace existing contract
+ clauses. Any modification to the contract itself requires explicit user
+ authorization.
+
+Stop‑and‑Ask Rule
+
+ If the assistant is not certain that a proposed change is minimal,
+ safe, privilege‑correct, DAG‑correct, and contract‑preserving, the
+ assistant must stop and ask for confirmation before proposing any change.
 
 -------------------------------------------------------------------------------
 
