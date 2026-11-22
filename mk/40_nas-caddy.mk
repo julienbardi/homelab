@@ -1,4 +1,10 @@
 # 40_nas-caddy.mk
+
+CADDY_VERSION ?= v2.11.7
+CADDY_BUILD_DIR := $(STAMP_DIR_USER)/caddy-build
+CADDY_CUSTOM_BIN := $(CADDY_BUILD_DIR)/caddy
+CADDY_RATE_LIMIT_MODULE := github.com/mholt/caddy-ratelimit
+
 NAS_CADDY_BIN               ?= /usr/bin/caddy
 NAS_CADDY_BACKUP            ?= /usr/bin/caddy.orig
 NAS_STAMP_CADDY             ?= $(STAMP_DIR_ROOT)/caddy.installed
@@ -8,8 +14,32 @@ SRC_NAS_CADDYFILE           := $(REPO_ROOT)/config/caddy/Caddyfile
 SRC_NAS_SERVICE             := $(REPO_ROOT)/config/caddy/caddy.service
 NAS_SYSTEMD_CADDY           := /etc/systemd/system/caddy.service
 
-# Official Caddy download API endpoint with rate_limit plugin requested
-CADDY_DOWNLOAD_URL          ?= https://caddyserver.com/api/download?os=linux&arch=amd64&p=github.com%2Fmholt%2Fcaddy-ratelimit
+.PHONY: caddy-build-local
+caddy-build-local: | $(XCADDY)
+	@set -euo pipefail; \
+	mkdir -p "$(CADDY_BUILD_DIR)"; \
+	"$(XCADDY)" build "$(CADDY_VERSION)" \
+		--output "$(CADDY_CUSTOM_BIN)" \
+		--with "$(CADDY_RATE_LIMIT_MODULE)"
+
+.PHONY: caddy-build-verify
+caddy-build-verify: caddy-build-local
+	@"$(CADDY_CUSTOM_BIN)" version
+	@"$(CADDY_CUSTOM_BIN)" list-modules | \
+		grep '^http.handlers.rate_limit$$'
+
+.PHONY: caddy-install-local
+caddy-install-local: caddy-build-verify | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
+	@rc=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
+		"" "" "$(CADDY_CUSTOM_BIN)" \
+		"" "" "$(NAS_CADDY_BIN)" \
+		root root 0755 \
+	|| rc=$$?; \
+	case "$$rc" in \
+	$(INSTALL_IF_CHANGED_EXIT_UNCHANGED)|$(INSTALL_IF_CHANGED_EXIT_CHANGED)) ;; \
+	*) exit "$$rc" ;; \
+	esac
 
 .PHONY: nas-caddy-dirs
 nas-caddy-dirs: | $(run_as_root) $(ENSURE_DIRS)
@@ -24,7 +54,7 @@ nas-caddy-dirs: | $(run_as_root) $(ENSURE_DIRS)
 	esac
 
 .PHONY: deploy-nas-caddyfile
-deploy-nas-caddyfile: nas-caddy-dirs | $(run_as_root)
+deploy-nas-caddyfile: nas-caddy-dirs | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
 	@if [ "$(VERBOSE)" -ge "1" ]; then \
 		echo "📋 Checking deployed Caddyfile drift..."; \
 	fi; \
@@ -57,7 +87,17 @@ deploy-nas-caddyfile: nas-caddy-dirs | $(run_as_root)
 	fi
 
 .PHONY: nas-caddy
-nas-caddy: gitcheck nas-assert-caddy-ports-free acme-issue deploy-caddy install-all nas-caddy-dirs deploy-nas-caddyfile
+nas-caddy: \
+	gitcheck \
+	nas-assert-caddy-ports-free \
+	acme-issue \
+	deploy-caddy \
+	nas-caddy-dirs \
+	deploy-nas-caddyfile \
+	caddy-install-local \
+	| $(run_as_root) \
+	  $(INSTALL_FILE_IF_CHANGED) \
+	  $(ENSURE_DIRS)
 	@set -euo pipefail; \
 	echo "🔐 Preparing Caddy binary backup and system users/groups"; \
 	$(run_as_root) bash -c 'set -euo pipefail; \
@@ -71,19 +111,7 @@ nas-caddy: gitcheck nas-assert-caddy-ports-free acme-issue deploy-caddy install-
 		if ! getent passwd caddy >/dev/null 2>&1; then \
 			useradd --system --gid caddy --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy; \
 		fi; \
-		install -d -m 0750 -o root -g caddy /etc/ssl/caddy; \
 	'; \
-	\
-	echo "📥 Installing custom Caddy binary with rate_limit plugin via install_url_file_if_changed"; \
-	caddy_rc=0; \
-	$(run_as_root) $(INSTALL_URL_FILE_IF_CHANGED) \
-		"$(CADDY_DOWNLOAD_URL)" \
-		"$(NAS_CADDY_BIN)" \
-		root root 0755 "" 86400 || caddy_rc=$$?; \
-	case "$$caddy_rc" in \
-		$(INSTALL_IF_CHANGED_EXIT_UNCHANGED)|$(INSTALL_IF_CHANGED_EXIT_CHANGED)) ;; \
-		*) echo "❌ Failed to download/install Caddy binary"; exit "$$caddy_rc" ;; \
-	esac; \
 	\
 	echo "📋⬇️ Installing SSL Certificates"; \
 	$(call install_file,$(ACME_LINEAGE_ECC)/fullchain.cer,/etc/ssl/caddy/bardi.ch.cer,root,caddy,0640); \
