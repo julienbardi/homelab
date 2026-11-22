@@ -324,11 +324,14 @@ headscale-user:
 			$(HEADSCALE_USER) || true; \
 	fi
 
-headscale-dirs: headscale-user
-	@$(run_as_root) /bin/sh -c '\
-		# Runtime directories (service-owned) \
-		install -d -m 0750 -o headscale -g headscale /var/lib/headscale; \
-		install -d -m 0750 -o headscale -g headscale /var/run/headscale; \
-		# Configuration directory \
-		install -d -m 0770 -o headscale -g headscale /etc/headscale \
-	'
+headscale-dirs: headscale-user | $(run_as_root) $(ENSURE_DIRS)
+	@rc=0; \
+	$(run_as_root) $(ENSURE_DIRS) \
+		/var/lib/headscale headscale headscale 0750 \
+		/var/run/headscale headscale headscale 0750 \
+		/etc/headscale headscale headscale 0770 \
+		|| rc=$$?; \
+	case "$$rc" in \
+		0|3) ;; \
+		*) exit "$$rc" ;; \
+	esac
