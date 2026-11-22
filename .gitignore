@@ -154,3 +154,4 @@ crowdsec/
 # === NetBird env files containing secrets (ignored) ===
 netbird/proxy.env
 netbird/traefik.env
+netbird/config.yaml

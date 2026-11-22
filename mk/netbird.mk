@@ -4,6 +4,7 @@
 NETBIRD_DIR := $(REPO_ROOT)/netbird
 
 NETBIRD_COMPOSE_FILE := $(NETBIRD_DIR)/docker-compose.yml
+NETBIRD_TEMPLATE_FILE := $(NETBIRD_DIR)/config.yaml.template
 NETBIRD_CONFIG_FILE  := $(NETBIRD_DIR)/config.yaml
 
 COMPOSE_NETBIRD := docker compose -f $(NETBIRD_COMPOSE_FILE)
@@ -30,7 +31,20 @@ netbird-rotate-token: ensure-state-dirs
 # NetBird compose + config deployment (idempotent)
 ###############################################################################
 
-deploy-netbird-compose: $(NETBIRD_COMPOSE_FILE) $(NETBIRD_CONFIG_FILE) ensure-state-dirs
+.PHONY: render-netbird-config
+
+render-netbird-config:
+	@echo "📝 Rendering NetBird config from template..."
+	@SECRETS_DEC="$$(sops -d $(SECRETS_FILE))"; \
+	export NB_AUTH_SECRET="$$(echo "$$SECRETS_DEC" | yq e '.netbird_auth_secret' -)"; \
+	export NB_ENCRYPTION_KEY="$$(echo "$$SECRETS_DEC" | yq e '.netbird_encryption_key' -)"; \
+	sed \
+		-e "s|__NB_AUTH_SECRET__|$$NB_AUTH_SECRET|g" \
+		-e "s|__NB_ENCRYPTION_KEY__|$$NB_ENCRYPTION_KEY|g" \
+		"$(NETBIRD_TEMPLATE_FILE)" \
+		> "$(NETBIRD_CONFIG_FILE)"
+
+deploy-netbird-compose: render-netbird-config $(NETBIRD_COMPOSE_FILE) ensure-state-dirs
 	@echo "📦 Checking NetBird compose + config changes..."
 
 	@changed=0; rc=0; \

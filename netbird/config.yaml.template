@@ -11,7 +11,7 @@ server:
   logLevel: "info"
   logFile: "console"
 
-  authSecret: "RB3/Qh1yMkZ7YaEbXts9cg64hdHcNZ7hmhQkjADTyAE"
+  authSecret: "__NB_AUTH_SECRET__"
   dataDir: "/var/lib/netbird"
 
   auth:
@@ -31,4 +31,4 @@ server:
 
   store:
     engine: "sqlite"
-    encryptionKey: "2V/ushsROndFj99QO3JybzsF7Mx08qKyEiVdesy+mqw="
+    encryptionKey: "__NB_ENCRYPTION_KEY__"
