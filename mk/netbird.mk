@@ -34,15 +34,24 @@ netbird-rotate-token: ensure-state-dirs
 .PHONY: render-netbird-config
 
 render-netbird-config:
-	@echo "📝 Rendering NetBird config from template..."
-	@SECRETS_DEC="$$(sops -d $(SECRETS_FILE))"; \
+	@if [ "$(VERBOSE)" -ge "1" ]; then echo "📝 Rendering NetBird config from template..."; fi;
+	@tmp="$$(mktemp)"; \
+	trap 'rm -f "$$tmp"' EXIT; \
+	SECRETS_DEC="$$(sops -d $(SECRETS_FILE))"; \
 	export NB_AUTH_SECRET="$$(echo "$$SECRETS_DEC" | yq e '.netbird_auth_secret' -)"; \
 	export NB_ENCRYPTION_KEY="$$(echo "$$SECRETS_DEC" | yq e '.netbird_encryption_key' -)"; \
 	sed \
 		-e "s|__NB_AUTH_SECRET__|$$NB_AUTH_SECRET|g" \
 		-e "s|__NB_ENCRYPTION_KEY__|$$NB_ENCRYPTION_KEY|g" \
 		"$(NETBIRD_TEMPLATE_FILE)" \
-		> "$(NETBIRD_CONFIG_FILE)"
+		> "$$tmp"; \
+	rc=0; \
+	$(call install_file,"$$tmp",$(NETBIRD_CONFIG_FILE),$(shell id -u),$(shell id -g),0644) || rc=$$?; \
+	case "$${rc:-0}" in \
+	0|$(INSTALL_IF_CHANGED_EXIT_CHANGED)) ;; \
+	*) exit "$$rc" ;; \
+	esac
+
 
 deploy-netbird-compose: render-netbird-config $(NETBIRD_COMPOSE_FILE) ensure-state-dirs
 	@echo "📦 Checking NetBird compose + config changes..."
