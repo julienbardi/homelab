@@ -74,3 +74,23 @@ spellcheck: require-aspell
 spellcheck-comments: require-aspell
 	@sed -n 's/^[[:space:]]*#//p' $(SPELLCHECK_MAKEFILES) | \
 		aspell list | sort -u
+
+
+
+$(XCADDY): | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
+	@tmp="$$(mktemp -d)"; \
+	GOBIN="$$tmp" go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest; \
+	rc=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
+		"" "" "$$tmp/xcaddy" \
+		"" "" "$(XCADDY)" \
+		root root 0755 \
+	|| rc=$$?; \
+	rm -rf "$$tmp"; \
+	case "$$rc" in \
+	0|3) ;; \
+	*) exit "$$rc" ;; \
+	esac
+
+.PHONY: install-xcaddy
+install-xcaddy: $(XCADDY)

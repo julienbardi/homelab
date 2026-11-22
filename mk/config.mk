@@ -478,6 +478,9 @@ YQ_URL := https://github.com/$(YQ_GITHUB_REPO)/releases/download/$(YQ_VERSION)/$
 # Expected SHA256 for pinned version (ignored when using latest)
 YQ_SHA256 ?= sha256:c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385
 
+XCADDY := $(INSTALL_PATH)/xcaddy
+export XCADDY
+
 # Nas address (from config.mk)
 NAS_LAN_IP = $(LAN_NAS)
 NAS_LAN_IP6 = $(LAN6_NAS)
