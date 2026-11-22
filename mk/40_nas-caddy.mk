@@ -34,19 +34,6 @@ caddy-build-verify: caddy-build-local
 	@"$(CADDY_CUSTOM_BIN)" list-modules | \
 		grep '^http.handlers.rate_limit$$'
 
-.PHONY: caddy-install-local
-caddy-install-local: caddy-build-local | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
-	@rc=0; \
-	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
-		"" "" "$(CADDY_CUSTOM_BIN)" \
-		"" "" "$(NAS_CADDY_BIN)" \
-		root root 0755 \
-	|| rc=$$?; \
-	case "$$rc" in \
-	$(INSTALL_IF_CHANGED_EXIT_UNCHANGED)|$(INSTALL_IF_CHANGED_EXIT_CHANGED)) ;; \
-	*) exit "$$rc" ;; \
-	esac
-
 .PHONY: nas-caddy-dirs
 nas-caddy-dirs: | $(run_as_root) $(ENSURE_DIRS)
 	@rc=0; \
@@ -100,61 +87,102 @@ nas-caddy: \
 	deploy-caddy \
 	nas-caddy-dirs \
 	deploy-nas-caddyfile \
-	caddy-install-local \
 	| $(run_as_root) \
 	  $(INSTALL_FILE_IF_CHANGED) \
 	  $(ENSURE_DIRS)
 	@set -euo pipefail; \
-	echo "🔐 Preparing Caddy binary backup and system users/groups"; \
+	echo "🔐 Ensuring Caddy system users/groups"; \
 	$(run_as_root) bash -c 'set -euo pipefail; \
-		if [ -f "$(NAS_CADDY_BIN)" ]; then \
-			cp -f "$(NAS_CADDY_BIN)" "$(NAS_CADDY_BACKUP)"; \
-			chmod +x "$(NAS_CADDY_BACKUP)"; \
-		fi; \
-		if ! getent group caddy >/dev/null 2>&1; then \
-			groupadd --system caddy; \
-		fi; \
-		if ! getent passwd caddy >/dev/null 2>&1; then \
-			useradd --system --gid caddy --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy; \
-		fi; \
+	if ! getent group caddy >/dev/null 2>&1; then \
+		groupadd --system caddy; \
+	fi; \
+	if ! getent passwd caddy >/dev/null 2>&1; then \
+		useradd --system --gid caddy --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy; \
+	fi; \
 	'; \
 	\
 	echo "📋⬇️ Installing SSL Certificates"; \
 	$(call install_file,$(ACME_LINEAGE_ECC)/fullchain.cer,/etc/ssl/caddy/bardi.ch.cer,root,caddy,0640); \
 	$(call install_file,$(ACME_LINEAGE_ECC)/bardi.ch.key,/etc/ssl/caddy/bardi.ch.key,root,caddy,0640); \
 	\
+	CHANGED=0; \
+	SERVICE_CHANGED=0; \
+	IFC_STATUS=0; \
+	\
+	if [ -f "$(NAS_CADDY_BIN)" ]; then \
+		cp_rc=0; \
+		$(run_as_root) cmp -s "$(CADDY_CUSTOM_BIN)" "$(NAS_CADDY_BIN)" || cp_rc=1; \
+		if [ "$$cp_rc" -eq 1 ]; then \
+			echo "💾 Backing up existing Caddy binary"; \
+			$(run_as_root) cp -f "$(NAS_CADDY_BIN)" "$(NAS_CADDY_BACKUP)"; \
+			$(run_as_root) chmod 0755 "$(NAS_CADDY_BACKUP)"; \
+		fi; \
+	fi; \
+	\
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
+	"" "" "$(CADDY_CUSTOM_BIN)" \
+	"" "" "$(NAS_CADDY_BIN)" \
+	root root 0755 \
+	|| IFC_STATUS=$$?; \
+	\
+	if [ $$IFC_STATUS -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		CHANGED=1; \
+	elif [ $$IFC_STATUS -ne $(INSTALL_IF_CHANGED_EXIT_UNCHANGED) ]; then \
+		exit $$IFC_STATUS; \
+	fi; \
+	\
 	echo "📋⬇️ Installing Caddy systemd service"; \
-	$(call install_file,$(SRC_NAS_SERVICE),$(NAS_SYSTEMD_CADDY),root,root,0644); \
+	IFC_STATUS=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
+	"" "" "$(SRC_NAS_SERVICE)" \
+	"" "" "$(NAS_SYSTEMD_CADDY)" \
+	root root 0644 \
+	|| IFC_STATUS=$$?; \
+	\
+	if [ $$IFC_STATUS -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		CHANGED=1; \
+		SERVICE_CHANGED=1; \
+	elif [ $$IFC_STATUS -ne $(INSTALL_IF_CHANGED_EXIT_UNCHANGED) ]; then \
+		exit $$IFC_STATUS; \
+	fi; \
 	\
 	echo "🔍 Verifying installed Caddy and applying service"; \
-	$(run_as_root) bash -c 'set -euo pipefail; \
-		if ! "$(NAS_CADDY_BIN)" version >/dev/null 2>&1; then \
-			echo "❌ Installed Caddy not executable"; \
-			[ -f "$(NAS_CADDY_BACKUP)" ] && mv "$(NAS_CADDY_BACKUP)" "$(NAS_CADDY_BIN)"; \
-			exit 1; \
-		fi; \
-		if ! "$(NAS_CADDY_BIN)" list-modules | grep -q "^http.handlers.rate_limit$$"; then \
-			echo "❌ rate_limit plugin not found in installed binary"; \
-			[ -f "$(NAS_CADDY_BACKUP)" ] && mv "$(NAS_CADDY_BACKUP)" "$(NAS_CADDY_BIN)"; \
-			exit 1; \
-		fi; \
-		VERSION=$$("$(NAS_CADDY_BIN)" version); \
-		echo "✅ Caddy verified with rate_limit plugin: $$VERSION"; \
-		echo "version=$$VERSION installed_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-			> "$(NAS_STAMP_CADDY)"; \
-		\
-		systemctl daemon-reload; \
-		systemctl enable caddy; \
-		if systemctl is-active --quiet caddy; then \
-			systemctl restart caddy && echo "✅ Restarted successfully"; \
-		else \
-			systemctl restart caddy && echo "✅ Started/Restarted successfully"; \
-		fi \
-	'
-
+	\
+	$(run_as_root) "$(NAS_CADDY_BIN)" version >/dev/null 2>&1 || { \
+		echo "❌ Installed Caddy not executable"; \
+		[ -f "$(NAS_CADDY_BACKUP)" ] && mv "$(NAS_CADDY_BACKUP)" "$(NAS_CADDY_BIN)"; \
+		exit 1; \
+	}; \
+	\
+	$(run_as_root) "$(NAS_CADDY_BIN)" list-modules | \
+	grep -q "^http.handlers.rate_limit$$" || { \
+		echo "❌ rate_limit plugin not found in installed binary"; \
+		[ -f "$(NAS_CADDY_BACKUP)" ] && mv "$(NAS_CADDY_BACKUP)" "$(NAS_CADDY_BIN)"; \
+		exit 1; \
+	}; \
+	\
+	VERSION=$$($(run_as_root) "$(NAS_CADDY_BIN)" version); \
+	echo "✅ Caddy verified with rate_limit plugin: $$VERSION"; \
+	tmp_stamp="$$(mktemp)"; \
+	printf "version=%s\n" "$$VERSION" > "$$tmp_stamp"; \
+	$(call install_file,$$tmp_stamp,$(NAS_STAMP_CADDY),$(ROOT_UID),$(ROOT_GID),0644); \
+	rm -f "$$tmp_stamp"; \
+	\
+	if [ "$$SERVICE_CHANGED" -eq 1 ]; then \
+		echo "🔄 Reloading systemd units"; \
+		$(run_as_root) systemctl daemon-reload; \
+		$(run_as_root) systemctl enable caddy >/dev/null 2>&1 || true; \
+	fi; \
+	\
+	if [ "$$CHANGED" -eq 1 ]; then \
+		echo "🔄 Restarting Caddy"; \
+		$(run_as_root) systemctl restart caddy; \
+		echo "✅ Restarted successfully"; \
+	else \
+		echo "⏩ Caddy already converged"; \
+	fi
 
 .PHONY: nas-caddy-validate nas-caddy-fmt
-
 nas-caddy-validate:
 	@if ! sudo [ -f /etc/ssl/caddy/bardi.ch.cer ]; then \
 	  echo "⚠️ Certs missing (/etc/ssl/caddy/bardi.ch.cer); skipping full validation"; \
