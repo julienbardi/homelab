@@ -41,6 +41,10 @@ ptr-record=fd89:7a3b:42c0::4,pve.lan.bardi.ch
 address=/immich.bardi.ch/10.89.12.4
 address=/immich.bardi.ch/fd89:7a3b:42c0::4
 
+# LibreSpeed via local Caddy
+address=/fast.bardi.ch/10.89.12.4
+address=/fast.bardi.ch/fd89:7a3b:42c0::4
+
 # Direct backend service (optional legacy/internal access)
 address=/immich.lan.bardi.ch/10.89.12.25
 address=/immich.lan.bardi.ch/fd89:7a3b:42c0::25
