@@ -260,7 +260,6 @@ bardi.ch:8384 {
 
 	reverse_proxy @authentik 127.0.0.1:19000 {
 		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Host {http.request.host}
 	}
 
 	# LibreSpeed
