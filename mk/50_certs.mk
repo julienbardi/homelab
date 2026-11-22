@@ -139,10 +139,18 @@ $(STAMP_CERTS_CANONICAL): $(STAMP_PREPARE)
 # ============================================================
 # All deploy targets depend on canonical stamp
 # ============================================================
-deploy-caddy: $(STAMP_CERTS_CANONICAL) router-install-scripts $(STAMP_SOPS)
-	@echo "🔧 Deploying Caddy certificates"
-	@if command -v caddy >/dev/null 2>&1; then \
-		echo "🔄 Reloading Caddy"; \
+deploy-caddy: \
+	$(STAMP_CERTS_CANONICAL) \
+	router-install-scripts \
+	deploy-nas-caddyfile \
+	$(STAMP_SOPS)
+	@if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🔧 Deploying Caddy certificates"; \
+	fi; \
+	if command -v caddy >/dev/null 2>&1; then \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🔄 Reloading Caddy"; \
+		fi; \
 		sudo caddy reload --config /etc/caddy/Caddyfile --force || \
 		sudo systemctl reload caddy || \
 		sudo systemctl restart caddy; \
