@@ -96,8 +96,7 @@ install-helpers: $(INSTALL_PATH)/common.sh \
 # ============================================================
 
 $(STAMP_PREPARE): \
-    acme-renew \
-    $(CERTS_DEPLOY) \
+    $(REPO_ROOT)/scripts/deploy_certificates.sh \
     $(STAMP_SOPS)
 	@$(call WITH_SECRETS, $(run_as_root) sh -c '\
 		set -euo pipefail; \
@@ -140,7 +139,7 @@ $(STAMP_CERTS_CANONICAL): $(STAMP_PREPARE)
 # ============================================================
 # All deploy targets depend on canonical stamp
 # ============================================================
-deploy-caddy:      $(STAMP_CERTS_CANONICAL) router-install-scripts $(STAMP_SOPS)
+deploy-caddy: $(STAMP_CERTS_CANONICAL) router-install-scripts $(STAMP_SOPS)
 	@echo "🔧 Deploying Caddy certificates"
 	@if command -v caddy >/dev/null 2>&1; then \
 		echo "🔄 Reloading Caddy"; \
