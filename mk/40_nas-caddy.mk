@@ -4,6 +4,7 @@ CADDY_VERSION ?= v2.11.7
 CADDY_BUILD_DIR := $(STAMP_DIR_USER)/caddy-build
 CADDY_CUSTOM_BIN := $(CADDY_BUILD_DIR)/caddy
 CADDY_RATE_LIMIT_MODULE := github.com/mholt/caddy-ratelimit
+STAMP_CADDY_BUILD := $(call STAMP_PATH_FROM_KEY,caddy-build)
 
 NAS_CADDY_BIN               ?= /usr/bin/caddy
 NAS_CADDY_BACKUP            ?= /usr/bin/caddy.orig
@@ -17,10 +18,15 @@ NAS_SYSTEMD_CADDY           := /etc/systemd/system/caddy.service
 .PHONY: caddy-build-local
 caddy-build-local: | $(XCADDY)
 	@set -euo pipefail; \
+	if $(call fastpath_binary_with_stamp,$(STAMP_CADDY_BUILD),$(CADDY_CUSTOM_BIN),caddy); then \
+		echo "⏩ caddy $(CADDY_VERSION) unchanged (hash+stamp OK)"; \
+		exit 0; \
+	fi; \
 	mkdir -p "$(CADDY_BUILD_DIR)"; \
 	"$(XCADDY)" build "$(CADDY_VERSION)" \
 		--output "$(CADDY_CUSTOM_BIN)" \
-		--with "$(CADDY_RATE_LIMIT_MODULE)"
+		--with "$(CADDY_RATE_LIMIT_MODULE)"; \
+	$(call write_stamp,$(STAMP_CADDY_BUILD),$(CADDY_VERSION),$(CADDY_CUSTOM_BIN))
 
 .PHONY: caddy-build-verify
 caddy-build-verify: caddy-build-local
