@@ -405,6 +405,8 @@ export INSTALL_FILES_IF_CHANGED    := $(INSTALL_PATH)/install_files_if_changed_v
 
 export INSTALL_URL_FILE_IF_CHANGED := $(INSTALL_PATH)/install_url_file_if_changed.sh
 
+export ENSURE_DIRS := $(INSTALL_PATH)/ensure_dirs.sh
+
 # ----------------------------------------------------------------------------
 # 7. Build Invariants
 # ----------------------------------------------------------------------------

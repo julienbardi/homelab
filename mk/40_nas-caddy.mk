@@ -11,14 +11,28 @@ NAS_SYSTEMD_CADDY           := /etc/systemd/system/caddy.service
 # Official Caddy download API endpoint with rate_limit plugin requested
 CADDY_DOWNLOAD_URL          ?= https://caddyserver.com/api/download?os=linux&arch=amd64&p=github.com%2Fmholt%2Fcaddy-ratelimit
 
+.PHONY: nas-caddy-dirs
+nas-caddy-dirs: | $(run_as_root) $(ENSURE_DIRS)
+	@rc=0; \
+	$(run_as_root) $(ENSURE_DIRS) \
+		/etc/caddy root root 0755 \
+		/etc/ssl/caddy root caddy 0750 \
+	|| rc=$$?; \
+	case "$$rc" in \
+	0|3) ;; \
+	*) exit "$$rc" ;; \
+	esac
+
 .PHONY: deploy-nas-caddyfile
-deploy-nas-caddyfile: | $(run_as_root)
-	@echo "📋⬇️ Installing Caddyfile"; \
-	$(run_as_root) install -d -m 0755 -o $(ROOT_UID) -g $(ROOT_GID) /etc/caddy; \
+deploy-nas-caddyfile: nas-caddy-dirs | $(run_as_root)
+	@if [ "$(VERBOSE)" -ge "1" ]; then \
+		echo "📋 Checking deployed Caddyfile drift..."; \
+	fi; \
 	changed=0; \
 	rc=0; \
 	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
-	localhost 22 "$(SRC_NAS_CADDYFILE)" 10.89.12.4 22 "$(NAS_CADDYFILE)" \
+	"" "" "$(SRC_NAS_CADDYFILE)" \
+	"" "" "$(NAS_CADDYFILE)" \
 	root root 0644 || rc=$$?; \
 	case "$$rc" in \
 	$(INSTALL_IF_CHANGED_EXIT_UNCHANGED)) ;; \
@@ -43,7 +57,7 @@ deploy-nas-caddyfile: | $(run_as_root)
 	fi
 
 .PHONY: nas-caddy
-nas-caddy: gitcheck nas-assert-caddy-ports-free acme-issue deploy-caddy install-all deploy-nas-caddyfile
+nas-caddy: gitcheck nas-assert-caddy-ports-free acme-issue deploy-caddy install-all nas-caddy-dirs deploy-nas-caddyfile
 	@set -euo pipefail; \
 	echo "🔐 Preparing Caddy binary backup and system users/groups"; \
 	$(run_as_root) bash -c 'set -euo pipefail; \
