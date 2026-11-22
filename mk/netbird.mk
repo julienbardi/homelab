@@ -34,25 +34,25 @@ netbird-rotate-token: ensure-state-dirs
 .PHONY: render-netbird-config
 
 render-netbird-config:
-	@if [ "$(VERBOSE)" -ge "1" ]; then echo "📝 Rendering NetBird config from template..."; fi; \
-	tmp="$$(mktemp)"; \
-	trap 'rm -f "$$tmp"' EXIT; \
-	SECRETS_DEC="$$(sops -d $(SECRETS_FILE))"; \
-	export NB_AUTH_SECRET="$$(echo "$$SECRETS_DEC" | yq e '.netbird_auth_secret' -)"; \
-	export NB_ENCRYPTION_KEY="$$(echo "$$SECRETS_DEC" | yq e '.netbird_encryption_key' -)"; \
-	envsubst < "$(NETBIRD_TEMPLATE_FILE)" > "$$tmp"; \
-	rc=0; \
-	$(call install_file,"$$tmp",$(NETBIRD_CONFIG_FILE),$(shell id -u),$(shell id -g),0644) || rc=$$?; \
-	case "$${rc:-0}" in \
-	0|$(INSTALL_IF_CHANGED_EXIT_CHANGED)) ;; \
-	*) exit "$$rc" ;; \
-	esac
+	@$(call WITH_SECRETS, \
+		[ "$(VERBOSE)" -lt "1" ] || echo "📝 Rendering NetBird config from template..."; \
+		tmp="$$(mktemp)"; \
+		trap 'rm -f "$$tmp"' EXIT; \
+		export NB_AUTH_SECRET="$$netbird_auth_secret"; \
+		export NB_ENCRYPTION_KEY="$$netbird_encryption_key"; \
+		envsubst < "$(NETBIRD_TEMPLATE_FILE)" > "$$tmp"; \
+		rc=0; \
+		$(call install_file,"$$tmp",$(NETBIRD_CONFIG_FILE),$(shell id -u),$(shell id -g),0644) || rc=$$?; \
+		case "$${rc:-0}" in \
+			0|$(INSTALL_IF_CHANGED_EXIT_CHANGED)) ;; \
+			*) exit "$$rc" ;; \
+		esac \
+	)
 
 
 deploy-netbird-compose: render-netbird-config $(NETBIRD_COMPOSE_FILE) ensure-state-dirs
-	@echo "📦 Checking NetBird compose + config changes..."
-
-	@changed=0; rc=0; \
+	@if [ "$(VERBOSE)" -ge "1" ]; then echo "📦 Checking NetBird compose + config changes..."; fi; \
+	changed=0; rc=0; \
 	$(call install_file,$(NETBIRD_COMPOSE_FILE),$(NETBIRD_COMPOSE_SHADOW),$(shell id -u),$(shell id -g),0644) || rc=$$?; \
 	case "$${rc:-0}" in \
 		0) ;; \
@@ -62,9 +62,9 @@ deploy-netbird-compose: render-netbird-config $(NETBIRD_COMPOSE_FILE) ensure-sta
 	if [ $$changed -eq 1 ]; then \
 		echo "🔄 docker-compose.yml changed — scheduling NetBird restart"; \
 		touch $(NETBIRD_RESTART_STAMP); \
-	fi
-
-	@changed=0; rc=0; \
+	fi; \
+	\
+	changed=0; rc=0; \
 	$(call install_file,$(NETBIRD_CONFIG_FILE),$(NETBIRD_CONFIG_SHADOW),$(shell id -u),$(shell id -g),0644) || rc=$$?; \
 	case "$${rc:-0}" in \
 		0) ;; \
@@ -81,36 +81,52 @@ deploy-netbird-compose: render-netbird-config $(NETBIRD_COMPOSE_FILE) ensure-sta
 ###############################################################################
 
 netbird-deploy: deploy-netbird-compose
-	@echo "🧹 Cleaning up any existing NetBird stack..."
-	@$(COMPOSE_NETBIRD) down --remove-orphans 2>/dev/null || true; \
-	docker rm -f netbird-server netbird-dashboard netbird-crowdsec 2>/dev/null || true; \
-	\
-	echo "📦 Decrypting secrets into memory..."; \
-	export LAN_ROUTER="$(LAN_ROUTER)"; \
-	export LAN_NAS="$(LAN_NAS)"; \
-	SECRETS_DEC=$$(sops -d $(SECRETS_FILE)); \
-	export INFOMANIAK_ACCESS_TOKEN=$$(echo "$$SECRETS_DEC" | yq e '.infomaniak_api_token' -); \
-	export ACME_EMAIL=$$(echo "$$SECRETS_DEC" | yq e '.acme_email' -); \
-	export NB_PROXY_DOMAIN=$$(echo "$$SECRETS_DEC" | yq e '.ddns_netbird_domain' -); \
-	export NB_PROXY_TOKEN=$$(echo "$$SECRETS_DEC" | yq e '.netbird_proxy_token' -); \
-	\
-	echo "🚀 Ensuring NetBird server is running..."; \
-	$(COMPOSE_NETBIRD) up -d netbird-server; \
-	sleep 3; \
-	\
-	if [ -z "$$NB_PROXY_TOKEN" ] || [ "$$NB_PROXY_TOKEN" = "null" ]; then \
-		echo "🔐 Generating proxy token in RAM..."; \
-		TOKEN_OUTPUT=$$(docker exec -i netbird-server /go/bin/netbird-server --config /etc/netbird/config.yaml admin token create --name proxy-token-$$(date +%s)) && \
-		export NB_PROXY_TOKEN=$$(echo "$$TOKEN_OUTPUT" | grep "Token:" | awk '{print $$2}'); \
-	fi; \
-	if [ -z "$$NB_PROXY_TOKEN" ]; then \
-		echo "❌ Error: Could not obtain NB_PROXY_TOKEN"; \
-		exit 1; \
-	fi; \
-	\
-	echo "📦 Applying full docker compose stack with in-memory secrets..."; \
-	$(COMPOSE_NETBIRD) up -d; \
-	rm -f $(NETBIRD_RESTART_STAMP)
+	@if [ ! -f "$(NETBIRD_RESTART_STAMP)" ]; then \
+		[ "$(VERBOSE)" -lt "1" ] || echo "🟢 NetBird already up-to-date"; \
+	else \
+		$(call WITH_SECRETS, \
+			echo "🧹 Cleaning up any existing NetBird stack..."; \
+			$(COMPOSE_NETBIRD) down --remove-orphans 2>/dev/null || true; \
+			docker rm -f netbird-server netbird-dashboard netbird-crowdsec 2>/dev/null || true; \
+			\
+			export LAN_ROUTER="$(LAN_ROUTER)"; \
+			export LAN_NAS="$(LAN_NAS)"; \
+			export INFOMANIAK_ACCESS_TOKEN="$$infomaniak_api_token"; \
+			export ACME_EMAIL="$$acme_email"; \
+			export NB_PROXY_DOMAIN="$$ddns_netbird_domain"; \
+			export NB_PROXY_TOKEN="$$netbird_proxy_token"; \
+			\
+			echo "🚀 Ensuring NetBird server is running..."; \
+			$(COMPOSE_NETBIRD) up -d netbird-server; \
+			\
+			for i in $$(seq 1 30); do \
+				if docker exec netbird-server true >/dev/null 2>&1; then \
+					break; \
+				fi; \
+				sleep 1; \
+			done; \
+			\
+			docker exec netbird-server true >/dev/null 2>&1 || { \
+				echo "❌ netbird-server failed to become ready"; \
+				exit 1; \
+			}; \
+			\
+			if [ -z "$$NB_PROXY_TOKEN" ] || [ "$$NB_PROXY_TOKEN" = "null" ]; then \
+				echo "🔐 Generating proxy token in RAM..."; \
+				TOKEN_OUTPUT=$$(docker exec -i netbird-server /go/bin/netbird-server --config /etc/netbird/config.yaml admin token create --name proxy-token-$$(date +%s)) && \
+				export NB_PROXY_TOKEN=$$(echo "$$TOKEN_OUTPUT" | grep "Token:" | awk '{print $$2}'); \
+			fi; \
+			\
+			if [ -z "$$NB_PROXY_TOKEN" ]; then \
+				echo "❌ Error: Could not obtain NB_PROXY_TOKEN"; \
+				exit 1; \
+			fi; \
+			\
+			echo "📦 Applying full docker compose stack with in-memory secrets..."; \
+			$(COMPOSE_NETBIRD) up -d; \
+			rm -f $(NETBIRD_RESTART_STAMP) \
+		); \
+	fi
 
 ###############################################################################
 # Convenience targets
@@ -119,15 +135,15 @@ netbird-deploy: deploy-netbird-compose
 netbird-up: netbird-deploy
 
 netbird-down:
-	@echo "🛑 Stopping NetBird stack..."
+	@echo "🛑 Stopping NetBird stack..."; \
 	$(COMPOSE_NETBIRD) down
 
 netbird-restart:
-	@echo "🔄 Restarting NetBird stack..."
+	@echo "🔄 Restarting NetBird stack..."; \
 	$(COMPOSE_NETBIRD) restart
 
 netbird-logs:
 	$(COMPOSE_NETBIRD) logs -f
 
 netbird-reset:
-	rm -f $(NETBIRD_COMPOSE_SHADOW) $(NETBIRD_CONFIG_SHADOW) $(NETBIRD_RESTART_STAMP)
+	@rm -f $(NETBIRD_COMPOSE_SHADOW) $(NETBIRD_CONFIG_SHADOW) $(NETBIRD_RESTART_STAMP)
