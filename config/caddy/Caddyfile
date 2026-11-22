@@ -263,8 +263,23 @@ bardi.ch:8384 {
 	}
 
 	# LibreSpeed
+	#
+	# Performance note:
+	# LibreSpeed measurements are significantly faster when Alt-Svc is disabled.
+	# In this environment:
+	#
+	#   Direct  : ~4.6-4.8 Gbps
+	#   With Alt-Svc : ~1.8 Gbps down / ~0.7 Gbps up
+	#   Without Alt-Svc : ~3.1 Gbps down / ~2.1 Gbps up
+	#
+	# Therefore Alt-Svc is disabled for this vhost.
+
 	@fast {
 		host fast.bardi.ch
+	}
+
+	header @fast {
+		-Alt-Svc
 	}
 
 	reverse_proxy @fast 10.89.12.4:8080
