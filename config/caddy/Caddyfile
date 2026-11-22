@@ -263,6 +263,13 @@ bardi.ch:8384 {
 		header_up X-Forwarded-Host {http.request.host}
 	}
 
+	# LibreSpeed
+	@fast {
+		host fast.bardi.ch
+	}
+
+	reverse_proxy @fast 10.89.12.4:8080
+
 	# Unknown host fallback
 	@unknown not host \
  bardi.ch \
@@ -277,7 +284,8 @@ bardi.ch:8384 {
  pve.bardi.ch \
  netbird.bardi.ch \
  auth.bardi.ch \
- immich.bardi.ch
+ immich.bardi.ch \
+ fast.bardi.ch
 
 	respond @unknown "Not Found" 404
 }
