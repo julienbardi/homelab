@@ -16,13 +16,10 @@ NETBIRD_CONFIG_SHADOW  := $(STAMP_DIR_USER)/netbird_config.shadow
 # Restart stamps
 NETBIRD_RESTART_STAMP := $(STAMP_DIR_USER)/netbird_restart.stamp
 
-.PHONY: netbird-up netbird-down netbird-restart netbird-logs netbird-deploy \
-        deploy-netbird-compose netbird-rotate-token
-
 ###############################################################################
 # NetBird Proxy Token Rotation
 ###############################################################################
-
+.PHONY: netbird-rotate-token
 netbird-rotate-token: ensure-state-dirs
 	@echo "🔄 Token rotation requested — scheduling NetBird stack redeploy..."
 	@touch $(NETBIRD_RESTART_STAMP)
@@ -32,7 +29,6 @@ netbird-rotate-token: ensure-state-dirs
 ###############################################################################
 
 .PHONY: render-netbird-config
-
 render-netbird-config:
 	@$(call WITH_SECRETS, \
 		[ "$(VERBOSE)" -lt "1" ] || echo "📝 Rendering NetBird config from template..."; \
@@ -49,7 +45,7 @@ render-netbird-config:
 		esac \
 	)
 
-
+.PHONY: deploy-netbird-compose
 deploy-netbird-compose: render-netbird-config $(NETBIRD_COMPOSE_FILE) ensure-state-dirs
 	@if [ "$(VERBOSE)" -ge "1" ]; then echo "📦 Checking NetBird compose + config changes..."; fi; \
 	changed=0; rc=0; \
@@ -80,14 +76,14 @@ deploy-netbird-compose: render-netbird-config $(NETBIRD_COMPOSE_FILE) ensure-sta
 # NetBird stack deployment (idempotent & zero-at-rest secrets)
 ###############################################################################
 
-netbird-deploy: deploy-nas-caddyfile deploy-netbird-compose
+.PHONY: netbird-deploy
+netbird-deploy: docker-daemon deploy-nas-caddyfile deploy-netbird-compose
 	@if [ ! -f "$(NETBIRD_RESTART_STAMP)" ]; then \
 		[ "$(VERBOSE)" -lt "1" ] || echo "🟢 NetBird already up-to-date"; \
 	else \
 		$(call WITH_SECRETS, \
 			echo "🧹 Cleaning up any existing NetBird stack..."; \
 			$(COMPOSE_NETBIRD) down --remove-orphans 2>/dev/null || true; \
-			docker rm -f netbird-server netbird-dashboard netbird-crowdsec 2>/dev/null || true; \
 			\
 			export LAN_ROUTER="$(LAN_ROUTER)"; \
 			export LAN_NAS="$(LAN_NAS)"; \
@@ -132,18 +128,62 @@ netbird-deploy: deploy-nas-caddyfile deploy-netbird-compose
 # Convenience targets
 ###############################################################################
 
+.PHONY: netbird-up
 netbird-up: netbird-deploy
 
+.PHONY: netbird-down
 netbird-down:
 	@echo "🛑 Stopping NetBird stack..."; \
 	$(COMPOSE_NETBIRD) down
 
+.PHONY: netbird-restart
 netbird-restart:
 	@echo "🔄 Restarting NetBird stack..."; \
 	$(COMPOSE_NETBIRD) restart
 
+.PHONY: netbird-logs
 netbird-logs:
 	$(COMPOSE_NETBIRD) logs -f
 
+.PHONY: netbird-reset
 netbird-reset:
 	@rm -f $(NETBIRD_COMPOSE_SHADOW) $(NETBIRD_CONFIG_SHADOW) $(NETBIRD_RESTART_STAMP)
+
+.PHONY: netbird-nuke
+netbird-nuke:
+	@echo "☢️ Destroying NetBird persistent state..."
+	$(COMPOSE_NETBIRD) down --remove-orphans
+
+	docker volume rm netbird_netbird_data 2>/dev/null || true
+
+	rm -f \
+		$(NETBIRD_COMPOSE_SHADOW) \
+		$(NETBIRD_CONFIG_SHADOW) \
+		$(NETBIRD_RESTART_STAMP)
+
+.PHONY: netbird-upgrade
+netbird-upgrade: docker-daemon
+	@echo "⬇️ Pulling latest NetBird images..."
+	$(COMPOSE_NETBIRD) pull
+
+	@echo "🔄 Recreating NetBird containers..."
+	$(COMPOSE_NETBIRD) up -d --force-recreate \
+		netbird-server \
+		dashboard \
+		crowdsec
+
+.PHONY: netbird-pve-install
+netbird-pve-install:
+	curl -fsSL https://pkgs.netbird.io/install.sh | sudo bash
+
+.PHONY: netbird-pve-enroll
+netbird-pve-enroll:
+	@echo "⚠️ Run: sudo netbird profile claim default"
+	@echo "⚠️ Requires interactive SSO login"
+	netbird up --management-url https://netbird.bardi.ch
+
+.PHONY: netbird-pve-exitnode
+netbird-pve-exitnode:
+	@echo "⚠️ Enable exit-node routing in NetBird after enrollment"
+	sudo sysctl -w net.ipv4.ip_forward=1
+	sudo sysctl -w net.ipv6.conf.all.forwarding=1
