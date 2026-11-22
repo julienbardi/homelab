@@ -16,33 +16,47 @@ HOST_IPV6_IFACE := $(shell \
 	fi \
 )
 
-.PHONY: verify-ipv6-invariants
+IPV6_CONVERGENCE_TIMEOUT ?= 15
 
-verify-ipv6-invariants:
+# deploy everything then verify
+.PHONY: verify-ipv6-invariants
+verify-ipv6-invariants: service-phase verify-ipv6-invariants-local
+
+# check only
+.PHONY: verify-ipv6-invariants-local
+verify-ipv6-invariants-local:
 	@set -eu; \
 	echo "🔍 Verifying IPv6 invariants..."; \
-	echo "HOST_IPV6_IFACE=$(HOST_IPV6_IFACE)"; \
 	\
-	# $(HOST_IPV6_IFACE) MUST have a ULA (fdxx::) \
-	if ! ip -6 addr show dev "$(HOST_IPV6_IFACE)" 2>/dev/null | grep -Eq 'inet6 fd[0-9a-f]'; then \
-		echo "❌ $(HOST_IPV6_IFACE) missing ULA IPv6 address"; exit 1; \
+	ULA_OK=no; \
+	for _ in $$(seq 1 $(IPV6_CONVERGENCE_TIMEOUT)); do \
+		if ip -6 addr show dev "$(HOST_IPV6_IFACE)" 2>/dev/null | grep -Eq 'inet6 fd[0-9a-f]'; then \
+			ULA_OK=yes; \
+			break; \
+		fi; \
+		sleep 1; \
+	done; \
+	\
+	if [ "$$ULA_OK" != "yes" ]; then \
+		echo "❌ $(HOST_IPV6_IFACE) missing ULA IPv6 address after $(IPV6_CONVERGENCE_TIMEOUT)s"; \
+		ip -6 addr show dev "$(HOST_IPV6_IFACE)" || true; \
+		exit 1; \
 	fi; \
 	\
-	# Detect if $(HOST_IPV6_IFACE) has a global IPv6 (2xxx::) \
 	HAS_GUA=$$(ip -6 addr show dev "$(HOST_IPV6_IFACE)" 2>/dev/null | grep -Eq 'inet6 2[0-9a-f]' && echo yes || echo no); \
 	\
 	if [ "$$HAS_GUA" = "yes" ]; then \
 		ROUTE_OK=no; \
-		for _ in 1 2 3 4 5; do \
+		for _ in $$(seq 1 $(IPV6_CONVERGENCE_TIMEOUT)); do \
 			if ip -6 route show default | grep -q "dev $(HOST_IPV6_IFACE)"; then \
 				ROUTE_OK=yes; \
 				break; \
 			fi; \
 			sleep 1; \
 		done; \
+		\
 		if [ "$$ROUTE_OK" != "yes" ]; then \
-			echo "❌ $(HOST_IPV6_IFACE) has global IPv6 but no default IPv6 route"; \
-			echo "HOST_IPV6_IFACE=$(HOST_IPV6_IFACE)"; \
+			echo "❌ $(HOST_IPV6_IFACE) has global IPv6 but no default IPv6 route after $(IPV6_CONVERGENCE_TIMEOUT)s"; \
 			echo "--- IPv6 addresses ---"; \
 			ip -6 addr show dev "$(HOST_IPV6_IFACE)" || true; \
 			echo "--- Default routes ---"; \
@@ -51,21 +65,22 @@ verify-ipv6-invariants:
 			ip -6 route show || true; \
 			exit 1; \
 		fi; \
+		\
 		echo "✅ $(HOST_IPV6_IFACE): GUA + default IPv6 route OK"; \
 	else \
 		echo "ℹ️ $(HOST_IPV6_IFACE) has no global IPv6 — skipping default route check (router not delegating prefix)"; \
 	fi; \
 	\
-	# All other interfaces MUST NOT have global IPv6 \
 	for IFACE in $$(ls /sys/class/net); do \
-		# Skip loopback, primary IPv6 interface, and standard virtual/tunnel/bridge interfaces \
-		if [ "$$IFACE" = "lo" ] || [ "$$IFACE" = "$(HOST_IPV6_IFACE)" ] || echo "$$IFACE" | grep -Eq '^(wg|veth|fwbr|docker|br|tap|tun|bonding_masters)'; then \
+		if [ "$$IFACE" = "lo" ] || \
+		   [ "$$IFACE" = "$(HOST_IPV6_IFACE)" ] || \
+		   echo "$$IFACE" | grep -Eq '^(wg|veth|fwbr|docker|br|tap|tun|bonding_masters)'; then \
 			continue; \
 		fi; \
 		\
-		# Check forbidden global IPv6 on secondary interfaces \
 		if ip -6 addr show dev "$$IFACE" 2>/dev/null | grep -Eq 'inet6 2[0-9a-f]'; then \
-			echo "❌ $$IFACE has a global IPv6 but must not"; exit 1; \
+			echo "❌ $$IFACE has a global IPv6 but must not"; \
+			exit 1; \
 		fi; \
 	done; \
 	\
