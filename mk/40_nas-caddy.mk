@@ -11,8 +11,39 @@ NAS_SYSTEMD_CADDY           := /etc/systemd/system/caddy.service
 # Official Caddy download API endpoint with rate_limit plugin requested
 CADDY_DOWNLOAD_URL          ?= https://caddyserver.com/api/download?os=linux&arch=amd64&p=github.com%2Fmholt%2Fcaddy-ratelimit
 
+.PHONY: deploy-nas-caddyfile
+deploy-nas-caddyfile: | $(run_as_root)
+	@echo "📋⬇️ Installing Caddyfile"; \
+	$(run_as_root) install -d -m 0755 -o $(ROOT_UID) -g $(ROOT_GID) /etc/caddy; \
+	changed=0; \
+	rc=0; \
+	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
+	localhost 22 "$(SRC_NAS_CADDYFILE)" 10.89.12.4 22 "$(NAS_CADDYFILE)" \
+	root root 0644 || rc=$$?; \
+	case "$$rc" in \
+	$(INSTALL_IF_CHANGED_EXIT_UNCHANGED)) ;; \
+	$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
+	*) exit "$$rc" ;; \
+	esac; \
+	\
+	if [ "$$changed" -eq 1 ]; then \
+		echo "🔍 Validating Caddyfile"; \
+		$(run_as_root) "$(NAS_CADDY_BIN)" validate --config "$(NAS_CADDYFILE)"; \
+		\
+		if $(run_as_root) systemctl is-active --quiet caddy; then \
+			if ! $(run_as_root) "$(NAS_CADDY_BIN)" reload --config "$(NAS_CADDYFILE)"; then \
+				echo "⚠️ Reload failed. Restarting service..."; \
+				$(run_as_root) systemctl restart caddy; \
+			else \
+				echo "✅ Reloaded Caddy successfully"; \
+			fi; \
+		else \
+			echo "ℹ️ Caddy not running; skipping reload"; \
+		fi; \
+	fi
+
 .PHONY: nas-caddy
-nas-caddy: gitcheck nas-assert-caddy-ports-free acme-issue deploy-caddy install-all
+nas-caddy: gitcheck nas-assert-caddy-ports-free acme-issue deploy-caddy install-all deploy-nas-caddyfile
 	@set -euo pipefail; \
 	echo "🔐 Preparing Caddy binary backup and system users/groups"; \
 	$(run_as_root) bash -c 'set -euo pipefail; \
@@ -44,25 +75,11 @@ nas-caddy: gitcheck nas-assert-caddy-ports-free acme-issue deploy-caddy install-
 	$(call install_file,$(ACME_LINEAGE_ECC)/fullchain.cer,/etc/ssl/caddy/bardi.ch.cer,root,caddy,0640); \
 	$(call install_file,$(ACME_LINEAGE_ECC)/bardi.ch.key,/etc/ssl/caddy/bardi.ch.key,root,caddy,0640); \
 	\
-	echo "📋⬇️ Installing Caddyfile"; \
-	$(run_as_root) install -d -m 0755 -o $(ROOT_UID) -g $(ROOT_GID) /etc/caddy; \
-	changed=0; \
-	rc=0; \
-	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
-		localhost 22 "$(SRC_NAS_CADDYFILE)" 10.89.12.4 22 "$(NAS_CADDYFILE)" \
-		root root 0644 || rc=$$?; \
-	case "$$rc" in \
-		$(INSTALL_IF_CHANGED_EXIT_UNCHANGED)) ;; \
-		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
-		*) exit "$$rc" ;; \
-	esac; \
-	\
 	echo "📋⬇️ Installing Caddy systemd service"; \
 	$(call install_file,$(SRC_NAS_SERVICE),$(NAS_SYSTEMD_CADDY),root,root,0644); \
 	\
 	echo "🔍 Verifying installed Caddy and applying service"; \
 	$(run_as_root) bash -c 'set -euo pipefail; \
-		CHANGED="$$1"; \
 		if ! "$(NAS_CADDY_BIN)" version >/dev/null 2>&1; then \
 			echo "❌ Installed Caddy not executable"; \
 			[ -f "$(NAS_CADDY_BACKUP)" ] && mv "$(NAS_CADDY_BACKUP)" "$(NAS_CADDY_BIN)"; \
@@ -81,20 +98,12 @@ nas-caddy: gitcheck nas-assert-caddy-ports-free acme-issue deploy-caddy install-
 		systemctl daemon-reload; \
 		systemctl enable caddy; \
 		if systemctl is-active --quiet caddy; then \
-			if [ "$$CHANGED" -eq 1 ]; then \
-				if ! "$(NAS_CADDY_BIN)" reload --config "$(NAS_CADDYFILE)"; then \
-					echo "⚠️ Reload failed. Restarting service..."; \
-					systemctl restart caddy && echo "✅ Restarted successfully"; \
-				else \
-					echo "✅ Reloaded Caddy successfully (config changed)"; \
-				fi; \
-			else \
-				echo "ℹ️ Caddyfile unchanged — no reload needed"; \
-			fi; \
+			systemctl restart caddy && echo "✅ Restarted successfully"; \
 		else \
 			systemctl restart caddy && echo "✅ Started/Restarted successfully"; \
 		fi \
-	' -- "$$changed"
+	'
+
 
 .PHONY: nas-caddy-validate nas-caddy-fmt
 

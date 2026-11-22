@@ -80,7 +80,7 @@ deploy-netbird-compose: render-netbird-config $(NETBIRD_COMPOSE_FILE) ensure-sta
 # NetBird stack deployment (idempotent & zero-at-rest secrets)
 ###############################################################################
 
-netbird-deploy: deploy-netbird-compose
+netbird-deploy: deploy-nas-caddyfile deploy-netbird-compose
 	@if [ ! -f "$(NETBIRD_RESTART_STAMP)" ]; then \
 		[ "$(VERBOSE)" -lt "1" ] || echo "🟢 NetBird already up-to-date"; \
 	else \
