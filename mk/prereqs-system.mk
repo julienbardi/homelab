@@ -55,7 +55,7 @@ prereqs-python-venv:
 prereqs-helper-scripts:
 	@$(run_as_root) sh -c '\
 		install -d -m 0755 "$(INSTALL_PATH)"; \
-		install -m 0755 "$(REPO_ROOT)/scripts/ensure_dir.sh" "$(INSTALL_PATH)/ensure_dir.sh"; \
+		install -m 0755 "$(REPO_ROOT)/scripts/ensure_dirs.sh" "$(INSTALL_PATH)/ensure_dirs.sh"; \
 		if [ -f "$(REPO_ROOT)/scripts/wg-readiness-probe.sh" ]; then \
 			install -m 0755 "$(REPO_ROOT)/scripts/wg-readiness-probe.sh" "$(INSTALL_PATH)/wg-readiness-probe.sh"; \
 		fi; \
