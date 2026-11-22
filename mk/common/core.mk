@@ -93,7 +93,7 @@ define install_file
 	\
 	case "$$rc" in \
 		0) ;; \
-		3) echo "📝 Updated: $(2)" ;; \
+		3) [ "$(VERBOSE)" -lt "2" ] || echo "📝 Updated: $(2)" ;; \
 		''|*[!0-9]*) ;; \
 		*) echo "❌ IFC: Fatal error (exit $$rc) installing $(2)" >&2; exit "$$rc" ;; \
 	esac
