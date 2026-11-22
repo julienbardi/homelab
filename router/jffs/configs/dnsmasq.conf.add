@@ -45,6 +45,18 @@ address=/immich.bardi.ch/fd89:7a3b:42c0::4
 address=/fast.bardi.ch/10.89.12.4
 address=/fast.bardi.ch/fd89:7a3b:42c0::4
 
+# NetBird control plane via local Caddy
+address=/netbird.bardi.ch/10.89.12.4
+address=/netbird.bardi.ch/fd89:7a3b:42c0::4
+
+# Authentik via local Caddy
+address=/auth.bardi.ch/10.89.12.4
+address=/auth.bardi.ch/fd89:7a3b:42c0::4
+
+# DERP relay via local Caddy
+address=/derp.bardi.ch/10.89.12.4
+address=/derp.bardi.ch/fd89:7a3b:42c0::4
+
 # Direct backend service (optional legacy/internal access)
 address=/immich.lan.bardi.ch/10.89.12.25
 address=/immich.lan.bardi.ch/fd89:7a3b:42c0::25

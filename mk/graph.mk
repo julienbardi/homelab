@@ -70,6 +70,7 @@ include $(REPO_ROOT)/mk/11_permissions.mk
 include $(REPO_ROOT)/mk/15_local-python-env.mk
 include $(REPO_ROOT)/mk/18_ipv6-invariants.mk
 include $(REPO_ROOT)/mk/20_deps.mk
+include $(REPO_ROOT)/mk/20_docker.mk
 include $(REPO_ROOT)/mk/20_gitignore.mk
 include $(REPO_ROOT)/mk/20_local-python.mk
 include $(REPO_ROOT)/mk/20_sysctl.mk
