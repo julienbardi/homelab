@@ -35,7 +35,7 @@ caddy-build-verify: caddy-build-local
 		grep '^http.handlers.rate_limit$$'
 
 .PHONY: caddy-install-local
-caddy-install-local: caddy-build-verify | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
+caddy-install-local: caddy-build-local | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
 	@rc=0; \
 	$(run_as_root) $(INSTALL_FILE_IF_CHANGED) \
 		"" "" "$(CADDY_CUSTOM_BIN)" \
