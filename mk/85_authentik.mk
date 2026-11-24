@@ -1,4 +1,4 @@
-# mk/authentik.mk
+# mk/85_authentik.mk
 
 AUTHENTIK_DIR := $(REPO_ROOT)/authentik
 AUTHENTIK_COMPOSE_FILE := $(AUTHENTIK_DIR)/docker-compose.yml

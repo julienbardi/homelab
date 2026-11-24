@@ -1,4 +1,4 @@
-# mk/netbird.mk — Included by top-level Makefile
+# mk/85_netbird.mk — Included by top-level Makefile
 
 # Correct NetBird directory path
 NETBIRD_DIR := $(REPO_ROOT)/netbird

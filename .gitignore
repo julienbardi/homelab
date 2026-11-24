@@ -155,3 +155,8 @@ crowdsec/
 netbird/proxy.env
 netbird/traefik.env
 netbird/config.yaml
+
+# LibreSpeed runtime state
+/librespeed/config/
+
+/netbird/librespeed-config-backup/
