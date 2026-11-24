@@ -94,13 +94,6 @@ http:
       service: router-svc
       tls: {}
 
-    # 14. Dev IDE (Internal / VPN / Tailscale)
-    dev:
-      rule: "Host(`dev.bardi.ch`)"
-      middlewares: [extended-internal-ips]
-      service: dev-svc
-      tls: {}
-
     # 15. Proxmox VE (Internal / VPN / Tailscale)
     proxmox:
       rule: "Host(`pve.bardi.ch`)"

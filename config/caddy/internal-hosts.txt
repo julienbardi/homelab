@@ -12,5 +12,4 @@ dns.bardi.ch
 derp.bardi.ch
 qnap.bardi.ch
 nas.bardi.ch
-dev.bardi.ch
 apt.bardi.ch

@@ -28,7 +28,6 @@ INTERNAL_HOSTS := \
     derp.bardi.ch \
     qnap.bardi.ch \
     nas.bardi.ch \
-    dev.bardi.ch \
     apt.bardi.ch
 
 # --- Includes (order matters, therefore prefix) ---

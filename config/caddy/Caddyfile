@@ -178,19 +178,6 @@ bardi.ch:8384 {
 	}
 	reverse_proxy @router_internal 10.89.12.1:8080
 
-	# Dev IDE (internal only)
-	@dev_internal {
-		host dev.bardi.ch
-		remote_ip 10.89.12.0/24
-		remote_ip fd89:7a3b:42c0::/64
-		remote_ip 10.0.0.0/8
-		remote_ip fd89:7a3b:42c0::/48
-		remote_ip 100.64.0.0/10
-	}
-	reverse_proxy @dev_internal 10.89.12.4:8080 {
-		header_up Host dev.bardi.ch
-	}
-
 	# Proxmox VE (internal / VPN only)
 	@pve_internal {
 		host pve.bardi.ch
@@ -296,7 +283,6 @@ bardi.ch:8384 {
  derp.bardi.ch \
  qnap.bardi.ch \
  nas.bardi.ch \
- dev.bardi.ch \
  apt.bardi.ch \
  pve.bardi.ch \
  netbird.bardi.ch \
