@@ -1,6 +1,9 @@
 # ------------------------------------------------------------
 # SAFETY:
-# This Caddyfile MUST NOT bind to :80.
+# ------------------------------------------------------------
+# Historical note:
+# Earlier deployments avoided binding :80 due to listener
+# conflicts between router and PVE Caddy instances.
 # Port 443 is explicitly managed here.
 # ------------------------------------------------------------
 {
