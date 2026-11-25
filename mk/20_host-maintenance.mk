@@ -4,7 +4,6 @@
 
 .PHONY: update-os
 .PHONY: update-ct220
-.PHONY: update-ct221
 .PHONY: update-ct225
 .PHONY: update-linux-fleet
 
@@ -36,15 +35,11 @@ update-os:
 update-ct220:
 	$(call update_ct,220,netbird-exit)
 
-update-ct221:
-	$(call update_ct,221,technitium-dns)
-
 update-ct225:
 	$(call update_ct,225,immich)
 
 update-linux-fleet: \
 	update-os \
 	update-ct220 \
-	update-ct221 \
 	update-ct225
 	@echo "✅ Linux fleet updated"
