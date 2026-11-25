@@ -28,6 +28,21 @@ PROMETHEUS_UNIT_CHANGED_STAMP := $(STAMP_DIR_ROOT)/prometheus_unit_changed.stamp
 PROMETHEUS_CONFIG_SHADOW := $(STAMP_DIR_USER)/prometheus_config.shadow
 PROMETHEUS_UNIT_SHADOW := $(STAMP_DIR_USER)/prometheus_unit.shadow
 
+PROMETHEUS_USER := prometheus
+PROMETHEUS_GROUP := prometheus
+
+PROMETHEUS_DATA_DIR := /var/lib/prometheus
+
+.PHONY: prometheus-dirs
+
+prometheus-dirs:
+	@$(run_as_root) sh -eu -c '\
+	install -d \
+		-o "$(PROMETHEUS_USER)" \
+		-g "$(PROMETHEUS_GROUP)" \
+		-m 0755 \
+		"$(PROMETHEUS_DATA_DIR)"'
+
 .PHONY: \
 	monitoring \
 	prometheus \
@@ -44,12 +59,18 @@ monitoring: prometheus
 
 prometheus: \
 	prometheus-install \
+	prometheus-dirs \
 	$(PROMETHEUS_UNIT_SHADOW) \
 	$(PROMETHEUS_CONFIG_SHADOW) \
 	prometheus-enable \
 	prometheus-restart
-	@echo "📊 Prometheus UI reachable at: http://$(PROMETHEUS_ADDR)"
-	@echo "🚀 Prometheus observability ready"
+	@if $(run_as_root) systemctl is-active --quiet $(PROMETHEUS_SERVICE); then \
+		echo "📊 Prometheus UI reachable at: http://$(PROMETHEUS_ADDR)"; \
+		echo "🚀 Prometheus observability ready"; \
+	else \
+		echo "❌ Prometheus failed to start"; \
+		exit 1; \
+	fi
 
 # --------------------------------------------------------------------
 # Installation (Gated by binary existence to bypass apt completely)

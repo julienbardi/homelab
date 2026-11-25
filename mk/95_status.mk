@@ -48,10 +48,14 @@ status-headscale:
 	fi
 
 status-monitoring:
-	@if $(run_as_root) systemctl is-active --quiet prometheus; then \
-	    echo "✅ Prometheus running"; \
+	@if command -v prometheus >/dev/null 2>&1; then \
+		if $(run_as_root) systemctl is-active --quiet prometheus; then \
+			echo "✅ Prometheus running"; \
+		else \
+			echo "⚠️ Prometheus installed but inactive"; \
+		fi; \
 	else \
-	    echo "❌ Prometheus not running"; exit 1; \
+		echo "ℹ️ Prometheus not installed"; \
 	fi
 
 .PHONY: status
