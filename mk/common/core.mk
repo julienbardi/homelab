@@ -93,17 +93,15 @@ define install_file
 	\
 	case "$$rc" in \
 	$(INSTALL_IF_CHANGED_EXIT_UNCHANGED)) \
-		;; \
+	;; \
 	$(INSTALL_IF_CHANGED_EXIT_CHANGED)) \
-		[ "$(VERBOSE)" -lt "2" ] || echo "📝 Updated: $(2)"; \
-		;; \
-	$(INSTALL_IF_CHANGED_EXIT_ERROR)) \
-		echo "❌ IFC: Failed installing $(2)" >&2; \
-		exit "$$rc"; \
-		;; \
+	[ "$(VERBOSE)" -lt "2" ] || echo "📝 Updated: $(2)"; \
+	;; \
+	''|*[!0-9]*) \
+	;; \
 	*) \
-		echo "❌ IFC: Unexpected exit code $$rc installing $(2)" >&2; \
-		exit "$$rc"; \
-		;; \
+	echo "❌ IFC: Fatal error (exit $$rc) installing $(2)" >&2; \
+	exit "$$rc"; \
+	;; \
 	esac
 endef

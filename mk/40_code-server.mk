@@ -6,10 +6,10 @@
 	code-server-ensure-running \
 	code-server
 
-CODE_SERVER_PORT = 8080
+CODE_SERVER_BIND_ADDR := 0.0.0.0
+CODE_SERVER_PORT := 18080
 
-CODE_SERVER_CONFIG_SRC = $(REPO_ROOT)/config/code-server/config.yaml
-CODE_SERVER_CONFIG_DST = $(HOME)/.config/code-server/config.yaml
+CODE_SERVER_CONFIG_DST := $(HOME)/.config/code-server/config.yaml
 
 CODE_SERVER_SYSTEMD_DIR = $(SYSTEMD_DIR)/code-server@.service.d
 CODE_SERVER_SYSTEMD_OVERRIDE = $(CODE_SERVER_SYSTEMD_DIR)/override.conf
@@ -30,14 +30,21 @@ code-server-version-check:
 		echo "⬆️ Update available: $(CODE_SERVER_INSTALLED_VERSION) -> $(CODE_SERVER_LATEST_VERSION)"; \
 	fi
 
-$(CODE_SERVER_CONFIG_DST): $(CODE_SERVER_CONFIG_SRC)
-	@echo "📋 Updating code-server config"
-	@mkdir -p "$(dir $(CODE_SERVER_CONFIG_DST))"
-	@install -m 600 "$(CODE_SERVER_CONFIG_SRC)" "$(CODE_SERVER_CONFIG_DST)"
+$(CODE_SERVER_CONFIG_DST): |  $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
+	@echo "📋 Rendering code-server config"
 
-$(CODE_SERVER_SYSTEMD_OVERRIDE): \
- $(CODE_SERVER_CONFIG_DST)
+	@install -d -m 0700 "$(dir $(CODE_SERVER_CONFIG_DST))"
 
+	@tmp="$$(mktemp)"; \
+	printf '%s\n' \
+		"bind-addr: $(CODE_SERVER_BIND_ADDR):$(CODE_SERVER_PORT)" \
+		"auth: none" \
+		"cert: false" \
+	> "$$tmp"; \
+	$(call install_file,$$tmp,$(CODE_SERVER_CONFIG_DST),$(USER_UID),$(USER_GID),0600); \
+	rm -f "$$tmp"
+
+$(CODE_SERVER_SYSTEMD_OVERRIDE): $(CODE_SERVER_CONFIG_DST) | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
 	@[ "$(VERBOSE)" -ge 1 ] && \
 		echo "🛠️ Ensuring systemd override for code-server" || true
 
@@ -70,9 +77,11 @@ $(CODE_SERVER_SYSTEMD_OVERRIDE): \
 
 code-server-install:
 	@if command -v code-server >/dev/null 2>&1; then \
-		echo "🔧 code-server already installed"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 code-server already installed"; \
+		fi; \
 	else \
-		echo "🔧 Installing code-server"; \
+		echo "📦 Installing code-server"; \
 		curl -fsSL https://code-server.dev/install.sh | sh; \
 	fi
 
@@ -88,21 +97,34 @@ code-server-update:
 		echo "📝 Update complete"; \
 	fi
 
-code-server-ensure-running: \
-	$(CODE_SERVER_CONFIG_DST) \
-	$(CODE_SERVER_SYSTEMD_OVERRIDE)
-	@$(run_as_root) sh -c '\
-		if systemctl is-active --quiet code-server@$(USER); then \
-			echo "🔄 Restarting code-server (wait 20 seconds before running this again)"; \
-			systemctl restart code-server@$(USER); \
-		else \
-			echo "🚀 Starting code-server (wait 20 seconds before running this again)"; \
-			systemctl start code-server@$(USER); \
-		fi'
+code-server-ensure-running: code-server-enable
+	@$(run_as_root) sh -eu -c '\
+	if systemctl is-active --quiet code-server@$(USER); then \
+		echo "🔄 Restarting code-server"; \
+		systemctl restart code-server@$(USER); \
+	else \
+		echo "🚀 Starting code-server"; \
+		systemctl start code-server@$(USER); \
+	fi; \
+	sleep 1; \
+	systemctl is-active --quiet code-server@$(USER) || { \
+		echo "❌ code-server failed to start"; \
+		exit 1; \
+	}; \
+	if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "✅ code-server active"; \
+	fi; \
+	'
 
-code-server-enable:
-	@echo "🔧 Enabling code-server for user $(USER)"
-	@$(run_as_root) systemctl enable --now code-server@$(USER)
+code-server-enable: $(CODE_SERVER_CONFIG_DST) $(CODE_SERVER_SYSTEMD_OVERRIDE)
+	@if $(run_as_root) systemctl is-enabled --quiet code-server@$(USER) 2>/dev/null; then \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🟢 code-server already enabled"; \
+		fi; \
+	else \
+		echo "🔧 Enabling code-server for user $(USER)"; \
+		$(run_as_root) systemctl enable --now code-server@$(USER); \
+	fi
 
 code-server: \
 	code-server-install \
