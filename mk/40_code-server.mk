@@ -36,31 +36,37 @@ $(CODE_SERVER_CONFIG_DST): $(CODE_SERVER_CONFIG_SRC)
 	@install -m 600 "$(CODE_SERVER_CONFIG_SRC)" "$(CODE_SERVER_CONFIG_DST)"
 
 $(CODE_SERVER_SYSTEMD_OVERRIDE): \
-	$(CODE_SERVER_CONFIG_DST)
-	@echo "🛠️ Ensuring systemd override for code-server"
+ $(CODE_SERVER_CONFIG_DST)
+
+	@[ "$(VERBOSE)" -ge 1 ] && \
+		echo "🛠️ Ensuring systemd override for code-server" || true
+
 	@$(run_as_root) mkdir -p "$(CODE_SERVER_SYSTEMD_DIR)"
+
 	@printf '%s\n' \
-		'[Service]' \
-		'ExecStart=' \
-		'ExecStart=/usr/bin/code-server --config $(CODE_SERVER_CONFIG_DST)' | \
-		$(run_as_root) install -m 644 /dev/stdin "$(CODE_SERVER_SYSTEMD_OVERRIDE).new"
-	@echo "🛠️ Syncing systemd override (IFC v2)"
-	@$(run_as_root) sh -c '\
-		$(INSTALL_FILE_IF_CHANGED) \
-			"" "" "$(CODE_SERVER_SYSTEMD_OVERRIDE).new" \
-			"" "" "$(CODE_SERVER_SYSTEMD_OVERRIDE)" \
-			root root 644; \
-		rc=$$?; \
-		rm -f "$(CODE_SERVER_SYSTEMD_OVERRIDE).new"; \
-		if [ $$rc -eq 0 ]; then \
-			echo "📝 systemd override unchanged"; \
-		elif [ $$rc -eq 3 ]; then \
-			echo "🛠️ Updating systemd override"; \
-			systemctl daemon-reload; \
-		else \
-			echo "❌ IFC v2 error (code $$rc)" >&2; \
-			exit $$rc; \
-		fi'
+	'[Service]' \
+	'ExecStart=' \
+	'ExecStart=/usr/bin/code-server --config $(CODE_SERVER_CONFIG_DST)' | \
+	$(run_as_root) install -m 644 /dev/stdin "$(CODE_SERVER_SYSTEMD_OVERRIDE).new"
+
+	@$(run_as_root) sh -eu -c '\
+	rc=0; \
+	$(INSTALL_FILE_IF_CHANGED) \
+	"" "" "$(CODE_SERVER_SYSTEMD_OVERRIDE).new" \
+	"" "" "$(CODE_SERVER_SYSTEMD_OVERRIDE)" \
+	root root 644 \
+	|| rc=$$?; \
+	rm -f "$(CODE_SERVER_SYSTEMD_OVERRIDE).new"; \
+	if [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_UNCHANGED) ]; then \
+		[ "$(VERBOSE)" -ge 1 ] && \
+			echo "📝 systemd override unchanged" || true; \
+	elif [ $$rc -eq $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+		echo "🛠️ Updating systemd override"; \
+		systemctl daemon-reload; \
+	else \
+		echo "❌ IFC error (code $$rc)" >&2; \
+		exit $$rc; \
+	fi'
 
 code-server-install:
 	@if command -v code-server >/dev/null 2>&1; then \

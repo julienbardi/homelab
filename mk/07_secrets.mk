@@ -419,11 +419,17 @@ ddns-runtime: \
 					"ddns_topdomain=$$ddns_topdomain" \
 					> "$$tmp"; \
 				\
+				rc=0; \
 				$(INSTALL_FILE_IF_CHANGED) \
-					"" "" "$$tmp" \
-					"" "" "$(DDNS_RUNTIME_FILE)" \
-					"$(ROOT_UID)" "$(ROOT_GID)" "0600" \
-					>/dev/null; \
+				"" "" "$$tmp" \
+				"" "" "$(DDNS_RUNTIME_FILE)" \
+				"$(ROOT_UID)" "$(ROOT_GID)" "0600" \
+				>/dev/null || rc=$$?; \
+				\
+				if [ "$$rc" -ne $(INSTALL_IF_CHANGED_EXIT_UNCHANGED) ] && \
+				   [ "$$rc" -ne $(INSTALL_IF_CHANGED_EXIT_CHANGED) ]; then \
+					exit "$$rc"; \
+				fi; \
 			'; \
 	}
 
