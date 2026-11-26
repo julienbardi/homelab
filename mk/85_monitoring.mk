@@ -14,7 +14,7 @@
 PROMETHEUS_CONFIG_SRC := $(REPO_ROOT)/config/prometheus/prometheus.yml
 PROMETHEUS_CONFIG_DST := /etc/prometheus/prometheus.yml
 
-PROMETHEUS_UNIT_SRC := $(REPO_ROOT)/config/systemd/prometheus.service
+PROMETHEUS_UNIT_SRC := $(REPO_ROOT)/config/systemd/prometheus.service.in
 PROMETHEUS_UNIT_DST := /etc/systemd/system/prometheus.service
 
 PROMETHEUS_ADDR := $(NAS_LAN_IP):9090
@@ -31,7 +31,8 @@ PROMETHEUS_UNIT_SHADOW := $(STAMP_DIR_USER)/prometheus_unit.shadow
 PROMETHEUS_USER := prometheus
 PROMETHEUS_GROUP := prometheus
 
-PROMETHEUS_DATA_DIR := /var/lib/prometheus
+# Prometheus TSDB must not live on the root filesystem, e.g. not /var/lib/prometheus
+PROMETHEUS_DATA_DIR := /tank/prometheus
 
 .PHONY: prometheus-dirs
 
@@ -89,18 +90,25 @@ $(PROMETHEUS_UNIT_SHADOW): \
 	$(PROMETHEUS_UNIT_SRC) \
 	install-all \
 	| prometheus-install
+
 	@mkdir -p $(dir $@) $(dir $(PROMETHEUS_UNIT_CHANGED_STAMP))
-	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
-	NEW_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
+
+	@tmp="$$(mktemp --suffix=.service)"; \
+	PROMETHEUS_DATA_DIR="$(PROMETHEUS_DATA_DIR)" \
+	envsubst < "$(PROMETHEUS_UNIT_SRC)" > "$$tmp"; \
+	OLD_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
+	NEW_HASH=$$(sha256sum "$$tmp" | awk '{print $$1}'); \
 	if [ "$$OLD_HASH" != "$$NEW_HASH" ]; then \
 		echo "🔍 Validating Prometheus systemd unit structure"; \
 		if command -v systemd-analyze >/dev/null 2>&1; then \
-			systemd-analyze verify $(PROMETHEUS_UNIT_SRC) 2>&1 | grep -v "index_serv.service" || true; \
+			systemd-analyze verify "$$tmp" 2>&1 | grep -v "index_serv.service" || true; \
 		fi; \
 		echo "🔧 Syncing Prometheus systemd unit asset"; \
-		$(call install_file,$(PROMETHEUS_UNIT_SRC),$(PROMETHEUS_UNIT_DST),$(ROOT_UID),$(ROOT_GID),0644); \
+		$(call install_file,$$tmp,$(PROMETHEUS_UNIT_DST),$(ROOT_UID),$(ROOT_GID),0644); \
 		$(run_as_root) touch "$(PROMETHEUS_UNIT_CHANGED_STAMP)"; \
-	fi
+	fi; \
+	rm -f "$$tmp"
+
 	@touch "$@"
 
 # --------------------------------------------------------------------
@@ -136,19 +144,30 @@ prometheus-enable: $(PROMETHEUS_UNIT_SHADOW) prometheus-dirs
 # Service Recycles (Strictly Conditional on Flags)
 # --------------------------------------------------------------------
 prometheus-restart: prometheus-dirs
+
 	@NEED_RELOAD=0; NEED_RESTART=0; \
-	if [ -f "$(PROMETHEUS_UNIT_CHANGED_STAMP)" ]; then NEED_RELOAD=1; NEED_RESTART=1; fi; \
-	if [ -f "$(PROMETHEUS_CHANGED_STAMP)" ]; then NEED_RESTART=1; fi; \
+	UNIT_STAMP=""; CONFIG_STAMP=""; \
+	if mv "$(PROMETHEUS_UNIT_CHANGED_STAMP)" \
+	      "$(PROMETHEUS_UNIT_CHANGED_STAMP).$$" 2>/dev/null; then \
+		UNIT_STAMP="$(PROMETHEUS_UNIT_CHANGED_STAMP).$$"; \
+		NEED_RELOAD=1; \
+		NEED_RESTART=1; \
+	fi; \
+	if mv "$(PROMETHEUS_CHANGED_STAMP)" \
+	      "$(PROMETHEUS_CHANGED_STAMP).$$" 2>/dev/null; then \
+		CONFIG_STAMP="$(PROMETHEUS_CHANGED_STAMP).$$"; \
+		NEED_RESTART=1; \
+	fi; \
 	if [ "$$NEED_RELOAD" -eq 1 ]; then \
 		echo "🔄 Prometheus unit changed — executing daemon-reload"; \
 		$(run_as_root) systemctl daemon-reload; \
-		$(run_as_root) rm -f "$(PROMETHEUS_UNIT_CHANGED_STAMP)"; \
-	  fi; \
+		$(run_as_root) rm -f "$$UNIT_STAMP"; \
+	fi; \
 	if [ "$$NEED_RESTART" -eq 1 ]; then \
 		echo "🔄 Prometheus state modification verified — restarting service"; \
 		$(run_as_root) systemctl restart $(PROMETHEUS_SERVICE); \
-		$(run_as_root) rm -f "$(PROMETHEUS_CHANGED_STAMP)"; \
-	  fi
+		$(run_as_root) rm -f "$$CONFIG_STAMP"; \
+	fi
 
 # --------------------------------------------------------------------
 # Status Helper

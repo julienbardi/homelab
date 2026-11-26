@@ -9,9 +9,6 @@ prereqs-run: $(PREREQS_SOURCES) ensure-state-dirs
 	@$(call ensure_bootstrap_dns)
 	@$(call prereqs_tailscale_repo_verify)
 	@$(call prereqs_dns_warm)
-	@$(call prereqs_helper_scripts)
-	@$(call install_ssh_config)
-	@$(call rust_system)
 	@$(call prereqs_tailscale_install)
 	@$(call prereqs_dns_warm_verify)
 	@$(call prereqs_docs_verify)
@@ -47,4 +44,4 @@ reset-prereqs:
 	@echo "🗑️ prereqs-ok reset"
 
 prereqs-network-deps: ensure-host-default-route ensure-bootstrap-dns prereqs-tailscale-repo-verify prereqs-dns-warm
-prereqs-system-deps: prereqs-helper-scripts install-ssh-config rust-system
+prereqs-system-deps: prereqs-helper-scripts install-ssh-config
