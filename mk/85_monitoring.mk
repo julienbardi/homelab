@@ -144,7 +144,6 @@ prometheus-enable: $(PROMETHEUS_UNIT_SHADOW) prometheus-dirs
 # Service Recycles (Strictly Conditional on Flags)
 # --------------------------------------------------------------------
 prometheus-restart: prometheus-dirs
-
 	@NEED_RELOAD=0; NEED_RESTART=0; \
 	UNIT_STAMP=""; CONFIG_STAMP=""; \
 	if mv "$(PROMETHEUS_UNIT_CHANGED_STAMP)" \
@@ -158,16 +157,22 @@ prometheus-restart: prometheus-dirs
 		CONFIG_STAMP="$(PROMETHEUS_CHANGED_STAMP).$$"; \
 		NEED_RESTART=1; \
 	fi; \
+	trap 'rc=$$?; \
+		if [ $$rc -ne 0 ]; then \
+			[ -n "$$UNIT_STAMP" ] && mv -f "$$UNIT_STAMP" "$(PROMETHEUS_UNIT_CHANGED_STAMP)"; \
+			[ -n "$$CONFIG_STAMP" ] && mv -f "$$CONFIG_STAMP" "$(PROMETHEUS_CHANGED_STAMP)"; \
+		fi; \
+		exit $$rc' EXIT; \
 	if [ "$$NEED_RELOAD" -eq 1 ]; then \
 		echo "🔄 Prometheus unit changed — executing daemon-reload"; \
 		$(run_as_root) systemctl daemon-reload; \
-		$(run_as_root) rm -f "$$UNIT_STAMP"; \
 	fi; \
 	if [ "$$NEED_RESTART" -eq 1 ]; then \
 		echo "🔄 Prometheus state modification verified — restarting service"; \
 		$(run_as_root) systemctl restart $(PROMETHEUS_SERVICE); \
-		$(run_as_root) rm -f "$$CONFIG_STAMP"; \
-	fi
+	fi; \
+	rm -f "$$UNIT_STAMP" "$$CONFIG_STAMP"; \
+	trap - EXIT
 
 # --------------------------------------------------------------------
 # Status Helper
