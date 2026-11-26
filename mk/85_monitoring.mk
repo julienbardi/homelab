@@ -85,7 +85,10 @@ prometheus-install: | ensure-host-default-route
 # --------------------------------------------------------------------
 # Systemd Unit Deployment via Shadow Invariant Check
 # --------------------------------------------------------------------
-$(PROMETHEUS_UNIT_SHADOW): $(PROMETHEUS_UNIT_SRC) $(PROMETHEUS_UNIT_DST) install-all | prometheus-install
+$(PROMETHEUS_UNIT_SHADOW): \
+	$(PROMETHEUS_UNIT_SRC) \
+	install-all \
+	| prometheus-install
 	@mkdir -p $(dir $@) $(dir $(PROMETHEUS_UNIT_CHANGED_STAMP))
 	@OLD_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_DST)" 2>/dev/null | awk '{print $$1}') || OLD_HASH=""; \
 	NEW_HASH=$$(sha256sum "$(PROMETHEUS_UNIT_SRC)" 2>/dev/null | awk '{print $$1}') || NEW_HASH=""; \
@@ -123,7 +126,7 @@ $(PROMETHEUS_CONFIG_SHADOW): $(PROMETHEUS_CONFIG_SRC) install-all | prometheus-i
 # --------------------------------------------------------------------
 # Enable and State Management
 # --------------------------------------------------------------------
-prometheus-enable: $(PROMETHEUS_UNIT_DST)
+prometheus-enable: $(PROMETHEUS_UNIT_SHADOW) prometheus-dirs
 	@if ! $(run_as_root) systemctl is-enabled --quiet $(PROMETHEUS_SERVICE) 2>/dev/null; then \
 		echo "⚙️ Enabling Prometheus service"; \
 		$(run_as_root) systemctl enable $(PROMETHEUS_SERVICE); \
@@ -132,7 +135,7 @@ prometheus-enable: $(PROMETHEUS_UNIT_DST)
 # --------------------------------------------------------------------
 # Service Recycles (Strictly Conditional on Flags)
 # --------------------------------------------------------------------
-prometheus-restart:
+prometheus-restart: prometheus-dirs
 	@NEED_RELOAD=0; NEED_RESTART=0; \
 	if [ -f "$(PROMETHEUS_UNIT_CHANGED_STAMP)" ]; then NEED_RELOAD=1; NEED_RESTART=1; fi; \
 	if [ -f "$(PROMETHEUS_CHANGED_STAMP)" ]; then NEED_RESTART=1; fi; \
@@ -152,16 +155,3 @@ prometheus-restart:
 # --------------------------------------------------------------------
 prometheus-status:
 	@$(run_as_root) systemctl status $(PROMETHEUS_SERVICE) --no-pager
-
-$(PROMETHEUS_UNIT_DST): | install-all
-	@changed=0; rc=0; \
-	$(call install_file,$(PROMETHEUS_UNIT_SRC),$(PROMETHEUS_UNIT_DST),$(ROOT_UID),$(ROOT_GID),0644) || rc=$$?; \
-	case "$${rc:-0}" in \
-		0) ;; \
-		$(INSTALL_IF_CHANGED_EXIT_CHANGED)) changed=1 ;; \
-		*) exit "$$rc" ;; \
-	esac; \
-	if [ $$changed -eq 1 ]; then \
-		echo "🔄 prometheus.service updated — reloading systemd context"; \
-		$(systemctl_daemon_reload); \
-	fi

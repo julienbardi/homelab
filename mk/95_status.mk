@@ -48,14 +48,17 @@ status-headscale:
 	fi
 
 status-monitoring:
-	@if command -v prometheus >/dev/null 2>&1; then \
-		if $(run_as_root) systemctl is-active --quiet prometheus; then \
-			echo "✅ Prometheus running"; \
-		else \
-			echo "⚠️ Prometheus installed but inactive"; \
-		fi; \
+	@if ! command -v prometheus >/dev/null 2>&1; then \
+		echo "❌ Prometheus required but not installed"; \
+		echo "➡️ Converge with: make monitoring"; \
+		exit 1; \
+	fi; \
+	if $(run_as_root) systemctl is-active --quiet prometheus; then \
+		echo "✅ Prometheus running"; \
 	else \
-		echo "ℹ️ Prometheus not installed"; \
+		echo "❌ Prometheus installed but inactive"; \
+		echo "➡️ Converge with: make monitoring"; \
+		exit 1; \
 	fi
 
 .PHONY: status
