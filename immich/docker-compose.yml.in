@@ -24,7 +24,6 @@ services:
       - /dev/dri:/dev/dri
     group_add:
      - "@RENDER_GID@"
-
     volumes:
       # Do not edit the next line. If you want to change the media storage location on your system, edit the value of UPLOAD_LOCATION in the .env file
       - ${UPLOAD_LOCATION}:/data
