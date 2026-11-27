@@ -207,7 +207,7 @@ service-phase: install-systemd enable-systemd deploy-unbound-config monitoring \
 			router-certs-deploy \
 			nas-caddy \
 			netbird-deploy \
-			immich-upgrade \
+			immich-deploy \
 			iscsi-game-drive
 service-phase: wg-network-phase
 
