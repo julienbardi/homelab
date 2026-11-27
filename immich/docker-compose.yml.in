@@ -23,7 +23,7 @@ services:
     devices:
       - /dev/dri:/dev/dri
     group_add:
-     - "${RENDER_GID}"
+     - "@RENDER_GID@"
 
     volumes:
       # Do not edit the next line. If you want to change the media storage location on your system, edit the value of UPLOAD_LOCATION in the .env file
@@ -53,7 +53,7 @@ services:
     devices:
       - /dev/dri:/dev/dri
     group_add:
-     - "${RENDER_GID}"
+     - "@RENDER_GID@"
     volumes:
       - model-cache:/cache
     env_file:
