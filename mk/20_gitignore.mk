@@ -28,7 +28,7 @@ lint-gitignore: $(GITIGNORE_CHECK_SCRIPT)
 # Repo-preflight (Optimized with conditional heavy scan & parallel checks)
 # ------------------------------------------------------------
 .PHONY: repo-preflight
-repo-preflight: $(RUNTIME_SCRIPTS)
+repo-preflight: $(RUNTIME_SCRIPTS) mcp-preflight
 	@if [ "$(VERBOSE)" -ge 1 ]; then echo "🚨 Running repo-preflight..."; fi; \
 	rc_secrets=0; rc_git=0; rc_lan=0; \
 	\
