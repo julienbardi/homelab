@@ -74,7 +74,6 @@ router-certs-prepare: install-all acme-issue-sync certs-create router-certs-depl
 			. /etc/homelab/acme-env.sh; \
 			set +a; \
 		fi; \
-		echo "📦 Preparing canonical certificate store at $(SSL_CANONICAL_DIR)"; \
 		$(run_as_root) env \
 			SSL_KEY_ECC="$(SSL_KEY_ECC)" \
 			SSL_CERT_ECC="$(SSL_CERT_ECC)" \
