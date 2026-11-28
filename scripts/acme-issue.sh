@@ -59,7 +59,9 @@ validate_cert() {
 	alg="$3"
 	prefix="$4"
 
-	echo "🔍 validating $cert"
+	if [ "${VERBOSE:-0}" -ge 1 ]; then
+		echo "🔍 validating $cert"
+	fi
 
 	[ -f "$cert" ] || {
 		echo "⚠️ missing certificate: $cert"
@@ -194,8 +196,6 @@ validate_cert() {
 	eval "${prefix}_DAYS=\"\$days_remaining\""
 	eval "${prefix}_FP=\"\$fingerprint\""
 
-	echo "✅ $prefix certificate valid"
-
 	return 0
 }
 
@@ -203,10 +203,17 @@ validate_cert() {
 # ACME bootstrap
 # ------------------------------------------------------------------
 
-"$ACME_HOME/acme.sh" \
-	--set-default-ca \
-	--server letsencrypt \
-	--home "$ACME_HOME"
+if [ "${VERBOSE:-0}" -ge 1 ]; then
+	"$ACME_HOME/acme.sh" \
+		--set-default-ca \
+		--server letsencrypt \
+		--home "$ACME_HOME"
+else
+	"$ACME_HOME/acme.sh" \
+		--set-default-ca \
+		--server letsencrypt \
+		--home "$ACME_HOME" >/dev/null 2>&1
+fi
 
 # ------------------------------------------------------------------
 # ECC
@@ -249,24 +256,23 @@ if ! validate_cert "$RSA_CERT" "$RSA_KEY" rsa RSA; then
 	validate_cert "$RSA_CERT" "$RSA_KEY" rsa RSA;
 fi
 
-echo "│"
-printf '│ ECC %-3s expires in %3s days  %s\n' \
-    "${ECC_STATUS:-FAIL}" \
-    "${ECC_DAYS:-0}" \
-    "${ECC_EXPIRY:-N/A}"
+printf '✅ ECC certificate valid (%s days remaining)\n' \
+ "${ECC_DAYS:-0}"
 
-printf '│ RSA %-3s expires in %3s days  %s\n' \
-    "${RSA_STATUS:-FAIL}" \
-    "${RSA_DAYS:-0}" \
-    "${RSA_EXPIRY:-N/A}"
-echo "│"
-echo "│ ECC issuer      ${ECC_ISSUER:-N/A}, ECC subject ${ECC_SUBJECT:-N/A}"
-echo "│ ECC SANs        ${ECC_SANS:-N/A}"
-echo "│ ECC fingerprint ${ECC_FP:-N/A}"
-echo "│"
-echo "│ RSA issuer      ${RSA_ISSUER:-N/A}, RSA subject ${RSA_SUBJECT:-N/A}"
-echo "│ RSA SANs        ${RSA_SANS:-N/A}"
-echo "│ RSA fingerprint ${RSA_FP:-N/A}"
+printf '✅ RSA certificate valid (%s days remaining)\n' \
+ "${RSA_DAYS:-0}"
 
-echo "│"
-echo "✅ ACME validation complete"
+if [ "${VERBOSE:-0}" -ge 1 ]; then
+	echo "│"
+	echo "│ ECC issuer ${ECC_ISSUER:-N/A}, ECC subject ${ECC_SUBJECT:-N/A}"
+	echo "│ ECC SANs ${ECC_SANS:-N/A}"
+	echo "│ ECC fingerprint ${ECC_FP:-N/A}"
+	echo "│"
+	echo "│ RSA issuer ${RSA_ISSUER:-N/A}, RSA subject ${RSA_SUBJECT:-N/A}"
+	echo "│ RSA SANs ${RSA_SANS:-N/A}"
+	echo "│ RSA fingerprint ${RSA_FP:-N/A}"
+fi
+
+if [ "${VERBOSE:-0}" -ge 1 ]; then
+	echo "✅ ACME validation complete"
+fi

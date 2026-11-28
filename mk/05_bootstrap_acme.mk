@@ -107,7 +107,9 @@ acme-install: acme-ensure-dirs
 			rm -f "$$TMP"; \
 		'; \
 	else \
-		echo "✅ acme.sh $$CURRENT_VER already installed (sudo-safe)."; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "✅ acme.sh $$CURRENT_VER already installed (sudo-safe)."; \
+		fi; \
 	fi
 
 
