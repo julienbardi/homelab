@@ -44,7 +44,7 @@ CHECKMAKE := $(INSTALL_PATH)/checkmake
 # ------------------------------------------------------------
 
 .PHONY: tools
-tools: require-awk
+tools: require-awk install-node24
 
 # ------------------------------------------------------------
 # System tool requirements
@@ -94,3 +94,18 @@ $(XCADDY): | $(run_as_root) $(INSTALL_FILE_IF_CHANGED)
 
 .PHONY: install-xcaddy
 install-xcaddy: $(XCADDY)
+
+.PHONY: install-node24
+install-node24:
+	@NODE_MAJOR="$$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"; \
+	if [ "$$NODE_MAJOR" -ge 24 ]; then \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "✅ Node.js $$(node --version) already satisfies MCP requirements"; \
+		fi; \
+		exit 0; \
+	fi; \
+	echo "📦 Installing Node.js 24..."; \
+	curl -fsSL https://deb.nodesource.com/setup_24.x | $(run_as_root) bash -; \
+	$(run_as_root) apt-get install -y nodejs; \
+	NEW_NODE="$$(command -v node)"; \
+	echo "✅ Node.js upgraded to $$NEW_NODE"

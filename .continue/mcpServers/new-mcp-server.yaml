@@ -1,10 +1,11 @@
-name: New MCP server
-version: 0.0.1
+name: Filesystem
+version: 1.0.0
 schema: v1
+
 mcpServers:
-  - name: New MCP server
+  - name: Filesystem
     command: npx
     args:
       - -y
-      - <your-mcp-server>
-    env: {}
+      - "@modelcontextprotocol/server-filesystem"
+      - "/tank/julie/src/homelab"
