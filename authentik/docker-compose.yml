@@ -28,7 +28,7 @@ services:
       - authentik
 
   server:
-    image: ghcr.io/goauthentik/server:2026.8.5
+    image: ghcr.io/goauthentik/server:2026.8.7
     container_name: authentik-server
     restart: unless-stopped
     command: server
