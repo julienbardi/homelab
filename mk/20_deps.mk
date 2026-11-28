@@ -441,7 +441,9 @@ remove-pkg-go:
 .PHONY: install-pkg-vnstat remove-pkg-vnstat
 install-pkg-vnstat: prereqs-ok ensure-host-default-route
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ install-pkg-vnstat: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ install-pkg-vnstat: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		fi; \
 		exit 0; \
 	fi; \
 	$(call verbose_echo,ℹ️ vnstat already ensured by core apt group); \
