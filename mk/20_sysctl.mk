@@ -36,11 +36,13 @@ endef
 
 define set_ipv6_token
 { \
-	echo " Checking IPv6 ULA address convergence ($(NAS_LAN_IP6))..."; \
+	if [ "$(VERBOSE)" -ge 1 ]; then \
+		echo "🔍 Checking IPv6 ULA address convergence ($(NAS_LAN_IP6))..."; \
+	fi; \
 	for iface in $(NAS_LAN_IFACE); do \
 		if [ -d "/sys/class/net/$$iface" ]; then \
 			if ip -6 addr show dev $$iface scope global | grep -q " $(NAS_LAN_IP6)/"; then \
-				if [ "$(VERBOSE)" -ge 1 ]; then
+				if [ "$(VERBOSE)" -ge 1 ]; then \
 					echo "✅ $$iface: ULA IPv6 address already converged to $(NAS_LAN_IP6)."; \
 				fi; \
 			else \
