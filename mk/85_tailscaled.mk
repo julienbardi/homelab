@@ -64,7 +64,9 @@ tailscaled-check-deps:
 # --------------------------------------------------------------------
 tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ tailscaled-lan: USE_TAILSCALED=$(USE_TAILSCALED); skipping LAN enrollment"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ tailscaled-lan: USE_TAILSCALED=$(USE_TAILSCALED); skipping LAN enrollment"; \
+		fi; \
 		exit 0; \
 	fi; \
 	echo "🔑 Enrolling LAN client (bardi-lan / lan)"; \
@@ -96,7 +98,9 @@ tailscaled-lan: tailscaled-check-deps net-tunnel-preflight firewall-nas
 # --------------------------------------------------------------------
 tailscaled-wan: tailscaled-check-deps
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ tailscaled-wan: USE_TAILSCALED=$(USE_TAILSCALED); skipping WAN enrollment"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ tailscaled-wan: USE_TAILSCALED=$(USE_TAILSCALED); skipping WAN enrollment"; \
+		fi; \
 		exit 0; \
 	fi; \
 	echo "🔑 Enrolling WAN client (bardi-wan / wan)"; \
@@ -118,9 +122,11 @@ tailscaled-wan: tailscaled-check-deps
 # --------------------------------------------------------------------
 enable-tailscaled:
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-        echo "ℹ️ enable-tailscaled: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
-        exit 0; \
-    fi; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ enable-tailscaled: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		fi; \
+		exit 0; \
+	fi; \
 	echo "🔧 Installing systemd role units"; \
 	$(run_as_root) install -o $(ROOT_UID) -g $(ROOT_GID) -m 644 \
 		$(SYSTEMD_SRC_DIR)/tailscaled-lan.service \
@@ -134,7 +140,9 @@ enable-tailscaled:
 # --------------------------------------------------------------------
 start-tailscaled:
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ start-tailscaled: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ start-tailscaled: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		fi; \
 		exit 0; \
 	fi; \
 	$(run_as_root) systemctl start tailscaled tailscaled-lan.service; \
@@ -142,7 +150,9 @@ start-tailscaled:
 
 stop-tailscaled:
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ stop-tailscaled: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ stop-tailscaled: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		fi; \
 		exit 0; \
 	fi; \
 	$(run_as_root) systemctl stop tailscaled tailscaled-lan.service; \
@@ -153,7 +163,9 @@ stop-tailscaled:
 # --------------------------------------------------------------------
 tailscaled-status: install-pkg-vnstat
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ tailscaled-status: USE_TAILSCALED=$(USE_TAILSCALED); skipping status check"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ tailscaled-status: USE_TAILSCALED=$(USE_TAILSCALED); skipping status check"; \
+		fi; \
 		exit 0; \
 	fi; \
 	echo "🔍 tailscaled health + stats"; \
@@ -170,7 +182,9 @@ tailscaled-status: install-pkg-vnstat
 
 tailscaled-logs:
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ tailscaled-logs: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ tailscaled-logs: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		fi; \
 		exit 0; \
 	fi; \
 	echo "📜 Tailing logs (Ctrl-C to exit)"; \
@@ -179,7 +193,9 @@ tailscaled-logs:
 
 tailscale-check:
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ tailscale-check: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ tailscale-check: USE_TAILSCALED=$(USE_TAILSCALED); skipping"; \
+		fi; \
 		exit 0; \
 	fi; \
 	echo "🔍 Checking Tailscale versions"; \
@@ -206,7 +222,9 @@ USE_TAILSCALED ?= 1
 .PHONY: net-tunnel-preflight
 net-tunnel-preflight:
 	@if [ "$(USE_TAILSCALED)" != "1" ]; then \
-		echo "ℹ️ net-tunnel-preflight: tailscaled disabled (USE_TAILSCALED=$(USE_TAILSCALED)); skipping tailscaled checks"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "ℹ️ net-tunnel-preflight: tailscaled disabled (USE_TAILSCALED=$(USE_TAILSCALED)); skipping tailscaled checks"; \
+		fi; \
 		exit 0; \
 	fi; \
 	set -euo pipefail; \
