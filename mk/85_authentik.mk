@@ -25,3 +25,31 @@ authentik-restart:
 
 authentik-logs:
 	$(COMPOSE_AUTHENTIK) logs -f
+
+.PHONY: authentik-version
+authentik-version:
+	@grep -n 'ghcr.io/goauthentik/server:' $(AUTHENTIK_COMPOSE_FILE)
+
+.PHONY: authentik-version-check
+authentik-version-check:
+	@echo "Configured:"
+	@grep -oE 'ghcr.io/goauthentik/server:[^ ]+' $(AUTHENTIK_COMPOSE_FILE)
+	@echo
+	@echo "Latest:"
+	@curl -fsSL https://api.github.com/repos/goauthentik/authentik/releases/latest \
+	| jq -r .tag_name
+
+.PHONY: authentik-upgrade-check
+authentik-upgrade-check:
+	@CURRENT=$$(grep -oE 'ghcr.io/goauthentik/server:[^ ]+' $(AUTHENTIK_COMPOSE_FILE) | head -1 | cut -d: -f2-); \
+	LATEST=$$(curl -fsSL https://api.github.com/repos/goauthentik/authentik/releases/latest | jq -r .tag_name | sed 's|^version/||'); \
+	echo "Current: $$CURRENT"; \
+	echo "Latest : $$LATEST"; \
+	if [ "$$CURRENT" = "$$LATEST" ]; then \
+		echo "✅ Authentik is up to date"; \
+	else \
+		echo "⚠️  Upgrade available"; \
+		echo "Edit: $(AUTHENTIK_COMPOSE_FILE)"; \
+		echo "Replace: $$CURRENT"; \
+		echo "With:    $$LATEST"; \
+	fi
