@@ -56,7 +56,9 @@ router-lan-domain: | router-ssh-check secret-vars-check
 	fi; \
 	cur_lan_domain="$$( ssh "$(SSH_HOST_ROUTER)" "nvram get lan_domain 2>/dev/null || true" )"; \
 	if [ "$$cur_lan_domain" = "$$LAN_DOMAIN" ]; then \
-		test -n "$(VERBOSE)" || echo "🌐 LAN domain already converged ('$$LAN_DOMAIN')"; \
+		if [ "$(VERBOSE)" -ge 1 ]; then \
+			echo "🌐 LAN domain already converged ('$$LAN_DOMAIN')"; \
+		fi; \
 		exit 0; \
 	fi; \
 	ssh "$(SSH_HOST_ROUTER)" "\
