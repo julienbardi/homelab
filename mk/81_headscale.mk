@@ -199,7 +199,8 @@ headscale-restart: headscale-user headscale-dirs
 		$(run_as_root) systemctl restart headscale; \
 		rm -f "$(HEADSCALE_CHANGED_STAMP)"; \
 	else \
-		echo "⏩ Headscale already converged"; \
+		[ "$(VERBOSE)" -lt 1 ] || \
+			echo "⏩ Headscale already converged"; \
 	fi
 
 # --------------------------------------------------------------------

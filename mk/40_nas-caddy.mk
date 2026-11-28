@@ -179,7 +179,8 @@ nas-caddy: \
 		$(run_as_root) systemctl restart caddy; \
 		echo "✅ Restarted successfully"; \
 	else \
-		echo "⏩ Caddy already converged"; \
+		[ "$(VERBOSE)" -lt 1 ] || \
+			echo "⏩ Caddy already converged"; \
 	fi
 
 .PHONY: nas-caddy-validate nas-caddy-fmt

@@ -40,7 +40,9 @@ define set_ipv6_token
 	for iface in $(NAS_LAN_IFACE); do \
 		if [ -d "/sys/class/net/$$iface" ]; then \
 			if ip -6 addr show dev $$iface scope global | grep -q " $(NAS_LAN_IP6)/"; then \
-				echo "✅ $$iface: ULA IPv6 address already converged to $(NAS_LAN_IP6)."; \
+				if [ "$(VERBOSE)" -ge 1 ]; then
+					echo "✅ $$iface: ULA IPv6 address already converged to $(NAS_LAN_IP6)."; \
+				fi; \
 			else \
 				echo "🔄 $$iface: ULA IPv6 not found. Adding $(NAS_LAN_IP6)..."; \
 				$(run_as_root) ip -6 addr add $(NAS_LAN_IP6)/64 dev $$iface 2>/dev/null || true; \

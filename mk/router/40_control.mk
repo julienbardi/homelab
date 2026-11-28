@@ -26,7 +26,9 @@ router-disable-asus-ca: secrets-ready
 				nvram commit; \
 				echo "✅ ASUS internal CA disabled"; \
 			else \
-				echo "ℹ️ ASUS internal CA already converged"; \
+				if [ "$(VERBOSE)" -ge 1 ]; then
+					echo "ℹ️ ASUS internal CA already converged"; \
+				fi; \
 			fi \
 	')
 
